@@ -25,7 +25,16 @@ if (settings.diagnosticLogging) {
 }
 
 let refreshing = false;
-if (!safeMode && "serviceWorker" in navigator) navigator.serviceWorker.addEventListener("controllerchange", () => { if (refreshing) return; refreshing = true; window.location.reload(); });
+let controlledAtBoot = "serviceWorker" in navigator && Boolean(navigator.serviceWorker.controller);
+if (!safeMode && "serviceWorker" in navigator) navigator.serviceWorker.addEventListener("controllerchange", () => {
+  // clients.claim() also emits controllerchange on a first install. The current
+  // page already loaded the matching release, so reloading here only interrupts
+  // startup work. Reload when an already-controlled client changes releases.
+  if (!controlledAtBoot) { controlledAtBoot = true; return; }
+  if (refreshing) return;
+  refreshing = true;
+  window.location.reload();
+});
 if (!safeMode) void registerAppServiceWorker().catch((reason) => { if (settings.diagnosticLogging) void recordDiagnosticError(reason, { area: "service-worker", operation: "register", severity: "warning", recoverable: true }); });
 
 const root = document.getElementById("root");

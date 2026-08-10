@@ -2921,11 +2921,11 @@ pre {
 
 :root[data-motion="reduced"] *,
 :root[data-motion="reduced"] *::before,
-:root[data-motion="reduced"] *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+:root[data-motion="reduced"] *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; }
 @media (prefers-reduced-motion: reduce) {
   :root[data-motion="system"] *,
   :root[data-motion="system"] *::before,
-  :root[data-motion="system"] *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  :root[data-motion="system"] *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; }
 }
 
 :root[data-theme="dark"] .warning-panel { color: #f2d598; background: #2c2519; border-color: #765b2b; }
