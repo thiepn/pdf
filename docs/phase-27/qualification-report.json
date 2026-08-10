@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "version": "5.7.0-phase27",
+  "scope": "real-build-and-ci-qualification",
+  "localEvidence": {
+    "phase11Runtime": "15/15",
+    "externalReaderCorpus": "11/11",
+    "phase16": "4/4",
+    "phase17": "10/10",
+    "phase18": "23/23",
+    "phase19": "21/21",
+    "phase20": "20/20",
+    "phase21": "19/19",
+    "phase22": "6/6",
+    "phase23": "8/8",
+    "phase24": "12/12",
+    "phase25": "12/12",
+    "phase26": "12/12",
+    "phase27": "17/17",
+    "pagesReadiness": "27 pass / 0 fail / 1 expected lock warning",
+    "sourceAudit": "190 source files / 566 imports / 0 failures / 1 lock warning",
+    "typescriptParser": "236/236",
+    "workflowYaml": "4/4"
+  },
+  "officialQualification": {
+    "packageLockCommitted": false,
+    "npmCi": "pending GitHub-hosted lock bootstrap",
+    "typescript": "pending lockfile-derived official toolchain",
+    "vitest": "pending lockfile-derived official toolchain",
+    "viteBuild": "pending lockfile-derived official toolchain",
+    "reproducibleDist": "implemented in CI; pending execution",
+    "playwrightChromium": "pending",
+    "playwrightFirefox": "pending",
+    "playwrightWebKit": "pending",
+    "playwrightPhoneChromium": "pending",
+    "playwrightTabletWebKit": "pending",
+    "githubPagesLiveSmoke": "pending"
+  },
+  "promotionRule": "Do not promote to stable until every officialQualification item passes from the committed exact package-lock.json on GitHub-hosted runners."
+}

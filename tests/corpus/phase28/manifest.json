@@ -1,0 +1,670 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "PDF Studio Phase 28",
+  "files": [
+    {
+      "filename": "annotation-variants.pdf",
+      "byteLength": 2904,
+      "sha256": "777017d52f97be42e223c3548979522337bdbd10fdecab64e061c8c0b85e0fa1",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ANNOTATION_VARIANTS"
+        ],
+        "annotations_min": 5
+      }
+    },
+    {
+      "filename": "blank-page.pdf",
+      "byteLength": 460,
+      "sha256": "6897ee597e485eb09be42ea916bb93f5d24f26d1fe377f4573c73385d7276610",
+      "expect": {
+        "pages": 1,
+        "text_length_max": 1
+      }
+    },
+    {
+      "filename": "cjk-mixed.pdf",
+      "byteLength": 2825,
+      "sha256": "6ebd554e5fb6de43f1626f82c35584c0d30525310aabbd7b8e98f62677d4e4ec",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "CJK_ASCII_MARKER"
+        ]
+      }
+    },
+    {
+      "filename": "cropbox-inset.pdf",
+      "byteLength": 795,
+      "sha256": "72ef1972e184d37b3a06cb817a4517fbeed8aa0291250f22850c1cb8fd3e16f5",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "CROPBOX_MARKER"
+        ],
+        "cropbox_inset": true
+      }
+    },
+    {
+      "filename": "dense-text-01.pdf",
+      "byteLength": 10029,
+      "sha256": "588a9d127b4e26ba033efa87dc0998c827a85aff6960347cd228bd73de4bfd5b",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "DENSE_TEXT_01_01",
+          "DENSE_TEXT_01_44"
+        ]
+      }
+    },
+    {
+      "filename": "dense-text-02.pdf",
+      "byteLength": 10019,
+      "sha256": "5d02951a9ae2425ffb1e649badea4d5a45029b86013da94d284e8f2d5a189eb1",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "DENSE_TEXT_02_01",
+          "DENSE_TEXT_02_44"
+        ]
+      }
+    },
+    {
+      "filename": "dense-text-03.pdf",
+      "byteLength": 10025,
+      "sha256": "39979757d9961c70474705992896674630f76877eb01601e158ddb0eb9c33afd",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "DENSE_TEXT_03_01",
+          "DENSE_TEXT_03_44"
+        ]
+      }
+    },
+    {
+      "filename": "dense-text-04.pdf",
+      "byteLength": 10014,
+      "sha256": "7935b34efb2c3e044a1723235533a71b034d153a0421a008e39e76f5a8608c83",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "DENSE_TEXT_04_01",
+          "DENSE_TEXT_04_44"
+        ]
+      }
+    },
+    {
+      "filename": "dense-text-05.pdf",
+      "byteLength": 10060,
+      "sha256": "c05341516132f9d3ea06c6473b10acb1df7464011d4fda7f444d361ae5af0a96",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "DENSE_TEXT_05_01",
+          "DENSE_TEXT_05_44"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-01.pdf",
+      "byteLength": 775,
+      "sha256": "aedf551e041dba957d18df77b2bd6fa1fa2fbeb8dd16eb9723842089cbd1df56",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_01"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-02.pdf",
+      "byteLength": 776,
+      "sha256": "338ba42da54c1d0a9d18a1ba39e79c6577b51c5583984a08ced34a779426103d",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_02"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-03.pdf",
+      "byteLength": 798,
+      "sha256": "02398508936575fddfcc74be931c090a3180046018fbfa7ce9009e6c8a3cfb51",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_03"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-04.pdf",
+      "byteLength": 1293,
+      "sha256": "5a77c4a9a86376d3ece80b8370ba07992a1389089c535b3ff95e9fd74b0130dc",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_04"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-05.pdf",
+      "byteLength": 930,
+      "sha256": "ecf09ef14fc10dbf1a7535a683193b7eb68de2d298fb2cedb38aba116a6bfacb",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_05"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-06.pdf",
+      "byteLength": 798,
+      "sha256": "683d6f1d97df51b2f33994d47fd27a3fdcfe7c0dc129beb220bbf78193da7e9c",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_06"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-07.pdf",
+      "byteLength": 775,
+      "sha256": "9ba9a7abc16dd9a4a6323782c17c521a97f342569c23ab61d8c8263cc052a354",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_07"
+        ]
+      }
+    },
+    {
+      "filename": "edge-variant-08.pdf",
+      "byteLength": 1293,
+      "sha256": "3443d47f6cf72d9b3de388aba9b524d4204bc40ea1804bf23f06f6479186fb9d",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "EDGE_VARIANT_08"
+        ]
+      }
+    },
+    {
+      "filename": "embedded-attachment.pdf",
+      "byteLength": 1158,
+      "sha256": "e26bf76b168400200159596066a108179d9f324832295134cd3e4ce35308d2bf",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ATTACHMENTS_MARKER"
+        ],
+        "attachments_min": 1
+      }
+    },
+    {
+      "filename": "encrypted-aes128.pdf",
+      "byteLength": 1095,
+      "sha256": "0df8075110740c40c080abfc1a6b09704ba0e317d6384aa2696da99300428257",
+      "expect": {
+        "pages": 1,
+        "encrypted": true,
+        "password": "phase28-user",
+        "text": [
+          "ENCRYPTED_AES128"
+        ]
+      }
+    },
+    {
+      "filename": "encrypted-aes256.pdf",
+      "byteLength": 1337,
+      "sha256": "8bda4c2af9f65688b96de9f7e1731993eb35bef99916643813c20fe129f5a7f6",
+      "expect": {
+        "pages": 1,
+        "encrypted": true,
+        "password": "phase28-user",
+        "text": [
+          "ENCRYPTED_AES256"
+        ]
+      }
+    },
+    {
+      "filename": "external-links.pdf",
+      "byteLength": 1076,
+      "sha256": "0adde00aa3c1e5fc6a20912c5c0d09c91bf4daccee00bb5767853a406dc7f65f",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "LINK_VARIANTS"
+        ],
+        "links_min": 2
+      }
+    },
+    {
+      "filename": "forms-20-fields.pdf",
+      "byteLength": 10511,
+      "sha256": "fe70ffa94fbb5fc7028b3727b12f7aab0f7add98294eaa0ee675f42776fc5381",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "MANY_FORMS"
+        ],
+        "form_fields_min": 20
+      }
+    },
+    {
+      "filename": "forms-matrix.pdf",
+      "byteLength": 3025,
+      "sha256": "498a28a407bce698c51cc3b6da01d38f4beacc7cb309d9577bfacad4bbf2a5f6",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "FORM_MATRIX"
+        ],
+        "form_fields_min": 4
+      }
+    },
+    {
+      "filename": "huge-page.pdf",
+      "byteLength": 919,
+      "sha256": "cc3a2e6e8ebd612cd5ebb6c90593362b028c48238549b06b6528784a60467940",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "HUGE_PAGE"
+        ],
+        "rotations": [
+          0
+        ]
+      }
+    },
+    {
+      "filename": "image-single.pdf",
+      "byteLength": 36522,
+      "sha256": "0ed8aa205b52e16ee6c196ed775d3714d208b4de78c8678cad7d78cb3ae88273",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "IMAGE_SINGLE"
+        ],
+        "images_min": 1
+      }
+    },
+    {
+      "filename": "images-12.pdf",
+      "byteLength": 38297,
+      "sha256": "713d373de9c55334a7b207b861a968064a30504c9dc13ae7a4ad27f3782486ba",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "IMAGE_MANY"
+        ],
+        "images_min": 12
+      }
+    },
+    {
+      "filename": "incremental-three-revisions.pdf",
+      "byteLength": 1585,
+      "sha256": "c5c67d066739a27bcbc5df8c2477e5bcfd00bca7cb9d9de674442af8bb50658e",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "INCR_REV_1",
+          "INCR_REV_2",
+          "INCR_REV_3"
+        ],
+        "incremental": true
+      }
+    },
+    {
+      "filename": "internal-links.pdf",
+      "byteLength": 1555,
+      "sha256": "a701bc0fbb4f860643b98cd3cd842a92d6d7316567d1cb52cdab3632b9f766c0",
+      "expect": {
+        "pages": 3,
+        "text": [
+          "INTERNAL_LINK_PAGE_1",
+          "INTERNAL_LINK_PAGE_3"
+        ],
+        "links_min": 1
+      }
+    },
+    {
+      "filename": "landscape-letter.pdf",
+      "byteLength": 933,
+      "sha256": "db1e94dbe84400702d8921b4710c116cfdad311e8d059793a0596a44237bd241",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "LANDSCAPE_LETTER"
+        ],
+        "rotations": [
+          0
+        ]
+      }
+    },
+    {
+      "filename": "malformed-garbage-prefix.pdf",
+      "byteLength": 1384,
+      "sha256": "dd11d5cb2dad7db66fdb6e53b7df26beee14c87a199be8b4e0697ff3af7f91bb",
+      "expect": {
+        "malformed": true,
+        "may_recover": true
+      }
+    },
+    {
+      "filename": "malformed-garbage-suffix.pdf",
+      "byteLength": 1384,
+      "sha256": "2a8d057b919f1fb82799f7e291dca1ade304059ee5d1d49fad3c84bb2f51a23b",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ASCII_LATIN_FONT_MATRIX"
+        ],
+        "may_recover": true
+      }
+    },
+    {
+      "filename": "malformed-truncated-1.pdf",
+      "byteLength": 64,
+      "sha256": "33510301625ab03ffd31420e7355e1b48824b2680b9583ca80f00cfe4a68ab39",
+      "expect": {
+        "malformed": true
+      }
+    },
+    {
+      "filename": "malformed-truncated-2.pdf",
+      "byteLength": 128,
+      "sha256": "39198e4f5674378dbaa3ce91ae78235251a51552a4dbf21db0ecf829a6a91ed0",
+      "expect": {
+        "malformed": true
+      }
+    },
+    {
+      "filename": "malformed-truncated-3.pdf",
+      "byteLength": 341,
+      "sha256": "796d69d1113e4c50dc9ae6c5b1b015ac30d8ef252c84c7e0401d916ca732b851",
+      "expect": {
+        "malformed": true
+      }
+    },
+    {
+      "filename": "malformed-truncated-4.pdf",
+      "byteLength": 683,
+      "sha256": "d9f0ced76c0137fba356190e193e13bac8cf70605b98344ef0e1b51a84bc5329",
+      "expect": {
+        "malformed": true
+      }
+    },
+    {
+      "filename": "mixed-page-sizes.pdf",
+      "byteLength": 1975,
+      "sha256": "59b6040f9fbd8db9af2de47ecfc9e5a499eb7581a5998d7a77beb2c9ad9602d0",
+      "expect": {
+        "pages": 5,
+        "text": [
+          "MIXED_SIZE_1",
+          "MIXED_SIZE_5"
+        ],
+        "mixed_sizes": true
+      }
+    },
+    {
+      "filename": "nested-bookmarks.pdf",
+      "byteLength": 2746,
+      "sha256": "6b6f4d6a093f82b27a2f79c800251bde1010ba285f03a9526a1cab04af898a58",
+      "expect": {
+        "pages": 5,
+        "text": [
+          "BOOKMARK_PAGE_1",
+          "BOOKMARK_PAGE_5"
+        ],
+        "bookmarks_min": 5
+      }
+    },
+    {
+      "filename": "nonzero-mediabox-origin.pdf",
+      "byteLength": 787,
+      "sha256": "dd6d8b5d656552d62572251128b2db2231e2e7e79ebec578d713c6fc03a9e6e7",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "NONZERO_MEDIABOX_ORIGIN"
+        ]
+      }
+    },
+    {
+      "filename": "optional-content.pdf",
+      "byteLength": 1211,
+      "sha256": "cef3b87bfdd0cc446f19a8d042f0e00632eb8f91d63734da6af203a2ce026a72",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "OPTIONAL_CONTENT_MARKER",
+          "LAYER_TEXT"
+        ]
+      }
+    },
+    {
+      "filename": "page-labels.pdf",
+      "byteLength": 1706,
+      "sha256": "1dcd9642b996fd84e8ea4a8e9d5bbfe591323dc6a48e40f29e9fb7083a162b6a",
+      "expect": {
+        "pages": 4,
+        "text": [
+          "PAGE_LABEL_1",
+          "PAGE_LABEL_4"
+        ]
+      }
+    },
+    {
+      "filename": "pages-1000.pdf",
+      "byteLength": 309656,
+      "sha256": "be657cde8c1e9a0bd68af11b932b0f880287105d3b78ec68f65312dc70f7ee60",
+      "expect": {
+        "pages": 1000,
+        "text": [
+          "PAGES_1000_0001",
+          "PAGES_1000_1000"
+        ]
+      }
+    },
+    {
+      "filename": "pages-300.pdf",
+      "byteLength": 92640,
+      "sha256": "9b6033029ff20446f4f2b230b1584ea53b68e2877ee3ee4327a2065bbbffbb0d",
+      "expect": {
+        "pages": 300,
+        "text": [
+          "PAGES_300_0001",
+          "PAGES_300_0300"
+        ]
+      }
+    },
+    {
+      "filename": "pages-50.pdf",
+      "byteLength": 15509,
+      "sha256": "4ae106e8c29f74a33c8879f50a78bf916b35908a48fcfa15ee86c4bf30a6f2fb",
+      "expect": {
+        "pages": 50,
+        "text": [
+          "PAGES_50_0001",
+          "PAGES_50_0050"
+        ]
+      }
+    },
+    {
+      "filename": "redaction-after.pdf",
+      "byteLength": 882,
+      "sha256": "2b34d8047e5c7295b8fd7448c989cde519b95c9687da91d382f5b3286d440e9d",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "REDACTION_PUBLIC"
+        ],
+        "text_absent": [
+          "REDACTION_SECRET_928"
+        ]
+      }
+    },
+    {
+      "filename": "redaction-before.pdf",
+      "byteLength": 956,
+      "sha256": "dc265c44c63191739c31bcc70ebcea4fb4bddfea2b12a87706c2c2ce3bacc7bc",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "REDACTION_SECRET_928",
+          "REDACTION_PUBLIC"
+        ]
+      }
+    },
+    {
+      "filename": "rotation-0.pdf",
+      "byteLength": 927,
+      "sha256": "66da7d075f9608ac09c6ca6da28094f4b4309df4763de97a47e8c1008b29e927",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ROTATION_0"
+        ],
+        "rotations": [
+          0
+        ]
+      }
+    },
+    {
+      "filename": "rotation-180.pdf",
+      "byteLength": 932,
+      "sha256": "871ce5bd35c46c9c3769249a97757555e47c9eeb5164d6cdb36f8685e9ace5f4",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ROTATION_180"
+        ],
+        "rotations": [
+          180
+        ]
+      }
+    },
+    {
+      "filename": "rotation-270.pdf",
+      "byteLength": 932,
+      "sha256": "d5b74c6fad0449912eb26978866877667a5812cd7df157a15dcf1ba44c0810c8",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ROTATION_270"
+        ],
+        "rotations": [
+          270
+        ]
+      }
+    },
+    {
+      "filename": "rotation-90.pdf",
+      "byteLength": 930,
+      "sha256": "531f2f8d66943fafd2933bb7b00b1360d43c18c1811babe1d8e3753fd63e3324",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ROTATION_90"
+        ],
+        "rotations": [
+          90
+        ]
+      }
+    },
+    {
+      "filename": "rtl-arabic.pdf",
+      "byteLength": 98353,
+      "sha256": "bd14cccd5ecb21ac538ec0e6f52f875e1898ba9d37c0671ccfe6047cd41b75a8",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "RTL_ASCII_MARKER"
+        ]
+      }
+    },
+    {
+      "filename": "square-page.pdf",
+      "byteLength": 921,
+      "sha256": "39c952e933483e54d29456191e793ee6b9485e74da03f3135327ec5a0bac13a4",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "SQUARE_PAGE"
+        ],
+        "rotations": [
+          0
+        ]
+      }
+    },
+    {
+      "filename": "standard-fonts.pdf",
+      "byteLength": 1367,
+      "sha256": "99f75e8d2985850bd391f599ead12b5b8e77d17c0aa1eddb1485cfaf9202d266",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ASCII_LATIN_FONT_MATRIX",
+          "SERIF_MARKER",
+          "MONO_MARKER"
+        ]
+      }
+    },
+    {
+      "filename": "tiny-page.pdf",
+      "byteLength": 764,
+      "sha256": "70a68ee38e48a005fa7355f5601382f769abfe2ec5e29493290afc4e01930589",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "TINY_PAGE"
+        ],
+        "rotations": [
+          0
+        ]
+      }
+    },
+    {
+      "filename": "transparency.pdf",
+      "byteLength": 1132,
+      "sha256": "d1dfde756cc1cafbd5a7d0cf24b770b68a51fe542114fdf3bbcaccc095c77dae",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "TRANSPARENCY_MARKER"
+        ]
+      }
+    },
+    {
+      "filename": "unicode-metadata.pdf",
+      "byteLength": 1066,
+      "sha256": "d427c7e6341106768bd77348647c5324ccfaca07bbd7c7edcf2360e5995a7e01",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "UNICODE_METADATA_MARKER"
+        ],
+        "metadata_contains": "한국어"
+      }
+    },
+    {
+      "filename": "vector-dense.pdf",
+      "byteLength": 18890,
+      "sha256": "47df42e5592e1caf00c721060e0a6472291f90addde1f034aaa8ab9395ef912e",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "VECTOR_DENSE"
+        ],
+        "drawings_min": 100
+      }
+    }
+  ]
+}

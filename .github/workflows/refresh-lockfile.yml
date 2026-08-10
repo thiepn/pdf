@@ -1,0 +1,56 @@
+name: Bootstrap dependency lock
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: 22.16.0
+  NPM_VERSION: 10.9.2
+  LOCK_BRANCH: v606-dependency-lock
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Pin npm toolchain
+        run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
+      - name: Resolve exact pinned graph
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Audit generated lockfile
+        run: npm run audit:lockfile && npm run audit:toolchain
+      - name: Verify lock with clean install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify installed dependency tree
+        run: npm run audit:tree
+      - name: Commit lockfile to review branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$LOCK_BRANCH"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "package-lock.json is already current."
+            exit 0
+          fi
+          git commit -m "chore: lock v6.1.0 dependencies"
+          git push --force-with-lease origin "$LOCK_BRANCH"
+          gh pr create --base main --head "$LOCK_BRANCH" --title "chore: lock v6.1.0 dependencies" --body "Generated from the exact pinned v6.1.0 package.json on a GitHub-hosted runner using Node ${NODE_VERSION} and npm ${NPM_VERSION}. Merge this PR before treating the web build as release-qualified." || true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: v606-package-lock
+          path: package-lock.json

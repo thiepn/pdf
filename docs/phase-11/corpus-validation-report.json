@@ -1,0 +1,825 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "corpusFiles": 11,
+  "engines": {
+    "PyMuPDF": "PyMuPDF 1.26.7: Python bindings for the MuPDF 1.26.12 library (rebased implementation).",
+    "pypdf": "5.9.0"
+  },
+  "results": [
+    {
+      "filename": "annotations.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ANNOTATION_TARGET_TEXT",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "annotations",
+              "passed": true,
+              "detail": 4
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 23,
+          "annotations": 4,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 5.38
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ANNOTATION_TARGET_TEXT",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 22,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 0.74
+        }
+      ]
+    },
+    {
+      "filename": "encrypted-aes256.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "authenticate",
+              "passed": true
+            },
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ENCRYPTED_FIXTURE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "encrypted",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 18,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": true,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": "Standard V5 R6 256-bit AES"
+          },
+          "durationMs": 44.05
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "authenticate",
+              "passed": true
+            },
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ENCRYPTED_FIXTURE",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 17,
+          "encrypted": true,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 7.32
+        }
+      ]
+    },
+    {
+      "filename": "forms.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:FORM_FIXTURE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "form-fields",
+              "passed": true,
+              "detail": 3
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 36,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 3,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 2.23
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:FORM_FIXTURE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "form-fields",
+              "passed": true,
+              "detail": 3
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 12,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 3,
+          "durationMs": 1.12
+        }
+      ]
+    },
+    {
+      "filename": "incremental-history.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:INCREMENTAL_REVISION_ONE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INCREMENTAL_REVISION_TWO",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 50,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 0.92
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:INCREMENTAL_REVISION_ONE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INCREMENTAL_REVISION_TWO",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 49,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 0.59
+        }
+      ]
+    },
+    {
+      "filename": "large-200-pages.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 200
+            },
+            {
+              "name": "text:LARGE_DOCUMENT_PAGE_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:LARGE_DOCUMENT_PAGE_0200",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 200,
+          "textLength": 151779,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 74.59
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 200
+            },
+            {
+              "name": "text:LARGE_DOCUMENT_PAGE_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:LARGE_DOCUMENT_PAGE_0200",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 200,
+          "textLength": 151579,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 382.71
+        }
+      ]
+    },
+    {
+      "filename": "malformed-truncated.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "malformed-rejected",
+              "passed": true,
+              "detail": "Failed to open file '/mnt/data/local-pdf-studio-v6.1.0-src/local-pdf-studio-v6.0.6/tests/corpus/generated/malformed-truncated.pdf'."
+            }
+          ],
+          "durationMs": 0.34
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "malformed-rejected",
+              "passed": true,
+              "detail": "Stream has ended unexpectedly"
+            }
+          ],
+          "durationMs": 0.2
+        }
+      ]
+    },
+    {
+      "filename": "mixed-pages.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 4
+            },
+            {
+              "name": "text:A4_PORTRAIT",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:SQUARE_ROTATED",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 4,
+          "textLength": 58,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 1.57
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 4
+            },
+            {
+              "name": "text:A4_PORTRAIT",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:SQUARE_ROTATED",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 4,
+          "textLength": 54,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 1.18
+        }
+      ]
+    },
+    {
+      "filename": "plain-text.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 3
+            },
+            {
+              "name": "text:PLAIN_PAGE_1_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PLAIN_PAGE_3_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "links",
+              "passed": true,
+              "detail": 3
+            },
+            {
+              "name": "bookmarks",
+              "passed": true,
+              "detail": 3
+            }
+          ],
+          "pageCount": 3,
+          "textLength": 335,
+          "annotations": 0,
+          "links": 3,
+          "formFields": 0,
+          "bookmarks": 3,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "Phase 11 plain text",
+            "author": "Local PDF Studio",
+            "subject": "Deterministic validation fixture",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 1.64
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 3
+            },
+            {
+              "name": "text:PLAIN_PAGE_1_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PLAIN_PAGE_3_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "bookmarks",
+              "passed": true,
+              "detail": 3
+            }
+          ],
+          "pageCount": 3,
+          "textLength": 332,
+          "encrypted": false,
+          "bookmarks": 3,
+          "formFields": 0,
+          "durationMs": 1.91
+        }
+      ]
+    },
+    {
+      "filename": "redaction-applied.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:PUBLIC_TEXT",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text-absent:SECRET_ALPHA_491",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text-absent:SECRET_BETA_827",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "metadata-absent",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 12,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "Redacted fixture",
+            "author": "Phase 11",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 0.91
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:PUBLIC_TEXT",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text-absent:SECRET_ALPHA_491",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text-absent:SECRET_BETA_827",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 11,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 0.53
+        }
+      ]
+    },
+    {
+      "filename": "redaction-source.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:SECRET_ALPHA_491",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:SECRET_BETA_827",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "metadata-contains",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 45,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "SECRET_METADATA_GAMMA_163",
+            "author": "Phase 11",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 0.91
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:SECRET_ALPHA_491",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:SECRET_BETA_827",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 44,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 0.57
+        }
+      ]
+    },
+    {
+      "filename": "unicode.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:English: searchable Unicode fixture",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 98,
+          "annotations": 0,
+          "links": 0,
+          "formFields": 0,
+          "bookmarks": 0,
+          "encrypted": false,
+          "metadata": {
+            "format": "PDF 1.7",
+            "title": "",
+            "author": "",
+            "subject": "",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "",
+            "modDate": "",
+            "trapped": "",
+            "encryption": null
+          },
+          "durationMs": 3.09
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "page-count",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:English: searchable Unicode fixture",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "pageCount": 1,
+          "textLength": 119,
+          "encrypted": false,
+          "bookmarks": 0,
+          "formFields": 0,
+          "durationMs": 9.31
+        }
+      ]
+    }
+  ]
+}

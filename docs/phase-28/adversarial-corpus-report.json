@@ -1,0 +1,3111 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "corpusFiles": 56,
+  "results": [
+    {
+      "filename": "annotation-variants.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ANNOTATION_VARIANTS",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "annotations",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 6.12
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ANNOTATION_VARIANTS",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.74
+        }
+      ]
+    },
+    {
+      "filename": "blank-page.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text-length",
+              "passed": true,
+              "detail": 0
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 0.6
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            }
+          ],
+          "durationMs": 0.25
+        }
+      ]
+    },
+    {
+      "filename": "cjk-mixed.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:CJK_ASCII_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.52
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:CJK_ASCII_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 1.72
+        }
+      ]
+    },
+    {
+      "filename": "cropbox-inset.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:CROPBOX_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "cropbox-inset",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                133,
+                190
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.2
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:CROPBOX_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.43
+        }
+      ]
+    },
+    {
+      "filename": "dense-text-01.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_01_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_01_44",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 3.11
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_01_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_01_44",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 4.6
+        }
+      ]
+    },
+    {
+      "filename": "dense-text-02.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_02_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_02_44",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 2.95
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_02_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_02_44",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 8.18
+        }
+      ]
+    },
+    {
+      "filename": "dense-text-03.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_03_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_03_44",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 3.11
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_03_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_03_44",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 4.41
+        }
+      ]
+    },
+    {
+      "filename": "dense-text-04.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_04_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_04_44",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 3.02
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_04_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_04_44",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 4.55
+        }
+      ]
+    },
+    {
+      "filename": "dense-text-05.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_05_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_05_44",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 2.98
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:DENSE_TEXT_05_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:DENSE_TEXT_05_44",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 46.04
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-01.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_01",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.52
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_01",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.49
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-02.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_02",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                211,
+                149
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.17
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_02",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.42
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-03.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_03",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                144,
+                201
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.06
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_03",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.47
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-04.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_04",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                211,
+                149
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.21
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_04",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.43
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-05.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_05",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.18
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_05",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.43
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-06.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_06",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                201,
+                144
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.08
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_06",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.44
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-07.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_07",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 0.99
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_07",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.41
+        }
+      ]
+    },
+    {
+      "filename": "edge-variant-08.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_08",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                211,
+                149
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.25
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:EDGE_VARIANT_08",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.42
+        }
+      ]
+    },
+    {
+      "filename": "embedded-attachment.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ATTACHMENTS_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "attachments",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.08
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ATTACHMENTS_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.48
+        }
+      ]
+    },
+    {
+      "filename": "encrypted-aes128.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "authenticate",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ENCRYPTED_AES128",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "encrypted",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.44
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "authenticate",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ENCRYPTED_AES128",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 2.97
+        }
+      ]
+    },
+    {
+      "filename": "encrypted-aes256.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "authenticate",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ENCRYPTED_AES256",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "encrypted",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 43.45
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "authenticate",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ENCRYPTED_AES256",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 5.59
+        }
+      ]
+    },
+    {
+      "filename": "external-links.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:LINK_VARIANTS",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "links",
+              "passed": true,
+              "detail": 2
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.37
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:LINK_VARIANTS",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.44
+        }
+      ]
+    },
+    {
+      "filename": "forms-20-fields.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:MANY_FORMS",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "forms",
+              "passed": true,
+              "detail": 20
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 4.9
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:MANY_FORMS",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "forms",
+              "passed": true,
+              "detail": 20
+            }
+          ],
+          "durationMs": 2.45
+        }
+      ]
+    },
+    {
+      "filename": "forms-matrix.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:FORM_MATRIX",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "forms",
+              "passed": true,
+              "detail": 4
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 2.45
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:FORM_MATRIX",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "forms",
+              "passed": true,
+              "detail": 4
+            }
+          ],
+          "durationMs": 1.56
+        }
+      ]
+    },
+    {
+      "filename": "huge-page.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:HUGE_PAGE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                0
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                600,
+                450
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.52
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:HUGE_PAGE",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.52
+        }
+      ]
+    },
+    {
+      "filename": "image-single.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:IMAGE_SINGLE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "images",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 5.57
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:IMAGE_SINGLE",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.54
+        }
+      ]
+    },
+    {
+      "filename": "images-12.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:IMAGE_MANY",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "images",
+              "passed": true,
+              "detail": 12
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 5.67
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:IMAGE_MANY",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 1.06
+        }
+      ]
+    },
+    {
+      "filename": "incremental-three-revisions.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:INCR_REV_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INCR_REV_2",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INCR_REV_3",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.14
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:INCR_REV_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INCR_REV_2",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INCR_REV_3",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.64
+        }
+      ]
+    },
+    {
+      "filename": "internal-links.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 3
+            },
+            {
+              "name": "text:INTERNAL_LINK_PAGE_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INTERNAL_LINK_PAGE_3",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "links",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            },
+            {
+              "name": "render:3",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 3,
+          "durationMs": 2.29
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 3
+            },
+            {
+              "name": "text:INTERNAL_LINK_PAGE_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:INTERNAL_LINK_PAGE_3",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.78
+        }
+      ]
+    },
+    {
+      "filename": "landscape-letter.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:LANDSCAPE_LETTER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                0
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                198,
+                153
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.13
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:LANDSCAPE_LETTER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.47
+        }
+      ]
+    },
+    {
+      "filename": "malformed-garbage-prefix.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 2.04
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [],
+          "durationMs": 1.07
+        }
+      ]
+    },
+    {
+      "filename": "malformed-garbage-suffix.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ASCII_LATIN_FONT_MATRIX",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.98
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ASCII_LATIN_FONT_MATRIX",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.71
+        }
+      ]
+    },
+    {
+      "filename": "malformed-truncated-1.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [],
+          "pages": 0,
+          "durationMs": 0.24
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "adversarial-handled",
+              "passed": true,
+              "detail": "Stream has ended unexpectedly"
+            }
+          ],
+          "durationMs": 0.04
+        }
+      ]
+    },
+    {
+      "filename": "malformed-truncated-2.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "malformed-rejected",
+              "passed": true,
+              "detail": "Failed to open file '/mnt/data/local-pdf-studio-v6.1.0-src/local-pdf-studio-v6.0.6/tests/corpus/phase28/malformed-truncated-2.pdf'."
+            }
+          ],
+          "durationMs": 0.09
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "adversarial-handled",
+              "passed": true,
+              "detail": "Stream has ended unexpectedly"
+            }
+          ],
+          "durationMs": 0.04
+        }
+      ]
+    },
+    {
+      "filename": "malformed-truncated-3.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "malformed-rejected",
+              "passed": true,
+              "detail": "Failed to open file '/mnt/data/local-pdf-studio-v6.1.0-src/local-pdf-studio-v6.0.6/tests/corpus/phase28/malformed-truncated-3.pdf'."
+            }
+          ],
+          "durationMs": 0.07
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "adversarial-handled",
+              "passed": true,
+              "detail": "Stream has ended unexpectedly"
+            }
+          ],
+          "durationMs": 0.05
+        }
+      ]
+    },
+    {
+      "filename": "malformed-truncated-4.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.02
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "adversarial-handled",
+              "passed": true,
+              "detail": "Stream has ended unexpectedly"
+            }
+          ],
+          "durationMs": 0.1
+        }
+      ]
+    },
+    {
+      "filename": "mixed-page-sizes.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "text:MIXED_SIZE_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:MIXED_SIZE_5",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "mixed-sizes",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            },
+            {
+              "name": "render:5",
+              "passed": true,
+              "detail": [
+                60,
+                60
+              ]
+            }
+          ],
+          "pages": 5,
+          "durationMs": 1.82
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "text:MIXED_SIZE_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:MIXED_SIZE_5",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 1.06
+        }
+      ]
+    },
+    {
+      "filename": "nested-bookmarks.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "text:BOOKMARK_PAGE_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:BOOKMARK_PAGE_5",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "bookmarks",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            },
+            {
+              "name": "render:5",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 5,
+          "durationMs": 2.15
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 5
+            },
+            {
+              "name": "text:BOOKMARK_PAGE_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:BOOKMARK_PAGE_5",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 1.26
+        }
+      ]
+    },
+    {
+      "filename": "nonzero-mediabox-origin.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:NONZERO_MEDIABOX_ORIGIN",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.05
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:NONZERO_MEDIABOX_ORIGIN",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.41
+        }
+      ]
+    },
+    {
+      "filename": "optional-content.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:OPTIONAL_CONTENT_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:LAYER_TEXT",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.12
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:OPTIONAL_CONTENT_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:LAYER_TEXT",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.55
+        }
+      ]
+    },
+    {
+      "filename": "page-labels.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 4
+            },
+            {
+              "name": "text:PAGE_LABEL_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGE_LABEL_4",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            },
+            {
+              "name": "render:4",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 4,
+          "durationMs": 1.51
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 4
+            },
+            {
+              "name": "text:PAGE_LABEL_1",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGE_LABEL_4",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 1.27
+        }
+      ]
+    },
+    {
+      "filename": "pages-1000.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1000
+            },
+            {
+              "name": "text:PAGES_1000_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGES_1000_1000",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                75,
+                105
+              ]
+            },
+            {
+              "name": "render:1000",
+              "passed": true,
+              "detail": [
+                75,
+                105
+              ]
+            }
+          ],
+          "pages": 1000,
+          "durationMs": 125.5
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1000
+            },
+            {
+              "name": "text:PAGES_1000_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGES_1000_1000",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 156.0
+        }
+      ]
+    },
+    {
+      "filename": "pages-300.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 300
+            },
+            {
+              "name": "text:PAGES_300_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGES_300_0300",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                75,
+                105
+              ]
+            },
+            {
+              "name": "render:300",
+              "passed": true,
+              "detail": [
+                75,
+                105
+              ]
+            }
+          ],
+          "pages": 300,
+          "durationMs": 39.2
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 300
+            },
+            {
+              "name": "text:PAGES_300_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGES_300_0300",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 46.83
+        }
+      ]
+    },
+    {
+      "filename": "pages-50.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 50
+            },
+            {
+              "name": "text:PAGES_50_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGES_50_0050",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                75,
+                105
+              ]
+            },
+            {
+              "name": "render:50",
+              "passed": true,
+              "detail": [
+                75,
+                105
+              ]
+            }
+          ],
+          "pages": 50,
+          "durationMs": 7.77
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 50
+            },
+            {
+              "name": "text:PAGES_50_0001",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:PAGES_50_0050",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 8.12
+        }
+      ]
+    },
+    {
+      "filename": "redaction-after.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:REDACTION_PUBLIC",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text-absent:REDACTION_SECRET_928",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.43
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:REDACTION_PUBLIC",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text-absent:REDACTION_SECRET_928",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.53
+        }
+      ]
+    },
+    {
+      "filename": "redaction-before.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:REDACTION_SECRET_928",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:REDACTION_PUBLIC",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.24
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:REDACTION_SECRET_928",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:REDACTION_PUBLIC",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.58
+        }
+      ]
+    },
+    {
+      "filename": "rotation-0.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_0",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                0
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.24
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_0",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.49
+        }
+      ]
+    },
+    {
+      "filename": "rotation-180.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_180",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                180
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.2
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_180",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.48
+        }
+      ]
+    },
+    {
+      "filename": "rotation-270.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_270",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                270
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                211,
+                149
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.22
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_270",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.71
+        }
+      ]
+    },
+    {
+      "filename": "rotation-90.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_90",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                90
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                211,
+                149
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.17
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ROTATION_90",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.47
+        }
+      ]
+    },
+    {
+      "filename": "rtl-arabic.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:RTL_ASCII_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 3.11
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:RTL_ASCII_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 8.11
+        }
+      ]
+    },
+    {
+      "filename": "square-page.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:SQUARE_PAGE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                0
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                105,
+                105
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.38
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:SQUARE_PAGE",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.52
+        }
+      ]
+    },
+    {
+      "filename": "standard-fonts.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ASCII_LATIN_FONT_MATRIX",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:SERIF_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:MONO_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 2.26
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:ASCII_LATIN_FONT_MATRIX",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:SERIF_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "text:MONO_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.71
+        }
+      ]
+    },
+    {
+      "filename": "tiny-page.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:TINY_PAGE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "rotations",
+              "passed": true,
+              "detail": [
+                0
+              ]
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                18,
+                18
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.09
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:TINY_PAGE",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.45
+        }
+      ]
+    },
+    {
+      "filename": "transparency.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:TRANSPARENCY_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.14
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:TRANSPARENCY_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.56
+        }
+      ]
+    },
+    {
+      "filename": "unicode-metadata.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:UNICODE_METADATA_MARKER",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "metadata",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 1.09
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:UNICODE_METADATA_MARKER",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 0.43
+        }
+      ]
+    },
+    {
+      "filename": "vector-dense.pdf",
+      "checksum": true,
+      "passed": true,
+      "engines": [
+        {
+          "engine": "PyMuPDF",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:VECTOR_DENSE",
+              "passed": true,
+              "detail": null
+            },
+            {
+              "name": "drawings",
+              "passed": true,
+              "detail": 120
+            },
+            {
+              "name": "render:1",
+              "passed": true,
+              "detail": [
+                149,
+                211
+              ]
+            }
+          ],
+          "pages": 1,
+          "durationMs": 4.0
+        },
+        {
+          "engine": "pypdf",
+          "passed": true,
+          "checks": [
+            {
+              "name": "pages",
+              "passed": true,
+              "detail": 1
+            },
+            {
+              "name": "text:VECTOR_DENSE",
+              "passed": true,
+              "detail": null
+            }
+          ],
+          "durationMs": 7.61
+        }
+      ]
+    }
+  ]
+}

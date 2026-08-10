@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "PDF Studio Phase 11",
+  "files": [
+    {
+      "filename": "annotations.pdf",
+      "byteLength": 2846,
+      "sha256": "7bc18bbed2cb1d8bea48208a3f7e8b848828bb61f2dbd2577f1a51c0f40d49a6",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "ANNOTATION_TARGET_TEXT"
+        ],
+        "annotations_min": 4
+      }
+    },
+    {
+      "filename": "encrypted-aes256.pdf",
+      "byteLength": 1337,
+      "sha256": "6873e370c7eed1ec555d36d64ba8fa7f25f5bf56ddcca7b07958345c91dfc017",
+      "expect": {
+        "pages": 1,
+        "encrypted": true,
+        "password": "phase11-user",
+        "text": [
+          "ENCRYPTED_FIXTURE"
+        ]
+      }
+    },
+    {
+      "filename": "forms.pdf",
+      "byteLength": 2537,
+      "sha256": "2c952b58c424dbfb00f1f22af2465a76b3bf211106ae9f45d7fe0ae1a5dcfdc3",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "FORM_FIXTURE"
+        ],
+        "form_fields_min": 3
+      }
+    },
+    {
+      "filename": "incremental-history.pdf",
+      "byteLength": 1250,
+      "sha256": "ad2668ed0e2d6b62f48eb230cbd188ef583108bc9ba1eac60bf2faa32496fe17",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "INCREMENTAL_REVISION_ONE",
+          "INCREMENTAL_REVISION_TWO"
+        ],
+        "incremental": true
+      }
+    },
+    {
+      "filename": "large-200-pages.pdf",
+      "byteLength": 718541,
+      "sha256": "3ff2c0d748928911899a467c3ea04cd61ba91542e426ba3f3adad8ec2475bf9e",
+      "expect": {
+        "pages": 200,
+        "text": [
+          "LARGE_DOCUMENT_PAGE_0001",
+          "LARGE_DOCUMENT_PAGE_0200"
+        ]
+      }
+    },
+    {
+      "filename": "malformed-truncated.pdf",
+      "byteLength": 1511,
+      "sha256": "d8244d9fa59a85893efc7c2424955d1c42b835b0763ddf709368ed91fde30266",
+      "expect": {
+        "malformed": true
+      }
+    },
+    {
+      "filename": "mixed-pages.pdf",
+      "byteLength": 2228,
+      "sha256": "e6f55dcdb1928b88166225a310e56dce82ed154b7c1153dd0bfde7a02306f1c3",
+      "expect": {
+        "pages": 4,
+        "text": [
+          "A4_PORTRAIT",
+          "SQUARE_ROTATED"
+        ]
+      }
+    },
+    {
+      "filename": "plain-text.pdf",
+      "byteLength": 3022,
+      "sha256": "18142c5b684bd98410291a86116df4d68312beb8f636afa31219cedf61e339a3",
+      "expect": {
+        "pages": 3,
+        "text": [
+          "PLAIN_PAGE_1_MARKER",
+          "PLAIN_PAGE_3_MARKER"
+        ],
+        "bookmarks": 3,
+        "links_min": 3
+      }
+    },
+    {
+      "filename": "redaction-applied.pdf",
+      "byteLength": 1088,
+      "sha256": "c81819b81480a288d9b8b58ccf4d6cd96ba70dfb1acdd29013a6fa402ca94d0b",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "PUBLIC_TEXT"
+        ],
+        "text_absent": [
+          "SECRET_ALPHA_491",
+          "SECRET_BETA_827"
+        ],
+        "metadata_absent": "SECRET_METADATA_GAMMA_163"
+      }
+    },
+    {
+      "filename": "redaction-source.pdf",
+      "byteLength": 1225,
+      "sha256": "d95047b734e2364e821e17fbf8bc3b29297bd331a2f9efa254971a2942cbb8bd",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "SECRET_ALPHA_491",
+          "SECRET_BETA_827"
+        ],
+        "metadata_contains": "SECRET_METADATA_GAMMA_163"
+      }
+    },
+    {
+      "filename": "unicode.pdf",
+      "byteLength": 100415,
+      "sha256": "62c9e7234b4be3147c6935317c6ed67943bcf102ae55dfe16d1b13ccd677fa92",
+      "expect": {
+        "pages": 1,
+        "text": [
+          "English: searchable Unicode fixture"
+        ]
+      }
+    }
+  ]
+}

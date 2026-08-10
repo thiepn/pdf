@@ -1,0 +1,48 @@
+{
+  "version": "5.8.0-phase28",
+  "channel": "release-candidate",
+  "featureFreeze": true,
+  "runtime": {
+    "phase11": "15/15",
+    "phase16": "4/4",
+    "phase17": "10/10",
+    "phase18": "23/23",
+    "phase19": "21/21",
+    "phase20": "20/20",
+    "phase21": "19/19",
+    "phase22": "6/6",
+    "phase23": "8/8",
+    "phase24": "12/12",
+    "phase25": "12/12",
+    "phase26": "12/12",
+    "phase27": "17/17",
+    "phase28": "11/11"
+  },
+  "corpora": {
+    "baseline": "11/11",
+    "adversarial": "56/56"
+  },
+  "sourceAudit": {
+    "productionFiles": 191,
+    "relativeImports": 570,
+    "failures": 0
+  },
+  "pagesReadiness": {
+    "passed": 27,
+    "failures": 0,
+    "warnings": 1
+  },
+  "syntax": {
+    "tsTsx": "240/240",
+    "githubActionsYaml": "4/4"
+  },
+  "confirmedPhase28Fixes": [
+    "duplicate-import existing-project preservation",
+    "per-session crash heartbeat isolation",
+    "one-to-one interrupted transaction reconciliation",
+    "project-package v9 header metadata integrity",
+    "source checksum verification before backup",
+    "OPFS writable abort and IndexedDB transaction abort rejection"
+  ],
+  "stableBlocker": "Authoritative package-lock.json and exact npm ci/Vitest/Vite/Playwright qualification must run on GitHub; this environment's npm mirror returns 404 for @playwright/test@1.62.0."
+}
