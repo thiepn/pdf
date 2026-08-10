@@ -44,6 +44,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      - name: Install Unicode corpus font
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fonts-noto-core
       - name: Pin npm toolchain
         run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
       - name: Resolve deterministic build metadata
