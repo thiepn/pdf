@@ -5,15 +5,16 @@ import { UpdateBanner } from "../components/UpdateBanner";
 import { APP_VERSION } from "../core/release";
 import { CommandPalette } from "../components/CommandPalette";
 import { isSafeMode } from "../maintenance/safeMode";
+import { Icon, type IconName } from "../components/Icon";
 
 interface AppShellProps { route: AppRoute; children: ReactNode; title: string; subtitle?: string; fullBleed?: boolean; hideTopbar?: boolean }
 
-const navigation: Array<{ route: AppRoute; label: string; icon: string }> = [
-  { route: { name: "home" }, label: "Home", icon: "⌂" },
-  { route: { name: "projects" }, label: "Documents", icon: "▤" },
-  { route: { name: "tools" }, label: "Tools", icon: "⌘" },
-  { route: { name: "settings" }, label: "Settings", icon: "⚙" },
-  { route: { name: "help" }, label: "Help", icon: "?" }
+const navigation: Array<{ route: AppRoute; label: string; icon: IconName }> = [
+  { route: { name: "home" }, label: "Home", icon: "home" },
+  { route: { name: "projects" }, label: "Documents", icon: "documents" },
+  { route: { name: "tools" }, label: "Tools", icon: "tools" },
+  { route: { name: "settings" }, label: "Settings", icon: "settings" },
+  { route: { name: "help" }, label: "Help", icon: "help" }
 ];
 
 const utilityNavigation: Array<{ route: AppRoute; label: string; description: string }> = [
@@ -59,8 +60,8 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
   return <div className={viewer ? "app-shell app-shell--viewer" : "app-shell"}>
     <a className="skip-link" href="#main-workspace">Skip to workspace</a>
     <aside className="sidebar app-sidebar" aria-label="Application sidebar">
-      <a aria-label="PDF Studio home" className="brand" href={routeHref({ name: "home" })}><div aria-hidden="true" className="brand__mark">PS</div><div><strong>PDF Studio</strong><span>Private browser workspace</span></div></a>
-      <nav className="nav-list" aria-label="Application navigation">{navigation.map((item) => <a aria-current={isActive(route, item.route) ? "page" : undefined} className={isActive(route, item.route) ? "nav-item nav-item--active" : "nav-item"} href={routeHref(item.route)} key={item.route.name}><span aria-hidden="true" className="nav-item__icon">{item.icon}</span><span>{item.label}</span></a>)}</nav>
+      <a aria-label="PDF Studio home" className="brand" href={routeHref({ name: "home" })}><img alt="" aria-hidden="true" className="brand__mark" src={`${import.meta.env.BASE_URL}icons/icon.svg`} /><div><strong>PDF Studio</strong><span>Private browser workspace</span></div></a>
+      <nav className="nav-list" aria-label="Application navigation">{navigation.map((item) => <a aria-current={isActive(route, item.route) ? "page" : undefined} className={isActive(route, item.route) ? "nav-item nav-item--active" : "nav-item"} href={routeHref(item.route)} key={item.route.name}><Icon className="nav-item__icon" name={item.icon} /><span>{item.label}</span></a>)}</nav>
       <CommandPalette />
       <details className="sidebar-advanced">
         <summary>Advanced & support</summary>
@@ -72,10 +73,10 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
     <main aria-label={hideTopbar ? title : undefined} className="main-content" id="main-workspace" ref={mainRef} tabIndex={-1}>
       <div aria-atomic="true" aria-live="polite" className="visually-hidden" role="status">{title}</div>
       <UpdateBanner />
-      {!hideTopbar ? <header className="topbar app-topbar"><div><p className="eyebrow">Local-first PDF workspace</p><h1 ref={headingRef} tabIndex={-1}>{title}</h1>{subtitle ? <p className="topbar__subtitle">{subtitle}</p> : null}</div><div className="topbar__state"><span className="local-badge"><span className="privacy-dot" /> {isSafeMode() ? "Safe mode" : "Local"}</span><span className="separator" /><ConnectionStatus /></div></header> : null}
+      {!hideTopbar ? <header className="topbar app-topbar"><div><p className="eyebrow">Local-first PDF workspace</p><h1 data-route-heading="true" ref={headingRef} tabIndex={-1}>{title}</h1>{subtitle ? <p className="topbar__subtitle">{subtitle}</p> : null}</div><div className="topbar__state"><span className="local-badge"><span className="privacy-dot" /> {isSafeMode() ? "Safe mode" : "Local"}</span><span className="separator" /><ConnectionStatus /></div></header> : null}
       <div className={fullBleed ? "workspace workspace--full" : "workspace"}>{children}</div>
     </main>
 
-    {!viewer ? <nav className="mobile-nav" aria-label="Mobile navigation">{mobileNavigation.map((item) => <a aria-current={isActive(route, item.route) ? "page" : undefined} className={isActive(route, item.route) ? "active" : ""} href={routeHref(item.route)} key={item.route.name}><span aria-hidden="true">{item.icon}</span><small>{item.label}</small></a>)}</nav> : null}
+    {!viewer ? <nav className="mobile-nav" aria-label="Mobile navigation">{mobileNavigation.map((item) => <a aria-current={isActive(route, item.route) ? "page" : undefined} className={isActive(route, item.route) ? "active" : ""} href={routeHref(item.route)} key={item.route.name}><Icon name={item.icon} /><small>{item.label}</small></a>)}</nav> : null}
   </div>;
 }

@@ -9,6 +9,7 @@ import { acknowledgePendingPwaLaunchFiles, peekPendingPwaLaunchFiles, PWA_LAUNCH
 import { classifyIncomingFile } from "../pwa/fileIngress";
 import type { ProjectManifest } from "../types/project";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
+import { Icon } from "../components/Icon";
 
 interface PendingPassword {
   file: File;
@@ -130,7 +131,7 @@ export function HomePage() {
           <h2>Work with PDFs without uploading them.</h2>
           <p>Open a PDF once, then move between reading, editing, page organization, forms, protection, OCR, optimization, and advanced tools inside one recoverable workspace.</p>
           <div className="hero-actions">
-            <button className="button button--large" disabled={busy} onClick={() => fileInputRef.current?.click()} type="button">Open PDF</button>
+            <button className="button button--large" disabled={busy} onClick={() => fileInputRef.current?.click()} type="button"><Icon name="documents" size={17} />Open PDF</button>
             <button className="button button--secondary button--large" disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore project</button>
             <button className="button button--ghost-on-dark button--large" disabled={busy} onClick={() => void createFixture()} type="button">Open sample</button>
           </div>
@@ -138,7 +139,7 @@ export function HomePage() {
           <input ref={projectInputRef} hidden accept=".lpsproject,application/x-local-pdf-studio-project" type="file" onChange={(event: { target: HTMLInputElement }) => { const file = event.target.files?.[0]; if (file) void processFile(file, "package"); event.target.value = ""; }} />
         </div>
         <div className="privacy-card">
-          <span className="privacy-card__icon">◎</span>
+          <span className="privacy-card__icon"><Icon name="shield" size={22} /></span>
           <strong>Local processing</strong>
           <p>The PDF bytes, extracted text, passwords, and project state remain inside this browser.</p>
           <dl>
@@ -180,7 +181,7 @@ export function HomePage() {
         )}
       </section>
 
-      <section className="foundation-grid">
+      <section aria-label="PDF Studio foundations" className="foundation-grid foundation-grid--quiet">
         <article><span>01</span><strong>Local-first processing</strong><p>PDFs, OCR results, scan images, recipes, and generated outputs remain on the device.</p></article>
         <article><span>02</span><strong>Shared validation pipeline</strong><p>Generated PDFs reopen and verify page structure before download or project creation.</p></article>
         <article><span>03</span><strong>Explicit preservation boundaries</strong><p>Raster OCR and compression warn before replacing searchable, vector, or interactive PDF structures.</p></article>

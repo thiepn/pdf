@@ -21,6 +21,7 @@ import { RepairPage } from "../views/RepairPage";
 import { SecurePage } from "../views/SecurePage";
 import { ViewerPage } from "../views/ViewerPage";
 import { ToolboxPage } from "../views/ToolboxPage";
+import { Icon, type IconName } from "../components/Icon";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { getPreservationContract } from "./preservationContracts";
 import { beginWorkspaceHeartbeat, readInterruptedWorkspaceSession, type InterruptedWorkspaceSession } from "../recovery/sessionHeartbeat";
@@ -372,7 +373,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
 
     {contextActions.length ? <div className="workspace-contextbar"><strong>Suggested next step</strong>{contextActions.map((action) => <button key={action.mode} onClick={() => void switchMode(action.mode)} type="button">{action.label}</button>)}</div> : null}
     {error ? <div aria-live="assertive" className="error-banner" role="alert"><strong>Workspace action failed</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
-    {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><strong>Recovered after an interrupted session</strong><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
+      {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
     {activeOperation ? <div className="workspace-operation-banner" role="status" aria-live="polite"><div><strong>{activeOperation.label}</strong><span>{activeOperation.detail ?? operationStageLabel(activeOperation.stage)}</span>{activeOperation.progress !== undefined ? <progress max="1" value={activeOperation.progress} /> : null}</div><div><small>{formatElapsed(Date.now() - activeOperation.startedAt)}</small>{activeOperation.cancellable ? <button className="button button--small button--secondary" onClick={() => cancelProjectOperation(projectId)} type="button">Cancel</button> : null}</div></div> : null}
     {leaseMode !== "owner" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
 
@@ -399,12 +400,12 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     </div>
     <nav className="workspace-mobile-nav" aria-label="Document tools">
       {[
-        { mode: "viewer" as WorkspaceMode, label: "Read", icon: "▤" },
-        { mode: "editor" as WorkspaceMode, label: "Edit", icon: "✎" },
-        { mode: "organizer" as WorkspaceMode, label: "Pages", icon: "▦" },
-        { mode: "toolbox" as WorkspaceMode, label: "Tools", icon: "⌘" }
-      ].map((item) => <button aria-current={mode === item.mode ? "page" : undefined} className={mode === item.mode ? "active" : ""} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><span aria-hidden="true">{item.icon}</span><small>{item.label}</small></button>)}
-      <button aria-controls="workspace-mobile-tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className={mobileToolsOpen ? "active" : ""} onClick={() => setMobileToolsOpen((open) => !open)} type="button"><span aria-hidden="true">•••</span><small>More</small></button>
+        { mode: "viewer" as WorkspaceMode, label: "Read", icon: "read" as IconName },
+        { mode: "editor" as WorkspaceMode, label: "Edit", icon: "edit" as IconName },
+        { mode: "organizer" as WorkspaceMode, label: "Pages", icon: "pages" as IconName },
+        { mode: "toolbox" as WorkspaceMode, label: "Tools", icon: "toolbox" as IconName }
+      ].map((item) => <button aria-current={mode === item.mode ? "page" : undefined} className={mode === item.mode ? "active" : ""} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><Icon name={item.icon} /><small>{item.label}</small></button>)}
+      <button aria-controls="workspace-mobile-tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className={mobileToolsOpen ? "active" : ""} onClick={() => setMobileToolsOpen((open) => !open)} type="button"><Icon name="more" /><small>More</small></button>
     </nav>
     {mobileToolsOpen ? <div className="workspace-mobile-sheet-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="More document tools" aria-modal="true" className="workspace-mobile-sheet" id="workspace-mobile-tools" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
       <div className="workspace-mobile-sheet__handle" aria-hidden="true" />
@@ -442,8 +443,8 @@ function ContractSection({ label, items, tone }: { label: string; items: string[
 }
 
 function ModeIcon({ mode }: { mode: WorkspaceMode }) {
-  const icons: Record<WorkspaceMode, string> = { viewer: "▤", editor: "✎", organizer: "▦", secure: "⌾", ocr: "◎", compress: "⇣", inspector: "◇", repair: "↻", professional: "◆", preservation: "◈", native: "✣", compliance: "✓", toolbox: "⌘" };
-  return <span aria-hidden="true">{icons[mode]}</span>;
+  const icons: Record<WorkspaceMode, IconName> = { viewer: "read", editor: "edit", organizer: "pages", secure: "secure", ocr: "ocr", compress: "compress", inspector: "inspect", repair: "repair", professional: "professional", preservation: "preservation", native: "native", compliance: "compliance", toolbox: "toolbox" };
+  return <Icon name={icons[mode]} />;
 }
 
 function buildContextActions(project: ProjectManifest | null): Array<{ mode: WorkspaceMode; label: string }> {

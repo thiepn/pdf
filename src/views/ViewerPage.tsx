@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { openPdfWithPdfJs, searchPdfDocument, type PdfSearchResult } from "../engines/pdfjs";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
+import { Icon } from "../components/Icon";
 import { downloadBlob } from "../projects/download";
 import { exportProjectPackage, getProject, loadProjectBytes, readViewerPreferences, touchProject, writeViewerPreferences } from "../projects/projectRepository";
 import type { ProjectManifest, ViewerPreferences } from "../types/project";
@@ -250,18 +251,18 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   return (
     <div className="viewer-app">
       <div className="viewer-commandbar">
-        <div className="viewer-file-group"><a aria-label="Back to home" className="icon-button" href={routeHref({ name: "home" })} title="Back to home">←</a><div className="viewer-file-title"><strong>{project.name}</strong><span>{status}</span></div></div>
+        <div className="viewer-file-group"><a aria-label="Back to home" className="icon-button" href={routeHref({ name: "home" })} title="Back to home"><Icon name="arrow-left" /></a><div className="viewer-file-title"><strong>{project.name}</strong><span>{status}</span></div></div>
         <div className="viewer-commandbar__center">
-          <button aria-label="Previous page" className="icon-button" disabled={!pdfDocument || preferences.pageNumber <= 1} onClick={() => jumpToPage(preferences.pageNumber - 1)} type="button">‹</button>
+          <button aria-label="Previous page" className="icon-button" disabled={!pdfDocument || preferences.pageNumber <= 1} onClick={() => jumpToPage(preferences.pageNumber - 1)} type="button"><Icon name="chevron-left" /></button>
           <label className="page-input"><span className="visually-hidden">Current page</span><input aria-label="Current page" min="1" max={pdfDocument?.numPages ?? 1} onChange={(event: { target: HTMLInputElement }) => jumpToPage(Number(event.target.value))} type="number" value={preferences.pageNumber} /><span>/ {pdfDocument?.numPages ?? project.summary.pageCount}</span></label>
-          <button aria-label="Next page" className="icon-button" disabled={!pdfDocument || preferences.pageNumber >= (pdfDocument?.numPages ?? 1)} onClick={() => jumpToPage(preferences.pageNumber + 1)} type="button">›</button>
+          <button aria-label="Next page" className="icon-button" disabled={!pdfDocument || preferences.pageNumber >= (pdfDocument?.numPages ?? 1)} onClick={() => jumpToPage(preferences.pageNumber + 1)} type="button"><Icon name="chevron-right" /></button>
           <button aria-expanded={preferences.sidebarOpen} aria-controls="viewer-sidebar" className="viewer-mobile-panel-toggle" onClick={() => changePreferences({ sidebarOpen: !preferences.sidebarOpen })} type="button">{preferences.sidebarOpen ? "Close panel" : "Pages / search"}</button>
           <span className="toolbar-divider" />
-          <button aria-label="Zoom out" className="icon-button" onClick={() => changePreferences({ zoom: Math.max(0.25, preferences.zoom - 0.25) })} type="button">−</button>
+          <button aria-label="Zoom out" className="icon-button" onClick={() => changePreferences({ zoom: Math.max(0.25, preferences.zoom - 0.25) })} type="button"><Icon name="minus" /></button>
           <select aria-label="Zoom" onChange={(event: { target: HTMLSelectElement }) => changePreferences({ zoom: Number(event.target.value) })} value={preferences.zoom}>
             <option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option>
           </select>
-          <button aria-label="Zoom in" className="icon-button" onClick={() => changePreferences({ zoom: Math.min(4, preferences.zoom + 0.25) })} type="button">+</button>
+          <button aria-label="Zoom in" className="icon-button" onClick={() => changePreferences({ zoom: Math.min(4, preferences.zoom + 0.25) })} type="button"><Icon name="plus" /></button>
           <span className="toolbar-divider" />
           <button className={preferences.viewMode === "single" ? "view-toggle view-toggle--active" : "view-toggle"} onClick={() => changePreferences({ viewMode: "single" })} type="button">Single</button>
           <button className={preferences.viewMode === "continuous" ? "view-toggle view-toggle--active" : "view-toggle"} onClick={() => changePreferences({ viewMode: "continuous" })} type="button">Continuous</button>

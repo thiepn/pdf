@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-08-09T23:07:35.148Z",
+  "generatedAt": "2026-08-10T17:42:48.885Z",
   "version": "6.1.0",
-  "sourceFiles": 196,
+  "sourceFiles": 199,
   "checks": [
     {
       "name": "Exact dependency versions",
       "status": "passed",
-      "detail": "12 direct dependencies are pinned exactly"
+      "detail": "14 direct dependencies are pinned exactly"
     },
     {
       "name": "Published Playwright version",
@@ -25,8 +25,8 @@
     },
     {
       "name": "Committed dependency lock",
-      "status": "warning",
-      "detail": "Generate through the current Bootstrap dependency lock workflow before enabling stable deployment"
+      "status": "passed",
+      "detail": "package-lock.json present"
     },
     {
       "name": "Version synchronization",
@@ -116,7 +116,7 @@
     {
       "name": "Relative import resolution",
       "status": "passed",
-      "detail": "590 imports resolved across 196 source files"
+      "detail": "613 imports resolved across 199 source files"
     },
     {
       "name": "Placeholder scan",
@@ -554,8 +554,6 @@
       "detail": "OCR uses plain presets and bundled Help covers at least twenty major workflows"
     }
   ],
-  "warnings": [
-    "Committed dependency lock: Generate through the current Bootstrap dependency lock workflow before enabling stable deployment"
-  ],
+  "warnings": [],
   "failures": []
 }

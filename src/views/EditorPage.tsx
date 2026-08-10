@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { Icon, type IconName } from "../components/Icon";
 import { routeHref } from "../core/appRouter";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { useModalFocus } from "../accessibility/modalFocus";
@@ -27,36 +28,36 @@ import { Thumbnail } from "../viewer/Thumbnail";
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
 
-const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: string; key?: string; icon: string }> }> = [
+const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: string; key?: string; icon: IconName }> }> = [
   { label: "Navigate", tools: [
-    { id: "select", label: "Select", key: "V", icon: "↖" },
-    { id: "hand", label: "Pan", key: "H", icon: "✋" }
+    { id: "select", label: "Select", key: "V", icon: "select" },
+    { id: "hand", label: "Pan", key: "H", icon: "hand" }
   ] },
   { label: "Insert", tools: [
-    { id: "text", label: "Text", key: "T", icon: "T" },
-    { id: "image", label: "Image", key: "I", icon: "▧" },
-    { id: "link", label: "Link", icon: "↗" },
-    { id: "signature", label: "Signature", icon: "✒" },
-    { id: "stamp", label: "Stamp", icon: "印" }
+    { id: "text", label: "Text", key: "T", icon: "text" },
+    { id: "image", label: "Image", key: "I", icon: "image" },
+    { id: "link", label: "Link", icon: "link" },
+    { id: "signature", label: "Signature", icon: "signature" },
+    { id: "stamp", label: "Stamp", icon: "stamp" }
   ] },
   { label: "Shapes", tools: [
-    { id: "rectangle", label: "Rectangle", key: "R", icon: "□" },
-    { id: "ellipse", label: "Ellipse", key: "E", icon: "○" },
-    { id: "line", label: "Line", key: "L", icon: "／" },
-    { id: "arrow", label: "Arrow", key: "A", icon: "↗" }
+    { id: "rectangle", label: "Rectangle", key: "R", icon: "rectangle" },
+    { id: "ellipse", label: "Ellipse", key: "E", icon: "ellipse" },
+    { id: "line", label: "Line", key: "L", icon: "line" },
+    { id: "arrow", label: "Arrow", key: "A", icon: "arrow" }
   ] },
   { label: "Markup", tools: [
-    { id: "highlight", label: "Highlight", key: "K", icon: "▰" },
-    { id: "underline", label: "Underline", icon: "U̲" },
-    { id: "strikeout", label: "Strikeout", icon: "S̶" },
-    { id: "squiggly", label: "Squiggly", icon: "≋" }
+    { id: "highlight", label: "Highlight", key: "K", icon: "highlight" },
+    { id: "underline", label: "Underline", icon: "underline" },
+    { id: "strikeout", label: "Strikeout", icon: "strikeout" },
+    { id: "squiggly", label: "Squiggly", icon: "squiggly" }
   ] },
   { label: "Review", tools: [
-    { id: "pen", label: "Draw", key: "P", icon: "✎" },
-    { id: "note", label: "Comment", key: "C", icon: "●" }
+    { id: "pen", label: "Draw", key: "P", icon: "pen" },
+    { id: "note", label: "Comment", key: "C", icon: "comment" }
   ] },
   { label: "Redaction", tools: [
-    { id: "redaction", label: "Mark redaction", key: "X", icon: "■" }
+    { id: "redaction", label: "Mark redaction", key: "X", icon: "redaction" }
   ] }
 ];
 const tools = toolGroups.flatMap((group) => group.tools);
@@ -92,6 +93,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [selectedNativeId, setSelectedNativeId] = useState<string | undefined>();
   const [showNativeContent, setShowNativeContent] = useState(true);
   const [nativeInspecting, setNativeInspecting] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const mobileToolsRef = useRef<HTMLDivElement | null>(null);
+  const mobileToolsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
+  useModalFocus(mobileToolsOpen, mobileToolsRef, closeMobileTools, undefined, mobileToolsTriggerRef);
 
   const displayObjects = useMemo(() => {
     const base = history.present.objects;
@@ -503,17 +509,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
+  const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
+  const chooseMobileTool = (tool: EditorTool) => {
+    activateTool(tool);
+    setMobileToolsOpen(false);
+  };
+
   if (!project) return <div className="viewer-loading"><span className="spinner" /><strong>{error ?? status}</strong></div>;
   if (!document) return <div className="editor-app"><div className="viewer-loading"><span className="spinner" /><strong>{status}</strong></div>{passwordRequired ? <PasswordDialog error={error} password={password} onChange={setPassword} onSubmit={() => void retryPassword()} projectId={projectId} /> : null}</div>;
 
   return (
     <div className="editor-app">
       <header className="editor-commandbar">
-        <div className="editor-file-group"><a className="icon-button" href={routeHref({ name: "viewer", projectId })}>←</a><div><strong>{project.name}</strong><span>{status} · {nativeInspection ? `${nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms} PDF + ` : ""}{history.present.objects.length} overlay objects</span></div></div>
+        <div className="editor-file-group"><a aria-label="Back to viewer" className="icon-button" href={routeHref({ name: "viewer", projectId })}><Icon name="arrow-left" /></a><div><strong>{project.name}</strong><span>{status} · {nativeInspection ? `${nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms} PDF + ` : ""}{history.present.objects.length} overlay objects</span></div></div>
         <div className="editor-commandbar__center">
-          <button disabled={!history.past.length || processing} onClick={undo} title="Undo" type="button">↶</button><button disabled={!history.future.length || processing} onClick={redo} title="Redo" type="button">↷</button><span />
-          <button disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button">‹</button><label><input max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button">›</button><span />
-          <button onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button">−</button><select onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select><button onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button">+</button>
+          <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo" type="button"><Icon name="redo" /></button><span />
+          <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button><label><input aria-label="Current page" max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button><span />
+          <button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><select aria-label="Zoom" onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button>
         </div>
         <div className="editor-commandbar__actions"><button className="button button--ghost button--small" disabled={!changeCount || processing} onClick={() => void exportPdf(false)} type="button">Download PDF</button><button className="button button--small" disabled={!changeCount || processing} onClick={() => void exportPdf(true)} type="button">Save as project</button>{processing ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
       </header>
@@ -537,7 +549,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>
 
       <div className={`editor-layout${sidebarOpen ? "" : " editor-layout--no-sidebar"}${propertiesOpen ? "" : " editor-layout--no-properties"}`}>
-        <nav className="editor-toolrail" aria-label="Editor tools">{toolGroups.map((group) => <section className="editor-tool-group" aria-label={group.label} key={group.label}><strong>{group.label}</strong>{group.tools.map((tool) => <button className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><span>{tool.icon}</span><small>{tool.label}</small></button>)}</section>)}<input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" /></nav>
+        <nav className="editor-toolrail" aria-label="Editor tools">{toolGroups.map((group) => <section className="editor-tool-group" aria-label={group.label} key={group.label}><strong>{group.label}</strong>{group.tools.map((tool) => <button aria-label={tool.label} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} /><small>{tool.label}</small></button>)}</section>)}<input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" /></nav>
         {(sidebarOpen || propertiesOpen) ? <button aria-label="Close editor panel" className="editor-mobile-backdrop" onClick={() => { setSidebarOpen(false); setPropertiesOpen(false); }} type="button" /> : null}
 
         {sidebarOpen ? <aside className="editor-left-panel"><div className="editor-left-tabs">{(["pages", "layers", "comments"] as LeftTab[]).map((tab) => <button className={leftTab === tab ? "active" : ""} key={tab} onClick={() => setLeftTab(tab)} type="button">{tab}</button>)}</div><div className="editor-left-body">{leftTab === "pages" ? <div className="thumbnail-list">{Array.from({ length: document.numPages }, (_, index) => <Thumbnail document={document} key={index + 1} onSelect={(pageNumber) => setEditorState((state) => ({ ...state, currentPage: pageNumber }))} pageNumber={index + 1} selected={editorState.currentPage === index + 1} />)}</div> : null}{leftTab === "layers" ? <LayerList nativeObjects={currentNativeObjects} nativeQueued={nativeEdits} objects={currentPageObjects} selectedIds={selectedIds} selectedNativeId={selectedNativeId} onSelect={selectObject} onSelectNative={selectNativeObject} onToggleHidden={(object) => commitObject(object.hidden ? "Show object" : "Hide object", { ...object, hidden: !object.hidden })} /> : null}{leftTab === "comments" ? <CommentList comments={comments} onSelect={(comment) => { setEditorState((state) => ({ ...state, currentPage: comment.pageNumber, activeTool: "select" })); setSelectedIds(new Set([comment.id])); }} /> : null}</div></aside> : null}
@@ -546,6 +558,19 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
         {propertiesOpen ? selectedNativeObject ? <NativeContentPropertiesPanel object={selectedNativeObject} onQueue={queueNativeEdits} onRemove={removeNativeEdits} queuedEdits={nativeEdits} /> : <EditorPropertiesPanel onBringFront={() => arrange("front")} onChange={commitObject} onDelete={deleteSelection} onDuplicate={duplicateSelection} onSendBack={() => arrange("back")} selected={selectedObjects} /> : null}
       </div>
+      <nav className="editor-mobile-toolbar" aria-label="Editor quick tools">
+        {tools.slice(0, 4).map((tool) => <button aria-label={tool.label} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => activateTool(tool.id)} type="button"><Icon name={tool.icon} /><small>{tool.label}</small></button>)}
+        <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" aria-label={`Tools, active tool: ${activeTool.label}`} className="editor-mobile-toolbar__all" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name={activeTool.icon} /><small>Tools</small></button>
+      </nav>
+      {mobileToolsOpen ? <div className="editor-tools-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMobileTools(); }}>
+        <div aria-label="Editor tools" aria-modal="true" className="editor-tools-sheet" ref={mobileToolsRef} role="dialog">
+          <div className="editor-tools-sheet__handle" />
+          <header><div><span>Editing tool</span><h2>{activeTool.label}</h2></div><button aria-label="Close tools" onClick={closeMobileTools} type="button"><Icon name="close" /></button></header>
+          <div className="editor-tools-sheet__groups">{toolGroups.map((group) => <section key={group.label}><h3>{group.label}</h3><div>{group.tools.map((tool) => <button aria-pressed={editorState.activeTool === tool.id} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => chooseMobileTool(tool.id)} type="button"><Icon name={tool.icon} /><span>{tool.label}</span>{tool.key ? <kbd>{tool.key}</kbd> : null}</button>)}</div></section>)}</div>
+          <section className="editor-tools-sheet__document"><h3>Document</h3><div className="editor-tools-sheet__zoom"><button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><strong>{Math.round(editorState.zoom * 100)}%</strong><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button></div><button aria-pressed={editorState.snapEnabled} onClick={() => setEditorState((state) => ({ ...state, snapEnabled: !state.snapEnabled }))} type="button">Snap {editorState.snapEnabled ? "on" : "off"}</button></section>
+          <div className="editor-tools-sheet__actions"><button disabled={!changeCount || processing} onClick={() => { closeMobileTools(); void exportPdf(false); }} type="button"><Icon name="download" />Download PDF</button><button disabled={!changeCount || processing} onClick={() => { closeMobileTools(); void exportPdf(true); }} type="button"><Icon name="save" />Save as project</button></div>
+        </div>
+      </div> : null}
     </div>
   );
 }
