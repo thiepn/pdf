@@ -72,6 +72,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       try {
         if (source.needsPassword() && (!request.password || source.authenticatePassword(request.password) === 0)) throw new Error("The PDF password is required or incorrect.");
         const sourcePdf = source.asPDF();
+        if (!sourcePdf) throw new Error("MuPDF did not recognize the source document as a PDF.");
         const destination = new mupdf.PDFDocument();
         try {
           copyMetadata(sourcePdf, destination);
@@ -98,6 +99,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           try {
             if (source.needsPassword()) throw new Error(`Password-protected merge input is not supported yet: ${sourceData.name}`);
             const sourcePdf = source.asPDF();
+            if (!sourcePdf) throw new Error(`MuPDF did not recognize ${sourceData.name} as a PDF.`);
             if (destination.countPages() === 0) copyMetadata(sourcePdf, destination);
             for (let page = 0; page < sourcePdf.countPages(); page += 1) {
               assertActive(request.requestId);

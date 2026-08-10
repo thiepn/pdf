@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes, openPdfWithPdfJs, extractPageText } from "../engines/pdfjs";
 import { OcrLanguagePanel } from "../ocr/OcrLanguagePanel";
 import { createOcrSession } from "../ocr/ocrClient";
@@ -104,7 +105,7 @@ export function ScanPage() {
             if ((await extractPageText(pdf, pageNumber)).trim()) { foundSearchableText = true; break; }
           }
           if (!foundSearchableText) throw new Error("Searchable scan validation failed: no text was extracted from any page.");
-        } finally { await pdf.destroy(); }
+        } finally { await pdf.loadingTask.destroy(); }
       }
       setOutput(bytes); setStatus(searchable ? "Searchable scan ready" : "Image PDF ready");
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
@@ -116,7 +117,7 @@ export function ScanPage() {
     if (asProject) {
       const project = await createProjectFromBytes(output, searchable ? "searchable-scan.pdf" : "scan.pdf");
       window.location.hash = routeHref({ name: "workspace", projectId: project.id, mode: "viewer" }).slice(1);
-    } else downloadBlob(new Blob([output], { type: "application/pdf" }), searchable ? "searchable-scan.pdf" : "scan.pdf");
+    } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), searchable ? "searchable-scan.pdf" : "scan.pdf");
   }
 
   const totalMb = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0) / 1024 / 1024, [items]);

@@ -52,7 +52,7 @@ export async function createOcrSession(languages: string[], onProgress?: (messag
     async recognize(image: Blob, jobId?: string): Promise<OcrRecognitionResult> {
       if (terminated) throw new Error("The OCR session is closed.");
       const result = await worker.recognize(image, {}, { text: true, blocks: true, hocr: true, tsv: true, pdf: true }, jobId);
-      const data = result.data as Record<string, unknown>;
+      const data: Record<string, unknown> = Object.fromEntries(Object.entries(result.data));
       const tsv = typeof data.tsv === "string" ? data.tsv : undefined;
       const pdf = data.pdf;
       return {

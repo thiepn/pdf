@@ -29,6 +29,7 @@ declare module "react" {
 declare module "react/jsx-runtime" { export const jsx: any; export const jsxs: any; export const Fragment: any; }
 declare module "react-dom/client" { export function createRoot(element: Element | DocumentFragment): { render(node: any): void; unmount(): void }; }
 declare module "vite/client" { }
+declare module "*.css" { }
 declare module "vite" { export function defineConfig(config: any): any; }
 declare module "vitest/config" { export function defineConfig(config: any): any; }
 declare module "vitest" { export const describe: any; export const expect: any; export const it: any; export const test: any; export const beforeEach: any; export const afterEach: any; export const vi: any; }

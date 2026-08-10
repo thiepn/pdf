@@ -39,5 +39,5 @@ export async function buildTextDocx(bytes: Uint8Array, title: string, password?:
   try {
     for (let page = 1; page <= document.numPages; page += 1) { if (signal?.aborted) throw new DOMException("DOCX export cancelled.", "AbortError"); const text = await extractPageText(document, page); paragraphs.push(`Page ${page}`, ...text.split(/(?<=[.!?])\s+/).filter(Boolean), ""); onProgress?.(page, document.numPages); }
     return { pageCount: document.numPages, bytes: buildSimpleDocx(title, paragraphs) };
-  } finally { await document.destroy(); }
+  } finally { await document.loadingTask.destroy(); }
 }

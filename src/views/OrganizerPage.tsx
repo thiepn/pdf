@@ -47,7 +47,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
         await openOrganizerDocument(manifest, bytes);
       } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
     })();
-    return () => { cancelled = true; abortRef.current?.abort(); activePasswordRef.current = undefined; sourceBytesRef.current = null; const current = documentRef.current; documentRef.current = null; if (current) void current.destroy(); };
+    return () => { cancelled = true; abortRef.current?.abort(); activePasswordRef.current = undefined; sourceBytesRef.current = null; const current = documentRef.current; documentRef.current = null; if (current) void current.loadingTask.destroy(); };
   }, [projectId, onTitleChange]);
 
   async function openOrganizerDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
@@ -56,7 +56,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
     try {
       const previous = documentRef.current;
       documentRef.current = null;
-      if (previous) await previous.destroy();
+      if (previous) await previous.loadingTask.destroy();
       const pdf = await openPdfWithPdfJs(bytes, suppliedPassword);
       documentRef.current = pdf;
       activePasswordRef.current = suppliedPassword;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { routeHref } from "../core/appRouter";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { openPdfWithPdfJs } from "../engines/pdfjs";
 import { listEditorAssets, readEditorState } from "../editor/editorRepository";
@@ -85,7 +86,7 @@ export function SecurePage({ projectId, onTitleChange }: Props) {
       sourceBytesRef.current = null;
       const current = documentRef.current;
       documentRef.current = null;
-      if (current) void current.destroy();
+      if (current) void current.loadingTask.destroy();
     };
   }, [projectId]);
 
@@ -102,7 +103,7 @@ export function SecurePage({ projectId, onTitleChange }: Props) {
     try {
       const previous = documentRef.current;
       documentRef.current = null;
-      if (previous) await previous.destroy();
+      if (previous) await previous.loadingTask.destroy();
       const [pdf, report] = await Promise.all([
         openPdfWithPdfJs(bytes, suppliedPassword),
         inspectSecurity(bytes, suppliedPassword)
@@ -168,7 +169,7 @@ export function SecurePage({ projectId, onTitleChange }: Props) {
         const created = await createDerivedProjectFromBytes(project.id, secured.bytes, filename, "secure-export", "application/pdf", outputPassword);
         window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
       } else {
-        downloadBlob(new Blob([secured.bytes.buffer.slice(secured.bytes.byteOffset, secured.bytes.byteOffset + secured.bytes.byteLength)], { type: "application/pdf" }), filename);
+        downloadBlob(new Blob([toOwnedArrayBuffer(secured.bytes)], { type: "application/pdf" }), filename);
         setStatus(`Validated and downloaded · ${formatBytes(secured.report.outputBytes)}`);
       }
       update({ progress: 1 });

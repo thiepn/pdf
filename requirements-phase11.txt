@@ -1,2 +1,4 @@
 PyMuPDF==1.26.7
 pypdf==5.9.0
+cryptography==50.0.0
+Pillow==12.3.0

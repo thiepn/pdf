@@ -4,7 +4,9 @@ import { readFile } from "node:fs/promises";
 const packageJson = JSON.parse(await readFile("package.json", "utf8"));
 const expectedNpm = String(packageJson.packageManager ?? "").replace(/^npm@/, "");
 const node = process.versions.node;
-const npm = execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["--version"], { encoding: "utf8" }).trim();
+const npm = process.platform === "win32"
+  ? execFileSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "npm.cmd --version"], { encoding: "utf8" }).trim()
+  : execFileSync("npm", ["--version"], { encoding: "utf8" }).trim();
 const failures = [];
 const [major, minor] = node.split(".").map(Number);
 if (major !== 22 || minor < 12) failures.push(`Node ${node} is outside the qualified Node 22.12+ line.`);

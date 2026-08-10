@@ -1,6 +1,8 @@
+import { toOwnedArrayBuffer } from "./arrayBuffer";
+
 export async function sha256(bytes: Uint8Array): Promise<string> {
   if (crypto.subtle) {
-    const source = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    const source = toOwnedArrayBuffer(bytes);
     const digest = await crypto.subtle.digest("SHA-256", source);
     return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
   }

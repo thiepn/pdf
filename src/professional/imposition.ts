@@ -74,7 +74,7 @@ export async function buildImposedPdf(bytes: Uint8Array, options: ImpositionOpti
           const viewport = page.getViewport({ scale: 1 }), fit = Math.min(cellWidth / viewport.width, cellHeight / viewport.height), renderViewport = page.getViewport({ scale: fit });
           const temp = document.createElement("canvas"); temp.width = Math.max(1, Math.round(renderViewport.width)); temp.height = Math.max(1, Math.round(renderViewport.height));
           const tempContext = temp.getContext("2d", { alpha: false }); if (!tempContext) throw new Error("Canvas page rendering is unavailable.");
-          tempContext.fillStyle = "#ffffff"; tempContext.fillRect(0, 0, temp.width, temp.height); await page.render({ canvasContext: tempContext, viewport: renderViewport }).promise;
+          tempContext.fillStyle = "#ffffff"; tempContext.fillRect(0, 0, temp.width, temp.height); await page.render({ canvas: temp, canvasContext: tempContext, viewport: renderViewport }).promise;
           const column = cellIndex % columns, row = Math.floor(cellIndex / columns), cellX = margin + column * (cellWidth + gutter), cellY = margin + row * (cellHeight + gutter), x = cellX + (cellWidth - temp.width) / 2, y = cellY + (cellHeight - temp.height) / 2;
           context.drawImage(temp, x, y);
           if (options.drawBorders) { context.strokeStyle = "#777777"; context.lineWidth = Math.max(1, scale * 0.5); context.strokeRect(x, y, temp.width, temp.height); }
@@ -88,5 +88,5 @@ export async function buildImposedPdf(bytes: Uint8Array, options: ImpositionOpti
     }
     const warnings = ["Print-layout output is rasterized. Forms, annotations, links, signatures, layers, searchable text, and vector editability are not preserved.", ...(options.cropMarks || options.registrationMarks ? ["Printer marks are drawn into the raster sheet and should be verified against the target printer workflow before production."] : [])];
     return { bytes: buildJpegPdf(output, { title: "Imposed PDF" }), sheetCount: output.length, warnings };
-  } finally { await pdfDocument.destroy(); }
+  } finally { await pdfDocument.loadingTask.destroy(); }
 }

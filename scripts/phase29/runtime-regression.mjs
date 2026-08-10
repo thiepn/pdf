@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { classifyDocumentBudget, performanceBudgetFor } from "../../src/viewer/performancePolicy.ts";
 
-const root = resolve(new URL("../..", import.meta.url).pathname);
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const checks = [];
 function check(name, condition, detail) {
   checks.push({ name, passed: Boolean(condition), detail });

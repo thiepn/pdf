@@ -25,6 +25,17 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def arabic_font_path() -> Path:
+    candidates = [
+        Path("/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf"),
+        Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "NotoNaskhArabic-Regular.ttf",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError("Noto Naskh Arabic Regular is required to generate the Unicode corpus fixture.")
+
+
 def save(doc: fitz.Document, name: str, **kwargs) -> Path:
     path = OUT / name
     if path.exists():
@@ -119,8 +130,7 @@ def forms() -> Path:
 def unicode_fixture() -> Path:
     doc = fitz.open()
     page = doc.new_page(width=A4.width, height=A4.height)
-    arabic = "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf"
-    page.insert_font(fontname="NotoArabic", fontfile=arabic)
+    page.insert_font(fontname="NotoArabic", fontfile=str(arabic_font_path()))
     page.insert_text((72, 80), "English: searchable Unicode fixture", fontsize=12)
     page.insert_text((72, 125), "한국어 PDF 편집 테스트", fontname="korea", fontsize=14)
     page.insert_text((72, 170), "中文 PDF 编辑测试", fontname="china-s", fontsize=14)

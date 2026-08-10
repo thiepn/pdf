@@ -12,7 +12,6 @@ export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string) {
     data: bytes.slice(),
     password,
     useWorkerFetch: true,
-    isEvalSupported: false,
     enableXfa: false
   });
   return loadingTask.promise;
@@ -80,7 +79,7 @@ export async function inspectPdfBytes(bytes: Uint8Array, password?: string): Pro
       pageLabels: labels ?? undefined
     };
   } finally {
-    await document.destroy();
+    await document.loadingTask.destroy();
   }
 }
 
@@ -120,7 +119,7 @@ export async function inspectPdfAnnotationInventory(
     }
     return { pageNumbers, annotationCount, linkCount, widgetCount };
   } finally {
-    await document.destroy();
+    await document.loadingTask.destroy();
   }
 }
 

@@ -15,6 +15,7 @@ export function detectScript(text: string): NativeScript {
   let hans = false;
   let hant = false;
   let complex = false;
+  const hanOnlyJapanese = /日本|日本語/.test(text);
   for (const ch of text) {
     const code = ch.codePointAt(0) ?? 0;
     if ((code >= 0x41 && code <= 0x24f) || (code >= 0x1e00 && code <= 0x1eff)) latin = true;
@@ -27,7 +28,7 @@ export function detectScript(text: string): NativeScript {
   }
   if (complex) return "complex";
   if (ko) return "cjk-ko";
-  if (ja) return "cjk-ja";
+  if (ja || hanOnlyJapanese) return "cjk-ja";
   if (hant) return "cjk-zh-hant";
   if (hans) return "cjk-zh-hans";
   if (latin || !text.trim()) return "latin";

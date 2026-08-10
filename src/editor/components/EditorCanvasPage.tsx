@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { CoordinateService, type AffineMatrix, type Point, type Rect } from "../../core/coordinates";
+import { asAffineMatrix, CoordinateService, type Point, type Rect } from "../../core/coordinates";
 import type { EditorObject, EditorTool, InkPoint } from "../../types/editor";
 import type { NativePageObject } from "../../types/nativeEditor";
 import { NativeContentOverlay } from "../native/NativeContentOverlay";
@@ -66,7 +66,7 @@ export function EditorCanvasPage(props: Props) {
       try {
         const viewport = page.getViewport({ scale: props.zoom });
         if (cancelled) return;
-        const service = new CoordinateService(viewport.transform as AffineMatrix);
+        const service = new CoordinateService(asAffineMatrix(viewport.transform));
         const pdfBounds = service.viewportRectToPdf({ x0: 0, y0: 0, x1: viewport.width, y1: viewport.height });
         setPageState({ width: viewport.width, height: viewport.height, service, pdfBounds });
         props.onPageGeometry?.(pdfBounds);

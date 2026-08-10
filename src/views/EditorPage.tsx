@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { routeHref } from "../core/appRouter";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { useModalFocus } from "../accessibility/modalFocus";
 import type { Rect } from "../core/coordinates";
 import { openPdfWithPdfJs, inspectPdfAnnotationInventory, inspectPdfBytes } from "../engines/pdfjs";
@@ -131,7 +132,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       sourceBytesRef.current = null;
       const current = documentRef.current;
       documentRef.current = null;
-      if (current) void current.destroy();
+      if (current) void current.loadingTask.destroy();
       for (const url of objectUrlsRef.current.values()) URL.revokeObjectURL(url);
       objectUrlsRef.current.clear();
     };
@@ -181,7 +182,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     try {
       const previous = documentRef.current;
       documentRef.current = null;
-      if (previous) await previous.destroy();
+      if (previous) await previous.loadingTask.destroy();
       const pdf = await openPdfWithPdfJs(bytes, suppliedPassword);
       documentRef.current = pdf;
       setDocument(pdf);
@@ -481,7 +482,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         ]);
         window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
       } else {
-        downloadBlob(new Blob([result.bytes.buffer.slice(result.bytes.byteOffset, result.bytes.byteOffset + result.bytes.byteLength)], { type: "application/pdf" }), filename);
+        downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), filename);
         const cleanState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: false, lastSavedAt: Date.now(), updatedAt: Date.now() };
         await writeEditorState(cleanState);
         await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: Date.now() } });

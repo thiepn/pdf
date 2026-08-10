@@ -12,3 +12,4 @@ test-results/
 *.tsbuildinfo
 
 .phase11-runtime/
+public/tesseract/

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
 import { optimizePdf } from "../processing/processingClient";
@@ -43,7 +44,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         await open(manifest, bytes);
       } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
     })();
-    return () => { cancelled = true; abortRef.current?.abort(); void sourceDocumentRef.current?.destroy(); void outputDocumentRef.current?.destroy(); };
+    return () => { cancelled = true; abortRef.current?.abort(); void sourceDocumentRef.current?.loadingTask.destroy(); void outputDocumentRef.current?.loadingTask.destroy(); };
   }, [projectId]);
 
   async function open(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string) {
@@ -80,7 +81,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
       const summary = await inspectPdfBytes(resultBytes, profile === "lossless" ? (password || undefined) : undefined);
       if (summary.pageCount !== document.numPages) throw new Error("Compression validation failed: page count changed.");
       const outputPdf = await openPdfWithPdfJs(resultBytes, profile === "lossless" ? (password || undefined) : undefined);
-      if (outputDocumentRef.current) await outputDocumentRef.current.destroy();
+      if (outputDocumentRef.current) await outputDocumentRef.current.loadingTask.destroy();
       outputDocumentRef.current = outputPdf; setOutputDocument(outputPdf); setOutput(resultBytes); setStatus("Compressed output validated");
       update({ progress: 1 });
       });
@@ -97,7 +98,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         update({ progress: 1 });
         window.location.hash = routeHref({ name: "workspace", projectId: created.id, mode: "viewer" }).slice(1);
       });
-    } else downloadBlob(new Blob([output], { type: "application/pdf" }), `${project.name}-compressed.pdf`);
+    } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), `${project.name}-compressed.pdf`);
   }
 
   const reduction = output && project ? (1 - output.byteLength / project.byteLength) * 100 : null;

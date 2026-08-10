@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { routeHref } from "../core/appRouter";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import { repairPdf } from "../processing/processingClient";
@@ -73,7 +74,7 @@ export function RepairPage({ projectId, onTitleChange }: Props) {
     const activeOutput = output;
     const activeProject = project;
     if (!asProject) {
-      downloadBlob(new Blob([activeOutput], { type: "application/pdf" }), `${activeProject.name}-repaired.pdf`);
+      downloadBlob(new Blob([toOwnedArrayBuffer(activeOutput)], { type: "application/pdf" }), `${activeProject.name}-repaired.pdf`);
       return;
     }
     try {

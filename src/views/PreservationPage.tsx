@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import { downloadBlob } from "../projects/download";
 import { createDerivedProjectFromBytes, getProject, loadProjectBytes } from "../projects/projectRepository";
@@ -130,7 +131,7 @@ export function PreservationPage({ projectId, onTitleChange }: Props) {
       </section>
       {result ? (
         <section className="professional-panel result-card">
-          <header><div><p className="eyebrow">Validated output</p><h2>{result.report.passed ? "Structure check passed" : "Output blocked"}</h2></div><div className="button-row"><button className="button" onClick={() => downloadBlob(new Blob([result.bytes], { type: "application/pdf" }), `${project?.name ?? "document"}-${result.report.operation}.pdf`)} type="button">Download PDF</button><button className="button button--secondary" onClick={() => void saveProject()} type="button">Save as project</button></div></header>
+          <header><div><p className="eyebrow">Validated output</p><h2>{result.report.passed ? "Structure check passed" : "Output blocked"}</h2></div><div className="button-row"><button className="button" onClick={() => downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), `${project?.name ?? "document"}-${result.report.operation}.pdf`)} type="button">Download PDF</button><button className="button button--secondary" onClick={() => void saveProject()} type="button">Save as project</button></div></header>
           <p>{result.report.warnings.join(" ") || "No unexpected structural loss detected."}</p>
         </section>
       ) : null}

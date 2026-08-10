@@ -1,3 +1,5 @@
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
+
 export async function opfsRoundTrip(bytes: Uint8Array): Promise<Uint8Array> {
   if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) {
     throw new Error("Origin Private File System is unavailable in this browser.");
@@ -7,7 +9,7 @@ export async function opfsRoundTrip(bytes: Uint8Array): Promise<Uint8Array> {
   const directory = await root.getDirectoryHandle("release-validation", { create: true });
   const handle = await directory.getFileHandle("round-trip.bin", { create: true });
   const writable = await handle.createWritable();
-  await writable.write(bytes);
+  await writable.write(toOwnedArrayBuffer(bytes));
   await writable.close();
 
   const file = await handle.getFile();

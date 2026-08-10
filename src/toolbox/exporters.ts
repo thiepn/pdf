@@ -8,17 +8,17 @@ function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;")
 export async function exportPdfText(bytes: Uint8Array, password?: string): Promise<string> {
   const pdf = await openPdfWithPdfJs(bytes, password);
   try { const pages: string[] = []; for (let page = 1; page <= pdf.numPages; page += 1) pages.push(await extractPageText(pdf, page)); return pages.join("\n\n--- Page break ---\n\n"); }
-  finally { await pdf.destroy(); }
+  finally { await pdf.loadingTask.destroy(); }
 }
 export async function exportPdfMarkdown(bytes: Uint8Array, title = "PDF export", password?: string): Promise<string> {
   const pdf = await openPdfWithPdfJs(bytes, password);
   try { const pages: string[] = [`# ${title}`]; for (let page = 1; page <= pdf.numPages; page += 1) { const text = (await extractPageText(pdf, page)).trim(); pages.push(`\n## Page ${page}\n\n${text || "_No extractable text on this page._"}`); } return pages.join("\n"); }
-  finally { await pdf.destroy(); }
+  finally { await pdf.loadingTask.destroy(); }
 }
 export async function exportPdfHtml(bytes: Uint8Array, title = "PDF export", password?: string): Promise<string> {
   const pdf = await openPdfWithPdfJs(bytes, password);
   try { const sections: string[] = []; for (let page = 1; page <= pdf.numPages; page += 1) { const text = (await extractPageText(pdf, page)).trim(); sections.push(`<section class="page"><h2>Page ${page}</h2><pre>${escapeHtml(text)}</pre></section>`); } return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#111}.page{padding:24px 0;border-bottom:1px solid #ddd}pre{white-space:pre-wrap;font:inherit}</style></head><body><h1>${escapeHtml(title)}</h1>${sections.join("")}</body></html>`; }
-  finally { await pdf.destroy(); }
+  finally { await pdf.loadingTask.destroy(); }
 }
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> { const blob = await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error("Could not encode PNG.")),"image/png")); return new Uint8Array(await blob.arrayBuffer()); }
@@ -40,7 +40,7 @@ export async function exportPdfImagesZip(bytes: Uint8Array, scale = 2, signal?: 
       onProgress?.(pageNumber,pdf.numPages);
     }
     return createStoredZip(files);
-  } finally { await pdf.destroy(); }
+  } finally { await pdf.loadingTask.destroy(); }
 }
 
 

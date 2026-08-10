@@ -26,6 +26,6 @@ describe("Phase 7 professional helpers", () => {
 
   it("routes professional project workspaces", () => {
     expect(readAppRoute("#/professional/project-7")).toEqual({ name: "professional", projectId: "project-7" });
-    expect(routeHref({ name: "professional", projectId: "a b" })).toBe("#/professional/a%20b");
+    expect(routeHref({ name: "professional", projectId: "a b" })).toBe("#/workspace/a%20b/professional");
   });
 });

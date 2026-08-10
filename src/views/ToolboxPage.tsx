@@ -44,7 +44,7 @@ export function ToolboxPage({ projectId, onTitleChange }: { projectId: string; o
           try {
             const result = await pdf.getMetadata(); const info = result.info as Record<string, unknown>;
             if (!cancelled) setMetadata({ title: String(info.Title ?? ""), author: String(info.Author ?? ""), subject: String(info.Subject ?? ""), keywords: String(info.Keywords ?? "") });
-          } finally { await pdf.destroy(); }
+          } finally { await pdf.loadingTask.destroy(); }
         } catch { /* encrypted files can be opened after password is supplied */ }
       } catch (reason) { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)); }
     })();
@@ -96,7 +96,7 @@ export function ToolboxPage({ projectId, onTitleChange }: { projectId: string; o
       try {
         const profile = RASTER_PROFILES.find((item) => item.id === "balanced"); if (!profile) throw new Error("Balanced raster profile is unavailable.");
         output = await rasterTransformPdf(pdf, profile, { grayscale: true }, signal, (done,total)=>{ const value=done/total; setProgress(`Rendering grayscale page ${done}/${total}…`); update({ detail:`Rendering grayscale page ${done}/${total}…`, progress:Math.min(.82,value*.82) }); });
-      } finally { await pdf.destroy(); }
+      } finally { await pdf.loadingTask.destroy(); }
       setProgress("Validating and creating revision…"); update({ stage: "committing", detail: "Validating storage and saving grayscale revision…", progress: 0.9 });
       const project = await createDerivedProjectFromBytes(projectId, output, `${fileBase(name)}-grayscale.pdf`, "toolbox-grayscale");
       update({ progress: 1 }); navigateTo({ name: "workspace", projectId: project.id, mode: "toolbox" });

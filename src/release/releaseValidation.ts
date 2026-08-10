@@ -161,7 +161,7 @@ export async function runReleaseValidation(onProgress?: (progress: ReleaseValida
     ["PDF.js fixture", () => timedCheck("pdfjs-fixture", "PDF.js fixture open and text extraction", async () => {
       const document = await openPdfWithPdfJs(createMinimalPdf());
       try { const text = await extractPageText(document, 1); if (document.numPages !== 1 || !text.includes("PDF Studio")) throw new Error("Fixture page or text did not match."); return "PDF.js opened one page and extracted the expected text."; }
-      finally { await document.destroy(); }
+      finally { await document.loadingTask.destroy(); }
     })],
     ["MuPDF fixture", () => timedCheck("mupdf-fixture", "MuPDF worker open and clean save", () => runMuPdfProbe(createMinimalPdf()))],
     ["Coordinate round-trip", () => timedCheck("coordinates", "Canonical coordinate round-trip", async () => {

@@ -1,3 +1,5 @@
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
+
 const PROJECT_ROOT = "projects";
 
 function hasOpfs(): boolean {
@@ -16,7 +18,7 @@ export async function writeProjectSource(projectId: string, bytes: Uint8Array): 
   const file = await directory.getFileHandle("original.pdf", { create: true });
   const writable = await file.createWritable();
   try {
-    await writable.write(bytes);
+    await writable.write(toOwnedArrayBuffer(bytes));
     await writable.close();
   } catch (reason) {
     try { await writable.abort(reason); } catch { /* Best-effort cleanup; caller removes the project directory. */ }

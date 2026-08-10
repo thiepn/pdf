@@ -58,6 +58,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
 
       assertActive(request.requestId);
       const pdf = document.asPDF();
+      if (!pdf) throw new Error("MuPDF did not recognize the opened document as a PDF.");
       const canSaveIncrementally = pdf.canBeSavedIncrementally();
       const saved = pdf.saveToBuffer("garbage=2,compress=yes");
       let output: Uint8Array;

@@ -21,6 +21,13 @@ export interface Rect {
 
 const EPSILON = 1e-12;
 
+export function asAffineMatrix(values: readonly number[]): AffineMatrix {
+  if (values.length !== 6 || values.some((value) => !Number.isFinite(value))) {
+    throw new Error("Coordinate transform must contain six finite numbers.");
+  }
+  return [values[0], values[1], values[2], values[3], values[4], values[5]];
+}
+
 export function transformPoint(matrix: AffineMatrix, point: Point): Point {
   const [a, b, c, d, e, f] = matrix;
   return {

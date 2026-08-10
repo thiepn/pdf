@@ -84,7 +84,7 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
           }
         }
       }
-    } finally { await Promise.all([sourceDocument.destroy(), outputDocument.destroy()]); }
+    } finally { await Promise.all([sourceDocument.loadingTask.destroy(), outputDocument.loadingTask.destroy()]); }
   }
 
   async function runPdfOperation(
@@ -122,7 +122,7 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
         const { openPdfWithPdfJs } = await import("../engines/pdfjs");
         const document = await openPdfWithPdfJs(output, password || undefined);
         try { const text = await extractPageText(document, firstPage); if (!text.includes(expectedLabel)) throw new Error(`The first document number was not found on page ${firstPage}.`); }
-        finally { await document.destroy(); }
+        finally { await document.loadingTask.destroy(); }
       },
     );
   }

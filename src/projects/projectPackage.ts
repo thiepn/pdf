@@ -1,4 +1,5 @@
 import { sha256 } from "../core/checksum";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { isSupportedProjectPackageVersion, PROJECT_PACKAGE_VERSION } from "../core/release";
 import { EDITOR_SCHEMA_VERSION, type EditorAssetRecord, type EditorDocumentState } from "../types/editor";
 import { OCR_SCHEMA_VERSION, type OcrJob, type OcrPageResult } from "../types/ocr";
@@ -160,7 +161,7 @@ export async function encodeProjectPackage(
   const prefix = new TextEncoder().encode(MAGIC);
   const length = new Uint8Array(LENGTH_BYTES);
   new DataView(length.buffer).setUint32(0, headerBytes.byteLength, true);
-  return new Blob([prefix, length, headerBytes, payload], { type: "application/x-local-pdf-studio-project" });
+  return new Blob([prefix, length, headerBytes, toOwnedArrayBuffer(payload)], { type: "application/x-local-pdf-studio-project" });
 }
 
 export function decodeProjectPackage(bytes: Uint8Array): DecodedProjectPackage {
@@ -192,7 +193,7 @@ export function decodeProjectPackage(bytes: Uint8Array): DecodedProjectPackage {
     if (!range) return undefined;
     ranges.push(range);
     const view = payload.slice(range.start, range.end);
-    return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    return toOwnedArrayBuffer(view);
   };
   const assetHeaders = header.editorAssets === undefined ? [] : requireArray<ProjectPackageAssetHeader>(header.editorAssets, "Project editor assets");
   const ocrPageHeaders = header.ocrPages === undefined ? [] : requireArray<ProjectPackageOcrPageHeader>(header.ocrPages, "Project OCR pages");
@@ -214,7 +215,7 @@ export function decodeProjectPackage(bytes: Uint8Array): DecodedProjectPackage {
       width: asset.width,
       height: asset.height,
       byteLength: range.end - range.start,
-      bytes: view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength),
+      bytes: toOwnedArrayBuffer(view),
       createdAt: asset.createdAt
     };
   });

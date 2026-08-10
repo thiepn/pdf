@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 
 import fitz
@@ -97,11 +98,15 @@ def text_font_fixtures(entries: list[tuple[Path, dict]]) -> None:
     page.insert_text((50, 150), "日本語 CJK JAPANESE MARKER", fontname="japan", fontsize=13)
     entries.append((save(doc, "cjk-mixed.pdf"), {"pages": 1, "text": ["CJK_ASCII_MARKER"]}))
 
-    arabic_font = "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf"
+    arabic_fonts = [
+        Path("/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf"),
+        Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "NotoNaskhArabic-Regular.ttf",
+    ]
+    arabic_font = next((path for path in arabic_fonts if path.is_file()), None)
     doc = fitz.open(); page = doc.new_page(width=A4.width, height=A4.height)
     page.insert_text((50, 50), "RTL_ASCII_MARKER", fontname="helv", fontsize=11)
-    if Path(arabic_font).exists():
-        page.insert_font(fontname="NotoArabic", fontfile=arabic_font)
+    if arabic_font:
+        page.insert_font(fontname="NotoArabic", fontfile=str(arabic_font))
         page.insert_text((50, 90), "اختبار عربي", fontname="NotoArabic", fontsize=15)
     entries.append((save(doc, "rtl-arabic.pdf"), {"pages": 1, "text": ["RTL_ASCII_MARKER"]}))
 

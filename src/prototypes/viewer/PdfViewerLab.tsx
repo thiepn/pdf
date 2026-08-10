@@ -39,7 +39,7 @@ export function PdfViewerLab() {
   useEffect(() => {
     return () => {
       renderTaskRef.current?.cancel();
-      void documentRef.current?.destroy();
+      void documentRef.current?.loadingTask.destroy();
     };
   }, []);
 
@@ -48,7 +48,7 @@ export function PdfViewerLab() {
     setBusy(true);
     setError(null);
     renderTaskRef.current?.cancel();
-    await documentRef.current?.destroy();
+    await documentRef.current?.loadingTask.destroy();
     documentRef.current = null;
 
     try {

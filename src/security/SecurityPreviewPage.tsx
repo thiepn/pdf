@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { CoordinateService, type AffineMatrix, type Rect } from "../core/coordinates";
+import { asAffineMatrix, CoordinateService, type Rect } from "../core/coordinates";
 import type { EditorObject } from "../types/editor";
 import type { SecurityFormField } from "../types/security";
 
@@ -32,7 +32,7 @@ export function SecurityPreviewPage({ document, pageNumber, zoom, fields, object
     void document.getPage(pageNumber).then(async (pdfPage) => {
       try {
         const viewport = pdfPage.getViewport({ scale: zoom });
-        const service = new CoordinateService(viewport.transform as AffineMatrix);
+        const service = new CoordinateService(asAffineMatrix(viewport.transform));
         if (cancelled) return;
         setPage({ width: viewport.width, height: viewport.height, service });
         const canvas = canvasRef.current;

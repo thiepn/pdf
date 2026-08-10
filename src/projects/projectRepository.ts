@@ -1,4 +1,5 @@
 import { sha256 } from "../core/checksum";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { idbDelete, idbDeleteAllByIndex, idbGet, idbGetAll, idbPut } from "../storage/database";
 import { deleteProjectFiles, readProjectSource, writeProjectSource } from "../storage/projectFiles";
@@ -86,7 +87,7 @@ export async function createProjectFromBytes(
   } catch {
     await deleteProjectFiles(id).catch(() => undefined);
     storageKind = "indexeddb";
-    const transferable = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    const transferable = toOwnedArrayBuffer(bytes);
     try {
       await idbPut<SourceFileRecord>("sourceFiles", { projectId: id, bytes: transferable });
     } catch (reason) {

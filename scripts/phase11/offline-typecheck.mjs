@@ -1,8 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
-const executable = process.platform === "win32" ? "tsc.cmd" : "tsc";
-const result = spawnSync(executable, ["-p", "tsconfig.phase11.json", "--pretty", "false"], { stdio: "inherit" });
+const isWindows = process.platform === "win32";
+const executable = isWindows ? process.env.ComSpec ?? "cmd.exe" : "tsc";
+const args = isWindows
+  ? ["/d", "/s", "/c", "tsc.cmd -p tsconfig.phase11.json --pretty false"]
+  : ["-p", "tsconfig.phase11.json", "--pretty", "false"];
+const result = spawnSync(executable, args, { stdio: "inherit" });
 if (result.error?.code === "ENOENT") {
   console.error("TypeScript is unavailable. Install dependencies and run npm run typecheck instead.");
   process.exit(2);

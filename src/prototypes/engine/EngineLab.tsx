@@ -73,7 +73,7 @@ export function EngineLab() {
                 reopen
               });
             } finally {
-              await reopened.destroy();
+              await reopened.loadingTask.destroy();
             }
           } else if (event.data.type === "PROBE_ERROR") {
             setState({ filename, status: "failed", error: event.data.error?.message ?? "Unknown worker error." });

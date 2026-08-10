@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { routeHref } from "../core/appRouter";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { extractPageText, inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
 import { OcrLanguagePanel } from "../ocr/OcrLanguagePanel";
 import { createOcrSession } from "../ocr/ocrClient";
@@ -54,7 +55,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         await openDocument(manifest, bytes);
       } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
     })();
-    return () => { cancelled = true; abortRef.current = true; void sessionRef.current?.terminate(); sessionRef.current = null; const current = documentRef.current; documentRef.current = null; if (current) void current.destroy(); };
+    return () => { cancelled = true; abortRef.current = true; void sessionRef.current?.terminate(); sessionRef.current = null; const current = documentRef.current; documentRef.current = null; if (current) void current.loadingTask.destroy(); };
   }, [projectId]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string) {
@@ -118,7 +119,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         try {
           const recognized = await session.recognize(rendered.blob, `${runningJob.id}-${pageNumber}`);
           if (!recognized.searchablePdf) throw new Error("This Tesseract build did not return searchable PDF output.");
-          const pageResult: OcrPageResult = { ...pending, status: "complete", text: recognized.text, confidence: recognized.confidence, words: recognized.words, hocr: recognized.hocr, tsv: recognized.tsv, searchablePdf: recognized.searchablePdf.buffer.slice(recognized.searchablePdf.byteOffset, recognized.searchablePdf.byteOffset + recognized.searchablePdf.byteLength), updatedAt: Date.now() };
+          const pageResult: OcrPageResult = { ...pending, status: "complete", text: recognized.text, confidence: recognized.confidence, words: recognized.words, hocr: recognized.hocr, tsv: recognized.tsv, searchablePdf: toOwnedArrayBuffer(recognized.searchablePdf), updatedAt: Date.now() };
           await writeOcrPage(pageResult);
           previous.set(pageNumber, pageResult);
           const index = nextResults.findIndex((item) => item.pageNumber === pageNumber);
@@ -146,7 +147,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         try {
           const extracted = await extractPageText(check, searchableIndex + 1);
           if (!extracted.trim()) throw new Error("OCR output validation failed: no searchable text was extracted from a recognized page.");
-        } finally { await check.destroy(); }
+        } finally { await check.loadingTask.destroy(); }
       }
       setOutput(merged.bytes);
       runningJob = { ...runningJob, status: "complete", completedPages: finalPages.length, updatedAt: Date.now() };
@@ -172,7 +173,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
           window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
         });
       } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    } else downloadBlob(new Blob([output], { type: "application/pdf" }), `${project.name}-searchable.pdf`);
+    } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), `${project.name}-searchable.pdf`);
   }
 
   return <div className="ocr-workspace">

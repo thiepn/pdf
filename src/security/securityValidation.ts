@@ -1,5 +1,5 @@
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { CoordinateService, type AffineMatrix, type Rect } from "../core/coordinates";
+import { asAffineMatrix, CoordinateService, type Rect } from "../core/coordinates";
 import { extractPageText, inspectPdfBytes, multiplyTransforms, openPdfWithPdfJs } from "../engines/pdfjs";
 import type { EditorObject } from "../types/editor";
 import type { SecurityExportOptions, SecurityInspectionReport } from "../types/security";
@@ -30,7 +30,7 @@ export async function collectRedactionTokens(document: PDFDocumentProxy, objects
     const page = await document.getPage(pageNumber);
     try {
       const viewport = page.getViewport({ scale: 1 });
-      const service = new CoordinateService(viewport.transform as AffineMatrix);
+      const service = new CoordinateService(asAffineMatrix(viewport.transform));
       const text = await page.getTextContent({ includeMarkedContent: false });
       for (const raw of text.items) {
         if (!("str" in raw) || !raw.str.trim()) continue;
@@ -72,7 +72,7 @@ export async function validateSecurityOutput(
     let blockedWithoutPassword = false;
     try {
       const plain = await openPdfWithPdfJs(bytes);
-      await plain.destroy();
+      await plain.loadingTask.destroy();
     } catch { blockedWithoutPassword = true; }
     checks.push({ name: "Password protection", passed: blockedWithoutPassword && inspection.encrypted, detail: blockedWithoutPassword ? "Opening without a password was rejected." : "The output opened without the requested password." });
   } else if (options.encryption.mode === "remove") {
@@ -87,7 +87,7 @@ export async function validateSecurityOutput(
         const remainingText = (await Promise.all([...new Set(redactionPages)].map((pageNumber) => extractPageText(document, pageNumber)))).join("\n").toLocaleLowerCase();
         const remaining = redactionTokens.filter((token) => remainingText.includes(token.toLocaleLowerCase()));
         checks.push({ name: "Redacted text extraction", passed: remaining.length === 0, detail: remaining.length ? `Still found: ${remaining.slice(0, 5).join(", ")}` : `${redactionTokens.length} covered text fragments were absent after export.` });
-      } finally { await document.destroy(); }
+      } finally { await document.loadingTask.destroy(); }
     } else checks.push({ name: "Redacted text extraction", passed: true, detail: "No selectable text fragments were detected inside the marked regions; image and vector removal rely on MuPDF redaction processing." });
   }
 

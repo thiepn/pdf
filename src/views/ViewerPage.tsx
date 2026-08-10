@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { openPdfWithPdfJs, searchPdfDocument, type PdfSearchResult } from "../engines/pdfjs";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { downloadBlob } from "../projects/download";
 import { exportProjectPackage, getProject, loadProjectBytes, readViewerPreferences, touchProject, writeViewerPreferences } from "../projects/projectRepository";
 import type { ProjectManifest, ViewerPreferences } from "../types/project";
@@ -80,7 +81,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     try {
       const previous = documentRef.current;
       documentRef.current = null;
-      if (previous) await previous.destroy();
+      if (previous) await previous.loadingTask.destroy();
       const doc = await openPdfWithPdfJs(bytes, suppliedPassword);
       documentRef.current = doc;
       setPdfDocument(doc);
@@ -138,7 +139,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
       searchAbortRef.current?.abort();
       const current = documentRef.current;
       documentRef.current = null;
-      void current?.destroy();
+      void current?.loadingTask.destroy();
     };
   }, [openDocument, projectId]);
 
@@ -231,7 +232,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
 
   function downloadOriginal(): void {
     if (!project || !bytesRef.current) return;
-    downloadBlob(new Blob([bytesRef.current], { type: project.mimeType }), project.sourceFilename);
+    downloadBlob(new Blob([toOwnedArrayBuffer(bytesRef.current)], { type: project.mimeType }), project.sourceFilename);
   }
 
   async function retryPassword(): Promise<void> {

@@ -19,7 +19,8 @@ describe("editor history", () => {
     if (!object || object.type !== "text") throw new Error("Fixture creation failed");
     const first = commitHistory(createHistory([object]), "Edit text", [{ ...object, text: "A" }], [object.id], `text:${object.id}`);
     const second = commitHistory(first, "Edit text", [{ ...object, text: "AB" }], [object.id], `text:${object.id}`);
-    expect(second.past).toHaveLength(0);
+    expect(second.past).toHaveLength(1);
     expect((second.present.objects[0] as typeof object).text).toBe("AB");
+    expect((undoHistory(second).present.objects[0] as typeof object).text).toBe(object.text);
   });
 });
