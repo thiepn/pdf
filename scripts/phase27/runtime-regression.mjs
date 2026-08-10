@@ -1,0 +1,31 @@
+import { readFile } from "node:fs/promises";
+
+const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+const playwright = await readFile("playwright.config.ts", "utf8");
+const ci = await readFile(".github/workflows/ci.yml", "utf8");
+const deploy = await readFile(".github/workflows/deploy.yml", "utf8");
+const release = await readFile(".github/workflows/release.yml", "utf8");
+const refresh = await readFile(".github/workflows/refresh-lockfile.yml", "utf8");
+const offlineGenerator = await readFile("scripts/generate-offline-assets.mjs", "utf8");
+const distAudit = await readFile("scripts/check-dist.mjs", "utf8");
+let passed = 0;
+const check = (condition, message) => { if (!condition) throw new Error(message); passed += 1; };
+
+check(/^6\.\d+\.\d+$/.test(packageJson.version) || Number(packageJson.version.match(/phase(\d+)$/)?.[1] ?? 0) >= 27, "Phase 27 qualification remains enabled in later release phases.");
+check(packageJson.packageManager === "npm@10.9.2", "npm toolchain must remain pinned.");
+check(packageJson.scripts?.["audit:lockfile"]?.includes("phase27/lockfile-audit.mjs"), "Lockfile audit script must be wired.");
+check(packageJson.scripts?.["audit:toolchain"]?.includes("phase27/toolchain-audit.mjs"), "Toolchain audit script must be wired.");
+check(packageJson.scripts?.["test:runtime:phase27"]?.includes("phase27/runtime-regression.mjs"), "Phase 27 runtime regression must be wired.");
+check(/PLAYWRIGHT_SKIP_BUILD/.test(playwright) && /npm run preview/.test(playwright), "Playwright must support testing an already-verified distribution.");
+check(/needs:\s*\[?phase11-stability-gate, validate\]?/.test(ci) || /needs:\s*\n\s*- phase11-stability-gate\s*\n\s*- validate/.test(ci), "Browser regression must depend on the verified build job.");
+check(/actions\/download-artifact@v/.test(ci) && /PLAYWRIGHT_SKIP_BUILD:\s*["']?1/.test(ci), "CI browser regression must test the uploaded verified dist artifact.");
+check(/Install Playwright browsers/.test(deploy) && /PLAYWRIGHT_SKIP_BUILD:\s*["']?1/.test(deploy), "Deployment must browser-test the exact artifact before upload.");
+check(/Reproducible deployment build/.test(deploy) && /dist-fingerprint\.mjs/.test(deploy), "Deployment must reproduce and compare the Pages artifact before browser qualification.");
+check(/audit:lockfile/.test(ci) && /audit:toolchain/.test(ci) && /audit:tree/.test(ci), "CI must validate lockfile, toolchain, and installed dependency tree.");
+check(/Reproducible production build/.test(ci) && /dist-fingerprint\.mjs/.test(ci), "CI must rebuild and compare deterministic dist fingerprints.");
+check(/VITE_BUILD_TIMESTAMP/.test(ci) && /git show -s --format=%cI/.test(ci), "CI build timestamp must come from commit metadata, not a SHA.");
+check(/dependency-lock/.test(refresh) && /Bootstrap dependency lock/.test(refresh), "Lock bootstrap workflow remains present for release qualification.");
+check(/test:phase(?:27|28|29|30)|release:web/.test(release) && /PLAYWRIGHT_SKIP_BUILD:\s*["']?1/.test(release), "Tagged release must retain Phase 27 exact-artifact qualification in later phases.");
+check(/VITE_BUILD_TIMESTAMP/.test(offlineGenerator), "Offline manifest timestamps must be reproducible from the build timestamp.");
+check(/VITE_BUILD_TIMESTAMP/.test(distAudit), "Distribution integrity timestamps must be reproducible from the build timestamp.");
+console.log(`Phase 27 runtime regression: ${passed}/17 passed.`);
