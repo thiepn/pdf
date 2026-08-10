@@ -151,10 +151,10 @@ jobs:
           set -euo pipefail
           base="${PAGE_URL%/}/"
           curl --fail --location --retry 8 --retry-delay 5 "${base}"
-          curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -q 'PDF Studio'
-          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -q '6.1.0'
-          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -q 'fileCount'
-          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -q '"channel": "release-candidate"'
-          curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -q 'assets'
+          curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '6.1.0' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "release-candidate"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'assets' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}icons/icon-192.png" --output /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}icons/icon-512.png" --output /dev/null
