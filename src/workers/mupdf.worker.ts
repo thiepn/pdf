@@ -103,4 +103,6 @@ self.onmessage = (event: MessageEvent<Request>) => {
   }
 };
 
+self.postMessage({ type: "READY" });
+
 export {};

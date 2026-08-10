@@ -20,7 +20,8 @@ export function useModalFocus(
   open: boolean,
   containerRef: RefObject<HTMLElement | null>,
   onClose: () => void,
-  initialFocusRef?: RefObject<HTMLElement | null>
+  initialFocusRef?: RefObject<HTMLElement | null>,
+  returnFocusRef?: RefObject<HTMLElement | null>
 ): void {
   useEffect(() => {
     if (!open) return;
@@ -65,7 +66,11 @@ export function useModalFocus(
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown, true);
       delete document.documentElement.dataset.modalOpen;
-      if (previous?.isConnected) window.requestAnimationFrame(() => previous.focus({ preventScroll: true }));
+      window.requestAnimationFrame(() => {
+        const target = returnFocusRef?.current;
+        if (target?.isConnected) target.focus({ preventScroll: true });
+        else if (previous?.isConnected) previous.focus({ preventScroll: true });
+      });
     };
-  }, [containerRef, initialFocusRef, onClose, open]);
+  }, [containerRef, initialFocusRef, onClose, open, returnFocusRef]);
 }

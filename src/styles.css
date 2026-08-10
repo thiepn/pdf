@@ -2346,7 +2346,7 @@ pre {
   user-select: none;
 }
 .editor-page-layers > canvas { position: absolute; inset: 0; display: block; }
-.editor-object-layer { position: absolute; inset: 0; overflow: visible; }
+.editor-object-layer { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
 .editor-page-label { position: absolute; left: 50%; bottom: -31px; transform: translateX(-50%); padding: 4px 9px; border-radius: 99px; color: #b3bdc6; background: rgb(20 24 28 / 86%); font-size: .66rem; }
 
 .editor-cursor--select { cursor: default; }
@@ -2372,6 +2372,7 @@ pre {
   min-height: 1px;
   cursor: move;
   touch-action: none;
+  pointer-events: auto;
 }
 .editor-object > img,
 .editor-object > svg,

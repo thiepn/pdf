@@ -15,6 +15,7 @@ test("checkpoint restore creates an independent project identity", async ({ page
 
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Restore copy" }).click();
+  await expect(page).not.toHaveURL(sourceUrl);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   const restoredId = page.url().match(/workspace\/([^/]+)\/viewer/)?.[1];
   expect(restoredId).toBeTruthy();
@@ -30,13 +31,13 @@ test("duplicate tabs cannot mount mutating modes until project ownership is rele
 
   const duplicate = await context.newPage();
   await duplicate.goto(workspaceUrl);
-  await expect(duplicate.getByText("Read-only duplicate tab", { exact: true })).toBeVisible();
+  await expect(duplicate.getByText("Read-only in this tab", { exact: true })).toBeVisible();
   await duplicate.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(duplicate.getByRole("heading", { name: /Edit is locked in this tab/i })).toBeVisible();
-  await expect(duplicate.getByRole("button", { name: "Text", exact: true })).toHaveCount(0);
+  await expect(duplicate.getByRole("button", { name: /Text$/ })).toHaveCount(0);
 
   await page.close();
-  await duplicate.getByRole("button", { name: "Try to take ownership" }).first().click();
+  await duplicate.getByRole("button", { name: "Try editing here" }).first().click();
   await expect(duplicate.getByText("Editing", { exact: true })).toBeVisible();
-  await expect(duplicate.getByRole("button", { name: "Text", exact: true })).toBeVisible();
+  await expect(duplicate.getByRole("button", { name: /Text$/ })).toBeVisible();
 });

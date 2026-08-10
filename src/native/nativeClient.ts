@@ -1,6 +1,7 @@
 import type { NativeEdit, NativeExportReport, NativeInspection } from "../types/nativeEditor";
 
 type Response =
+  | { type: "READY" }
   | { type: "NATIVE_INSPECTION"; requestId: string; inspection: NativeInspection }
   | { type: "NATIVE_RESULT"; requestId: string; output: ArrayBuffer; report: NativeExportReport }
   | { type: "NATIVE_ERROR"; requestId: string; error: { message: string } };
@@ -14,6 +15,10 @@ function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?:
     const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
+      if (event.data.type === "READY") {
+        worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        return;
+      }
       if (event.data.requestId !== requestId) return;
       cleanup();
       if (event.data.type === "NATIVE_ERROR") reject(new Error(event.data.error.message));
@@ -21,7 +26,6 @@ function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?:
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Native editor worker failed.")); };
-    worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
   });
 }
 

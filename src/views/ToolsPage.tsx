@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { importPdfProject } from "../projects/projectRepository";
+import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 
 type LocalTarget = "organizer" | "secure" | "ocr" | "compress" | "inspector" | "repair" | "professional" | "toolbox";
 
@@ -18,7 +19,7 @@ export function ToolsPage() {
   function chooseFile(target: LocalTarget): void { targetRef.current = target; inputRef.current?.click(); }
   async function openWorkspace(file: File, target: LocalTarget, suppliedPassword?: string): Promise<void> {
     setBusy(true); setError(null);
-    try { const project = await importPdfProject(file, suppliedPassword); navigateTo({ name: target, projectId: project.id } as any); }
+    try { const project = await importPdfProject(file, suppliedPassword); if (suppliedPassword) rememberProjectSessionPassword(project.id, suppliedPassword); navigateTo({ name: target, projectId: project.id } as any); }
     catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message) && !suppliedPassword) { setPendingFile(file); setPendingTarget(target); setError("This PDF requires a password. It is used only for this local session and is not stored."); }

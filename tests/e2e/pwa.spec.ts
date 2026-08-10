@@ -23,10 +23,15 @@ test("app shell reopens with the browser network disabled", async ({ page, conte
   await page.goto("./#/home");
   await navigatorServiceWorkerReady(page);
   await context.setOffline(true);
-  await page.reload();
-  await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
-  await expect(page.getByText("Offline-ready", { exact: true })).toBeVisible();
-  await context.setOffline(false);
+  try {
+    await page.evaluate(() => window.location.reload());
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ready for offline work" })).toBeVisible();
+    await expect(page.getByText(/\d+\/\d+ release assets/)).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
 });
 
 async function navigatorServiceWorkerReady(page: import("@playwright/test").Page): Promise<void> {

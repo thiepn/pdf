@@ -15,6 +15,7 @@ import { idbDelete, idbGet, idbPut } from "../storage/database";
 import type { ActivityReceipt } from "../activity/activityModel";
 import { checkStorageBudget } from "../storage/budget";
 import { getServiceWorkerOfflineStatus } from "./serviceWorkerManager";
+import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 
 export interface ReleaseValidationReport {
   schemaVersion: 1;
@@ -69,10 +70,22 @@ function runMuPdfProbe(bytes: Uint8Array): Promise<string> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("../workers/mupdf.worker.ts", import.meta.url), { type: "module" });
     const requestId = crypto.randomUUID();
-    const timeout = window.setTimeout(() => { worker.terminate(); reject(new Error("MuPDF worker probe timed out.")); }, 20000);
+    let probeTimeout: number | undefined;
+    const startupTimeout = window.setTimeout(() => { worker.terminate(); reject(new Error("MuPDF worker startup timed out.")); }, 45000);
+    const clearTimers = () => {
+      window.clearTimeout(startupTimeout);
+      if (probeTimeout !== undefined) window.clearTimeout(probeTimeout);
+    };
     worker.onmessage = (event: MessageEvent) => {
+      if (event.data.type === "READY") {
+        window.clearTimeout(startupTimeout);
+        probeTimeout = window.setTimeout(() => { worker.terminate(); reject(new Error("MuPDF worker probe timed out.")); }, 20000);
+        const buffer = toOwnedArrayBuffer(bytes);
+        worker.postMessage({ type: "OPEN_PROBE", requestId, bytes: buffer }, [buffer]);
+        return;
+      }
       if (event.data.requestId !== requestId) return;
-      window.clearTimeout(timeout); worker.terminate();
+      clearTimers(); worker.terminate();
       if (event.data.type === "PROBE_ERROR") reject(new Error(event.data.error?.message ?? "MuPDF probe failed."));
       else if (event.data.type === "PROBE_RESULT") {
         const result = event.data.result as { pageCount: number; firstPageText: string; outputBytes: number };
@@ -80,9 +93,7 @@ function runMuPdfProbe(bytes: Uint8Array): Promise<string> {
         else resolve(`MuPDF reopened and clean-saved one page (${result.outputBytes.toLocaleString()} output bytes).`);
       }
     };
-    worker.onerror = (event) => { window.clearTimeout(timeout); worker.terminate(); reject(new Error(event.message)); };
-    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    worker.postMessage({ type: "OPEN_PROBE", requestId, bytes: buffer }, [buffer]);
+    worker.onerror = (event) => { clearTimers(); worker.terminate(); reject(new Error(event.message)); };
   });
 }
 

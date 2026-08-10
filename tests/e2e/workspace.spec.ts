@@ -6,14 +6,14 @@ test("Phase 12 opens the sample inside one unified multi-mode workspace", async 
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   await expect(page.getByRole("tab", { name: /pdf-studio-welcome/i })).toBeVisible();
   await expect(page.getByRole("button", { name: "Simple" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Preservation" })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit" }).click();
   await expect(page).toHaveURL(/\/editor$/);
   await expect(page.getByRole("button", { name: /Text/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Advanced" }).click();
-  await expect(page.getByRole("button", { name: "Professional" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Preservation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print & Advanced" })).toBeVisible();
   await page.getByRole("button", { name: "History" }).click();
   await expect(page.getByRole("heading", { name: "History & checkpoints" })).toBeVisible();
 });

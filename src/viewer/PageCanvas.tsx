@@ -30,6 +30,7 @@ function PageCanvasComponent({ document, pageNumber, zoom, lazy = false, searchQ
   const [active, setActive] = useState(!lazy);
   const [dimensions, setDimensions] = useState<Dimensions>({ width: 612 * zoom, height: 792 * zoom });
   const [error, setError] = useState<string | null>(null);
+  const [rendered, setRendered] = useState(false);
 
   useEffect(() => {
     const previous = previousZoomRef.current;
@@ -61,6 +62,7 @@ function PageCanvasComponent({ document, pageNumber, zoom, lazy = false, searchQ
 
   useEffect(() => {
     if (!active) {
+      setRendered(false);
       const canvas = canvasRef.current;
       if (canvas) {
         canvas.width = 1;
@@ -74,6 +76,7 @@ function PageCanvasComponent({ document, pageNumber, zoom, lazy = false, searchQ
     const controller = new AbortController();
     const render = async () => {
       setError(null);
+      setRendered(false);
       const execute = async () => {
       if (controller.signal.aborted) throw new DOMException("Render was cancelled.", "AbortError");
       const page = await document.getPage(pageNumber);
@@ -126,6 +129,7 @@ function PageCanvasComponent({ document, pageNumber, zoom, lazy = false, searchQ
           if (query && item.str.toLocaleLowerCase().includes(query)) span.className = "text-match";
           textLayer.append(span);
         }
+        setRendered(true);
       } finally {
         page.cleanup();
       }
@@ -150,6 +154,7 @@ function PageCanvasComponent({ document, pageNumber, zoom, lazy = false, searchQ
       aria-label={`PDF page ${pageNumber}`}
       className="pdf-page-shell"
       data-page-number={pageNumber}
+      data-rendered={rendered ? "true" : "false"}
       ref={hostRef}
       style={{ width: dimensions.width, minHeight: dimensions.height }}
     >

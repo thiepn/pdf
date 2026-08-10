@@ -12,7 +12,7 @@ test("phone workspace exposes touch-first document navigation and sheets", async
   await expect(page.locator(".editor-toolrail")).toBeVisible();
   await page.getByRole("button", { name: "Pages / layers" }).click();
   await expect(page.locator(".editor-left-panel")).toBeVisible();
-  await page.locator(".editor-mobile-backdrop").click();
+  await page.locator(".editor-mobile-backdrop").click({ position: { x: 8, y: 8 } });
   await expect(page.locator(".editor-left-panel")).toHaveCount(0);
 
   await mobileNav.getByRole("button", { name: "Read" }).click();

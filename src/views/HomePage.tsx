@@ -8,6 +8,7 @@ import { acknowledgeSharedInboxFiles, listSharedInboxFiles, removeSharedInboxFil
 import { acknowledgePendingPwaLaunchFiles, peekPendingPwaLaunchFiles, PWA_LAUNCH_FILES_EVENT } from "../pwa/launchFiles";
 import { classifyIncomingFile } from "../pwa/fileIngress";
 import type { ProjectManifest } from "../types/project";
+import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 
 interface PendingPassword {
   file: File;
@@ -42,6 +43,7 @@ export function HomePage() {
       const project = kind === "package"
         ? await importProjectPackage(file, suppliedPassword)
         : await importPdfProject(file, suppliedPassword);
+      if (kind === "pdf" && suppliedPassword) rememberProjectSessionPassword(project.id, suppliedPassword);
       if (launchId) {
         acknowledgePendingPwaLaunchFiles([launchId]);
         deferredLaunchIds.current.delete(launchId);

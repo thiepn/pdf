@@ -13,6 +13,7 @@ import { RenderScheduler } from "../viewer/renderScheduler";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { readEditorState } from "../editor/editorRepository";
+import { readProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
 
 interface OutlineNode {
   title: string;
@@ -39,6 +40,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   const searchAbortRef = useRef<AbortController | null>(null);
   const passwordDialogRef = useRef<HTMLDivElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const readOnlyRef = useRef(readOnly);
   const settings = useMemo(() => readSettings(), []);
 
   const [project, setProject] = useState<ProjectManifest | null>(null);
@@ -71,6 +73,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   const renderScheduler = useMemo(() => new RenderScheduler(performancePolicy.renderConcurrency), [performancePolicy.renderConcurrency]);
   const closePasswordDialog = useCallback(() => navigateTo({ name: "projects" }), []);
   useModalFocus(passwordRequired, passwordDialogRef, closePasswordDialog, passwordInputRef);
+  useEffect(() => { readOnlyRef.current = readOnly; }, [readOnly]);
 
   useEffect(() => () => renderScheduler.clear(), [renderScheduler]);
 
@@ -83,6 +86,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
       documentRef.current = null;
       if (previous) await previous.loadingTask.destroy();
       const doc = await openPdfWithPdfJs(bytes, suppliedPassword);
+      if (suppliedPassword) rememberProjectSessionPassword(manifest.id, suppliedPassword);
       documentRef.current = doc;
       setPdfDocument(doc);
       setPasswordRequired(false);
@@ -101,7 +105,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
         setPreferences(isPhoneViewport() ? { ...normalized, sidebarOpen: false } : normalized);
       }
       setStatus("Ready");
-      if (!readOnly) await touchProject(manifest.id);
+      if (!readOnlyRef.current) await touchProject(manifest.id);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message)) {
@@ -113,7 +117,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     } finally {
       setLoading(false);
     }
-  }, [readOnly]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,7 +130,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
         setProject(manifest);
         setEditorObjectCount(editorState.objects.length);
         bytesRef.current = bytes;
-        await openDocument(manifest, bytes);
+        await openDocument(manifest, bytes, readProjectSessionPassword(manifest.id));
       } catch (reason) {
         if (!cancelled) {
           setError(reason instanceof Error ? reason.message : String(reason));

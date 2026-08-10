@@ -22,8 +22,9 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const closePalette = useCallback(() => setOpen(false), []);
-  useModalFocus(open, dialogRef, closePalette, inputRef);
+  useModalFocus(open, dialogRef, closePalette, inputRef, triggerRef);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,7 +60,7 @@ export function CommandPalette() {
     return commands.filter((item) => `${item.label} ${item.description} ${item.keywords}`.toLowerCase().includes(needle));
   }, [commands, query]);
 
-  if (!open) return <button aria-haspopup="dialog" aria-label="Open command palette" className="command-palette-trigger" onClick={() => setOpen(true)} type="button"><span>Search commands</span><kbd>Ctrl K</kbd></button>;
+  if (!open) return <button aria-haspopup="dialog" aria-label="Open command palette" className="command-palette-trigger" onClick={() => setOpen(true)} ref={triggerRef} type="button"><span>Search commands</span><kbd>Ctrl K</kbd></button>;
   return <div className="command-palette-backdrop" onMouseDown={(event: MouseEvent<HTMLDivElement>) => { if (event.currentTarget === event.target) closePalette(); }} role="presentation">
     <section aria-describedby="command-palette-help" aria-labelledby="command-palette-title" aria-modal="true" className="command-palette" ref={dialogRef} role="dialog">
       <header><strong id="command-palette-title">Commands</strong><button aria-label="Close command palette" onClick={closePalette} type="button">×</button></header>

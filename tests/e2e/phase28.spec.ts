@@ -19,6 +19,7 @@ test("Phase 28 opens a 1,000-page adversarial document progressively", async ({ 
 test("Phase 28 recovery heartbeat remains isolated per project/session", async ({ page }) => {
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   const projectId = page.url().match(/workspace\/([^/]+)\/viewer/)?.[1];
   expect(projectId).toBeTruthy();
   await page.evaluate((id) => {
@@ -34,7 +35,9 @@ test("Phase 28 recovery heartbeat remains isolated per project/session", async (
 
 test("Phase 28 viewer rendering is deterministic across reload for a vector-heavy fixture", async ({ page }) => {
   await uploadPdf(page, "vector-dense.pdf");
-  const canvas = page.locator(".pdf-page-shell canvas").first();
+  const pageShell = page.locator(".pdf-page-shell").first();
+  const canvas = pageShell.locator("canvas");
+  await expect(pageShell).toHaveAttribute("data-rendered", "true", { timeout: 25_000 });
   await expect(canvas).toBeVisible({ timeout: 25_000 });
   const digest = async () => canvas.evaluate(async (node: HTMLCanvasElement) => {
     const blob = await new Promise<Blob>((resolve, reject) => node.toBlob((value) => value ? resolve(value) : reject(new Error("Canvas serialization failed")), "image/png"));
@@ -44,6 +47,7 @@ test("Phase 28 viewer rendering is deterministic across reload for a vector-heav
   });
   const before = await digest();
   await page.reload();
+  await expect(pageShell).toHaveAttribute("data-rendered", "true", { timeout: 25_000 });
   await expect(canvas).toBeVisible({ timeout: 25_000 });
   const after = await digest();
   expect(after).toBe(before);

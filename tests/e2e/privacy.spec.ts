@@ -11,6 +11,6 @@ test("core application and sample project do not request cross-origin resources"
   });
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
-  await expect(page.getByText("pdf-studio-welcome", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "pdf-studio-welcome", exact: true })).toBeVisible();
   expect([...external]).toEqual([]);
 });

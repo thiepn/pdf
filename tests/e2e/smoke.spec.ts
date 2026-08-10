@@ -12,10 +12,10 @@ test("Phase 27 release-qualified home, validation, recovery, professional worksp
   await expect(page.getByRole("button", { name: /Run validation/i })).toBeVisible();
 
   await page.goto("./#/help");
-  await expect(page.getByRole("heading", { name: /Use the right workflow/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Find any feature without guessing/i })).toBeVisible();
 
   await page.goto("./#/activity");
-  await expect(page.getByRole("heading", { name: /Output activity receipts/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Files created by PDF Studio/i })).toBeVisible();
 
   await page.goto("./#/maintenance");
   await expect(page.getByRole("heading", { name: /Maintenance center|Safe mode is active/i })).toBeVisible();
@@ -27,28 +27,28 @@ test("Phase 27 release-qualified home, validation, recovery, professional worksp
   await expect(page.locator("body")).toContainText(/Professional|Project not found/i);
 
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /PDF editing, OCR, optimization/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Merge PDFs/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Scan to PDF/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Batch processor/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Batch automation/i })).toBeVisible();
 
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
-  await expect(page.getByText("pdf-studio-welcome", { exact: true })).toBeVisible();
-  await expect(page.getByText(/PDF Studio Generated validation fixture/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "pdf-studio-welcome", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "PDF page 1" })).toContainText(/PDF Studio.*Generated validation fixture/s);
   const viewerUrl = page.url();
   await page.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("button", { name: /Text/ })).toBeVisible();
   await expect(page.getByText(/Local edits autosaved|No pending editor changes/)).toBeVisible();
   await page.goto(viewerUrl);
   await expect(page.getByRole("button", { name: "OCR" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Compress" })).toBeVisible();
-  await page.getByRole("button", { name: "Forms & secure" }).click();
+  await expect(page.getByRole("button", { name: "Optimize" })).toBeVisible();
+  await page.getByRole("button", { name: "Forms & Protect" }).click();
   await expect(page.getByText(/Security inspector|Inspecting PDF security/)).toBeVisible();
 
   await page.goto("./#/diagnostics/system");
   await expect(page.getByRole("heading", { name: /PDF Studio 6.1.0/i })).toBeVisible();
 
   await page.goto("./#/diagnostics/viewer");
-  await expect(page.getByRole("heading", { name: "PDF.js viewer", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PDF.js viewer baseline", exact: true })).toBeVisible();
 });

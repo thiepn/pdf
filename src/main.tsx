@@ -25,12 +25,12 @@ if (settings.diagnosticLogging) {
 }
 
 let refreshing = false;
-let controlledAtBoot = "serviceWorker" in navigator && Boolean(navigator.serviceWorker.controller);
+const controlledAtBoot = "serviceWorker" in navigator && Boolean(navigator.serviceWorker.controller);
 if (!safeMode && "serviceWorker" in navigator) navigator.serviceWorker.addEventListener("controllerchange", () => {
   // clients.claim() also emits controllerchange on a first install. The current
   // page already loaded the matching release, so reloading here only interrupts
   // startup work. Reload when an already-controlled client changes releases.
-  if (!controlledAtBoot) { controlledAtBoot = true; return; }
+  if (!controlledAtBoot) return;
   if (refreshing) return;
   refreshing = true;
   window.location.reload();

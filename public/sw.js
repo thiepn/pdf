@@ -184,7 +184,11 @@ async function navigationResponse() {
 
 async function assetResponse(request) {
   const cache = await caches.open(CACHE_VERSION);
-  const cached = await cache.match(request);
+  // Release assets are same-origin, scope-checked above, and content-addressed
+  // by the generated manifest. Ignore response Vary headers here because the
+  // install request and a later page subresource request can legitimately carry
+  // different fetch metadata while identifying the same immutable asset URL.
+  const cached = await cache.match(request, { ignoreVary: true });
   if (cached) return cached;
   try {
     const response = await fetch(request);

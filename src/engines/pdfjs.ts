@@ -14,7 +14,12 @@ export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string) {
     useWorkerFetch: true,
     enableXfa: false
   });
-  return loadingTask.promise;
+  try {
+    return await loadingTask.promise;
+  } catch (reason) {
+    await loadingTask.destroy();
+    throw reason;
+  }
 }
 
 export async function extractPageText(document: PdfJsDocument, pageNumber: number): Promise<string> {
