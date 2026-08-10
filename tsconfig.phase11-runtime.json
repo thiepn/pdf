@@ -4,12 +4,11 @@
     "lib": ["ES2022", "DOM"],
     "strict": true,
     "skipLibCheck": true,
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "esModuleInterop": true,
-    "outDir": ".phase11-runtime",
     "rootDir": ".",
-    "noEmit": false
+    "noEmit": true
   },
   "include": [
     "src/core/coordinates.ts",
