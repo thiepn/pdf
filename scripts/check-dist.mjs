@@ -7,6 +7,10 @@ const dist = resolve(root, "dist");
 const MAX_JS_FILE = 12 * 1024 * 1024;
 const MAX_JS_TOTAL = 28 * 1024 * 1024;
 const MAX_DIST_TOTAL = 120 * 1024 * 1024;
+const FORBIDDEN_RUNTIME_APIS = [
+  { name: "Map/WeakMap getOrInsert", pattern: /\.getOrInsert\s*\(/ },
+  { name: "Map/WeakMap getOrInsertComputed", pattern: /\.getOrInsertComputed\s*\(/ }
+];
 const failures = [];
 
 async function walk(directory) {
@@ -71,6 +75,9 @@ for (const file of files) {
     if (size > MAX_JS_FILE) failures.push(`${name} exceeds the ${MAX_JS_FILE} byte JavaScript file budget.`);
     const text = bytes.toString("utf8");
     if (/https?:\/\/(?:localhost|127\.0\.0\.1)/.test(text)) failures.push(`${name} contains a development origin.`);
+    for (const api of FORBIDDEN_RUNTIME_APIS) {
+      if (api.pattern.test(text)) failures.push(`${name} contains unsupported runtime API: ${api.name}.`);
+    }
   }
   integrity.push({ path: name, bytes: size, sha256: createHash("sha256").update(bytes).digest("hex") });
 }

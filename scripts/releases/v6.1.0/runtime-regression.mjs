@@ -20,6 +20,8 @@ const help = await read("src/help/helpContent.ts");
 const pwa = await read("src/components/PwaReadinessCard.tsx");
 const nativeRoute = await read("src/views/NativeEditorPage.tsx");
 const commandPalette = await read("src/components/CommandPalette.tsx");
+const distAudit = await read("scripts/check-dist.mjs");
+const browserCompatibility = await read("tests/e2e/browser-compatibility.spec.ts");
 
 check(packageJson.version === "6.1.0" && release.includes('APP_VERSION = "6.1.0"'), "version synchronization");
 check(/preservationOpen:\s*false/.test(workspace), "technical preservation details default closed");
@@ -36,6 +38,9 @@ check((help.match(/id:\s*"/g) ?? []).length >= 20 && /redaction/.test(help) && /
 check(/Prevent browser cleanup/.test(pwa), "persistent-storage action is described by its user outcome");
 check(!/<p className="eyebrow">Phase 17<\/p>/.test(nativeRoute), "legacy compatibility route does not expose internal phase numbering");
 check(/Download history/.test(commandPalette) && /App self-check/.test(commandPalette) && /Troubleshooting & recovery/.test(commandPalette), "command palette matches canonical navigation vocabulary");
+check(packageJson.dependencies?.["pdfjs-dist"] === "5.4.624", "PDF.js remains pinned to the last release before Map upsert APIs became mandatory");
+check(/getOrInsertComputed/.test(distAudit) && /FORBIDDEN_RUNTIME_APIS/.test(distAudit), "distribution audit rejects unsupported Map upsert APIs");
+check(/deleteProperty\(Map\.prototype, "getOrInsertComputed"\)/.test(browserCompatibility) && /plain-text\.pdf/.test(browserCompatibility) && /PLAIN_PAGE_1_MARKER/.test(browserCompatibility), "browser regression opens a real PDF without Map upsert APIs");
 
 const passed = checks.filter(item => item.passed).length;
 console.log(JSON.stringify({ name: "v6.1.0 intuitiveness and discoverability regression", passed, total: checks.length, checks }, null, 2));

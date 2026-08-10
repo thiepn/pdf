@@ -35,12 +35,12 @@ export default defineConfig({
     { name: "webkit", testIgnore: /mobile\.spec\.ts/, use: { ...devices["Desktop Safari"] } },
     {
       name: "mobile-chromium",
-      testMatch: /mobile\.spec\.ts/,
+      testMatch: /mobile\.spec\.ts|browser-compatibility\.spec\.ts/,
       use: { browserName: "chromium", viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true }
     },
     {
       name: "tablet-webkit",
-      testMatch: /mobile\.spec\.ts/,
+      testMatch: /mobile\.spec\.ts|browser-compatibility\.spec\.ts/,
       use: { browserName: "webkit", viewport: { width: 834, height: 1112 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true }
     }
   ]
