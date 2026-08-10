@@ -7,7 +7,8 @@ export type IconName =
   | "select" | "hand" | "text" | "image" | "link" | "signature"
   | "stamp" | "rectangle" | "ellipse" | "line" | "arrow" | "highlight"
   | "underline" | "strikeout" | "squiggly" | "pen" | "comment" | "redaction"
-  | "undo" | "redo" | "download" | "save";
+  | "undo" | "redo" | "download" | "save" | "create" | "merge"
+  | "scan" | "batch" | "compare";
 
 interface IconProps {
   name: IconName;
@@ -80,5 +81,10 @@ function iconPath(name: IconName) {
     case "redo": return <><path {...common} d="m15 7 5 5-5 5M19 12h-8a6 6 0 0 0-6 6"/></>;
     case "download": return <><path {...common} d="M12 3v12M7 10l5 5 5-5M4 20h16"/></>;
     case "save": return <><path {...common} d="M5 3h12l2 2v16H5zM8 3v6h8V3M8 21v-7h8v7"/></>;
+    case "create": return <><path {...common} d="M6 3.5h8l4 4V20H6zM14 3.5v4h4"/><path {...common} d="M9 14h6M12 11v6"/></>;
+    case "merge": return <><path {...common} d="M5 4h6v6H5zM13 14h6v6h-6zM16 4v4a4 4 0 0 1-4 4H8v4"/><path {...common} d="m5 13 3 3-3 3"/></>;
+    case "scan": return <><path {...common} d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path {...common} d="M7 12h10M7 15h10"/></>;
+    case "batch": return <><rect {...common} x="6" y="5" width="13" height="15" rx="1.5"/><path {...common} d="M3 8v10M9 9h7M9 13h7M9 17h4"/></>;
+    case "compare": return <><path {...common} d="M4 5h7v14H4zM13 5h7v14h-7zM8 9h1M15 15h2"/></>;
   }
 }

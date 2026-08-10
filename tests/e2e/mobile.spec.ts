@@ -65,7 +65,7 @@ test("phone editor controls remain reachable and touch sized at narrow widths", 
   test.skip(testInfo.project.name !== "mobile-chromium", "Phone-specific responsive flow");
   for (const width of [320, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
-    await page.goto("./#/home");
+    await page.goto(`./?e2eViewport=${width}#/home`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "Open sample" }).click();
     await page.getByRole("navigation", { name: "Document tools" }).getByRole("button", { name: "Edit" }).click();

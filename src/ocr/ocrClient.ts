@@ -37,11 +37,24 @@ function parseTsv(tsv: string | undefined): OcrWord[] {
   return words;
 }
 
+function parseHocr(hocr: string | undefined): OcrWord[] {
+  if (!hocr) return [];
+  const words: OcrWord[] = [];
+  for (const match of hocr.matchAll(/<span[^>]*class=["'][^"']*ocrx_word[^"']*["'][^>]*title=["'][^"']*bbox\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(?:;[^"']*x_wconf\s+(\d+))?[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)) {
+    const text = match[6].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
+    if (!text) continue;
+    words.push({ text, confidence: Number(match[5]) || 0, bbox: { x0: Number(match[1]), y0: Number(match[2]), x1: Number(match[3]), y1: Number(match[4]) } });
+  }
+  return words;
+}
+
 export async function createOcrSession(languages: string[], onProgress?: (message: OcrProgressMessage) => void) {
   if (!languages.length) throw new Error("Select at least one installed OCR language.");
   const worker = await createWorker(languages, 1, {
     workerPath: assetUrl("tesseract/worker.min.js"),
-    corePath: assetUrl("tesseract/core"),
+    // Avoid Tesseract 7's broken relaxed-SIMD LSTM variant. All browsers in
+    // PDF Studio's current support baseline implement stable WebAssembly SIMD.
+    corePath: assetUrl("tesseract/core/tesseract-core-simd-lstm.wasm.js"),
     langPath: ocrLanguageBaseUrl(),
     cacheMethod: "none",
     logger: (message: OcrProgressMessage) => onProgress?.(message),
@@ -55,11 +68,13 @@ export async function createOcrSession(languages: string[], onProgress?: (messag
       const data: Record<string, unknown> = Object.fromEntries(Object.entries(result.data));
       const tsv = typeof data.tsv === "string" ? data.tsv : undefined;
       const pdf = data.pdf;
+      const hocr = typeof data.hocr === "string" ? data.hocr : undefined;
+      const tsvWords = parseTsv(tsv);
       return {
         text: typeof data.text === "string" ? data.text.trim() : "",
         confidence: typeof data.confidence === "number" ? data.confidence : 0,
-        words: parseTsv(tsv),
-        hocr: typeof data.hocr === "string" ? data.hocr : undefined,
+        words: tsvWords.length ? tsvWords : parseHocr(hocr),
+        hocr,
         tsv,
         searchablePdf: pdf instanceof Uint8Array
           ? Uint8Array.from(pdf)

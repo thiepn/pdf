@@ -72,3 +72,18 @@ test("top chrome keeps paired accessible colors in every theme", async ({ page }
     expect(background).not.toBe("rgba(0, 0, 0, 0)");
   }
 });
+
+test("Quick Tools uses visible typed SVG icons", async ({ page }) => {
+  await page.goto("./#/tools");
+  await page.locator(".tool-advanced-disclosure").evaluate((element) => { (element as HTMLDetailsElement).open = true; });
+  const tiles = page.locator(".tool-tile");
+  await expect(tiles).toHaveCount(13);
+  await expect(tiles.locator("svg.studio-icon")).toHaveCount(13);
+  for (const theme of ["light", "dark"] as const) {
+    await page.locator("html").evaluate((element, value) => { element.dataset.theme = value; }, theme);
+    for (const icon of await tiles.locator("svg.studio-icon").all()) {
+      await expect(icon).toBeVisible();
+      expect(await icon.evaluate((element) => getComputedStyle(element).color)).not.toBe("rgba(0, 0, 0, 0)");
+    }
+  }
+});

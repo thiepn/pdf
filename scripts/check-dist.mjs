@@ -26,6 +26,11 @@ for (const required of ["index.html", "sw.js", "manifest.webmanifest", "offline-
   try { await stat(join(dist, required)); } catch { failures.push(`Missing required build file: ${required}`); }
 }
 
+try { await stat(join(dist, "tesseract/core/tesseract-core-simd-lstm.wasm.js")); }
+catch { failures.push("Missing stable Tesseract SIMD LSTM core."); }
+try { await stat(join(dist, "tesseract/core/tesseract-core-relaxedsimd-lstm.wasm.js")); failures.push("Broken Tesseract relaxed-SIMD LSTM core must not be shipped."); }
+catch { /* intentionally excluded */ }
+
 
 const offlineManifestPath = join(dist, "offline-assets.json");
 try {

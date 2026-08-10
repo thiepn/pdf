@@ -13,13 +13,11 @@ const coreSource = resolve(root, "node_modules/tesseract.js-core");
 if (!(await exists(coreSource))) throw new Error("tesseract.js-core is missing. Run npm install first.");
 
 // OCR always initializes Tesseract in LSTM-only mode. Its browser worker then
-// selects one of these three self-contained cores based on WebAssembly feature
-// detection. Copying the legacy-engine and split-loader alternatives bloats the
-// Pages artifact even though this application can never request them.
+// uses the stable SIMD core selected explicitly by ocrClient. Tesseract 7's
+// relaxed-SIMD LSTM core contains an aborting DotProductSSE import, so it must
+// not enter the production artifact or service-worker cache.
 const coreAssets = [
-  "tesseract-core-lstm.wasm.js",
-  "tesseract-core-simd-lstm.wasm.js",
-  "tesseract-core-relaxedsimd-lstm.wasm.js"
+  "tesseract-core-simd-lstm.wasm.js"
 ];
 for (const asset of coreAssets) {
   await cp(resolve(coreSource, asset), resolve(coreTarget, asset));

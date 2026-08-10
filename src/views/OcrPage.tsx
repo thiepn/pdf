@@ -137,7 +137,12 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       if (finalPages.length !== parsedPages.pageArray.length) throw new Error(`${parsedPages.pageArray.length - finalPages.length} page(s) failed. Retry them before exporting.`);
       setStatus("Merging searchable pages…");
       update({ detail: "Merging searchable OCR pages…", progress: 0.86 });
-      const merged = await mergePdfSources(finalPages.map((item) => ({ name: `page-${item.pageNumber}.pdf`, bytes: new Uint8Array(item.searchablePdf!) })));
+      // A one-page Tesseract PDF is already the exact desired output. Passing
+      // it through MuPDF's page grafting worker can stall on Tesseract's image
+      // object layout and needlessly recompresses the page.
+      const merged = finalPages.length === 1
+        ? { bytes: new Uint8Array(finalPages[0].searchablePdf!) }
+        : await mergePdfSources(finalPages.map((item) => ({ name: `page-${item.pageNumber}.pdf`, bytes: new Uint8Array(item.searchablePdf!) })));
       update({ stage: "validating", detail: "Validating searchable PDF…", progress: 0.93 });
       const summary = await inspectPdfBytes(merged.bytes);
       if (summary.pageCount !== finalPages.length) throw new Error("OCR output validation failed: page count mismatch.");
