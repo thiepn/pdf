@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "outDir": ".phase11-runtime",
+    "rootDir": ".",
+    "noEmit": false
+  },
+  "include": [
+    "src/core/coordinates.ts",
+    "src/core/appRouter.ts",
+    "src/organizer/pageSelection.ts",
+    "src/organizer/pagePlan.ts",
+    "src/activity/activityModel.ts",
+    "src/workspace/preservationContracts.ts",
+    "src/types/workspace.ts",
+    "src/types/organizer.ts"
+  ]
+}

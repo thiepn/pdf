@@ -1,0 +1,561 @@
+{
+  "generatedAt": "2026-08-09T23:07:35.148Z",
+  "version": "6.1.0",
+  "sourceFiles": 196,
+  "checks": [
+    {
+      "name": "Exact dependency versions",
+      "status": "passed",
+      "detail": "12 direct dependencies are pinned exactly"
+    },
+    {
+      "name": "Published Playwright version",
+      "status": "passed",
+      "detail": "1.62.0"
+    },
+    {
+      "name": "Node runtime floor",
+      "status": "passed",
+      "detail": ">=22.12.0"
+    },
+    {
+      "name": "Phase 11 external-reader corpus",
+      "status": "passed",
+      "detail": "11 fixtures passed"
+    },
+    {
+      "name": "Committed dependency lock",
+      "status": "warning",
+      "detail": "Generate through the current Bootstrap dependency lock workflow before enabling stable deployment"
+    },
+    {
+      "name": "Version synchronization",
+      "status": "passed",
+      "detail": "6.1.0"
+    },
+    {
+      "name": "Service-worker release identity",
+      "status": "passed",
+      "detail": "6.1.0 is stamped into the built worker together with channel/build identity"
+    },
+    {
+      "name": "E2E release-version synchronization",
+      "status": "passed",
+      "detail": "6.1.0"
+    },
+    {
+      "name": "Database schema synchronization",
+      "status": "passed",
+      "detail": "13"
+    },
+    {
+      "name": "Settings migration",
+      "status": "passed",
+      "detail": "Schema 5 includes adaptive rendering, experience mode, and preservation controls"
+    },
+    {
+      "name": "Output receipt integration",
+      "status": "passed",
+      "detail": "Downloads record metadata with an explicit opt-out for report exports"
+    },
+    {
+      "name": "Safe-mode service-worker boundary",
+      "status": "passed",
+      "detail": "Safe mode suppresses service-worker registration"
+    },
+    {
+      "name": "Support-bundle content boundary",
+      "status": "passed",
+      "detail": "Support bundle excludes document bytes and password fields"
+    },
+    {
+      "name": "Phase 21 operation serialization",
+      "status": "passed",
+      "detail": "Same-project in-process exclusion plus preferred Web Locks boundary detected"
+    },
+    {
+      "name": "Phase 21 storage reserve",
+      "status": "passed",
+      "detail": "25 MB / 5% reserve with write overhead is configured"
+    },
+    {
+      "name": "Phase 21 persistence preflight",
+      "status": "passed",
+      "detail": "Project sources and recovery checkpoints perform commit-adjacent storage checks"
+    },
+    {
+      "name": "Phase 21 workspace operation guard",
+      "status": "passed",
+      "detail": "Workspace subscribes to active work and guards mode/tab/unload navigation"
+    },
+    {
+      "name": "JSON public/manifest.webmanifest",
+      "status": "passed",
+      "detail": "Parsed successfully"
+    },
+    {
+      "name": "JSON package.json",
+      "status": "passed",
+      "detail": "Parsed successfully"
+    },
+    {
+      "name": "JSON tsconfig.json",
+      "status": "passed",
+      "detail": "Parsed successfully"
+    },
+    {
+      "name": "JSON tsconfig.app.json",
+      "status": "passed",
+      "detail": "Parsed successfully"
+    },
+    {
+      "name": "JSON tsconfig.node.json",
+      "status": "passed",
+      "detail": "Parsed successfully"
+    },
+    {
+      "name": "Relative import resolution",
+      "status": "passed",
+      "detail": "590 imports resolved across 196 source files"
+    },
+    {
+      "name": "Placeholder scan",
+      "status": "passed",
+      "detail": "No TODO/FIXME/fake-control markers in production source"
+    },
+    {
+      "name": "Phase 21 derived-output coordination",
+      "status": "passed",
+      "detail": "All current view-level derived-project writers enter the operation coordinator"
+    },
+    {
+      "name": "Content Security Policy",
+      "status": "passed",
+      "detail": "Restrictive CSP is present"
+    },
+    {
+      "name": "Production URL scan",
+      "status": "passed",
+      "detail": "No local development origin in index.html"
+    },
+    {
+      "name": "Service-worker origin boundary",
+      "status": "passed",
+      "detail": "Cross-origin requests are not intercepted"
+    },
+    {
+      "name": "Phase 22 deployment model",
+      "status": "passed",
+      "detail": "Repository base normalization, cache namespace, and shared github.io origin detection are present"
+    },
+    {
+      "name": "Phase 22 cache namespace",
+      "status": "passed",
+      "detail": "Runtime caches are namespaced to the Vite deployment base"
+    },
+    {
+      "name": "Phase 22 service-worker scope",
+      "status": "passed",
+      "detail": "Worker cache cleanup and fetch interception are constrained to this deployment"
+    },
+    {
+      "name": "Phase 22 maintenance isolation",
+      "status": "passed",
+      "detail": "Maintenance refreshes only this deployment's offline shell, preserves pending shared document bytes, and unregisters only its own service worker"
+    },
+    {
+      "name": "Phase 23 VisualViewport handling",
+      "status": "passed",
+      "detail": "Dynamic viewport and software-keyboard metrics are installed"
+    },
+    {
+      "name": "Phase 23 mobile workspace navigation",
+      "status": "passed",
+      "detail": "Read/Edit/Pages/Tools navigation and More sheet are present"
+    },
+    {
+      "name": "Phase 23 mobile viewer panel",
+      "status": "passed",
+      "detail": "Pages/outline/search/info remain available in a mobile sheet"
+    },
+    {
+      "name": "Phase 23 touch editor",
+      "status": "passed",
+      "detail": "Compact panel defaults, bottom-sheet dismissal, touch handles, and pinch-zoom boundary are present"
+    },
+    {
+      "name": "Phase 23 browser matrix",
+      "status": "passed",
+      "detail": "Dedicated phone Chromium and tablet WebKit touch projects are configured"
+    },
+    {
+      "name": "Phase 24 atomic offline release",
+      "status": "passed",
+      "detail": "Generated runtime assets are precached and older release caches survive until a healthy new client boot"
+    },
+    {
+      "name": "Phase 24 installed PWA ingress",
+      "status": "passed",
+      "detail": "Share Target and File Handling are declared with a local service-worker inbox"
+    },
+    {
+      "name": "Phase 24 install and persistence UX",
+      "status": "passed",
+      "detail": "Install prompting/manual instructions and persistent-storage readiness are exposed without forcing permissions"
+    },
+    {
+      "name": "Phase 24 progressive file entry",
+      "status": "passed",
+      "detail": "LaunchQueue and share inbox use capability detection and local cache storage"
+    },
+    {
+      "name": "Phase 24 offline build gate",
+      "status": "passed",
+      "detail": "Build emits and distribution audit validates an offline asset manifest while excluding source maps"
+    },
+    {
+      "name": "Phase 25 Create PDF Studio",
+      "status": "passed",
+      "detail": "Markdown/text/semantic HTML creation has metric layout plus explicit searchable and visual output modes"
+    },
+    {
+      "name": "Phase 25 searchable creator",
+      "status": "passed",
+      "detail": "MuPDF worker writes searchable Latin/CJK content and rejects shaping-dependent scripts to the visual path"
+    },
+    {
+      "name": "Phase 25 Compare 2.0",
+      "status": "passed",
+      "detail": "Document comparison aligns page sequences before pair-level visual/text diffing"
+    },
+    {
+      "name": "Phase 25 portable batch recipes",
+      "status": "passed",
+      "detail": "Batch recipes can be exported/imported as validated local JSON"
+    },
+    {
+      "name": "Phase 26 hybrid comparison",
+      "status": "passed",
+      "detail": "Compare 3.0 combines text fingerprints with low-resolution visual fallback for scan-heavy pages"
+    },
+    {
+      "name": "Phase 26 creator inline fidelity",
+      "status": "passed",
+      "detail": "Creator 2.0 carries emphasis, code, and safe links through layout into searchable PDF output"
+    },
+    {
+      "name": "Phase 26 Batch 3.0",
+      "status": "passed",
+      "detail": "Terminal multi-output split and page-image recipe steps produce local ZIP artifacts"
+    },
+    {
+      "name": "Phase 27 exact lock qualification",
+      "status": "passed",
+      "detail": "A committed npm v3 lockfile must match every exact root pin and registry integrity record"
+    },
+    {
+      "name": "Phase 27 artifact-identity browser gate",
+      "status": "passed",
+      "detail": "Playwright can exercise the exact verified dist artifact rather than rebuilding it"
+    },
+    {
+      "name": "Phase 27 reproducible-build gate",
+      "status": "passed",
+      "detail": "CI rebuilds the same commit and compares full distribution fingerprints"
+    },
+    {
+      "name": "Phase 27 release qualification",
+      "status": "passed",
+      "detail": "Pages and tagged releases are blocked on Phase 27 browser/build qualification"
+    },
+    {
+      "name": "Phase 27 dependency-independent regression",
+      "status": "passed",
+      "detail": "Release-engineering invariants have a local regression gate"
+    },
+    {
+      "name": "Phase 28 adversarial corpus",
+      "status": "passed",
+      "detail": "56 fixtures passed dual-reader and render validation"
+    },
+    {
+      "name": "Phase 28 multi-tab recovery heartbeat",
+      "status": "passed",
+      "detail": "Crash recovery heartbeats are isolated per workspace session"
+    },
+    {
+      "name": "Phase 28 project-package header integrity",
+      "status": "passed",
+      "detail": "Format v9 authenticates payload and canonical header metadata independently"
+    },
+    {
+      "name": "Phase 28 duplicate-import preservation",
+      "status": "passed",
+      "detail": "Transient duplicate-source failures preserve the existing project and create an independent import"
+    },
+    {
+      "name": "Phase 28 dependency-independent regression",
+      "status": "passed",
+      "detail": "Recovery and persistence invariants have a dedicated Phase 28 gate"
+    },
+    {
+      "name": "Phase 29 modal focus contract",
+      "status": "passed",
+      "detail": "Modal surfaces trap keyboard focus, close on Escape, and restore the invoking control"
+    },
+    {
+      "name": "Phase 29 SPA navigation accessibility",
+      "status": "passed",
+      "detail": "Route changes are announced/focused and a keyboard skip link remains available"
+    },
+    {
+      "name": "Phase 29 extreme-document budget",
+      "status": "passed",
+      "detail": "1000-page/500 MB class has a one-render strict memory budget"
+    },
+    {
+      "name": "Phase 29 inclusive responsive CSS",
+      "status": "passed",
+      "detail": "High contrast, forced colors, coarse pointers, and zoom-collapsed layouts are explicitly covered"
+    },
+    {
+      "name": "Phase 29 dependency-independent regression",
+      "status": "passed",
+      "detail": "UX/accessibility/performance invariants have a dedicated Phase 29 gate"
+    },
+    {
+      "name": "Phase 30 release identity",
+      "status": "passed",
+      "detail": "6.1.0 remains on the qualified v6 line with an explicit stable build channel"
+    },
+    {
+      "name": "Phase 30 migration contract",
+      "status": "passed",
+      "detail": "Project-package compatibility is centralized at v1-v9"
+    },
+    {
+      "name": "Phase 30 final audits",
+      "status": "passed",
+      "detail": "Migration and security/privacy audits are part of the frozen release tree"
+    },
+    {
+      "name": "Phase 30 machine-readable release metadata",
+      "status": "passed",
+      "detail": "Production bundles record version and channel in offline-cached release metadata"
+    },
+    {
+      "name": "Phase 30 stable promotion gate",
+      "status": "passed",
+      "detail": "Only the v6.1.0 tagged workflow can publish a stable build after deployed smoke verification"
+    },
+    {
+      "name": "Phase 30 dependency-independent regression",
+      "status": "passed",
+      "detail": "Final release-freeze invariants have a dedicated gate"
+    },
+    {
+      "name": "v6.0.1 PWA promotion identity",
+      "status": "passed",
+      "detail": "Same-version candidate/stable builds receive distinct worker/cache identities"
+    },
+    {
+      "name": "v6.0.1 package range hardening",
+      "status": "passed",
+      "detail": "Project-package numeric ranges are strict and non-overlapping"
+    },
+    {
+      "name": "v6.0.1 downgrade protection",
+      "status": "passed",
+      "detail": "Future local project schemas are rejected without rewrite"
+    },
+    {
+      "name": "v6.0.1 maintenance gate",
+      "status": "passed",
+      "detail": "Patch-release regressions are part of the release gate"
+    },
+    {
+      "name": "v6.0.2 Stable monotonicity",
+      "status": "passed",
+      "detail": "A same-version candidate cannot replace Stable in either cache ordering or Pages deployment"
+    },
+    {
+      "name": "v6.0.2 atomic production precache",
+      "status": "passed",
+      "detail": "Production worker installation fails closed and removes a partial release cache"
+    },
+    {
+      "name": "v6.0.2 truthful healthy boot",
+      "status": "passed",
+      "detail": "Previous release cleanup waits for a committed React tree and complete offline bundle, and remains disabled in Safe Mode"
+    },
+    {
+      "name": "v6.0.2 package structure hardening",
+      "status": "passed",
+      "detail": "Required backup collections, strings, and asset payload ranges are validated before reconstruction"
+    },
+    {
+      "name": "v6.0.2 Stable provenance",
+      "status": "passed",
+      "detail": "Stable tags must originate from main history"
+    },
+    {
+      "name": "v6.0.2 maintenance gate",
+      "status": "passed",
+      "detail": "v6.0.2 regressions are part of the release gate"
+    },
+    {
+      "name": "v6.0.2 release UI synchronization",
+      "status": "passed",
+      "detail": "Release UI derives the active maintenance version from release metadata"
+    },
+    {
+      "name": "v6.0.3 Safe Mode isolation",
+      "status": "passed",
+      "detail": "Safe Mode suppresses service-worker controllerchange reloads as well as registration/health reporting"
+    },
+    {
+      "name": "v6.0.3 share inbox durability",
+      "status": "passed",
+      "detail": "Shared files are removed or durably acknowledged only after a successful import and failures remain retryable"
+    },
+    {
+      "name": "v6.0.3 atomic share target",
+      "status": "passed",
+      "detail": "Failed multi-file share intake rolls back files already cached in that batch"
+    },
+    {
+      "name": "v6.0.3 package semantic consistency",
+      "status": "passed",
+      "detail": "Backup editor/OCR references are validated before project reconstruction"
+    },
+    {
+      "name": "v6.0.3 Stable provenance race fix",
+      "status": "passed",
+      "detail": "Stable tags must be reachable from main without racing mutable main HEAD equality"
+    },
+    {
+      "name": "v6.0.3 maintenance gate",
+      "status": "passed",
+      "detail": "v6.0.3 regressions are part of the release gate"
+    },
+    {
+      "name": "v6.0.4 share cleanup isolation",
+      "status": "passed",
+      "detail": "Inbox cleanup failure cannot turn a committed project import into a failed/retryable import"
+    },
+    {
+      "name": "v6.0.4 dedupe schema isolation",
+      "status": "passed",
+      "detail": "Checksum deduplication skips future-schema manifests before touching them"
+    },
+    {
+      "name": "v6.0.4 embedded-state downgrade protection",
+      "status": "passed",
+      "detail": "Local and packaged feature state reject future schemas rather than rewriting them"
+    },
+    {
+      "name": "v6.0.4 editor-object consistency",
+      "status": "passed",
+      "detail": "Duplicate editor object IDs are rejected before project restoration"
+    },
+    {
+      "name": "v6.0.4 Stable ancestry checkout",
+      "status": "passed",
+      "detail": "Stable provenance uses complete git history instead of a shallow ancestry graph"
+    },
+    {
+      "name": "v6.0.4 maintenance gate",
+      "status": "passed",
+      "detail": "Bug Fix Audit 2 regressions are part of the release gate"
+    },
+    {
+      "name": "v6.0.5 file-launch durability",
+      "status": "passed",
+      "detail": "OS-launched files are durably staged or retained until import succeeds instead of being destructively dequeued"
+    },
+    {
+      "name": "v6.0.5 maintenance document preservation",
+      "status": "passed",
+      "detail": "Cache maintenance cannot delete pending shared document bytes and launch-inbox writes roll back atomically"
+    },
+    {
+      "name": "v6.0.5 offline-shell repair",
+      "status": "passed",
+      "detail": "Offline-shell maintenance preserves the previous cache on fetch failure and allows a long-running repair response"
+    },
+    {
+      "name": "v6.0.5 package manifest downgrade protection",
+      "status": "passed",
+      "detail": "Supported package formats still reject project manifests created by a newer schema"
+    },
+    {
+      "name": "v6.0.5 workspace downgrade protection",
+      "status": "passed",
+      "detail": "Future workspace-session schemas remain untouched by older builds"
+    },
+    {
+      "name": "v6.0.5 maintenance gate",
+      "status": "passed",
+      "detail": "Bug Fix Audit 3 and every earlier 6.0.x maintenance regression are release-gated"
+    },
+    {
+      "name": "v6.0.6 settings downgrade protection",
+      "status": "passed",
+      "detail": "Future settings are preserved and cannot be overwritten by an older maintenance build"
+    },
+    {
+      "name": "v6.0.6 Batch downgrade protection",
+      "status": "passed",
+      "detail": "Future Batch recipes fail closed instead of entering legacy migration"
+    },
+    {
+      "name": "v6.0.6 OCR downgrade protection",
+      "status": "passed",
+      "detail": "Future local OCR jobs are refused before use or rewrite"
+    },
+    {
+      "name": "v6.0.6 durable Share Inbox acknowledgement",
+      "status": "passed",
+      "detail": "Committed shared imports remain logically consumed even when physical cache cleanup fails"
+    },
+    {
+      "name": "v6.0.6 source-safe deletion",
+      "status": "passed",
+      "detail": "Project metadata is retained when authoritative source deletion cannot be guaranteed"
+    },
+    {
+      "name": "v6.0.6 update activation race",
+      "status": "passed",
+      "detail": "Waiting service worker is captured before activation can clear registration.waiting"
+    },
+    {
+      "name": "v6.0.6 maintenance gate",
+      "status": "passed",
+      "detail": "Bug Fix Audit 4 is included in release qualification"
+    },
+    {
+      "name": "v6.1.0 intuitiveness gate",
+      "status": "passed",
+      "detail": "Intuitiveness and discoverability regressions are part of release qualification"
+    },
+    {
+      "name": "v6.1.0 progressive disclosure",
+      "status": "passed",
+      "detail": "Technical preservation/support surfaces default out of the everyday workflow"
+    },
+    {
+      "name": "v6.1.0 core workflow clarity",
+      "status": "passed",
+      "detail": "Viewer navigation is deduplicated and editor tools/redaction are grouped clearly"
+    },
+    {
+      "name": "v6.1.0 guided advanced controls",
+      "status": "passed",
+      "detail": "OCR uses plain presets and bundled Help covers at least twenty major workflows"
+    }
+  ],
+  "warnings": [
+    "Committed dependency lock: Generate through the current Bootstrap dependency lock workflow before enabling stable deployment"
+  ],
+  "failures": []
+}
