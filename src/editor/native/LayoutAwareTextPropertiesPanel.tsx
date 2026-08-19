@@ -160,7 +160,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
         <dt>Detected font</dt><dd>{object.fontName || object.family}</dd>
         <dt>Original size</dt><dd>{Number(object.size.toFixed(1))} pt</dd>
         <dt>Line spacing</dt><dd>{object.lineHeight ? `${Number(object.lineHeight.toFixed(1))} pt` : "Detected"}</dd>
-        <dt>Text flow</dt><dd>{object.flow ? `Column flow ${object.flow.index + 1}` : "Fixed region"}</dd>
+        <dt>Text flow</dt><dd>{object.flow ? `Same-column flow · item ${object.flow.index + 1}` : "Fixed region"}</dd>
       </dl>
       {queued ? <div className="native-queued-chip"><span>Pending text change</span><button onClick={() => onRemove(object.id)} type="button">Discard</button></div> : null}
     </section>
