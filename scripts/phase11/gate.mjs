@@ -1,12 +1,18 @@
 import { spawnSync } from "node:child_process";
 
+const corpusCommands = process.env.PHASE11_CORPUS_REUSE === "1"
+  ? [["python", ["scripts/phase11/validate_corpus.py"]]]
+  : [
+      ["python", ["scripts/phase11/generate_corpus.py"]],
+      ["python", ["scripts/phase11/validate_corpus.py"]]
+    ];
+
 const commands = [
   [process.execPath, ["scripts/phase11/dependency-policy.mjs"]],
   [process.execPath, ["scripts/source-audit.mjs"]],
   [process.execPath, ["scripts/phase11/offline-typecheck.mjs"]],
   [process.execPath, ["scripts/phase11/runtime-regression.mjs"]],
-  ["python", ["scripts/phase11/generate_corpus.py"]],
-  ["python", ["scripts/phase11/validate_corpus.py"]]
+  ...corpusCommands
 ];
 for (const [command, args] of commands) {
   const result = spawnSync(command, args, { stdio: "inherit" });
