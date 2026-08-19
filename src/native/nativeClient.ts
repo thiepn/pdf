@@ -37,8 +37,20 @@ export function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: 
   return call<NativeInspection>({ type: "INSPECT_NATIVE" }, bytes, password, signal);
 }
 
+/**
+ * P2 follower edits are move-only reconstructions. Their source text already has
+ * authoritative line breaks from structured-text inspection, so re-wrapping a
+ * tight extracted source bbox with fallback font metrics can invent extra lines
+ * and reject an otherwise safe column move during export.
+ */
+export function normalizeNativeEditForExport(edit: NativeEdit): NativeEdit {
+  if (edit.kind === "text" && edit.reflowFollower && edit.wrap) return { ...edit, wrap: false };
+  return edit;
+}
+
 export function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
-  const payload = edits.map((edit) => {
+  const payload = edits.map((sourceEdit) => {
+    const edit = normalizeNativeEditForExport(sourceEdit);
     if (edit.kind === "image") return { ...edit, bytes: Uint8Array.from(edit.bytes).buffer };
     if (edit.kind === "text" && edit.fontBytes) return { ...edit, fontBytes: Uint8Array.from(edit.fontBytes).buffer };
     return edit;
