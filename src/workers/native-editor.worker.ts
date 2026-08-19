@@ -2,11 +2,11 @@ import * as mupdf from "mupdf";
 import {
   classifyTextEditability,
   detectTables,
+  estimatedTextWidth,
   formCapability,
   imageCapability,
   rectFromArray,
-  vectorCapability,
-  wrapTextToBox
+  vectorCapability
 } from "../native/nativeModel";
 import type {
   NativeEdit,
@@ -169,19 +169,85 @@ function fontVariant(edit: any): string {
   return bold && italic ? "Helvetica-BoldOblique" : bold ? "Helvetica-Bold" : italic ? "Helvetica-Oblique" : "Helvetica";
 }
 
-function addFontResource(pdf: PdfDocument, page: PdfPage, edit: any): { resource: string; encode: (text: string) => string } {
+interface AddedFont {
+  resource: string;
+  encode: (text: string) => string;
+  font: any;
+  wmode: 0 | 1;
+}
+
+function addFontResource(pdf: PdfDocument, page: PdfPage, edit: any): AddedFont {
   const fonts = resources(pdf, page, "Font");
   const resource = `LPSN${++sequence}`;
   const language = edit.fontLanguage ?? (["ko", "ja", "zh-Hans", "zh-Hant"].includes(edit.fontFamily) ? edit.fontFamily : undefined);
+  const wmode = Number(edit.writingMode ?? 0) === 1 ? 1 : 0;
   if (language) {
     const font = edit.fontBytes?.byteLength
       ? new (mupdf as any).Font(edit.fontName || language, new Uint8Array(edit.fontBytes))
       : new (mupdf as any).Font(language);
-    fonts.put(resource, pdf.addCJKFont(font, language, edit.writingMode ?? 0, "sans-serif"));
-    return { resource, encode: utf16Hex };
+    fonts.put(resource, pdf.addCJKFont(font, language, wmode, "sans-serif"));
+    return { resource, encode: utf16Hex, font, wmode };
   }
-  fonts.put(resource, pdf.addSimpleFont(new (mupdf as any).Font(fontVariant(edit)), "Latin"));
-  return { resource, encode: winAnsiHex };
+  const font = new (mupdf as any).Font(fontVariant(edit));
+  fonts.put(resource, pdf.addSimpleFont(font, "Latin"));
+  return { resource, encode: winAnsiHex, font, wmode };
+}
+
+function measuredTextWidth(font: AddedFont, text: string, size: number): number {
+  let width = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    const glyph = safe(() => Number(font.font.encodeCharacter(code)), 0);
+    const advance = glyph > 0 ? safe(() => Number(font.font.advanceGlyph(glyph, font.wmode)), Number.NaN) : Number.NaN;
+    width += Number.isFinite(advance) && advance >= 0 ? advance * size : estimatedTextWidth(char, size);
+  }
+  return width;
+}
+
+function splitMeasuredToken(token: string, width: number, measure: (text: string) => number): string[] {
+  const pieces: string[] = [];
+  let current = "";
+  for (const char of [...token]) {
+    const next = current + char;
+    if (current && measure(next) > width) {
+      pieces.push(current);
+      current = char;
+    } else current = next;
+  }
+  if (current || !pieces.length) pieces.push(current);
+  return pieces;
+}
+
+function wrapMeasuredLine(text: string, width: number, measure: (text: string) => number): string[] {
+  const normalized = text.trim();
+  if (!normalized) return [""];
+  if (!/\s/u.test(normalized)) return splitMeasuredToken(normalized, width, measure);
+  const words = normalized.split(/\s+/u).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (measure(word) > width) {
+      if (current) { lines.push(current); current = ""; }
+      const pieces = splitMeasuredToken(word, width, measure);
+      lines.push(...pieces.slice(0, -1));
+      current = pieces.at(-1) ?? "";
+      continue;
+    }
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && measure(candidate) > width) {
+      lines.push(current);
+      current = word;
+    } else current = candidate;
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function wrapMeasuredText(text: string, width: number, measure: (text: string) => number): string[] {
+  const safeWidth = Math.max(1, width - 3);
+  const logicalLines = text.replace(/\r\n?/g, "\n").split("\n");
+  const lines = logicalLines.flatMap((line) => wrapMeasuredLine(line, safeWidth, measure));
+  return lines.length ? lines : [""];
 }
 
 function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
@@ -199,17 +265,20 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
   const width = x1 - x0;
   const height = y1 - y0;
   const [r, g, b] = rgb(edit.color);
-  const lines = edit.wrap ? wrapTextToBox(edit.text, width, edit.fontSize) : edit.text.split(/\r?\n/);
+  const measure = (value: string) => measuredTextWidth(font, value, edit.fontSize);
+  const lines = edit.wrap ? wrapMeasuredText(edit.text, width, measure) : edit.text.replace(/\r\n?/g, "\n").split("\n");
   const lineHeight = edit.fontSize * 1.2;
+  const maxLines = Math.max(1, Math.floor(height / lineHeight));
+  if (lines.length > maxLines) throw new Error(`Replacement text does not fit the detected box at ${edit.fontSize} pt (${lines.length} lines required, ${maxLines} available). Lower the font size or shorten the text.`);
+  if (!edit.wrap && lines.some((line: string) => measure(line) > Math.max(1, width - 3))) throw new Error(`Replacement text is wider than the detected box at ${edit.fontSize} pt. Enable paragraph reflow, lower the font size, or shorten the text.`);
   let content = "";
   if (edit.backgroundColor && edit.backgroundColor !== "transparent") {
     const [br, bg, bb] = rgb(edit.backgroundColor);
     content += `q ${br} ${bg} ${bb} rg ${x0} ${y0} ${width} ${height} re f Q\n`;
   }
-  lines.slice(0, Math.max(1, Math.floor(height / lineHeight))).forEach((line: string, index: number) => {
-    const glyphCount = [...line].length;
-    const estimated = glyphCount * edit.fontSize * (edit.fontLanguage ? 1 : 0.52);
-    const x = edit.align === "center" ? x0 + Math.max(0, (width - estimated) / 2) : edit.align === "right" ? Math.max(x0, x1 - estimated) : x0 + 1.5;
+  lines.forEach((line: string, index: number) => {
+    const measured = measure(line);
+    const x = edit.align === "center" ? x0 + Math.max(0, (width - measured) / 2) : edit.align === "right" ? Math.max(x0, x1 - measured) : x0 + 1.5;
     const y = y1 - edit.fontSize - index * lineHeight;
     content += `BT /${font.resource} ${edit.fontSize} Tf ${r} ${g} ${b} rg 1 0 0 1 ${x} ${y} Tm ${font.encode(line)} Tj ET\n`;
   });
@@ -399,7 +468,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
 }
 
 function redactRegion(page: PdfPage, bounds: NativeRect): void {
-  const redaction = page.createAnnotation("Redaction");
+  const redaction = page.createAnnotation("Redact");
   redaction.setRect(pageRect(bounds));
   redaction.update?.();
   page.applyRedactions(false, (mupdf as any).PDFPage.REDACT_IMAGE_PIXELS, (mupdf as any).PDFPage.REDACT_LINE_ART_REMOVE_IF_TOUCHED, (mupdf as any).PDFPage.REDACT_TEXT_REMOVE);
@@ -428,6 +497,18 @@ function applyFormEdit(page: PdfPage, edit: any): boolean {
 function save(pdf: PdfDocument): Uint8Array {
   const buffer = pdf.saveToBuffer("garbage=4,clean=yes,compress=yes,compress-images=yes,compress-fonts=yes,appearance=all,encrypt=keep");
   try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
+}
+
+function comparableText(value: string): { spaced: string; compact: string } {
+  const normalized = value.normalize("NFC");
+  return { spaced: normalized.replace(/\s+/gu, " ").trim(), compact: normalized.replace(/\s+/gu, "") };
+}
+
+function containsReplacement(extracted: string, replacement: string): boolean {
+  const source = comparableText(extracted);
+  const target = comparableText(replacement);
+  if (!target.spaced) return true;
+  return source.spaced.includes(target.spaced) || source.compact.includes(target.compact);
 }
 
 self.onmessage = (event: MessageEvent<Request>) => {
@@ -487,7 +568,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           try {
             const extracted = page.toStructuredText().asText();
             const annotationFallback = edit.kind === "text" && edit.fontSource === "annotation-fallback";
-            if (edit.text && !annotationFallback && !extracted.includes(edit.text)) throw new Error(`Replacement text was not found on page ${edit.pageNumber}.`);
+            if (edit.text && !annotationFallback && !containsReplacement(extracted, edit.text)) throw new Error(`Replacement text was not found on page ${edit.pageNumber}.`);
           } finally { page.destroy(); }
         }
         const requestedForms = edits.filter((item) => item.kind === "form");

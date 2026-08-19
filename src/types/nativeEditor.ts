@@ -10,6 +10,8 @@ export interface NativeRect {
 export type NativeScript = "latin" | "cjk-ko" | "cjk-ja" | "cjk-zh-hans" | "cjk-zh-hant" | "complex" | "unknown";
 export type NativeEditability = "fixed-box" | "cjk-fixed-box" | "overlay-only" | "unsupported";
 export type NativeCapabilityLevel = "native-safe" | "safe-reconstruction" | "appearance-only" | "unsupported";
+export type NativeTextDirection = "ltr" | "rtl" | "ttb" | "unknown";
+export type NativeTextAlign = "left" | "center" | "right";
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -18,6 +20,23 @@ export interface NativeCapability {
   reason: string;
   preserves: string[];
   risks: string[];
+}
+
+/**
+ * Source-line evidence retained when line-level structured text is reconstructed
+ * into one editable paragraph. This metadata is inspection-only; edits still use
+ * a single NativeTextEdit so existing persisted edit queues remain compatible.
+ */
+export interface NativeTextLine {
+  objectId: string;
+  text: string;
+  bounds: NativeRect;
+  fontName: string;
+  family: "serif" | "sans-serif" | "monospace";
+  size: number;
+  weight: "normal" | "bold";
+  style: "normal" | "italic";
+  writingMode: 0 | 1;
 }
 
 export interface NativeTextObject {
@@ -36,6 +55,19 @@ export interface NativeTextObject {
   editability: NativeEditability;
   reason: string;
   capability: NativeCapability;
+  /** True when P1 reconstructed multiple source lines as one editable text flow. */
+  paragraph?: boolean;
+  /** Stable source line object ids covered by this paragraph. */
+  sourceObjectIds?: string[];
+  /** Source line evidence used for reflow/style inference. */
+  lines?: NativeTextLine[];
+  lineCount?: number;
+  /** Median source baseline/box advance in PDF points. */
+  lineHeight?: number;
+  /** Alignment inferred from source line geometry. */
+  align?: NativeTextAlign;
+  /** Writing direction inferred conservatively from script/wmode. */
+  direction?: NativeTextDirection;
 }
 
 export interface NativeImageObject {
