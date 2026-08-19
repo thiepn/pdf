@@ -7,6 +7,7 @@ import {
   joinTextLines,
   reconstructInspectionTextParagraphs,
   reconstructPageTextParagraphs,
+  rectFromArray,
   wrapTextToBox
 } from "../../src/native/nativeModel";
 import type { NativeInspection, NativePageTree, NativeTextObject } from "../../src/types/nativeEditor";
@@ -29,6 +30,12 @@ function line(id: string, text: string, x: number, y: number, w = 120, h = 12, s
 }
 
 describe("native editor model", () => {
+  it("normalizes MuPDF structured-text bbox objects and ordinary rect arrays", () => {
+    expect(rectFromArray({ x: 12, y: 34, w: 56, h: 78 })).toEqual({ x: 12, y: 34, w: 56, h: 78 });
+    expect(rectFromArray({ x: 20, y: 30, w: -5, h: -10 })).toEqual({ x: 15, y: 20, w: 5, h: 10 });
+    expect(rectFromArray([12, 34, 68, 112])).toEqual({ x: 12, y: 34, w: 56, h: 78 });
+  });
+
   it("classifies Latin and CJK scripts", () => {
     expect(detectScript("Bonjour")).toBe("latin");
     expect(detectScript("한국어")).toBe("cjk-ko");
