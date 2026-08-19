@@ -19,10 +19,14 @@ describe("native editor worker MuPDF contract", () => {
     expect(workerSource).toContain("wrapStyled");
   });
 
-  it("reuses page-local resources and grafts inherited resources only once", () => {
+  it("distinguishes MuPDF PDF null objects from concrete dictionaries and streams", () => {
     expect(workerSource).toContain('let root = object.get("Resources")');
+    expect(workerSource).toContain("if (!root?.isDictionary?.())");
     expect(workerSource).toContain('const inherited = object.getInheritable?.("Resources")');
-    expect(workerSource).toContain("root = inherited ? pdf.graftObject(inherited) : pdf.newDictionary()");
-    expect(workerSource).not.toContain('object.get("Resources") || object.getInheritable?.("Resources")');
+    expect(workerSource).toContain("inherited?.isDictionary?.() ? pdf.graftObject(inherited) : pdf.newDictionary()");
+    expect(workerSource).toContain("if (!dictionary?.isDictionary?.())");
+    expect(workerSource).toContain("if (!current || current.isNull?.())");
+    expect(workerSource).not.toContain("if (!root) {");
+    expect(workerSource).not.toContain("if (!dictionary) {");
   });
 });
