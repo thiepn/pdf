@@ -1,4 +1,4 @@
-export const NATIVE_EDITOR_SCHEMA_VERSION = 2;
+export const NATIVE_EDITOR_SCHEMA_VERSION = 3;
 
 export interface NativeRect {
   x: number;
@@ -18,6 +18,8 @@ export type NativeFontStyle = "normal" | "italic";
 export type NativeEditableFontFamily = "Helvetica" | "Times-Roman" | "Courier" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
 export type NativeFontSource = "built-in" | "built-in-cjk" | "imported-cjk" | "imported-latin" | "annotation-fallback";
 export type NativeTextLayoutMode = "fixed-box" | "expand-flow";
+export type NativeImageAction = "transform" | "replace" | "delete";
+export type NativeImageRotation = 0 | 90 | 180 | 270;
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -263,13 +265,17 @@ export interface NativeImageEdit {
   kind: "image";
   objectId: string;
   pageNumber: number;
+  /** P3 operation. Missing is migrated as replacement when bytes exist. */
+  action?: NativeImageAction;
   bounds: NativeRect;
-  /** Original detected image bounds. Kept separate so moving/resizing a replacement still removes the original source region. */
+  /** Original detected image bounds. Source transforms always remove only this image region, never neighboring text/vector content. */
   sourceBounds?: NativeRect;
-  bytes: Uint8Array;
-  mimeType: string;
+  /** Replacement bytes are optional because P3 source transforms and deletes reuse/remove the selected existing image. */
+  bytes?: Uint8Array;
+  mimeType?: string;
   removeUnderlying: boolean;
   fit: "contain" | "cover" | "stretch";
+  rotation?: NativeImageRotation;
   opacity?: number;
 }
 
