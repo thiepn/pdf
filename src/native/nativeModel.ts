@@ -1,10 +1,16 @@
 import type {
   NativeCapability,
   NativeFormFieldType,
+  NativeInspection,
+  NativePageObject,
+  NativePageTree,
   NativeRect,
   NativeScript,
   NativeTableCell,
   NativeTableObject,
+  NativeTextAlign,
+  NativeTextDirection,
+  NativeTextLine,
   NativeTextObject
 } from "../types/nativeEditor";
 
@@ -46,11 +52,11 @@ export function classifyTextEditability(text: string, fontName = ""): Pick<Nativ
     return { script, editability: "overlay-only", reason, capability: capability("appearance-only", "Appearance edit", 0.5, reason, ["Original source project"], ["Replacement is exported as an annotation overlay unless a compatible font is supplied."]) };
   }
   if (script === "latin") {
-    const reason = "The text can be reconstructed inside its existing bounding box.";
+    const reason = "The text can be reconstructed inside its detected content region.";
     return { script, editability: "fixed-box", reason, capability: capability("safe-reconstruction", "Safe reconstruction", 0.92, reason, ["Page geometry", "Unchanged neighboring objects"], ["The original text operators and font resource are replaced rather than edited byte-for-byte."]) };
   }
   if (["cjk-ko", "cjk-ja", "cjk-zh-hans", "cjk-zh-hant"].includes(script)) {
-    const reason = "The text can be rebuilt with a UTF-16 CJK CID font inside its existing box.";
+    const reason = "The text can be rebuilt with a UTF-16 CJK CID font inside its detected content region.";
     return { script, editability: "cjk-fixed-box", reason, capability: capability("safe-reconstruction", "CJK reconstruction", 0.86, reason, ["Unicode text", "Page geometry"], ["Exact original glyph metrics may differ from the source font."]) };
   }
   if (script === "complex") {
@@ -122,26 +128,277 @@ export function detectTables(pageNumber: number, lines: Line[]): NativeTableObje
   return [{ id: `table:${pageNumber}:0`, type: "table", pageNumber, bounds: unionRects(cells.map((cell) => cell.bounds)), rows: compatible.length, columns, cells, confidence, editability: "cell-replace", capability: tableCapability(confidence) }];
 }
 
-export function wrapTextToBox(text: string, width: number, size: number): string[] {
-  const max = Math.max(1, Math.floor(width / Math.max(1, size * 0.52)));
+/**
+ * Conservative glyph-width model used by both preview planning and the native
+ * export worker. It is intentionally more granular than the previous 0.52-em
+ * character count, while remaining deterministic and dependency-free.
+ */
+export function estimatedTextWidth(text: string, size: number): number {
+  let units = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (/\s/u.test(char)) units += 0.28;
+    else if (code >= 0x2e80 && code <= 0x9fff) units += 1;
+    else if (code >= 0xac00 && code <= 0xd7af) units += 1;
+    else if (/[ilI1|!.,:;'`]/u.test(char)) units += 0.28;
+    else if (/[mwMW@%&#]/u.test(char)) units += 0.82;
+    else if (/[A-Z0-9]/u.test(char)) units += 0.62;
+    else if (/[-–—_()[\]{}]/u.test(char)) units += 0.42;
+    else units += 0.52;
+  }
+  return units * Math.max(1, size);
+}
+
+function splitLongToken(token: string, width: number, size: number): string[] {
+  const pieces: string[] = [];
+  let current = "";
+  for (const char of [...token]) {
+    const next = current + char;
+    if (current && estimatedTextWidth(next, size) > width) {
+      pieces.push(current);
+      current = char;
+    } else current = next;
+  }
+  if (current || !pieces.length) pieces.push(current);
+  return pieces;
+}
+
+function wrapLogicalLine(text: string, width: number, size: number): string[] {
   const normalized = text.trim();
   if (!normalized) return [""];
-  if (!/\s/.test(normalized)) {
-    const characters = [...normalized];
-    const lines: string[] = [];
-    for (let index = 0; index < characters.length; index += max) lines.push(characters.slice(index, index + max).join(""));
-    return lines;
-  }
-  const words = normalized.split(/\s+/).filter(Boolean);
+  if (!/\s/u.test(normalized)) return splitLongToken(normalized, width, size);
+  const words = normalized.split(/\s+/u).filter(Boolean);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
-    if (!current) current = word;
-    else if (`${current} ${word}`.length <= max) current += ` ${word}`;
-    else { lines.push(current); current = word; }
+    if (estimatedTextWidth(word, size) > width) {
+      if (current) { lines.push(current); current = ""; }
+      const pieces = splitLongToken(word, width, size);
+      lines.push(...pieces.slice(0, -1));
+      current = pieces.at(-1) ?? "";
+      continue;
+    }
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && estimatedTextWidth(candidate, size) > width) {
+      lines.push(current);
+      current = word;
+    } else current = candidate;
   }
   if (current) lines.push(current);
   return lines;
+}
+
+export function wrapTextToBox(text: string, width: number, size: number): string[] {
+  const safeWidth = Math.max(1, width - 3);
+  const logical = text.replace(/\r\n?/g, "\n").split("\n");
+  const lines = logical.flatMap((line) => wrapLogicalLine(line, safeWidth, size));
+  return lines.length ? lines : [""];
+}
+
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function mode<T extends string | number>(values: T[], fallback: T): T {
+  const counts = new Map<T, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  let best = fallback;
+  let count = -1;
+  for (const [value, next] of counts) if (next > count) { best = value; count = next; }
+  return best;
+}
+
+function textBlockKey(object: NativeTextObject): string {
+  const match = /^p\d+:text:(\d+):/.exec(object.id);
+  return match ? `${object.pageNumber}:${match[1]}` : object.id;
+}
+
+function sourceLine(object: NativeTextObject): NativeTextLine {
+  return {
+    objectId: object.id,
+    text: object.text,
+    bounds: object.bounds,
+    fontName: object.fontName,
+    family: object.family,
+    size: object.size,
+    weight: object.weight,
+    style: object.style,
+    writingMode: object.writingMode
+  };
+}
+
+function orderedLines(lines: NativeTextObject[]): NativeTextObject[] {
+  const vertical = lines.filter((line) => line.writingMode === 1).length > lines.length / 2;
+  return [...lines].sort((a, b) => vertical
+    ? b.bounds.x - a.bounds.x || a.bounds.y - b.bounds.y
+    : a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+}
+
+function startsCjk(text: string): boolean {
+  const first = [...text.trim()][0];
+  if (!first) return false;
+  const code = first.codePointAt(0) ?? 0;
+  return (code >= 0x2e80 && code <= 0x9fff) || (code >= 0xac00 && code <= 0xd7af) || (code >= 0x3040 && code <= 0x30ff);
+}
+
+export function joinTextLines(lines: Array<Pick<NativeTextObject, "text" | "script">>): string {
+  let result = "";
+  for (const line of lines) {
+    const next = line.text.trim();
+    if (!next) continue;
+    if (!result) { result = next; continue; }
+    const dehyphenate = /[A-Za-zÀ-ž]-$/u.test(result) && /^[a-zà-ž]/u.test(next);
+    if (dehyphenate) {
+      result = result.slice(0, -1) + next;
+      continue;
+    }
+    const previous = [...result].at(-1) ?? "";
+    const noSpace = startsCjk(next) || startsCjk(previous) || line.script.startsWith("cjk-");
+    result += noSpace ? next : ` ${next}`;
+  }
+  return result;
+}
+
+function inferredLineHeight(lines: NativeTextObject[]): number {
+  if (lines.length <= 1) return Math.max(lines[0]?.bounds.h ?? 0, (lines[0]?.size ?? 10) * 1.2);
+  const ordered = orderedLines(lines);
+  const vertical = ordered.filter((line) => line.writingMode === 1).length > ordered.length / 2;
+  const advances: number[] = [];
+  for (let index = 1; index < ordered.length; index += 1) {
+    const previous = ordered[index - 1];
+    const current = ordered[index];
+    const advance = vertical ? Math.abs(current.bounds.x - previous.bounds.x) : Math.abs(current.bounds.y - previous.bounds.y);
+    if (advance > 0.1 && Number.isFinite(advance)) advances.push(advance);
+  }
+  return median(advances) || Math.max(median(lines.map((line) => line.bounds.h)), median(lines.map((line) => line.size)) * 1.2);
+}
+
+function deviation(values: number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length);
+}
+
+function inferredAlignment(lines: NativeTextObject[], bounds: NativeRect): NativeTextAlign {
+  if (lines.length <= 1) return "left";
+  const lefts = lines.map((line) => line.bounds.x - bounds.x);
+  const rights = lines.map((line) => bounds.x + bounds.w - (line.bounds.x + line.bounds.w));
+  const centers = lines.map((line) => line.bounds.x + line.bounds.w / 2 - (bounds.x + bounds.w / 2));
+  const leftDeviation = deviation(lefts);
+  const rightDeviation = deviation(rights);
+  const centerDeviation = deviation(centers);
+  if (centerDeviation + 0.75 < Math.min(leftDeviation, rightDeviation)) return "center";
+  if (rightDeviation + 0.75 < leftDeviation) return "right";
+  return "left";
+}
+
+function inferredDirection(script: NativeScript, writingMode: 0 | 1, text: string): NativeTextDirection {
+  if (writingMode === 1) return "ttb";
+  if (script === "complex" && /[\u0590-\u08ff\ufb1d-\ufeff]/u.test(text)) return "rtl";
+  if (script === "unknown") return "unknown";
+  return "ltr";
+}
+
+function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
+  const lines = orderedLines(group);
+  if (lines.length === 1) {
+    const source = lines[0];
+    return {
+      ...source,
+      paragraph: true,
+      sourceObjectIds: [source.id],
+      lines: [sourceLine(source)],
+      lineCount: 1,
+      lineHeight: inferredLineHeight(lines),
+      align: "left",
+      direction: inferredDirection(source.script, source.writingMode, source.text)
+    };
+  }
+  const bounds = unionRects(lines.map((line) => line.bounds));
+  const text = joinTextLines(lines);
+  const fontName = mode(lines.map((line) => line.fontName), lines[0].fontName);
+  const family = mode(lines.map((line) => line.family), lines[0].family);
+  const size = median(lines.map((line) => line.size).filter((value) => value > 0)) || lines[0].size;
+  const weight = mode(lines.map((line) => line.weight), lines[0].weight);
+  const style = mode(lines.map((line) => line.style), lines[0].style);
+  const writingMode = mode(lines.map((line) => line.writingMode), lines[0].writingMode) as 0 | 1;
+  const classification = classifyTextEditability(text, fontName);
+  const reason = classification.editability === "fixed-box" || classification.editability === "cjk-fixed-box"
+    ? `MuPDF grouped ${lines.length} source lines into one text block. PDF Studio can edit and reflow the paragraph without merging it with neighboring columns or blocks.`
+    : classification.reason;
+  const preserves = [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry"])];
+  const risks = [...new Set([...classification.capability.risks, "Exact source glyph metrics can differ when the original embedded font cannot be reused."])];
+  return {
+    id: `${textBlockKey(lines[0])}:paragraph`,
+    type: "text",
+    pageNumber: lines[0].pageNumber,
+    bounds,
+    text,
+    fontName,
+    family,
+    size,
+    weight,
+    style,
+    writingMode,
+    ...classification,
+    reason,
+    capability: {
+      ...classification.capability,
+      label: classification.capability.level === "safe-reconstruction" ? "Paragraph reflow" : classification.capability.label,
+      confidence: Math.max(0, Math.min(1, classification.capability.confidence - 0.02)),
+      reason,
+      preserves,
+      risks
+    },
+    paragraph: true,
+    sourceObjectIds: lines.map((line) => line.id),
+    lines: lines.map(sourceLine),
+    lineCount: lines.length,
+    lineHeight: inferredLineHeight(lines),
+    align: inferredAlignment(lines, bounds),
+    direction: inferredDirection(classification.script, writingMode, text)
+  };
+}
+
+/**
+ * P1 consumer text model: merge line-level objects emitted by the worker back
+ * into MuPDF structured-text block paragraphs. The block index encoded by the
+ * worker is the hard boundary, so columns/independent blocks are never joined.
+ */
+export function reconstructPageTextParagraphs(page: NativePageTree): NativePageTree {
+  const groups = new Map<string, NativeTextObject[]>();
+  for (const object of page.objects) {
+    if (object.type !== "text") continue;
+    const key = textBlockKey(object);
+    const items = groups.get(key) ?? [];
+    items.push(object);
+    groups.set(key, items);
+  }
+  if (!groups.size) return page;
+  const emitted = new Set<string>();
+  const objects: NativePageObject[] = [];
+  for (const object of page.objects) {
+    if (object.type !== "text") { objects.push(object); continue; }
+    const key = textBlockKey(object);
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    objects.push(mergeTextGroup(groups.get(key) ?? [object]));
+  }
+  return { ...page, objects };
+}
+
+export function reconstructInspectionTextParagraphs(inspection: NativeInspection): NativeInspection {
+  const pages = inspection.pages.map(reconstructPageTextParagraphs);
+  const before = inspection.pages.reduce((sum, page) => sum + page.objects.filter((object) => object.type === "text").length, 0);
+  const after = pages.reduce((sum, page) => sum + page.objects.filter((object) => object.type === "text").length, 0);
+  const collapsed = Math.max(0, before - after);
+  const warnings = collapsed > 0
+    ? [...inspection.warnings, `P1 reconstructed ${before} detected text lines as ${after} editable paragraph blocks; structured-text block boundaries were preserved.`]
+    : inspection.warnings;
+  return { ...inspection, pages, totals: { ...inspection.totals, text: after }, warnings };
 }
 
 export function cjkLanguageForScript(script: NativeScript): "ko" | "ja" | "zh-Hans" | "zh-Hant" | undefined {
