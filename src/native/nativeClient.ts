@@ -63,13 +63,13 @@ export function normalizeNativeEditForExport(edit: NativeEdit): NativeEdit {
 export function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
   const payload = edits.map((sourceEdit) => {
     const edit = normalizeNativeEditForExport(sourceEdit);
-    if (edit.kind === "image") return { ...edit, bytes: Uint8Array.from(edit.bytes).buffer };
+    if (edit.kind === "image" && edit.bytes?.byteLength) return { ...edit, bytes: Uint8Array.from(edit.bytes).buffer };
     if (edit.kind === "text" && edit.fontBytes) return { ...edit, fontBytes: Uint8Array.from(edit.fontBytes).buffer };
     return edit;
   });
   const transfers: Transferable[] = [];
   for (const edit of payload) {
-    if (edit.kind === "image") transfers.push(edit.bytes as ArrayBuffer);
+    if (edit.kind === "image" && edit.bytes instanceof ArrayBuffer) transfers.push(edit.bytes);
     if (edit.kind === "text" && edit.fontBytes) transfers.push(edit.fontBytes as ArrayBuffer);
   }
   return call<{ bytes: Uint8Array; report: NativeExportReport }>({ type: "APPLY_NATIVE", edits: payload }, bytes, password, signal, transfers);
