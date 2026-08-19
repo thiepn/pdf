@@ -25,11 +25,11 @@ interface Props {
 }
 
 export function NativeContentPropertiesPanel({ object, queuedEdits, onQueue, onRemove }: Props) {
+  const related = useMemo(() => queuedEdits.filter((edit) => edit.objectId === object.id), [object.id, queuedEdits]);
   if (object.type === "text") {
     const page = pageForNativeObject(object);
     if (page) return <LayoutAwareTextPropertiesPanel object={object} page={page} queuedEdits={queuedEdits} onQueue={onQueue} onRemove={onRemove} />;
   }
-  const related = useMemo(() => queuedEdits.filter((edit) => edit.objectId === object.id), [object.id, queuedEdits]);
   return <aside className="editor-properties native-unified-properties">
     <CapabilitySummary object={object} queuedCount={related.length} onRemove={() => onRemove(object.id)} />
     {object.type === "text" ? <TextEditor object={object} queued={related.find((edit): edit is NativeTextEdit => edit.kind === "text")} onQueue={(edit) => onQueue([edit])} /> : null}
