@@ -86,7 +86,23 @@ export function formCapability(type: NativeFormFieldType, readOnly: boolean, sig
   return capability("unsupported", "Unsupported field", 0.5, "This field type is not value-editable in the unified editor.", ["Field structure"], []);
 }
 
+/** Accepts both MuPDF StructuredText JSON bbox objects and ordinary PDF rect arrays. */
 export function rectFromArray(value: unknown): NativeRect {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const box = value as Partial<Record<"x" | "y" | "w" | "h", unknown>>;
+    const x = Number(box.x);
+    const y = Number(box.y);
+    const w = Number(box.w);
+    const h = Number(box.h);
+    if ([x, y, w, h].every(Number.isFinite)) {
+      return {
+        x: w >= 0 ? x : x + w,
+        y: h >= 0 ? y : y + h,
+        w: Math.abs(w),
+        h: Math.abs(h)
+      };
+    }
+  }
   const a = Array.isArray(value) ? value.map(Number) : [];
   const x0 = Number.isFinite(a[0]) ? a[0] : 0;
   const y0 = Number.isFinite(a[1]) ? a[1] : 0;
@@ -97,10 +113,10 @@ export function rectFromArray(value: unknown): NativeRect {
 
 export function unionRects(rects: NativeRect[]): NativeRect {
   if (!rects.length) return { x: 0, y: 0, w: 0, h: 0 };
-  const x = Math.min(...rects.map((r) => r.x));
-  const y = Math.min(...rects.map((r) => r.y));
-  const x1 = Math.max(...rects.map((r) => r.x + r.w));
-  const y1 = Math.max(...rects.map((r) => r.y + r.h));
+  const x = Math.min(...rects.map((rect) => rect.x));
+  const y = Math.min(...rects.map((rect) => rect.y));
+  const x1 = Math.max(...rects.map((rect) => rect.x + rect.w));
+  const y1 = Math.max(...rects.map((rect) => rect.y + rect.h));
   return { x, y, w: x1 - x, h: y1 - y };
 }
 
@@ -123,23 +139,24 @@ export function detectTables(pageNumber: number, lines: Line[]): NativeTableObje
   const compatible = candidates.filter((row) => Math.abs(row.length - columns) <= 1);
   if (compatible.length < 2 || columns < 2) return [];
   const cells: NativeTableCell[] = [];
-  compatible.forEach((row, ri) => row.forEach((line, ci) => cells.push({ id: `table:${pageNumber}:r${ri}:c${ci}:${line.id}`, row: ri, column: ci, text: line.text, bounds: line.bounds, fontSize: line.fontSize })));
+  compatible.forEach((row, rowIndex) => row.forEach((line, columnIndex) => cells.push({
+    id: `table:${pageNumber}:r${rowIndex}:c${columnIndex}:${line.id}`,
+    row: rowIndex,
+    column: columnIndex,
+    text: line.text,
+    bounds: line.bounds,
+    fontSize: line.fontSize
+  })));
   const confidence = Math.max(0.6, Math.min(0.94, 0.72 + compatible.length * 0.025 + columns * 0.02));
   return [{ id: `table:${pageNumber}:0`, type: "table", pageNumber, bounds: unionRects(cells.map((cell) => cell.bounds)), rows: compatible.length, columns, cells, confidence, editability: "cell-replace", capability: tableCapability(confidence) }];
 }
 
-/**
- * Conservative glyph-width model used by both preview planning and the native
- * export worker. It is intentionally more granular than the previous 0.52-em
- * character count, while remaining deterministic and dependency-free.
- */
 export function estimatedTextWidth(text: string, size: number): number {
   let units = 0;
   for (const char of text) {
     const code = char.codePointAt(0) ?? 0;
     if (/\s/u.test(char)) units += 0.28;
-    else if (code >= 0x2e80 && code <= 0x9fff) units += 1;
-    else if (code >= 0xac00 && code <= 0xd7af) units += 1;
+    else if ((code >= 0x2e80 && code <= 0x9fff) || (code >= 0xac00 && code <= 0xd7af)) units += 1;
     else if (/[ilI1|!.,:;'`]/u.test(char)) units += 0.28;
     else if (/[mwMW@%&#]/u.test(char)) units += 0.82;
     else if (/[A-Z0-9]/u.test(char)) units += 0.62;
@@ -190,8 +207,8 @@ function wrapLogicalLine(text: string, width: number, size: number): string[] {
 
 export function wrapTextToBox(text: string, width: number, size: number): string[] {
   const safeWidth = Math.max(1, width - 3);
-  const logical = text.replace(/\r\n?/g, "\n").split("\n");
-  const lines = logical.flatMap((line) => wrapLogicalLine(line, safeWidth, size));
+  const logicalLines = text.replace(/\r\n?/g, "\n").split("\n");
+  const lines = logicalLines.flatMap((line) => wrapLogicalLine(line, safeWidth, size));
   return lines.length ? lines : [""];
 }
 
@@ -250,8 +267,7 @@ export function joinTextLines(lines: Array<Pick<NativeTextObject, "text" | "scri
     const next = line.text.trim();
     if (!next) continue;
     if (!result) { result = next; continue; }
-    const dehyphenate = /[A-Za-zÀ-ž]-$/u.test(result) && /^[a-zà-ž]/u.test(next);
-    if (dehyphenate) {
+    if (/[A-Za-zÀ-ž]-$/u.test(result) && /^[a-zà-ž]/u.test(next)) {
       result = result.slice(0, -1) + next;
       continue;
     }
@@ -329,8 +345,6 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
   const reason = classification.editability === "fixed-box" || classification.editability === "cjk-fixed-box"
     ? `MuPDF grouped ${lines.length} source lines into one text block. PDF Studio can edit and reflow the paragraph without merging it with neighboring columns or blocks.`
     : classification.reason;
-  const preserves = [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry"])];
-  const risks = [...new Set([...classification.capability.risks, "Exact source glyph metrics can differ when the original embedded font cannot be reused."])];
   return {
     id: `${textBlockKey(lines[0])}:paragraph`,
     type: "text",
@@ -350,8 +364,8 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
       label: classification.capability.level === "safe-reconstruction" ? "Paragraph reflow" : classification.capability.label,
       confidence: Math.max(0, Math.min(1, classification.capability.confidence - 0.02)),
       reason,
-      preserves,
-      risks
+      preserves: [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry"])],
+      risks: [...new Set([...classification.capability.risks, "Exact source glyph metrics can differ when the original embedded font cannot be reused."])]
     },
     paragraph: true,
     sourceObjectIds: lines.map((line) => line.id),
@@ -363,11 +377,6 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
   };
 }
 
-/**
- * P1 consumer text model: merge line-level objects emitted by the worker back
- * into MuPDF structured-text block paragraphs. The block index encoded by the
- * worker is the hard boundary, so columns/independent blocks are never joined.
- */
 export function reconstructPageTextParagraphs(page: NativePageTree): NativePageTree {
   const groups = new Map<string, NativeTextObject[]>();
   for (const object of page.objects) {
