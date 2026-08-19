@@ -58,9 +58,10 @@ function textEditForFollower(source: NativeTextObject, bounds: NativeTextObject[
 export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQueue, onRemove }: Props) {
   const queued = queuedEdits.find((edit): edit is NativeTextEdit => edit.kind === "text" && edit.objectId === object.id && !edit.reflowFollower);
   const language = cjkLanguageForScript(object.script);
+  const sourceFamily = editableFamilyForSource(object.family, object.script);
   const [text, setText] = useState(queued?.text ?? object.text);
   const [fontSize, setFontSize] = useState(queued?.fontSize ?? object.size);
-  const [fontFamily, setFontFamily] = useState<NativeTextEdit["fontFamily"]>(queued?.fontFamily ?? editableFamilyForSource(object.family, object.script));
+  const [fontFamily, setFontFamily] = useState<NativeTextEdit["fontFamily"]>(queued?.fontFamily ?? sourceFamily);
   const [color, setColor] = useState(queued?.color ?? colorValue(object.color));
   const [background, setBackground] = useState(queued?.backgroundColor ?? "#ffffff");
   const [align, setAlign] = useState<NativeTextEdit["align"]>(queued?.align ?? object.align ?? "left");
@@ -87,8 +88,11 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
   const unsupported = object.editability === "unsupported";
   const complex = object.editability === "overlay-only";
   const paragraph = Boolean(object.paragraph);
-  const fit = useMemo(() => evaluateTextFit(text, object.bounds, fontSize, wrap, object.lineHeight), [fontSize, object.bounds.h, object.bounds.w, object.lineHeight, text, wrap]);
-  const targetHeight = text === object.text ? object.bounds.h : fit.requiredHeight;
+  const preservedRuns = useMemo(() => preserveStyle && !complex ? buildPreservedEditRuns(object, text, color) : undefined, [color, complex, object, preserveStyle, text]);
+  const effectiveFontSize = preservedRuns?.length ? Math.max(...preservedRuns.map((run) => run.fontSize)) : fontSize;
+  const fit = useMemo(() => evaluateTextFit(text, object.bounds, effectiveFontSize, wrap, object.lineHeight), [effectiveFontSize, object.bounds.h, object.bounds.w, object.lineHeight, text, wrap]);
+  const geometryChanged = text !== object.text || (!preserveStyle && (Math.abs(fontSize - object.size) > 0.01 || fontFamily !== sourceFamily));
+  const targetHeight = geometryChanged ? fit.requiredHeight : object.bounds.h;
   const plan = useMemo(() => planTextReflow(page, object.id, targetHeight), [object.id, page, targetHeight]);
   const queuedFlowConflict = useMemo(() => findNativeReflowQueueConflict(
     queuedEdits,
@@ -101,7 +105,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
   const flowBlocked = layoutAware && (!object.flow || !wrap || fit.widthOverflow || !plan.ok || Boolean(queuedFlowConflict));
   const fixedBlocked = !layoutAware && !complex && !fit.fits;
   const queueBlocked = unsupported || selectedMovedByOtherReflow || flowBlocked || fixedBlocked;
-  const fittingSize = useMemo(() => fit.fits || complex ? null : findFittingFontSize(text, object.bounds, fontSize, wrap, Math.max(4, Math.min(8, object.size * 0.65))), [complex, fit.fits, fontSize, object.bounds.h, object.bounds.w, object.size, text, wrap]);
+  const fittingSize = useMemo(() => fit.fits || complex || preserveStyle ? null : findFittingFontSize(text, object.bounds, fontSize, wrap, Math.max(4, Math.min(8, object.size * 0.65))), [complex, fit.fits, fontSize, object.bounds.h, object.bounds.w, object.size, preserveStyle, text, wrap]);
   const sourceRunCount = object.runs?.length ?? 1;
   const movedCount = layoutAware && plan.ok ? plan.shifts.length : 0;
 
@@ -144,8 +148,8 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
       fontStyle: object.style,
       lineHeight: object.lineHeight,
       layoutMode: useFlow ? "expand-flow" : "fixed-box",
-      styleRuns: preserveStyle && !complex ? buildPreservedEditRuns(object, text, color) : undefined,
-      preserveSourceStyle: preserveStyle && !complex
+      styleRuns: preservedRuns,
+      preserveSourceStyle: Boolean(preservedRuns?.length)
     };
     const followers = useFlow ? plan.shifts.flatMap((shift) => {
       const sourceObject = page.objects.find((candidate): candidate is NativeTextObject => candidate.type === "text" && candidate.id === shift.objectId);
@@ -186,12 +190,12 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
     <section className="property-section property-stack">
       <h3>Font fidelity</h3>
       {sourceRunCount > 1 ? <label className="property-toggle"><input checked={preserveStyle} disabled={complex || unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setPreserveStyle(event.target.checked)} />Preserve source formatting runs ({sourceRunCount})</label> : <p className="property-note">One source font/style run was detected for this paragraph.</p>}
-      {preserveStyle && sourceRunCount > 1 ? <p className="property-note">Unchanged prefix/suffix text retains its detected font, size, bold/italic state, and extracted color when available. Newly typed text inherits the nearest source run instead of inventing arbitrary styling.</p> : null}
-      <div className="property-grid-two"><label className="property-field"><span>Fallback font</span><select disabled={Boolean(language) || complex || unsupported || preserveStyle || selectedMovedByOtherReflow} value={fontFamily} onChange={(event) => setFontFamily(event.target.value as NativeTextEdit["fontFamily"])}><option value="Helvetica">Helvetica</option><option value="Times-Roman">Times</option><option value="Courier">Courier</option></select></label><label className="property-field"><span>Size</span><input disabled={selectedMovedByOtherReflow} min="1" max="200" step="0.5" type="number" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /></label></div>
+      {preserveStyle && sourceRunCount > 1 ? <p className="property-note">Unchanged prefix/suffix text retains its detected font, size, bold/italic state, and extracted color when available. Newly typed text inherits the nearest source run instead of inventing arbitrary styling. Turn preservation off to apply one global size or text color.</p> : null}
+      <div className="property-grid-two"><label className="property-field"><span>Fallback font</span><select disabled={Boolean(language) || complex || unsupported || preserveStyle || selectedMovedByOtherReflow} value={fontFamily} onChange={(event) => setFontFamily(event.target.value as NativeTextEdit["fontFamily"])}><option value="Helvetica">Helvetica</option><option value="Times-Roman">Times</option><option value="Courier">Courier</option></select></label><label className="property-field"><span>Size</span><input disabled={preserveStyle || selectedMovedByOtherReflow} min="1" max="200" step="0.5" type="number" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /></label></div>
       {!complex ? <label className="button button--secondary button--small">{fontName ? `Matching font: ${fontName}` : "Import matching font"}<input accept=".otf,.ttf,.ttc,font/otf,font/ttf" disabled={selectedMovedByOtherReflow} hidden type="file" onChange={(event) => void importFont(event.target.files?.[0])} /></label> : null}
       {fontBytes ? <button className="button button--ghost button--small" disabled={selectedMovedByOtherReflow} onClick={() => { setFontBytes(undefined); setFontName(""); }} type="button">Use built-in reconstruction font</button> : null}
       <p className="property-note">PDF Studio does not claim byte-for-byte reuse of an embedded source font unless compatible font bytes are explicitly available. Imported font bytes remain local to this project.</p>
-      <div className="property-grid-two"><label className="property-field"><span>Text</span><input disabled={selectedMovedByOtherReflow} type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label className="property-field"><span>Background</span><input disabled={selectedMovedByOtherReflow} type="color" value={background} onChange={(event) => setBackground(event.target.value)} /></label></div>
+      <div className="property-grid-two"><label className="property-field"><span>Text</span><input disabled={preserveStyle || selectedMovedByOtherReflow} type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label className="property-field"><span>Background</span><input disabled={selectedMovedByOtherReflow} type="color" value={background} onChange={(event) => setBackground(event.target.value)} /></label></div>
       <label className="property-field"><span>Alignment</span><select disabled={unsupported || selectedMovedByOtherReflow} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
       <label className="property-toggle"><input checked={wrap} disabled={unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />Reflow text into measured lines</label>
       {complex ? <div className="warning-banner"><strong>Appearance-only edit</strong><span>Complex shaping and bidirectional layout are still not reconstructed statically. P2 does not pretend otherwise; this replacement remains a visual text layer.</span></div> : null}
