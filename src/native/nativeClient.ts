@@ -87,7 +87,7 @@ function mergeReports(first: NativeExportReport | undefined, second: NativeExpor
 function prepareNonImageEdits(edits: NativeEdit[]): { payload: NativeEdit[]; transfers: Transferable[] } {
   const payload = edits.map((sourceEdit) => {
     const edit = normalizeNativeEditForExport(sourceEdit);
-    if (edit.kind === "text" && edit.fontBytes) return { ...edit, fontBytes: Uint8Array.from(edit.fontBytes).buffer } as NativeEdit;
+    if (edit.kind === "text" && edit.fontBytes) return { ...edit, fontBytes: Uint8Array.from(edit.fontBytes).buffer } as unknown as NativeEdit;
     return edit;
   });
   const transfers: Transferable[] = [];
