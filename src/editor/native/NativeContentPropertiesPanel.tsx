@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { cjkLanguageForScript, detectScript } from "../../native/nativeModel";
+import { evaluateTextFit, findFittingFontSize } from "../../native/textFit";
 import type {
   NativeEdit,
   NativeFormObject,
@@ -35,8 +36,9 @@ export function NativeContentPropertiesPanel({ object, queuedEdits, onQueue, onR
 
 function CapabilitySummary({ object, queuedCount, onRemove }: { object: NativePageObject; queuedCount: number; onRemove: () => void }) {
   const support = object.capability.level === "native-safe" ? "Directly editable" : object.capability.level === "safe-reconstruction" ? "Editable with reconstruction" : object.capability.level === "appearance-only" ? "Limited editing" : "Editing unavailable";
+  const heading = object.type === "form" ? "Form field" : object.type === "text" && object.paragraph && (object.lineCount ?? 1) > 1 ? "Text paragraph" : object.type[0].toUpperCase() + object.type.slice(1);
   return <section className="property-section native-capability-card">
-    <div className="native-capability-card__heading"><div><p className="eyebrow">Existing PDF content</p><h2>{object.type === "form" ? "Form field" : object.type[0].toUpperCase() + object.type.slice(1)}</h2></div><span className={`capability-chip capability-chip--${object.capability.level}`}>{support}</span></div>
+    <div className="native-capability-card__heading"><div><p className="eyebrow">Existing PDF content</p><h2>{heading}</h2></div><span className={`capability-chip capability-chip--${object.capability.level}`}>{support}</span></div>
     <p>{object.capability.reason}</p>
     <details><summary>Technical details</summary><div className="capability-meter"><span style={{ width: `${Math.round(object.capability.confidence * 100)}%` }} /></div><small>{Math.round(object.capability.confidence * 100)}% editing-support confidence</small>{object.capability.preserves.length ? <><strong>Preserves</strong><ul>{object.capability.preserves.map((item) => <li key={item}>{item}</li>)}</ul></> : null}{object.capability.risks.length ? <><strong>Possible changes</strong><ul>{object.capability.risks.map((item) => <li key={item}>{item}</li>)}</ul></> : null}</details>
     {queuedCount ? <div className="native-queued-chip"><span>{queuedCount} pending change{queuedCount === 1 ? "" : "s"}</span><button onClick={onRemove} type="button">Discard</button></div> : null}
@@ -50,7 +52,7 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
   const [fontFamily, setFontFamily] = useState<NativeTextEdit["fontFamily"]>(queued?.fontFamily ?? language ?? familyForObject(object));
   const [color, setColor] = useState(queued?.color ?? "#111111");
   const [background, setBackground] = useState(queued?.backgroundColor ?? "#ffffff");
-  const [align, setAlign] = useState<NativeTextEdit["align"]>(queued?.align ?? "left");
+  const [align, setAlign] = useState<NativeTextEdit["align"]>(queued?.align ?? object.align ?? "left");
   const [wrap, setWrap] = useState(queued?.wrap ?? true);
   const [fontBytes, setFontBytes] = useState<Uint8Array | undefined>(queued?.fontBytes);
   const [fontName, setFontName] = useState(queued?.fontName ?? "");
@@ -61,7 +63,7 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
     setFontFamily(queued?.fontFamily ?? language ?? familyForObject(object));
     setColor(queued?.color ?? "#111111");
     setBackground(queued?.backgroundColor ?? "#ffffff");
-    setAlign(queued?.align ?? "left");
+    setAlign(queued?.align ?? object.align ?? "left");
     setWrap(queued?.wrap ?? true);
     setFontBytes(queued?.fontBytes);
     setFontName(queued?.fontName ?? "");
@@ -70,13 +72,18 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
   const unsupported = object.editability === "unsupported";
   const complex = object.editability === "overlay-only";
   const cjk = Boolean(language);
+  const paragraph = Boolean(object.paragraph && (object.lineCount ?? 1) > 1);
+  const fit = useMemo(() => evaluateTextFit(text, object.bounds, fontSize, wrap), [fontSize, object.bounds.h, object.bounds.w, text, wrap]);
+  const fittingSize = useMemo(() => fit.fits || complex ? null : findFittingFontSize(text, object.bounds, fontSize, wrap, Math.max(4, Math.min(8, object.size * 0.65))), [complex, fit.fits, fontSize, object.bounds.h, object.bounds.w, object.size, text, wrap]);
+  const fitBlocked = !complex && !fit.fits;
+
   async function importFont(file?: File): Promise<void> {
     if (!file) return;
     setFontBytes(new Uint8Array(await file.arrayBuffer()));
     setFontName(file.name.replace(/\.[^.]+$/, ""));
   }
   function queue(): void {
-    if (unsupported) return;
+    if (unsupported || fitBlocked) return;
     const source: NativeTextEdit["fontSource"] = complex ? "annotation-fallback" : cjk ? (fontBytes ? "imported-cjk" : "built-in-cjk") : "built-in";
     onQueue({
       id: queued?.id ?? crypto.randomUUID(),
@@ -102,7 +109,20 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
       fontStyle: object.style
     });
   }
-  return <section className="property-section property-stack"><h3>Text</h3><label className="property-field"><span>Content</span><textarea disabled={unsupported} rows={6} value={text} onChange={(event) => setText(event.target.value)} /></label><div className="property-grid-two"><label className="property-field"><span>Font</span><select disabled={cjk || complex || unsupported} value={fontFamily} onChange={(event) => setFontFamily(event.target.value as NativeTextEdit["fontFamily"])}><option value="Helvetica">Helvetica</option><option value="Times-Roman">Times</option><option value="Courier">Courier</option></select></label><NumberInput label="Size" value={fontSize} min={1} max={200} step={0.5} onChange={setFontSize} /></div>{cjk ? <><p className="property-note">Built-in {language} CID font is available for static CJK replacement. You may optionally supply a compatible OpenType/TrueType font.</p><label className="button button--secondary button--small">{fontName ? `Font: ${fontName}` : "Import CJK font"}<input accept=".otf,.ttf,.ttc,font/otf,font/ttf" hidden type="file" onChange={(event) => void importFont(event.target.files?.[0])} /></label></> : null}{complex ? <div className="warning-banner"><strong>Appearance-only edit</strong><span>Complex shaping/RTL is not reconstructed statically. The replacement will be added as a visual text layer because this script cannot be safely rebuilt as original PDF text.</span></div> : null}<div className="property-grid-two"><ColorInput label="Text" value={color} onChange={setColor} /><ColorInput label="Background" value={background} onChange={setBackground} /></div><label className="property-field"><span>Alignment</span><select disabled={unsupported} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label className="property-toggle"><input checked={wrap} disabled={unsupported} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />Wrap inside existing box</label><button className="button" disabled={unsupported || !text.trim()} onClick={queue} type="button">{queued ? "Update text change" : "Apply text change"}</button></section>;
+
+  return <section className="property-section property-stack">
+    <h3>{paragraph ? "Paragraph" : "Text"}</h3>
+    {paragraph ? <dl className="native-object-facts"><dt>Source lines</dt><dd>{object.lineCount}</dd><dt>Detected font</dt><dd>{object.fontName || object.family}</dd><dt>Original size</dt><dd>{Number(object.size.toFixed(1))} pt</dd><dt>Line spacing</dt><dd>{object.lineHeight ? `${Number(object.lineHeight.toFixed(1))} pt` : "Detected"}</dd><dt>Direction</dt><dd>{object.direction ?? "ltr"}</dd></dl> : null}
+    <label className="property-field"><span>Content</span><textarea disabled={unsupported} rows={Math.min(14, Math.max(6, (object.lineCount ?? 1) + 2))} value={text} onChange={(event) => setText(event.target.value)} /></label>
+    <div className="property-grid-two"><label className="property-field"><span>Font</span><select disabled={cjk || complex || unsupported} value={fontFamily} onChange={(event) => setFontFamily(event.target.value as NativeTextEdit["fontFamily"])}><option value="Helvetica">Helvetica</option><option value="Times-Roman">Times</option><option value="Courier">Courier</option></select></label><NumberInput label="Size" value={fontSize} min={1} max={200} step={0.5} onChange={setFontSize} /></div>
+    {cjk ? <><p className="property-note">Built-in {language} CID font is available for static CJK replacement. You may optionally supply a compatible OpenType/TrueType font.</p><label className="button button--secondary button--small">{fontName ? `Font: ${fontName}` : "Import CJK font"}<input accept=".otf,.ttf,.ttc,font/otf,font/ttf" hidden type="file" onChange={(event) => void importFont(event.target.files?.[0])} /></label></> : null}
+    {complex ? <div className="warning-banner"><strong>Appearance-only edit</strong><span>Complex shaping/RTL is not reconstructed statically. The replacement will be added as a visual text layer because this script cannot be safely rebuilt as original PDF text.</span></div> : null}
+    <div className="property-grid-two"><ColorInput label="Text" value={color} onChange={setColor} /><ColorInput label="Background" value={background} onChange={setBackground} /></div>
+    <label className="property-field"><span>Alignment</span><select disabled={unsupported} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+    <label className="property-toggle"><input checked={wrap} disabled={unsupported} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />{paragraph ? "Reflow paragraph inside detected box" : "Wrap inside existing box"}</label>
+    {!complex ? fit.fits ? <p className="property-note">Complete text fits: {fit.lineCount} reflowed line{fit.lineCount === 1 ? "" : "s"} · capacity {fit.maxLines} at {Number(fontSize.toFixed(1))} pt. Export will not silently truncate this edit.</p> : <div className="warning-banner"><strong>Paragraph does not fit</strong><span>{fit.widthOverflow ? "The unwrapped text is wider than the detected box." : `${fit.lineCount} reflowed lines need more space than the ${fit.maxLines} lines available at this font size.`} Lower the font size or shorten the text before applying the change.</span>{fittingSize ? <button className="button button--secondary button--small" onClick={() => setFontSize(fittingSize)} type="button">Fit at {Number(fittingSize.toFixed(2))} pt</button> : null}</div> : null}
+    <button className="button" disabled={unsupported || fitBlocked || !text.trim()} onClick={queue} type="button">{queued ? `Update ${paragraph ? "paragraph" : "text"} change` : `Apply ${paragraph ? "paragraph" : "text"} change`}</button>
+  </section>;
 }
 
 function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; queued?: NativeImageEdit; onQueue: (edit: NativeImageEdit) => void }) {
