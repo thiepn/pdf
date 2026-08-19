@@ -16,7 +16,7 @@ test("advanced workspace exposes one unified editor and source content is direct
   await sourceText.click();
   await expect(page.getByText("Existing PDF content", { exact: true })).toBeVisible();
   await expect(page.getByText(/Directly editable|Editable with reconstruction|Limited editing/).first()).toBeVisible();
-  await expect(page.getByText(/Complete text fits:/)).toBeVisible();
+  await expect(page.locator(".native-unified-properties").locator("textarea").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Apply (?:text|paragraph) change|Update (?:text|paragraph) change/ })).toBeVisible();
 });
 
