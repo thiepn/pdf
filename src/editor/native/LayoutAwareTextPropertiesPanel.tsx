@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { cjkLanguageForScript } from "../../native/nativeModel";
 import { planTextReflow } from "../../native/layoutReflow";
+import { findNativeReflowQueueConflict } from "../../native/nativeEditQueue";
 import { buildPreservedEditRuns, editableFamilyForSource } from "../../native/textStyle";
 import { evaluateTextFit, findFittingFontSize } from "../../native/textFit";
 import type {
@@ -89,12 +90,17 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
   const fit = useMemo(() => evaluateTextFit(text, object.bounds, fontSize, wrap, object.lineHeight), [fontSize, object.bounds.h, object.bounds.w, object.lineHeight, text, wrap]);
   const targetHeight = text === object.text ? object.bounds.h : fit.requiredHeight;
   const plan = useMemo(() => planTextReflow(page, object.id, targetHeight), [object.id, page, targetHeight]);
-  const manuallyEditedFollower = useMemo(() => plan.shifts
-    .map((shift) => queuedEdits.find((edit) => edit.objectId === shift.objectId && !(edit.kind === "text" && edit.reflowFollower)))
-    .find(Boolean), [plan.shifts, queuedEdits]);
-  const flowBlocked = layoutAware && (!object.flow || !wrap || fit.widthOverflow || !plan.ok || Boolean(manuallyEditedFollower));
+  const queuedFlowConflict = useMemo(() => findNativeReflowQueueConflict(
+    queuedEdits,
+    object.id,
+    plan.shifts.map((shift) => shift.objectId)
+  ), [object.id, plan.shifts, queuedEdits]);
+  const selectedMovedByOtherReflow = queuedFlowConflict?.objectId === object.id
+    && queuedFlowConflict.kind === "text"
+    && Boolean(queuedFlowConflict.reflowFollower);
+  const flowBlocked = layoutAware && (!object.flow || !wrap || fit.widthOverflow || !plan.ok || Boolean(queuedFlowConflict));
   const fixedBlocked = !layoutAware && !complex && !fit.fits;
-  const queueBlocked = unsupported || flowBlocked || fixedBlocked;
+  const queueBlocked = unsupported || selectedMovedByOtherReflow || flowBlocked || fixedBlocked;
   const fittingSize = useMemo(() => fit.fits || complex ? null : findFittingFontSize(text, object.bounds, fontSize, wrap, Math.max(4, Math.min(8, object.size * 0.65))), [complex, fit.fits, fontSize, object.bounds.h, object.bounds.w, object.size, text, wrap]);
   const sourceRunCount = object.runs?.length ?? 1;
   const movedCount = layoutAware && plan.ok ? plan.shifts.length : 0;
@@ -167,27 +173,27 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
 
     <section className="property-section property-stack">
       <h3>Content & layout</h3>
-      <label className="property-field"><span>Content</span><textarea disabled={unsupported} rows={Math.min(16, Math.max(7, (object.lineCount ?? 1) + 3))} value={text} onChange={(event) => setText(event.target.value)} /></label>
+      <label className="property-field"><span>Content</span><textarea disabled={unsupported || selectedMovedByOtherReflow} rows={Math.min(16, Math.max(7, (object.lineCount ?? 1) + 3))} value={text} onChange={(event) => setText(event.target.value)} /></label>
 
-      <label className="property-toggle"><input checked={layoutAware} disabled={!object.flow || complex || unsupported} type="checkbox" onChange={(event) => setLayoutAware(event.target.checked)} />Layout-aware reflow</label>
+      <label className="property-toggle"><input checked={layoutAware} disabled={!object.flow || complex || unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setLayoutAware(event.target.checked)} />Layout-aware reflow</label>
       {object.flow ? <p className="property-note">When enabled, this paragraph may grow or shrink and later safe text blocks in the same detected column move by the exact height delta. Other columns and page graphics are never moved automatically.</p> : <p className="property-note">This block is not in a safe same-column flow, so P2 keeps it inside its original region.</p>}
 
-      {layoutAware && !complex ? flowBlocked ? <div className="warning-banner"><strong>Layout reflow blocked</strong><span>{!wrap ? "Enable wrapping before expanding a paragraph flow." : fit.widthOverflow ? "The replacement is too wide and vertical expansion cannot solve the overflow." : manuallyEditedFollower ? "A following paragraph already has its own manual edit. Apply or discard that edit before moving the flow." : plan.blockers[0] ?? "This paragraph cannot be propagated safely."}</span></div> : <div className="result-card"><strong>{Math.abs(plan.deltaY) < 0.5 ? "Layout remains stable" : plan.deltaY > 0 ? `Paragraph expands ${Number(plan.deltaY.toFixed(1))} pt` : `Paragraph contracts ${Number(Math.abs(plan.deltaY).toFixed(1))} pt`}</strong><span>{movedCount ? `${movedCount} following paragraph${movedCount === 1 ? "" : "s"} will move with the detected column flow.` : "No following text block needs to move."}</span></div> : null}
+      {selectedMovedByOtherReflow ? <div className="warning-banner"><strong>Paragraph already belongs to another queued reflow</strong><span>This block is being repositioned by an earlier layout-aware edit. Apply or discard that upstream edit before editing this paragraph so both changes are not planned from conflicting geometry.</span></div> : layoutAware && !complex ? flowBlocked ? <div className="warning-banner"><strong>Layout reflow blocked</strong><span>{!wrap ? "Enable wrapping before expanding a paragraph flow." : fit.widthOverflow ? "The replacement is too wide and vertical expansion cannot solve the overflow." : queuedFlowConflict ? "A paragraph affected by this flow already has another queued edit. Apply or discard that change before planning a second reflow." : plan.blockers[0] ?? "This paragraph cannot be propagated safely."}</span></div> : <div className="result-card"><strong>{Math.abs(plan.deltaY) < 0.5 ? "Layout remains stable" : plan.deltaY > 0 ? `Paragraph expands ${Number(plan.deltaY.toFixed(1))} pt` : `Paragraph contracts ${Number(Math.abs(plan.deltaY).toFixed(1))} pt`}</strong><span>{movedCount ? `${movedCount} following paragraph${movedCount === 1 ? "" : "s"} will move with the detected column flow.` : "No following text block needs to move."}</span></div> : null}
 
-      {!layoutAware && !complex ? fit.fits ? <p className="property-note">Complete text fits: {fit.lineCount} reflowed line{fit.lineCount === 1 ? "" : "s"} · fixed-box capacity {fit.maxLines}. Export will not silently truncate this edit.</p> : <div className="warning-banner"><strong>Text does not fit the fixed box</strong><span>{fit.widthOverflow ? "The text is wider than the detected box." : `${fit.lineCount} lines require ${Number(fit.requiredHeight.toFixed(1))} pt but the source box provides ${Number(object.bounds.h.toFixed(1))} pt.`}</span>{fittingSize ? <button className="button button--secondary button--small" onClick={() => setFontSize(fittingSize)} type="button">Fit at {Number(fittingSize.toFixed(2))} pt</button> : null}</div> : null}
+      {!layoutAware && !complex && !selectedMovedByOtherReflow ? fit.fits ? <p className="property-note">Complete text fits: {fit.lineCount} reflowed line{fit.lineCount === 1 ? "" : "s"} · fixed-box capacity {fit.maxLines}. Export will not silently truncate this edit.</p> : <div className="warning-banner"><strong>Text does not fit the fixed box</strong><span>{fit.widthOverflow ? "The text is wider than the detected box." : `${fit.lineCount} lines require ${Number(fit.requiredHeight.toFixed(1))} pt but the source box provides ${Number(object.bounds.h.toFixed(1))} pt.`}</span>{fittingSize ? <button className="button button--secondary button--small" onClick={() => setFontSize(fittingSize)} type="button">Fit at {Number(fittingSize.toFixed(2))} pt</button> : null}</div> : null}
     </section>
 
     <section className="property-section property-stack">
       <h3>Font fidelity</h3>
-      {sourceRunCount > 1 ? <label className="property-toggle"><input checked={preserveStyle} disabled={complex || unsupported} type="checkbox" onChange={(event) => setPreserveStyle(event.target.checked)} />Preserve source formatting runs ({sourceRunCount})</label> : <p className="property-note">One source font/style run was detected for this paragraph.</p>}
+      {sourceRunCount > 1 ? <label className="property-toggle"><input checked={preserveStyle} disabled={complex || unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setPreserveStyle(event.target.checked)} />Preserve source formatting runs ({sourceRunCount})</label> : <p className="property-note">One source font/style run was detected for this paragraph.</p>}
       {preserveStyle && sourceRunCount > 1 ? <p className="property-note">Unchanged prefix/suffix text retains its detected font, size, bold/italic state, and extracted color when available. Newly typed text inherits the nearest source run instead of inventing arbitrary styling.</p> : null}
-      <div className="property-grid-two"><label className="property-field"><span>Fallback font</span><select disabled={Boolean(language) || complex || unsupported || preserveStyle} value={fontFamily} onChange={(event) => setFontFamily(event.target.value as NativeTextEdit["fontFamily"])}><option value="Helvetica">Helvetica</option><option value="Times-Roman">Times</option><option value="Courier">Courier</option></select></label><label className="property-field"><span>Size</span><input min="1" max="200" step="0.5" type="number" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /></label></div>
-      {!complex ? <label className="button button--secondary button--small">{fontName ? `Matching font: ${fontName}` : "Import matching font"}<input accept=".otf,.ttf,.ttc,font/otf,font/ttf" hidden type="file" onChange={(event) => void importFont(event.target.files?.[0])} /></label> : null}
-      {fontBytes ? <button className="button button--ghost button--small" onClick={() => { setFontBytes(undefined); setFontName(""); }} type="button">Use built-in reconstruction font</button> : null}
+      <div className="property-grid-two"><label className="property-field"><span>Fallback font</span><select disabled={Boolean(language) || complex || unsupported || preserveStyle || selectedMovedByOtherReflow} value={fontFamily} onChange={(event) => setFontFamily(event.target.value as NativeTextEdit["fontFamily"])}><option value="Helvetica">Helvetica</option><option value="Times-Roman">Times</option><option value="Courier">Courier</option></select></label><label className="property-field"><span>Size</span><input disabled={selectedMovedByOtherReflow} min="1" max="200" step="0.5" type="number" value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))} /></label></div>
+      {!complex ? <label className="button button--secondary button--small">{fontName ? `Matching font: ${fontName}` : "Import matching font"}<input accept=".otf,.ttf,.ttc,font/otf,font/ttf" disabled={selectedMovedByOtherReflow} hidden type="file" onChange={(event) => void importFont(event.target.files?.[0])} /></label> : null}
+      {fontBytes ? <button className="button button--ghost button--small" disabled={selectedMovedByOtherReflow} onClick={() => { setFontBytes(undefined); setFontName(""); }} type="button">Use built-in reconstruction font</button> : null}
       <p className="property-note">PDF Studio does not claim byte-for-byte reuse of an embedded source font unless compatible font bytes are explicitly available. Imported font bytes remain local to this project.</p>
-      <div className="property-grid-two"><label className="property-field"><span>Text</span><input type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label className="property-field"><span>Background</span><input type="color" value={background} onChange={(event) => setBackground(event.target.value)} /></label></div>
-      <label className="property-field"><span>Alignment</span><select disabled={unsupported} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
-      <label className="property-toggle"><input checked={wrap} disabled={unsupported} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />Reflow text into measured lines</label>
+      <div className="property-grid-two"><label className="property-field"><span>Text</span><input disabled={selectedMovedByOtherReflow} type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label className="property-field"><span>Background</span><input disabled={selectedMovedByOtherReflow} type="color" value={background} onChange={(event) => setBackground(event.target.value)} /></label></div>
+      <label className="property-field"><span>Alignment</span><select disabled={unsupported || selectedMovedByOtherReflow} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+      <label className="property-toggle"><input checked={wrap} disabled={unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />Reflow text into measured lines</label>
       {complex ? <div className="warning-banner"><strong>Appearance-only edit</strong><span>Complex shaping and bidirectional layout are still not reconstructed statically. P2 does not pretend otherwise; this replacement remains a visual text layer.</span></div> : null}
     </section>
 
