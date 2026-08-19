@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { cjkLanguageForScript, detectScript } from "../../native/nativeModel";
+import { pageForNativeObject } from "../../native/nativeInspectionRegistry";
 import { evaluateTextFit, findFittingFontSize } from "../../native/textFit";
 import type {
   NativeEdit,
@@ -14,6 +15,7 @@ import type {
   NativeVectorEdit,
   NativeVectorObject
 } from "../../types/nativeEditor";
+import { LayoutAwareTextPropertiesPanel } from "./LayoutAwareTextPropertiesPanel";
 
 interface Props {
   object: NativePageObject;
@@ -24,6 +26,10 @@ interface Props {
 
 export function NativeContentPropertiesPanel({ object, queuedEdits, onQueue, onRemove }: Props) {
   const related = useMemo(() => queuedEdits.filter((edit) => edit.objectId === object.id), [object.id, queuedEdits]);
+  if (object.type === "text") {
+    const page = pageForNativeObject(object);
+    if (page) return <LayoutAwareTextPropertiesPanel object={object} page={page} queuedEdits={queuedEdits} onQueue={onQueue} onRemove={onRemove} />;
+  }
   return <aside className="editor-properties native-unified-properties">
     <CapabilitySummary object={object} queuedCount={related.length} onRemove={() => onRemove(object.id)} />
     {object.type === "text" ? <TextEditor object={object} queued={related.find((edit): edit is NativeTextEdit => edit.kind === "text")} onQueue={(edit) => onQueue([edit])} /> : null}
@@ -45,6 +51,7 @@ function CapabilitySummary({ object, queuedCount, onRemove }: { object: NativePa
   </section>;
 }
 
+/** P1 fallback for callers that construct text objects outside the registered inspection path. */
 function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; queued?: NativeTextEdit; onQueue: (edit: NativeTextEdit) => void }) {
   const language = cjkLanguageForScript(object.script);
   const [text, setText] = useState(queued?.text ?? object.text);

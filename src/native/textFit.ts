@@ -9,19 +9,23 @@ export interface NativeTextFitResult {
   heightOverflow: boolean;
   fits: boolean;
   fontSize: number;
+  lineHeight: number;
+  requiredHeight: number;
 }
 
 /**
  * Mirrors the native export worker's text-box constraints so overflow is shown
  * before an edit is queued. This function does not mutate content or silently
- * truncate it.
+ * truncate it. P2 can supply the source paragraph line advance rather than
+ * assuming a fixed 1.2 multiplier.
  */
-export function evaluateTextFit(text: string, bounds: NativeRect, fontSize: number, wrap: boolean): NativeTextFitResult {
+export function evaluateTextFit(text: string, bounds: NativeRect, fontSize: number, wrap: boolean, sourceLineHeight?: number): NativeTextFitResult {
   const safeSize = Math.max(1, fontSize);
-  const lineHeight = safeSize * 1.2;
-  const maxLines = Math.max(1, Math.floor((bounds.h - 4) / lineHeight));
-  const lines = wrap ? wrapTextToBox(text, bounds.w, safeSize) : [text];
+  const lineHeight = Math.max(safeSize, sourceLineHeight && Number.isFinite(sourceLineHeight) ? sourceLineHeight : safeSize * 1.2);
+  const maxLines = Math.max(1, Math.floor(bounds.h / lineHeight));
+  const lines = wrap ? wrapTextToBox(text, bounds.w, safeSize) : text.replace(/\r\n?/g, "\n").split("\n");
   const widthOverflow = !wrap && lines.some((line) => estimatedTextWidth(line, safeSize) > Math.max(1, bounds.w - 3));
+  const requiredHeight = Math.max(lineHeight, lines.length * lineHeight);
   const heightOverflow = lines.length > maxLines;
   return {
     lines,
@@ -30,7 +34,9 @@ export function evaluateTextFit(text: string, bounds: NativeRect, fontSize: numb
     widthOverflow,
     heightOverflow,
     fits: !widthOverflow && !heightOverflow,
-    fontSize: safeSize
+    fontSize: safeSize,
+    lineHeight,
+    requiredHeight
   };
 }
 

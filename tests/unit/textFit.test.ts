@@ -6,12 +6,12 @@ const box = { x: 20, y: 20, w: 120, h: 36 };
 describe("P1 text fit planning", () => {
   it("matches the export worker line-capacity model", () => {
     const result = evaluateTextFit("short text", box, 10, true);
-    expect(result.maxLines).toBe(2);
+    expect(result.maxLines).toBe(3);
     expect(result.fits).toBe(true);
   });
 
   it("blocks a replacement that would require silent line truncation", () => {
-    const result = evaluateTextFit("one two three four five six seven eight nine ten eleven twelve thirteen", box, 10, true);
+    const result = evaluateTextFit(Array.from({ length: 30 }, () => "word").join(" "), box, 10, true);
     expect(result.lineCount).toBeGreaterThan(result.maxLines);
     expect(result.heightOverflow).toBe(true);
     expect(result.fits).toBe(false);

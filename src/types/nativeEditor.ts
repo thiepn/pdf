@@ -12,6 +12,12 @@ export type NativeEditability = "fixed-box" | "cjk-fixed-box" | "overlay-only" |
 export type NativeCapabilityLevel = "native-safe" | "safe-reconstruction" | "appearance-only" | "unsupported";
 export type NativeTextDirection = "ltr" | "rtl" | "ttb" | "unknown";
 export type NativeTextAlign = "left" | "center" | "right";
+export type NativeFontFamily = "serif" | "sans-serif" | "monospace";
+export type NativeFontWeight = "normal" | "bold";
+export type NativeFontStyle = "normal" | "italic";
+export type NativeEditableFontFamily = "Helvetica" | "Times-Roman" | "Courier" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
+export type NativeFontSource = "built-in" | "built-in-cjk" | "imported-cjk" | "imported-latin" | "annotation-fallback";
+export type NativeTextLayoutMode = "fixed-box" | "expand-flow";
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -22,21 +28,45 @@ export interface NativeCapability {
   risks: string[];
 }
 
+/** A font/style span retained from MuPDF preserve-spans extraction. */
+export interface NativeTextRun {
+  text: string;
+  start: number;
+  end: number;
+  bounds: NativeRect;
+  fontName: string;
+  family: NativeFontFamily;
+  size: number;
+  weight: NativeFontWeight;
+  style: NativeFontStyle;
+  color?: string;
+  writingMode: 0 | 1;
+}
+
 /**
- * Source-line evidence retained when line-level structured text is reconstructed
- * into one editable paragraph. This metadata is inspection-only; edits still use
- * a single NativeTextEdit so existing persisted edit queues remain compatible.
+ * Source-line evidence retained when span-level structured text is reconstructed
+ * into one editable paragraph. P2 groups preserve-spans records into visual lines
+ * so mixed formatting is not mistaken for extra paragraph lines.
  */
 export interface NativeTextLine {
   objectId: string;
   text: string;
   bounds: NativeRect;
   fontName: string;
-  family: "serif" | "sans-serif" | "monospace";
+  family: NativeFontFamily;
   size: number;
-  weight: "normal" | "bold";
-  style: "normal" | "italic";
+  weight: NativeFontWeight;
+  style: NativeFontStyle;
+  color?: string;
   writingMode: 0 | 1;
+}
+
+export interface NativeTextFlowInfo {
+  id: string;
+  index: number;
+  bounds: NativeRect;
+  gapBefore?: number;
+  gapAfter?: number;
 }
 
 export interface NativeTextObject {
@@ -46,21 +76,27 @@ export interface NativeTextObject {
   bounds: NativeRect;
   text: string;
   fontName: string;
-  family: "serif" | "sans-serif" | "monospace";
+  family: NativeFontFamily;
   size: number;
-  weight: "normal" | "bold";
-  style: "normal" | "italic";
+  weight: NativeFontWeight;
+  style: NativeFontStyle;
+  color?: string;
   writingMode: 0 | 1;
   script: NativeScript;
   editability: NativeEditability;
   reason: string;
   capability: NativeCapability;
-  /** True when P1 reconstructed multiple source lines as one editable text flow. */
+  /** True when structured text was reconstructed as one editable text flow. */
   paragraph?: boolean;
-  /** Stable source line object ids covered by this paragraph. */
+  /** Stable preserve-spans source ids covered by this paragraph. */
   sourceObjectIds?: string[];
-  /** Source line evidence used for reflow/style inference. */
+  /** Preserve-spans evidence retained for diagnostics and fallback. */
   lines?: NativeTextLine[];
+  /** P2 source formatting spans, with offsets into the reconstructed paragraph text. */
+  runs?: NativeTextRun[];
+  /** Number of MuPDF preserve-spans source records. */
+  sourceSpanCount?: number;
+  /** Number of actual visual text lines after coalescing same-baseline spans. */
   lineCount?: number;
   /** Median source baseline/box advance in PDF points. */
   lineHeight?: number;
@@ -68,6 +104,8 @@ export interface NativeTextObject {
   align?: NativeTextAlign;
   /** Writing direction inferred conservatively from script/wmode. */
   direction?: NativeTextDirection;
+  /** Conservative same-column flow membership used by P2 layout propagation. */
+  flow?: NativeTextFlowInfo;
 }
 
 export interface NativeImageObject {
@@ -173,6 +211,17 @@ export interface NativeInspection {
   warnings: string[];
 }
 
+/** A rendered replacement span. Unchanged prefix/suffix spans can retain source styling. */
+export interface NativeTextEditRun {
+  text: string;
+  fontFamily: NativeEditableFontFamily;
+  fontSize: number;
+  color: string;
+  fontWeight?: NativeFontWeight;
+  fontStyle?: NativeFontStyle;
+  fontName?: string;
+}
+
 export interface NativeTextEdit {
   id: string;
   kind: "text";
@@ -181,20 +230,32 @@ export interface NativeTextEdit {
   originalText: string;
   text: string;
   bounds: NativeRect;
-  fontFamily: "Helvetica" | "Times-Roman" | "Courier" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
+  /** Original source geometry. P2 can expand/move the destination without redacting the expanded area. */
+  sourceBounds?: NativeRect;
+  fontFamily: NativeEditableFontFamily;
   fontSize: number;
   color: string;
   backgroundColor: string;
-  align: "left" | "center" | "right";
+  align: NativeTextAlign;
   mode: "replace" | "overlay";
   wrap: boolean;
-  fontSource: "built-in" | "built-in-cjk" | "imported-cjk" | "annotation-fallback";
+  fontSource: NativeFontSource;
   fontName?: string;
   fontBytes?: Uint8Array;
   fontLanguage?: "ko" | "ja" | "zh-Hans" | "zh-Hant";
   writingMode?: 0 | 1;
-  fontWeight?: "normal" | "bold";
-  fontStyle?: "normal" | "italic";
+  fontWeight?: NativeFontWeight;
+  fontStyle?: NativeFontStyle;
+  /** Source line advance retained when it remains safe for the replacement. */
+  lineHeight?: number;
+  /** P2 layout intent. Missing means the P1 fixed-box behavior. */
+  layoutMode?: NativeTextLayoutMode;
+  /** Styled replacement runs. Missing means one uniform run using the edit-level font controls. */
+  styleRuns?: NativeTextEditRun[];
+  /** True when styleRuns were derived from the source spans rather than user-authored arbitrary styling. */
+  preserveSourceStyle?: boolean;
+  /** Marks an automatically generated same-column follower move. */
+  reflowFollower?: boolean;
 }
 
 export interface NativeImageEdit {
@@ -240,8 +301,8 @@ export interface NativeTableCellEdit {
   originalText: string;
   text: string;
   fontSize: number;
-  fontFamily?: NativeTextEdit["fontFamily"];
-  fontSource?: NativeTextEdit["fontSource"];
+  fontFamily?: NativeEditableFontFamily;
+  fontSource?: NativeFontSource;
   fontLanguage?: NativeTextEdit["fontLanguage"];
 }
 

@@ -1,4 +1,5 @@
 import { reconstructInspectionTextParagraphs } from "./nativeModel";
+import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import type { NativeEdit, NativeExportReport, NativeInspection } from "../types/nativeEditor";
 
 type Response =
@@ -23,8 +24,10 @@ function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?:
       if (event.data.requestId !== requestId) return;
       cleanup();
       if (event.data.type === "NATIVE_ERROR") reject(new Error(event.data.error.message));
-      else if (event.data.type === "NATIVE_INSPECTION") resolve(reconstructInspectionTextParagraphs(event.data.inspection) as T);
-      else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
+      else if (event.data.type === "NATIVE_INSPECTION") {
+        const reconstructed = reconstructInspectionTextParagraphs(event.data.inspection);
+        resolve(registerNativeInspectionPages(reconstructed) as T);
+      } else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Native editor worker failed.")); };
   });
