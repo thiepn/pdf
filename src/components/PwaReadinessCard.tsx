@@ -51,10 +51,10 @@ export function PwaReadinessCard({ compact = false }: { compact?: boolean }) {
 
   const ready = Boolean(snapshot?.offlineShellReady);
   return <section className={compact ? "pwa-readiness pwa-readiness--compact" : "pwa-readiness"}>
-    <header><div><p className="eyebrow">Install & offline</p><h2>{ready ? "Ready for offline work" : "Prepare this device"}</h2></div>{snapshot ? <span className={snapshot.offlineShellReady ? "status-badge status-badge--pass" : "status-badge status-badge--warning"}>{snapshot.offlineShellReady ? "Offline shell ready" : "Online setup needed"}</span> : null}</header>
+    <header><div><p className="eyebrow">Install & offline</p><h2>{ready ? "Core tools ready offline" : "Prepare this device"}</h2></div>{snapshot ? <span className={snapshot.offlineShellReady ? "status-badge status-badge--pass" : "status-badge status-badge--warning"}>{snapshot.offlineShellReady ? "Offline core ready" : "Online setup needed"}</span> : null}</header>
     <div className="pwa-readiness__grid">
       <article><span>App</span><strong>{snapshot?.standalone ? "Installed" : "Browser"}</strong><small>{snapshot?.standalone ? "Standalone launch" : installInstruction()}</small></article>
-      <article><span>Offline bundle</span><strong>{snapshot?.offlineShellReady ? "Cached" : "Preparing"}</strong><small>{snapshot?.offlineAssetsExpected ? `${snapshot.offlineAssetsCached}/${snapshot.offlineAssetsExpected} release assets` : "Service worker release cache"}</small></article>
+      <article><span>Offline core</span><strong>{snapshot?.offlineShellReady ? "Cached" : "Preparing"}</strong><small>{snapshot?.offlineAssetsExpected ? `${snapshot.offlineAssetsCached}/${snapshot.offlineAssetsExpected} core assets` : "Core viewer/editor cache"}</small></article>
       <article><span>Browser cleanup</span><strong>{snapshot?.persisted ? "Prevented" : "May occur"}</strong><small>{snapshot?.persisted ? "Browser persistence granted" : "Projects may be removed automatically if storage is critically low"}</small></article>
       <article><span>OCR offline</span><strong>{snapshot?.installedOcrLanguages ?? 0} packs</strong><small>Only installed language data is available offline</small></article>
     </div>
@@ -65,6 +65,6 @@ export function PwaReadinessCard({ compact = false }: { compact?: boolean }) {
       <button className="button button--ghost" disabled={busy === "refresh"} onClick={() => void refresh()} type="button">Recheck</button>
     </div>
     {message ? <p className="pwa-readiness__message">{message}</p> : null}
-    {!compact ? <p className="muted">Installed PWAs can receive PDFs from supported operating-system share/open flows. Browser support varies; normal file pickers always remain available.</p> : null}
+    {!compact ? <p className="muted">Core viewing/editing assets are installed first for a fast setup. Advanced tools are cached after first use, and OCR language packs remain explicit downloads. Installed PWAs can receive PDFs from supported operating-system share/open flows.</p> : null}
   </section>;
 }
