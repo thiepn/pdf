@@ -1,6 +1,25 @@
 import type { NativeEdit } from "../types/nativeEditor";
 
 /**
+ * Return the first queued edit that would make a new P2 reflow plan stale.
+ * Re-queuing the same source paragraph is allowed to reuse its own deterministic
+ * follower edits; a paragraph already owned by another reflow, or any foreign
+ * edit on a downstream follower, must be resolved first because both plans were
+ * computed from the original inspection geometry.
+ */
+export function findNativeReflowQueueConflict(current: NativeEdit[], sourceObjectId: string, followerObjectIds: string[]): NativeEdit | undefined {
+  const ownPrefix = `p2-reflow:${sourceObjectId}:`;
+  const selectedForeignFollower = current.find((edit) => edit.objectId === sourceObjectId
+    && edit.kind === "text"
+    && Boolean(edit.reflowFollower)
+    && !edit.id.startsWith(ownPrefix));
+  if (selectedForeignFollower) return selectedForeignFollower;
+
+  const followerIds = new Set(followerObjectIds);
+  return current.find((edit) => followerIds.has(edit.objectId) && !edit.id.startsWith(ownPrefix));
+}
+
+/**
  * Merge edits by detected source object. Most source objects have one queued edit;
  * tables have one edit per cell and are replaced as an object-level batch.
  *
