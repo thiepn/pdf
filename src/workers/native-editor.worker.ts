@@ -468,7 +468,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
 }
 
 function redactRegion(page: PdfPage, bounds: NativeRect): void {
-  const redaction = page.createAnnotation("Redaction");
+  const redaction = page.createAnnotation("Redact");
   redaction.setRect(pageRect(bounds));
   redaction.update?.();
   page.applyRedactions(false, (mupdf as any).PDFPage.REDACT_IMAGE_PIXELS, (mupdf as any).PDFPage.REDACT_LINE_ART_REMOVE_IF_TOUCHED, (mupdf as any).PDFPage.REDACT_TEXT_REMOVE);
