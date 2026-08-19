@@ -361,7 +361,7 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
   const prepared = prepareStyles(pdf, page, edit);
   const lines = wrapStyled(prepared.chars, width, Boolean(edit.wrap));
   const lineHeight = Math.max(prepared.maxSize, Number(edit.lineHeight) || prepared.maxSize * 1.2);
-  const requiredHeight = lines.length * lineHeight + 4;
+  const requiredHeight = lines.length * lineHeight;
   if (requiredHeight > height + 0.01) throw new Error(`Replacement text does not fit the destination at the retained line spacing (${lines.length} lines require ${Number(requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Expand the text flow, lower the font size, or shorten the text.`);
   if (!edit.wrap && lines.some((line) => line.width > Math.max(1, width - 3))) throw new Error(`Replacement text is wider than the destination at the selected font metrics. Enable paragraph reflow, lower the font size, or shorten the text.`);
   let content = "";
