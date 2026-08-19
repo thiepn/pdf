@@ -11,8 +11,10 @@ import type {
   NativeTextAlign,
   NativeTextDirection,
   NativeTextLine,
-  NativeTextObject
+  NativeTextObject,
+  NativeTextRun
 } from "../types/nativeEditor";
+import { annotatePageTextFlows } from "./layoutReflow";
 
 export function detectScript(text: string): NativeScript {
   let latin = false;
@@ -243,15 +245,9 @@ function sourceLine(object: NativeTextObject): NativeTextLine {
     size: object.size,
     weight: object.weight,
     style: object.style,
+    color: object.color,
     writingMode: object.writingMode
   };
-}
-
-function orderedLines(lines: NativeTextObject[]): NativeTextObject[] {
-  const vertical = lines.filter((line) => line.writingMode === 1).length > lines.length / 2;
-  return [...lines].sort((a, b) => vertical
-    ? b.bounds.x - a.bounds.x || a.bounds.y - b.bounds.y
-    : a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
 }
 
 function startsCjk(text: string): boolean {
@@ -278,18 +274,61 @@ export function joinTextLines(lines: Array<Pick<NativeTextObject, "text" | "scri
   return result;
 }
 
-function inferredLineHeight(lines: NativeTextObject[]): number {
-  if (lines.length <= 1) return Math.max(lines[0]?.bounds.h ?? 0, (lines[0]?.size ?? 10) * 1.2);
-  const ordered = orderedLines(lines);
-  const vertical = ordered.filter((line) => line.writingMode === 1).length > ordered.length / 2;
+interface VisualLine {
+  spans: NativeTextObject[];
+  bounds: NativeRect;
+  text: string;
+}
+
+function sameVisualLine(a: NativeTextObject, b: NativeTextObject): boolean {
+  if (a.writingMode !== b.writingMode) return false;
+  if (a.writingMode === 1) {
+    const xOverlap = Math.max(0, Math.min(a.bounds.x + a.bounds.w, b.bounds.x + b.bounds.w) - Math.max(a.bounds.x, b.bounds.x));
+    return xOverlap / Math.max(1, Math.min(a.bounds.w, b.bounds.w)) >= 0.55;
+  }
+  return overlap(a.bounds, b.bounds) >= 0.55 || Math.abs(a.bounds.y - b.bounds.y) <= Math.max(a.bounds.h, b.bounds.h) * 0.35;
+}
+
+function inlineText(spans: NativeTextObject[]): string {
+  let text = "";
+  let previous: NativeTextObject | undefined;
+  for (const span of spans) {
+    const value = span.text;
+    if (!value) continue;
+    if (previous && !/\s$/u.test(text) && !/^\s/u.test(value)) {
+      const gap = span.bounds.x - (previous.bounds.x + previous.bounds.w);
+      if (gap > Math.max(1.5, Math.min(previous.size, span.size) * 0.18)) text += " ";
+    }
+    text += value;
+    previous = span;
+  }
+  return text.trim();
+}
+
+function visualLines(spans: NativeTextObject[]): VisualLine[] {
+  const lines: NativeTextObject[][] = [];
+  const ordered = [...spans].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+  for (const span of ordered) {
+    const line = lines.find((items) => items.some((item) => sameVisualLine(item, span)));
+    line ? line.push(span) : lines.push([span]);
+  }
+  return lines
+    .map((items) => {
+      const vertical = items.filter((item) => item.writingMode === 1).length > items.length / 2;
+      const sorted = [...items].sort((a, b) => vertical ? a.bounds.y - b.bounds.y : a.bounds.x - b.bounds.x);
+      return { spans: sorted, bounds: unionRects(sorted.map((item) => item.bounds)), text: inlineText(sorted) };
+    })
+    .sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+}
+
+function inferredLineHeight(lines: VisualLine[], fallbackSize: number): number {
+  if (lines.length <= 1) return Math.max(lines[0]?.bounds.h ?? 0, fallbackSize * 1.2);
   const advances: number[] = [];
-  for (let index = 1; index < ordered.length; index += 1) {
-    const previous = ordered[index - 1];
-    const current = ordered[index];
-    const advance = vertical ? Math.abs(current.bounds.x - previous.bounds.x) : Math.abs(current.bounds.y - previous.bounds.y);
+  for (let index = 1; index < lines.length; index += 1) {
+    const advance = Math.abs(lines[index].bounds.y - lines[index - 1].bounds.y);
     if (advance > 0.1 && Number.isFinite(advance)) advances.push(advance);
   }
-  return median(advances) || Math.max(median(lines.map((line) => line.bounds.h)), median(lines.map((line) => line.size)) * 1.2);
+  return median(advances) || Math.max(median(lines.map((line) => line.bounds.h)), fallbackSize * 1.2);
 }
 
 function deviation(values: number[]): number {
@@ -298,7 +337,7 @@ function deviation(values: number[]): number {
   return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length);
 }
 
-function inferredAlignment(lines: NativeTextObject[], bounds: NativeRect): NativeTextAlign {
+function inferredAlignment(lines: VisualLine[], bounds: NativeRect): NativeTextAlign {
   if (lines.length <= 1) return "left";
   const lefts = lines.map((line) => line.bounds.x - bounds.x);
   const rights = lines.map((line) => bounds.x + bounds.w - (line.bounds.x + line.bounds.w));
@@ -318,37 +357,109 @@ function inferredDirection(script: NativeScript, writingMode: 0 | 1, text: strin
   return "ltr";
 }
 
-function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
-  const lines = orderedLines(group);
-  if (lines.length === 1) {
-    const source = lines[0];
-    return {
-      ...source,
-      paragraph: true,
-      sourceObjectIds: [source.id],
-      lines: [sourceLine(source)],
-      lineCount: 1,
-      lineHeight: inferredLineHeight(lines),
-      align: "left",
-      direction: inferredDirection(source.script, source.writingMode, source.text)
-    };
+interface StyledBuilder {
+  text: string;
+  runs: NativeTextRun[];
+}
+
+function appendRun(builder: StyledBuilder, value: string, source: NativeTextObject): void {
+  if (!value) return;
+  const start = builder.text.length;
+  builder.text += value;
+  const end = builder.text.length;
+  const previous = builder.runs.at(-1);
+  const sameStyle = previous
+    && previous.fontName === source.fontName
+    && previous.family === source.family
+    && previous.size === source.size
+    && previous.weight === source.weight
+    && previous.style === source.style
+    && previous.color === source.color
+    && previous.writingMode === source.writingMode;
+  if (sameStyle && previous.end === start) {
+    previous.text += value;
+    previous.end = end;
+    previous.bounds = unionRects([previous.bounds, source.bounds]);
+  } else builder.runs.push({
+    text: value,
+    start,
+    end,
+    bounds: source.bounds,
+    fontName: source.fontName,
+    family: source.family,
+    size: source.size,
+    weight: source.weight,
+    style: source.style,
+    color: source.color,
+    writingMode: source.writingMode
+  });
+}
+
+function trimLastCharacter(builder: StyledBuilder): void {
+  if (!builder.text) return;
+  builder.text = builder.text.slice(0, -1);
+  const last = builder.runs.at(-1);
+  if (!last) return;
+  last.text = last.text.slice(0, -1);
+  last.end = Math.max(last.start, last.end - 1);
+  if (!last.text) builder.runs.pop();
+}
+
+function appendInline(builder: StyledBuilder, spans: NativeTextObject[]): void {
+  let previous: NativeTextObject | undefined;
+  for (const span of spans) {
+    const value = span.text;
+    if (!value) continue;
+    if (previous && !/\s$/u.test(builder.text) && !/^\s/u.test(value)) {
+      const gap = span.bounds.x - (previous.bounds.x + previous.bounds.w);
+      if (gap > Math.max(1.5, Math.min(previous.size, span.size) * 0.18)) appendRun(builder, " ", previous);
+    }
+    appendRun(builder, value, span);
+    previous = span;
   }
-  const bounds = unionRects(lines.map((line) => line.bounds));
-  const text = joinTextLines(lines);
-  const fontName = mode(lines.map((line) => line.fontName), lines[0].fontName);
-  const family = mode(lines.map((line) => line.family), lines[0].family);
-  const size = median(lines.map((line) => line.size).filter((value) => value > 0)) || lines[0].size;
-  const weight = mode(lines.map((line) => line.weight), lines[0].weight);
-  const style = mode(lines.map((line) => line.style), lines[0].style);
-  const writingMode = mode(lines.map((line) => line.writingMode), lines[0].writingMode) as 0 | 1;
+}
+
+function buildStyledParagraph(lines: VisualLine[]): StyledBuilder {
+  const builder: StyledBuilder = { text: "", runs: [] };
+  lines.forEach((line, index) => {
+    const firstSpan = line.spans[0];
+    if (!firstSpan) return;
+    if (index > 0 && builder.text) {
+      const nextText = line.text.trim();
+      if (/[A-Za-zÀ-ž]-$/u.test(builder.text) && /^[a-zà-ž]/u.test(nextText)) trimLastCharacter(builder);
+      else {
+        const previous = [...builder.text].at(-1) ?? "";
+        const noSpace = startsCjk(nextText) || startsCjk(previous) || firstSpan.script.startsWith("cjk-");
+        if (!noSpace) appendRun(builder, " ", builder.runs.length ? line.spans[0] : firstSpan);
+      }
+    }
+    appendInline(builder, line.spans);
+  });
+  return builder;
+}
+
+function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
+  const spans = [...group].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+  const visuals = visualLines(spans);
+  const styled = buildStyledParagraph(visuals);
+  const source = spans[0];
+  const bounds = unionRects(spans.map((span) => span.bounds));
+  const text = styled.text || joinTextLines(spans);
+  const fontName = mode(spans.map((span) => span.fontName), source.fontName);
+  const family = mode(spans.map((span) => span.family), source.family);
+  const size = median(spans.map((span) => span.size).filter((value) => value > 0)) || source.size;
+  const weight = mode(spans.map((span) => span.weight), source.weight);
+  const style = mode(spans.map((span) => span.style), source.style);
+  const color = mode(spans.map((span) => span.color ?? ""), source.color ?? "") || undefined;
+  const writingMode = mode(spans.map((span) => span.writingMode), source.writingMode) as 0 | 1;
   const classification = classifyTextEditability(text, fontName);
   const reason = classification.editability === "fixed-box" || classification.editability === "cjk-fixed-box"
-    ? `MuPDF grouped ${lines.length} source lines into one text block. PDF Studio can edit and reflow the paragraph without merging it with neighboring columns or blocks.`
+    ? `MuPDF preserve-spans data was reconstructed as ${visuals.length} visual line${visuals.length === 1 ? "" : "s"}. PDF Studio retains source font/style runs while keeping the structured-text block boundary intact.`
     : classification.reason;
   return {
-    id: `${textBlockKey(lines[0])}:paragraph`,
+    id: `${textBlockKey(source)}:paragraph`,
     type: "text",
-    pageNumber: lines[0].pageNumber,
+    pageNumber: source.pageNumber,
     bounds,
     text,
     fontName,
@@ -356,23 +467,26 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
     size,
     weight,
     style,
+    color,
     writingMode,
     ...classification,
     reason,
     capability: {
       ...classification.capability,
-      label: classification.capability.level === "safe-reconstruction" ? "Paragraph reflow" : classification.capability.label,
+      label: classification.capability.level === "safe-reconstruction" ? "Layout-aware paragraph" : classification.capability.label,
       confidence: Math.max(0, Math.min(1, classification.capability.confidence - 0.02)),
       reason,
-      preserves: [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry"])],
+      preserves: [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry", "Source font/style spans"])],
       risks: [...new Set([...classification.capability.risks, "Exact source glyph metrics can differ when the original embedded font cannot be reused."])]
     },
     paragraph: true,
-    sourceObjectIds: lines.map((line) => line.id),
-    lines: lines.map(sourceLine),
-    lineCount: lines.length,
-    lineHeight: inferredLineHeight(lines),
-    align: inferredAlignment(lines, bounds),
+    sourceObjectIds: spans.map((span) => span.id),
+    lines: spans.map(sourceLine),
+    runs: styled.runs,
+    sourceSpanCount: spans.length,
+    lineCount: Math.max(1, visuals.length),
+    lineHeight: inferredLineHeight(visuals, size),
+    align: inferredAlignment(visuals, bounds),
     direction: inferredDirection(classification.script, writingMode, text)
   };
 }
@@ -396,7 +510,7 @@ export function reconstructPageTextParagraphs(page: NativePageTree): NativePageT
     emitted.add(key);
     objects.push(mergeTextGroup(groups.get(key) ?? [object]));
   }
-  return { ...page, objects };
+  return annotatePageTextFlows({ ...page, objects });
 }
 
 export function reconstructInspectionTextParagraphs(inspection: NativeInspection): NativeInspection {
@@ -405,7 +519,7 @@ export function reconstructInspectionTextParagraphs(inspection: NativeInspection
   const after = pages.reduce((sum, page) => sum + page.objects.filter((object) => object.type === "text").length, 0);
   const collapsed = Math.max(0, before - after);
   const warnings = collapsed > 0
-    ? [...inspection.warnings, `P1 reconstructed ${before} detected text lines as ${after} editable paragraph blocks; structured-text block boundaries were preserved.`]
+    ? [...inspection.warnings, `P2 reconstructed ${before} preserve-spans text records as ${after} editable paragraph blocks, retained mixed font/style spans, and annotated conservative same-column text flows.`]
     : inspection.warnings;
   return { ...inspection, pages, totals: { ...inspection.totals, text: after }, warnings };
 }
