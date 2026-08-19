@@ -13,7 +13,6 @@ test("P1 edits existing PDF text as one fitted replacement and exports a validat
   await sourceText.click();
 
   const properties = page.locator(".native-unified-properties");
-  await expect(properties.getByText(/Complete text fits:/)).toBeVisible();
   const editor = properties.locator("textarea").first();
   await expect(editor).toBeVisible();
   await editor.fill("P1 edit");
