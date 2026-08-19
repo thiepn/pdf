@@ -18,4 +18,11 @@ describe("native editor worker MuPDF contract", () => {
     expect(workerSource).toContain("font.font.advanceGlyph");
     expect(workerSource).toContain("wrapStyled");
   });
+
+  it("reuses page-local resources and grafts inherited resources only once", () => {
+    expect(workerSource).toContain('let root = object.get("Resources")');
+    expect(workerSource).toContain('const inherited = object.getInheritable?.("Resources")');
+    expect(workerSource).toContain("root = inherited ? pdf.graftObject(inherited) : pdf.newDictionary()");
+    expect(workerSource).not.toContain('object.get("Resources") || object.getInheritable?.("Resources")');
+  });
 });
