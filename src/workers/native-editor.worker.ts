@@ -145,7 +145,7 @@ function append(pdf: PdfDocument, page: PdfPage, content: string): void {
   const object = page.getObject();
   const stream = pdf.addStream(content);
   const current = object.get("Contents");
-  if (!current) object.put("Contents", stream);
+  if (!current || current.isNull?.()) object.put("Contents", stream);
   else if (current.isArray?.()) current.push(stream);
   else {
     const array = pdf.newArray();
@@ -157,17 +157,18 @@ function append(pdf: PdfDocument, page: PdfPage, content: string): void {
 
 function resources(pdf: PdfDocument, page: PdfPage, category: string): any {
   const object = page.getObject();
-  // Reuse resources already attached directly to this page. Only clone inherited
-  // resources once before mutation so newly-created document-bound PDF objects are
-  // never fed back through graftObject during a multi-style P2 export.
+  // MuPDF's PDFObject.get() returns a PDF null object for missing keys rather
+  // than JavaScript null. Test the PDF object type before mutating it. Reuse
+  // page-local resources; clone inherited resources only when the page lacks a
+  // concrete dictionary so newly-created document-bound objects stay local.
   let root = object.get("Resources");
-  if (!root) {
+  if (!root?.isDictionary?.()) {
     const inherited = object.getInheritable?.("Resources");
-    root = inherited ? pdf.graftObject(inherited) : pdf.newDictionary();
+    root = inherited?.isDictionary?.() ? pdf.graftObject(inherited) : pdf.newDictionary();
     object.put("Resources", root);
   }
   let dictionary = root.get(category);
-  if (!dictionary) {
+  if (!dictionary?.isDictionary?.()) {
     dictionary = pdf.newDictionary();
     root.put(category, dictionary);
   }
