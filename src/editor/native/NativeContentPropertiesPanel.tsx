@@ -133,14 +133,63 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
 }
 
 function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; queued?: NativeImageEdit; onQueue: (edit: NativeImageEdit) => void }) {
+  const initialAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+  const [action, setAction] = useState<NonNullable<NativeImageEdit["action"]>>(initialAction);
   const [bytes, setBytes] = useState<Uint8Array | undefined>(queued?.bytes);
   const [mimeType, setMimeType] = useState(queued?.mimeType ?? "image/png");
   const [fit, setFit] = useState<NativeImageEdit["fit"]>(queued?.fit ?? "contain");
   const [removeUnderlying, setRemoveUnderlying] = useState(queued?.removeUnderlying ?? true);
   const [bounds, setBounds] = useState(queued?.bounds ?? object.bounds);
-  useEffect(() => { setBytes(queued?.bytes); setMimeType(queued?.mimeType ?? "image/png"); setFit(queued?.fit ?? "contain"); setRemoveUnderlying(queued?.removeUnderlying ?? true); setBounds(queued?.bounds ?? object.bounds); }, [object.id]);
-  async function choose(file?: File): Promise<void> { if (!file) return; setBytes(new Uint8Array(await file.arrayBuffer())); setMimeType(file.type || "image/png"); }
-  return <section className="property-section property-stack"><h3>Image replacement</h3><label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label><label className="property-field"><span>Fit</span><select value={fit} onChange={(event) => setFit(event.target.value as NativeImageEdit["fit"])}><option value="contain">Contain</option><option value="cover">Cover + crop</option><option value="stretch">Stretch</option></select></label><GeometryEditor bounds={bounds} onChange={setBounds} /><label className="property-toggle"><input checked={removeUnderlying} type="checkbox" onChange={(event) => setRemoveUnderlying(event.target.checked)} />Permanently remove content under replacement region</label><button className="button" disabled={!bytes} onClick={() => bytes && onQueue({ id: queued?.id ?? crypto.randomUUID(), kind: "image", objectId: object.id, pageNumber: object.pageNumber, bounds, sourceBounds: object.bounds, bytes, mimeType, removeUnderlying, fit })} type="button">{queued ? "Update image change" : "Apply image change"}</button></section>;
+  const [rotation, setRotation] = useState<NonNullable<NativeImageEdit["rotation"]>>(queued?.rotation ?? 0);
+  const [opacity, setOpacity] = useState(queued?.opacity ?? 1);
+
+  useEffect(() => {
+    setAction(queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform"));
+    setBytes(queued?.bytes);
+    setMimeType(queued?.mimeType ?? "image/png");
+    setFit(queued?.fit ?? "contain");
+    setRemoveUnderlying(queued?.removeUnderlying ?? true);
+    setBounds(queued?.bounds ?? object.bounds);
+    setRotation(queued?.rotation ?? 0);
+    setOpacity(queued?.opacity ?? 1);
+  }, [object.id]);
+
+  async function choose(file?: File): Promise<void> {
+    if (!file) return;
+    setBytes(new Uint8Array(await file.arrayBuffer()));
+    setMimeType(file.type || "image/png");
+    setAction("replace");
+  }
+
+  const queue = () => onQueue({
+    id: queued?.id ?? crypto.randomUUID(),
+    kind: "image",
+    objectId: object.id,
+    pageNumber: object.pageNumber,
+    action,
+    bounds,
+    sourceBounds: object.bounds,
+    bytes: action === "replace" ? bytes : undefined,
+    mimeType: action === "replace" ? mimeType : undefined,
+    removeUnderlying: action === "replace" ? removeUnderlying : true,
+    fit,
+    rotation,
+    opacity: Math.max(0, Math.min(1, opacity))
+  });
+
+  return <section className="property-section property-stack">
+    <p className="eyebrow">Existing image · P3</p><h3>Image editing</h3>
+    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => setAction(event.target.value as NonNullable<NativeImageEdit["action"]>)}><option value="transform">Edit source image</option><option value="replace">Replace image</option><option value="delete">Delete image</option></select></label>
+    {action === "replace" ? <label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label> : null}
+    {action !== "delete" ? <>
+      <label className="property-field"><span>Fit</span><select aria-label="Image fit" value={fit} onChange={(event) => setFit(event.target.value as NativeImageEdit["fit"])}><option value="contain">Contain</option><option value="cover">Cover + crop</option><option value="stretch">Stretch</option></select></label>
+      <GeometryEditor bounds={bounds} onChange={setBounds} />
+      <div className="property-grid-two"><label className="property-field"><span>Rotation</span><select aria-label="Image rotation" value={rotation} onChange={(event) => setRotation(Number(event.target.value) as NonNullable<NativeImageEdit["rotation"]>)}><option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option></select></label><NumberInput label="Opacity" value={opacity} min={0} max={1} step={0.05} onChange={setOpacity} /></div>
+      {action === "replace" ? <label className="property-toggle"><input checked={removeUnderlying} type="checkbox" onChange={(event) => setRemoveUnderlying(event.target.checked)} />Remove the original image before drawing the replacement</label> : <p className="property-note">No replacement upload is required. PDF Studio reuses the selected source image locally, removes only its original image region, then redraws it with the requested transform.</p>}
+    </> : <div className="warning-banner"><strong>Permanent image deletion</strong><span>Only image content intersecting the selected source image region is removed. Overlapping text and line art are preserved.</span></div>}
+    <p className="property-note">Source transforms preserve the selected image content, but PDF optimization may recompress the encoded image stream. Exact compressed source bytes are not guaranteed.</p>
+    <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "replace" && !bytes?.byteLength} onClick={queue} type="button">{queued ? "Update image change" : action === "delete" ? "Delete existing image" : action === "replace" ? "Apply image replacement" : "Apply source image transform"}</button>
+  </section>;
 }
 
 function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject; queued?: NativeVectorEdit; onQueue: (edit: NativeVectorEdit) => void }) {
