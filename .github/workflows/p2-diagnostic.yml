@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/p2-layout-aware-reflow-font-fidelity
+  pull_request:
+    branches:
+      - agent/p1-universal-existing-content-editing
 
 permissions:
   contents: read
