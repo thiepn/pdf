@@ -111,6 +111,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.62.0-noble
+    env:
+      HOME: /root
     timeout-minutes: 60
     needs: [phase11-stability-gate, validate]
     steps:
