@@ -58,14 +58,17 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: Install Unicode corpus font
-        run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install --yes --no-install-recommends fonts-noto-core
       - name: Pin npm toolchain
         run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
       - name: Resolve deterministic build metadata
         run: echo "BUILD_TIMESTAMP=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
       - name: Install external-reader validation tools
         run: python -m pip install --requirement requirements-phase11.txt
+      - name: Download qualified Phase 11 corpus
+        uses: actions/download-artifact@v8
+        with:
+          name: phase11-corpus-evidence
+          path: .
       - name: Audit lockfile and toolchain
         run: npm run audit:lockfile && npm run audit:toolchain
       - name: Install exact dependencies
@@ -75,6 +78,7 @@ jobs:
       - name: v6.1.0 non-browser release qualification
         run: npm run release:web
         env:
+          PHASE11_CORPUS_REUSE: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
           VITE_SOURCE_URL: https://github.com/${{ github.repository }}
           VITE_BUILD_TIMESTAMP: ${{ env.BUILD_TIMESTAMP }}
