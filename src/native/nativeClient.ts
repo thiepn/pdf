@@ -1,6 +1,6 @@
 import { reconstructInspectionTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
-import type { NativeEdit, NativeExportReport, NativeInspection, NativeTextEdit } from "../types/nativeEditor";
+import type { NativeEdit, NativeExportReport, NativeImageEdit, NativeInspection, NativeTextEdit } from "../types/nativeEditor";
 
 type Response =
   | { type: "READY" }
@@ -8,11 +8,11 @@ type Response =
   | { type: "NATIVE_RESULT"; requestId: string; output: ArrayBuffer; report: NativeExportReport }
   | { type: "NATIVE_ERROR"; requestId: string; error: { message: string } };
 
-function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?: string, signal?: AbortSignal, extra: Transferable[] = []): Promise<T> {
-  const worker = new Worker(new URL("../workers/native-editor.worker.ts", import.meta.url), { type: "module" });
+function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint8Array, password?: string, signal?: AbortSignal, extra: Transferable[] = []): Promise<T> {
   const requestId = crypto.randomUUID();
   const source = Uint8Array.from(bytes).buffer;
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
     const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
     signal?.addEventListener("abort", cancel, { once: true });
@@ -33,8 +33,16 @@ function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?:
   });
 }
 
+function nativeWorker(): Worker {
+  return new Worker(new URL("../workers/native-editor.worker.ts", import.meta.url), { type: "module" });
+}
+
+function imageWorker(): Worker {
+  return new Worker(new URL("../workers/native-image.worker.ts", import.meta.url), { type: "module" });
+}
+
 export function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal) {
-  return call<NativeInspection>({ type: "INSPECT_NATIVE" }, bytes, password, signal);
+  return invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, signal);
 }
 
 const FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE = 4;
@@ -54,23 +62,65 @@ function followerExportBounds(edit: NativeTextEdit): NativeTextEdit["bounds"] {
  * redaction rectangle remains unchanged.
  */
 export function normalizeNativeEditForExport(edit: NativeEdit): NativeEdit {
-  if (edit.kind === "text" && edit.reflowFollower) {
-    return { ...edit, wrap: false, bounds: followerExportBounds(edit) };
-  }
+  if (edit.kind === "text" && edit.reflowFollower) return { ...edit, wrap: false, bounds: followerExportBounds(edit) };
   return edit;
 }
 
-export function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
+function mergeReports(first: NativeExportReport | undefined, second: NativeExportReport | undefined, outputBytes: number): NativeExportReport {
+  const reports = [first, second].filter((report): report is NativeExportReport => Boolean(report));
+  if (!reports.length) throw new Error("Native edit export produced no report.");
+  return {
+    operation: "native-content-edit",
+    pageCount: reports.at(-1)?.pageCount ?? reports[0].pageCount,
+    outputBytes,
+    changedPages: [...new Set(reports.flatMap((report) => report.changedPages))].sort((a, b) => a - b),
+    textEdits: reports.reduce((sum, report) => sum + report.textEdits, 0),
+    imageEdits: reports.reduce((sum, report) => sum + report.imageEdits, 0),
+    vectorEdits: reports.reduce((sum, report) => sum + report.vectorEdits, 0),
+    tableCellEdits: reports.reduce((sum, report) => sum + report.tableCellEdits, 0),
+    formEdits: reports.reduce((sum, report) => sum + report.formEdits, 0),
+    warnings: reports.flatMap((report) => report.warnings),
+    durationMs: reports.reduce((sum, report) => sum + report.durationMs, 0)
+  };
+}
+
+function prepareNonImageEdits(edits: NativeEdit[]): { payload: NativeEdit[]; transfers: Transferable[] } {
   const payload = edits.map((sourceEdit) => {
     const edit = normalizeNativeEditForExport(sourceEdit);
-    if (edit.kind === "image") return { ...edit, bytes: Uint8Array.from(edit.bytes).buffer };
-    if (edit.kind === "text" && edit.fontBytes) return { ...edit, fontBytes: Uint8Array.from(edit.fontBytes).buffer };
+    if (edit.kind === "text" && edit.fontBytes) return { ...edit, fontBytes: Uint8Array.from(edit.fontBytes).buffer } as unknown as NativeEdit;
     return edit;
   });
   const transfers: Transferable[] = [];
-  for (const edit of payload) {
-    if (edit.kind === "image") transfers.push(edit.bytes as ArrayBuffer);
-    if (edit.kind === "text" && edit.fontBytes) transfers.push(edit.fontBytes as ArrayBuffer);
+  for (const edit of payload) if (edit.kind === "text" && edit.fontBytes) transfers.push(edit.fontBytes as unknown as ArrayBuffer);
+  return { payload, transfers };
+}
+
+function prepareImageEdits(edits: NativeImageEdit[]): { payload: NativeImageEdit[]; transfers: Transferable[] } {
+  const payload = edits.map((edit) => edit.bytes?.byteLength ? { ...edit, bytes: Uint8Array.from(edit.bytes).buffer as unknown as Uint8Array } : edit);
+  const transfers: Transferable[] = [];
+  for (const edit of payload) if (edit.bytes instanceof ArrayBuffer) transfers.push(edit.bytes);
+  return { payload, transfers };
+}
+
+export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
+  const imageEdits = edits.filter((edit): edit is NativeImageEdit => edit.kind === "image");
+  const otherEdits = edits.filter((edit) => edit.kind !== "image");
+  let working = bytes;
+  let nativeReport: NativeExportReport | undefined;
+  let imageReport: NativeExportReport | undefined;
+
+  if (otherEdits.length) {
+    const { payload, transfers } = prepareNonImageEdits(otherEdits);
+    const result = await invoke<{ bytes: Uint8Array; report: NativeExportReport }>(nativeWorker(), { type: "APPLY_NATIVE", edits: payload }, working, password, signal, transfers);
+    working = result.bytes;
+    nativeReport = result.report;
   }
-  return call<{ bytes: Uint8Array; report: NativeExportReport }>({ type: "APPLY_NATIVE", edits: payload }, bytes, password, signal, transfers);
+  if (imageEdits.length) {
+    const { payload, transfers } = prepareImageEdits(imageEdits);
+    const result = await invoke<{ bytes: Uint8Array; report: NativeExportReport }>(imageWorker(), { type: "APPLY_IMAGES", edits: payload }, working, password, signal, transfers);
+    working = result.bytes;
+    imageReport = result.report;
+  }
+
+  return { bytes: working, report: mergeReports(nativeReport, imageReport, working.byteLength) };
 }
