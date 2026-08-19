@@ -1,0 +1,44 @@
+name: P2 compact diagnostic
+
+on:
+  push:
+    branches:
+      - agent/p2-layout-aware-reflow-font-fidelity
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install Unicode corpus font
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fonts-noto-core
+      - name: Install external-reader validation tools
+        run: python -m pip install --requirement requirements-phase11.txt
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run compact non-browser qualification
+        shell: bash
+        run: |
+          set +e
+          npm run release:web > /tmp/p2-qualification.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "===== P2 QUALIFICATION FAILURE TAIL ====="
+            tail -n 180 /tmp/p2-qualification.log
+            exit "$status"
+          fi
+          echo "===== P2 QUALIFICATION PASS TAIL ====="
+          tail -n 80 /tmp/p2-qualification.log
