@@ -14,7 +14,7 @@ import type {
   NativeTextObject,
   NativeTextRun
 } from "../types/nativeEditor";
-import { annotatePageTextFlows } from "./layoutReflow";
+import { annotatePageTextFlows } from "./layoutReflow.ts";
 
 export function detectScript(text: string): NativeScript {
   let latin = false;
