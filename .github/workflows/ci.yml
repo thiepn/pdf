@@ -109,6 +109,8 @@ jobs:
 
   browser-regression:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-noble
     timeout-minutes: 60
     needs: [phase11-stability-gate, validate]
     steps:
@@ -143,8 +145,6 @@ jobs:
         with:
           name: phase30-verified-dist
           path: dist
-      - name: Install Playwright browsers
-        run: npx playwright install chromium firefox webkit
       - name: Browser regression and privacy checks against verified dist
         run: npm run test:e2e
         env:
