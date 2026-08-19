@@ -157,9 +157,15 @@ function append(pdf: PdfDocument, page: PdfPage, content: string): void {
 
 function resources(pdf: PdfDocument, page: PdfPage, category: string): any {
   const object = page.getObject();
-  let root = object.get("Resources") || object.getInheritable?.("Resources");
-  root = root ? pdf.graftObject(root) : pdf.newDictionary();
-  object.put("Resources", root);
+  // Reuse resources already attached directly to this page. Only clone inherited
+  // resources once before mutation so newly-created document-bound PDF objects are
+  // never fed back through graftObject during a multi-style P2 export.
+  let root = object.get("Resources");
+  if (!root) {
+    const inherited = object.getInheritable?.("Resources");
+    root = inherited ? pdf.graftObject(inherited) : pdf.newDictionary();
+    object.put("Resources", root);
+  }
   let dictionary = root.get(category);
   if (!dictionary) {
     dictionary = pdf.newDictionary();
