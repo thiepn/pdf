@@ -22,11 +22,11 @@ export interface NativeTextFitResult {
 export function evaluateTextFit(text: string, bounds: NativeRect, fontSize: number, wrap: boolean, sourceLineHeight?: number): NativeTextFitResult {
   const safeSize = Math.max(1, fontSize);
   const lineHeight = Math.max(safeSize, sourceLineHeight && Number.isFinite(sourceLineHeight) ? sourceLineHeight : safeSize * 1.2);
-  const maxLines = Math.max(1, Math.floor((bounds.h - 4) / lineHeight));
+  const maxLines = Math.max(1, Math.floor(bounds.h / lineHeight));
   const lines = wrap ? wrapTextToBox(text, bounds.w, safeSize) : text.replace(/\r\n?/g, "\n").split("\n");
   const widthOverflow = !wrap && lines.some((line) => estimatedTextWidth(line, safeSize) > Math.max(1, bounds.w - 3));
-  const requiredHeight = Math.max(lineHeight + 4, lines.length * lineHeight + 4);
-  const heightOverflow = requiredHeight > bounds.h + 0.01;
+  const requiredHeight = Math.max(lineHeight, lines.length * lineHeight);
+  const heightOverflow = lines.length > maxLines;
   return {
     lines,
     lineCount: lines.length,
