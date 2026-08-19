@@ -1,6 +1,6 @@
 import { reconstructInspectionTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
-import type { NativeEdit, NativeExportReport, NativeInspection } from "../types/nativeEditor";
+import type { NativeEdit, NativeExportReport, NativeInspection, NativeTextEdit } from "../types/nativeEditor";
 
 type Response =
   | { type: "READY" }
@@ -37,14 +37,26 @@ export function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: 
   return call<NativeInspection>({ type: "INSPECT_NATIVE" }, bytes, password, signal);
 }
 
+const FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE = 4;
+
+function followerExportBounds(edit: NativeTextEdit): NativeTextEdit["bounds"] {
+  const extra = FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE;
+  if (edit.align === "right") return { ...edit.bounds, x: edit.bounds.x - extra, w: edit.bounds.w + extra };
+  if (edit.align === "center") return { ...edit.bounds, x: edit.bounds.x - extra / 2, w: edit.bounds.w + extra };
+  return { ...edit.bounds, w: edit.bounds.w + extra };
+}
+
 /**
  * P2 follower edits are move-only reconstructions. Their source text already has
- * authoritative line breaks from structured-text inspection, so re-wrapping a
- * tight extracted source bbox with fallback font metrics can invent extra lines
- * and reject an otherwise safe column move during export.
+ * authoritative line breaks and geometry from structured-text inspection. Keep
+ * those line breaks and restore a tiny width allowance consumed by the worker's
+ * 3 pt safety inset. The alignment anchor is preserved, and the original source
+ * redaction rectangle remains unchanged.
  */
 export function normalizeNativeEditForExport(edit: NativeEdit): NativeEdit {
-  if (edit.kind === "text" && edit.reflowFollower && edit.wrap) return { ...edit, wrap: false };
+  if (edit.kind === "text" && edit.reflowFollower) {
+    return { ...edit, wrap: false, bounds: followerExportBounds(edit) };
+  }
   return edit;
 }
 
