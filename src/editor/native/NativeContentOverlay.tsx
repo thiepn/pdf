@@ -20,13 +20,14 @@ export function NativeContentOverlay({ objects, zoom, selectedId, enabled, origi
         top: (object.bounds.y - originY) * zoom,
         width: Math.max(3, object.bounds.w * zoom),
         height: Math.max(3, object.bounds.h * zoom),
-        // Text line bounds can overlap slightly. Keep document order stable so
-        // a later sibling does not make an earlier visible line unclickable.
+        // Text bounds can overlap slightly. Keep document order stable so a
+        // later sibling does not make an earlier visible block unclickable.
         zIndex: selectedId === object.id ? objects.length + 1 : objects.length - index
       };
       const label = nativeObjectLabel(object);
+      const typeLabel = object.type === "text" && object.paragraph && (object.lineCount ?? 1) > 1 ? "paragraph" : object.type;
       return <button
-        aria-label={`Select existing ${object.type}: ${label}`}
+        aria-label={`Select existing ${typeLabel}: ${label}`}
         className={`native-content-hitbox native-content-hitbox--${object.type} capability-level--${object.capability.level}${selectedId === object.id ? " active" : ""}`}
         data-native-object-id={object.id}
         key={object.id}
@@ -35,13 +36,16 @@ export function NativeContentOverlay({ objects, zoom, selectedId, enabled, origi
         style={style}
         title={`${object.capability.label} · ${Math.round(object.capability.confidence * 100)}% confidence`}
         type="button"
-      ><span>{object.type === "form" ? "FORM" : object.type.toUpperCase()}</span></button>;
+      ><span>{typeLabel.toUpperCase()}</span></button>;
     })}
   </div>;
 }
 
 export function nativeObjectLabel(object: NativePageObject): string {
-  if (object.type === "text") return object.text.slice(0, 42) || "Text";
+  if (object.type === "text") {
+    const prefix = object.paragraph && (object.lineCount ?? 1) > 1 ? `${object.lineCount} lines · ` : "";
+    return `${prefix}${object.text.slice(0, 42) || "Text"}`;
+  }
   if (object.type === "table") return `${object.rows}×${object.columns} table`;
   if (object.type === "form") return object.label || object.name || object.fieldType;
   if (object.type === "image") return `${Math.round(object.bounds.w)}×${Math.round(object.bounds.h)} image`;
