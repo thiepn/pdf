@@ -38,8 +38,11 @@ export default defineConfig({
   base: resolveBase(),
   build: {
     target: "es2022",
-    sourcemap: true,
-    chunkSizeWarningLimit: 1400
+    // Production source maps are opt-in. They are useful for a dedicated debug
+    // build but should not increase the normal consumer release footprint.
+    sourcemap: process.env.VITE_SOURCE_MAPS === "true",
+    chunkSizeWarningLimit: 800,
+    reportCompressedSize: true
   },
   worker: {
     format: "es"

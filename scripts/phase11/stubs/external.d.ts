@@ -23,6 +23,8 @@ declare module "react" {
   export function useRef<T = undefined>(): { current: T | undefined };
   export function createContext<T>(value: T): any;
   export function useContext<T>(context: any): T;
+  export function lazy<T>(factory: () => Promise<{ default: T }>): T;
+  export const Suspense: any;
   export class Component<P = any, S = any> { constructor(props: P); props: P; state: S; setState(state: Partial<S>): void; render(): any; }
   const React: any; export default React;
 }

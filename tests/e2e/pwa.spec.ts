@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("production service worker reports a complete offline release cache", async ({ page }) => {
+test("production service worker reports a complete consumer-core offline cache", async ({ page }) => {
   await page.goto("./#/home");
   await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
   const status = await page.evaluate(async () => {
@@ -19,7 +19,7 @@ test("production service worker reports a complete offline release cache", async
   expect(status.expectedAssets).toBeGreaterThan(5);
 });
 
-test("app shell reopens with the browser network disabled", async ({ page, context }) => {
+test("consumer app shell reopens with the browser network disabled", async ({ page, context }) => {
   await page.goto("./#/home");
   await navigatorServiceWorkerReady(page);
   await context.setOffline(true);
@@ -27,8 +27,8 @@ test("app shell reopens with the browser network disabled", async ({ page, conte
     await page.evaluate(() => window.location.reload());
     await page.waitForLoadState("domcontentloaded");
     await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Ready for offline work" })).toBeVisible();
-    await expect(page.getByText(/\d+\/\d+ release assets/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Core tools ready offline" })).toBeVisible();
+    await expect(page.getByText(/\d+\/\d+ core assets/)).toBeVisible();
   } finally {
     await context.setOffline(false);
   }

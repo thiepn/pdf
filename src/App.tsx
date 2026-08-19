@@ -1,36 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { AppShell } from "./app/AppShell";
 import { navigateTo, readAppRoute, type AppRoute } from "./core/appRouter";
 import { HomePage } from "./views/HomePage";
-import { ProjectsPage } from "./views/ProjectsPage";
-import { ViewerPage } from "./views/ViewerPage";
-import { SettingsPage } from "./views/SettingsPage";
-import { StoragePage } from "./views/StoragePage";
-import { DiagnosticsPage } from "./views/DiagnosticsPage";
-import { ToolsPage } from "./views/ToolsPage";
-import { MergeToolPage } from "./views/MergeToolPage";
-import { OrganizerPage } from "./views/OrganizerPage";
-import { EditorPage } from "./views/EditorPage";
-import { SecurePage } from "./views/SecurePage";
-import { OcrPage } from "./views/OcrPage";
-import { ScanPage } from "./views/ScanPage";
-import { CompressionPage } from "./views/CompressionPage";
-import { BatchPage } from "./views/BatchPage";
-import { ComparePage } from "./views/ComparePage";
-import { CreatePdfPage } from "./views/CreatePdfPage";
-import { InspectorPage } from "./views/InspectorPage";
-import { RepairPage } from "./views/RepairPage";
-import { ProfessionalPage } from "./views/ProfessionalPage";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { getLastOpenedProjectId, getProject } from "./projects/projectRepository";
-import { ReleasePage } from "./views/ReleasePage";
-import { ValidationPage } from "./views/ValidationPage";
-import { ActivityPage } from "./views/ActivityPage";
-import { MaintenancePage } from "./views/MaintenancePage";
-import { HelpPage } from "./views/HelpPage";
 import { isSafeMode } from "./maintenance/safeMode";
-import { UnifiedWorkspace } from "./workspace/UnifiedWorkspace";
 import type { WorkspaceMode } from "./types/workspace";
+
+const ProjectsPage = lazy(() => import("./views/ProjectsPage").then(({ ProjectsPage }) => ({ default: ProjectsPage })));
+const SettingsPage = lazy(() => import("./views/SettingsPage").then(({ SettingsPage }) => ({ default: SettingsPage })));
+const StoragePage = lazy(() => import("./views/StoragePage").then(({ StoragePage }) => ({ default: StoragePage })));
+const DiagnosticsPage = lazy(() => import("./views/DiagnosticsPage").then(({ DiagnosticsPage }) => ({ default: DiagnosticsPage })));
+const ToolsPage = lazy(() => import("./views/ToolsPage").then(({ ToolsPage }) => ({ default: ToolsPage })));
+const MergeToolPage = lazy(() => import("./views/MergeToolPage").then(({ MergeToolPage }) => ({ default: MergeToolPage })));
+const ScanPage = lazy(() => import("./views/ScanPage").then(({ ScanPage }) => ({ default: ScanPage })));
+const BatchPage = lazy(() => import("./views/BatchPage").then(({ BatchPage }) => ({ default: BatchPage })));
+const ComparePage = lazy(() => import("./views/ComparePage").then(({ ComparePage }) => ({ default: ComparePage })));
+const CreatePdfPage = lazy(() => import("./views/CreatePdfPage").then(({ CreatePdfPage }) => ({ default: CreatePdfPage })));
+const ReleasePage = lazy(() => import("./views/ReleasePage").then(({ ReleasePage }) => ({ default: ReleasePage })));
+const ValidationPage = lazy(() => import("./views/ValidationPage").then(({ ValidationPage }) => ({ default: ValidationPage })));
+const ActivityPage = lazy(() => import("./views/ActivityPage").then(({ ActivityPage }) => ({ default: ActivityPage })));
+const MaintenancePage = lazy(() => import("./views/MaintenancePage").then(({ MaintenancePage }) => ({ default: MaintenancePage })));
+const HelpPage = lazy(() => import("./views/HelpPage").then(({ HelpPage }) => ({ default: HelpPage })));
+const UnifiedWorkspace = lazy(() => import("./workspace/UnifiedWorkspace").then(({ UnifiedWorkspace }) => ({ default: UnifiedWorkspace })));
 
 interface HeaderState {
   title: string;
@@ -72,6 +64,10 @@ function headerForRoute(route: AppRoute): HeaderState {
   }
 }
 
+function RouteLoading() {
+  return <div className="viewer-loading" role="status" aria-live="polite"><span className="spinner" /><strong>Opening tool…</strong></div>;
+}
+
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => readAppRoute());
   const [header, setHeader] = useState<HeaderState>(() => headerForRoute(readAppRoute()));
@@ -103,21 +99,23 @@ export function App() {
         : route.name === "storage" ? <StoragePage />
           : route.name === "diagnostics" ? <DiagnosticsPage lab={route.lab} />
             : route.name === "release" ? <ReleasePage />
-            : route.name === "validation" ? <ValidationPage />
-            : route.name === "activity" ? <ActivityPage />
-            : route.name === "maintenance" ? <MaintenancePage />
-            : route.name === "help" ? <HelpPage />
-            : route.name === "tools" ? <ToolsPage />
-              : route.name === "merge" ? <MergeToolPage />
-                : route.name === "scan" ? <ScanPage />
-                  : route.name === "batch" ? <BatchPage />
-                    : route.name === "compare" ? <ComparePage />
-                      : route.name === "create" ? <CreatePdfPage />
-                      : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
-                        : <HomePage />;
+              : route.name === "validation" ? <ValidationPage />
+                : route.name === "activity" ? <ActivityPage />
+                  : route.name === "maintenance" ? <MaintenancePage />
+                    : route.name === "help" ? <HelpPage />
+                      : route.name === "tools" ? <ToolsPage />
+                        : route.name === "merge" ? <MergeToolPage />
+                          : route.name === "scan" ? <ScanPage />
+                            : route.name === "batch" ? <BatchPage />
+                              : route.name === "compare" ? <ComparePage />
+                                : route.name === "create" ? <CreatePdfPage />
+                                  : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
+                                    : <HomePage />;
 
   const unified = isDocumentRoute(route);
-  return <AppShell fullBleed={unified} hideTopbar={unified} route={route} subtitle={header.subtitle} title={header.title}>{content}</AppShell>;
+  return <AppShell fullBleed={unified} hideTopbar={unified} route={route} subtitle={header.subtitle} title={header.title}>
+    <Suspense fallback={<RouteLoading />}>{content}</Suspense>
+  </AppShell>;
 }
 
 function isDocumentRoute(route: AppRoute): route is Extract<AppRoute, { projectId: string }> {

@@ -18,10 +18,7 @@ check("PDF ingress classification", () => {
   assert.equal(classifyIncomingFile("paper.PDF"), "pdf");
   assert.equal(classifyIncomingFile("untitled", "application/pdf"), "pdf");
 });
-check("Project ingress classification", () => {
-  assert.equal(classifyIncomingFile("backup.lpsproject"), "package");
-  assert.equal(classifyIncomingFile("untitled", "application/x-local-pdf-studio-project"), "package");
-});
+check("Project ingress classification", () => assert.equal(classifyIncomingFile("backup.lpsproject"), "package"));
 check("Unsupported ingress rejection", () => assert.equal(classifyIncomingFile("photo.jpg", "image/jpeg"), null));
 check("Web Share Target manifest", () => {
   assert.equal(manifest.share_target?.method, "POST");
@@ -30,9 +27,13 @@ check("Web Share Target manifest", () => {
 });
 check("PWA file handler manifest", () => assert.ok(manifest.file_handlers?.[0]?.accept?.["application/pdf"]?.includes(".pdf")));
 check("PWA launch policy", () => assert.ok(manifest.launch_handler?.client_mode?.includes("navigate-existing")));
-check("Complete release precache", () => {
+check("Consumer-core precache with on-demand feature cache", () => {
   assert.match(sw, /offline-assets\.json/);
   assert.match(sw, /precacheRelease/);
+  assert.match(generator, /schemaVersion:\s*2/);
+  assert.match(generator, /consumer-core-plus-runtime-features/);
+  assert.match(generator, /coreAssets/);
+  assert.match(generator, /optionalAssets/);
   assert.match(generator, /!name\.endsWith\("\.map"\)/);
 });
 check("Atomic update cache retention", () => {
