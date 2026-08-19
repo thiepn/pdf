@@ -12,6 +12,7 @@ const FORBIDDEN_RUNTIME_APIS = [
   { name: "Map/WeakMap getOrInsertComputed", pattern: /\.getOrInsertComputed\s*\(/ }
 ];
 const failures = [];
+let offlineManifest = null;
 
 async function walk(directory) {
   const files = [];
@@ -31,21 +32,44 @@ catch { failures.push("Missing stable Tesseract SIMD LSTM core."); }
 try { await stat(join(dist, "tesseract/core/tesseract-core-relaxedsimd-lstm.wasm.js")); failures.push("Broken Tesseract relaxed-SIMD LSTM core must not be shipped."); }
 catch { /* intentionally excluded */ }
 
-
 const offlineManifestPath = join(dist, "offline-assets.json");
 try {
-  const offlineManifest = JSON.parse(await readFile(offlineManifestPath, "utf8"));
-  if (offlineManifest.schemaVersion !== 1 || !Array.isArray(offlineManifest.assets) || !offlineManifest.assets.length) failures.push("offline-assets.json does not contain a non-empty schema v1 asset list.");
-  else {
-    const missingOfflineAssets = [];
-    for (const entry of offlineManifest.assets) {
-      if (typeof entry !== "string" || !entry.startsWith("./") || entry.endsWith(".map")) { failures.push(`Invalid offline asset entry: ${String(entry)}`); continue; }
-      try { await stat(join(dist, entry.slice(2))); } catch { missingOfflineAssets.push(entry); }
-    }
-    if (missingOfflineAssets.length) failures.push(`Offline asset manifest references missing files: ${missingOfflineAssets.slice(0, 8).join(", ")}`);
-  }
-} catch (reason) { failures.push(`Could not validate offline-assets.json: ${reason instanceof Error ? reason.message : String(reason)}`); }
+  offlineManifest = JSON.parse(await readFile(offlineManifestPath, "utf8"));
+  if (offlineManifest.schemaVersion !== 2) failures.push(`offline-assets.json schema ${String(offlineManifest.schemaVersion)} is unsupported; expected schema 2.`);
+  if (offlineManifest.strategy !== "consumer-core-plus-runtime-features") failures.push("offline-assets.json is missing the P0 consumer core/runtime-feature strategy marker.");
+  if (!Array.isArray(offlineManifest.assets) || !offlineManifest.assets.length) failures.push("offline-assets.json does not contain a non-empty service-worker asset list.");
+  if (!Array.isArray(offlineManifest.coreAssets) || !offlineManifest.coreAssets.length) failures.push("offline-assets.json does not contain a non-empty consumer core asset list.");
+  if (!Array.isArray(offlineManifest.optionalAssets) || !offlineManifest.optionalAssets.length) failures.push("offline-assets.json does not contain on-demand assets; route splitting may have regressed.");
 
+  const validateEntries = async (entries, label) => {
+    const missing = [];
+    const seen = new Set();
+    for (const entry of entries || []) {
+      if (typeof entry !== "string" || !entry.startsWith("./") || entry.endsWith(".map")) {
+        failures.push(`Invalid ${label} asset entry: ${String(entry)}`);
+        continue;
+      }
+      if (seen.has(entry)) failures.push(`Duplicate ${label} asset entry: ${entry}`);
+      seen.add(entry);
+      try { await stat(join(dist, entry.slice(2))); } catch { missing.push(entry); }
+    }
+    if (missing.length) failures.push(`${label} asset list references missing files: ${missing.slice(0, 8).join(", ")}`);
+    return seen;
+  };
+
+  const serviceWorkerAssets = await validateEntries(offlineManifest.assets, "service-worker");
+  const coreAssets = await validateEntries(offlineManifest.coreAssets, "core");
+  const optionalAssets = await validateEntries(offlineManifest.optionalAssets, "on-demand");
+
+  if (serviceWorkerAssets.size !== coreAssets.size || [...serviceWorkerAssets].some((entry) => !coreAssets.has(entry))) {
+    failures.push("Service-worker install assets must exactly match consumer coreAssets in the P0 split-cache model.");
+  }
+  for (const entry of coreAssets) {
+    if (optionalAssets.has(entry)) failures.push(`Asset appears in both core and on-demand lists: ${entry}`);
+  }
+} catch (reason) {
+  failures.push(`Could not validate offline-assets.json: ${reason instanceof Error ? reason.message : String(reason)}`);
+}
 
 try {
   const metadata = JSON.parse(await readFile(join(dist, "release-metadata.json"), "utf8"));
@@ -88,6 +112,20 @@ for (const file of files) {
 }
 if (jsTotal > MAX_JS_TOTAL) failures.push(`JavaScript total ${jsTotal} exceeds budget ${MAX_JS_TOTAL}.`);
 if (total > MAX_DIST_TOTAL) failures.push(`Distribution total ${total} exceeds budget ${MAX_DIST_TOTAL}.`);
+
+if (offlineManifest && Array.isArray(offlineManifest.coreAssets) && Array.isArray(offlineManifest.optionalAssets)) {
+  const accounted = new Set([...offlineManifest.coreAssets, ...offlineManifest.optionalAssets]);
+  const expected = new Set(
+    files
+      .map((file) => relative(dist, file).replaceAll("\\", "/"))
+      .filter((name) => !name.endsWith(".map") && !["offline-assets.json", "release-integrity.json"].includes(name))
+      .map((name) => `./${name}`)
+  );
+  const missingFromManifest = [...expected].filter((entry) => !accounted.has(entry));
+  const unexpectedInManifest = [...accounted].filter((entry) => !expected.has(entry));
+  if (missingFromManifest.length) failures.push(`Production files missing from core/on-demand manifest accounting: ${missingFromManifest.slice(0, 8).join(", ")}`);
+  if (unexpectedInManifest.length) failures.push(`Manifest accounts for unexpected production files: ${unexpectedInManifest.slice(0, 8).join(", ")}`);
+}
 
 const index = await readFile(join(dist, "index.html"), "utf8");
 if (!index.includes("Content-Security-Policy")) failures.push("Built index.html is missing Content Security Policy.");
