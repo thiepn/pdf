@@ -1,4 +1,4 @@
-export const NATIVE_EDITOR_SCHEMA_VERSION = 4;
+export const NATIVE_EDITOR_SCHEMA_VERSION = 5;
 
 export interface NativeRect {
   x: number;
@@ -25,6 +25,9 @@ export type NativeVectorPaint = "fill" | "stroke" | "fill-stroke";
 export type NativeVectorLineCap = "Butt" | "Round" | "Square";
 export type NativeVectorLineJoin = "Miter" | "Round" | "Bevel";
 export type NativeVectorColorSpace = "Gray" | "RGB" | "BGR" | "CMYK" | "Lab" | "Indexed" | "Separation" | "Unknown";
+export type NativeTableHorizontalAlign = "left" | "center" | "right";
+export type NativeTableVerticalAlign = "top" | "middle" | "bottom";
+export type NativeTableDetectionSource = "mupdf-table-hunt" | "vector-grid" | "aligned-text";
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -35,7 +38,6 @@ export interface NativeCapability {
   risks: string[];
 }
 
-/** A font/style span retained from MuPDF preserve-spans extraction. */
 export interface NativeTextRun {
   text: string;
   start: number;
@@ -50,11 +52,6 @@ export interface NativeTextRun {
   writingMode: 0 | 1;
 }
 
-/**
- * Source-line evidence retained when span-level structured text is reconstructed
- * into one editable paragraph. P2 groups preserve-spans records into visual lines
- * so mixed formatting is not mistaken for extra paragraph lines.
- */
 export interface NativeTextLine {
   objectId: string;
   text: string;
@@ -93,25 +90,15 @@ export interface NativeTextObject {
   editability: NativeEditability;
   reason: string;
   capability: NativeCapability;
-  /** True when structured text was reconstructed as one editable text flow. */
   paragraph?: boolean;
-  /** Stable preserve-spans source ids covered by this paragraph. */
   sourceObjectIds?: string[];
-  /** Preserve-spans evidence retained for diagnostics and fallback. */
   lines?: NativeTextLine[];
-  /** P2 source formatting spans, with offsets into the reconstructed paragraph text. */
   runs?: NativeTextRun[];
-  /** Number of MuPDF preserve-spans source records. */
   sourceSpanCount?: number;
-  /** Number of actual visual text lines after coalescing same-baseline spans. */
   lineCount?: number;
-  /** Median source baseline/box advance in PDF points. */
   lineHeight?: number;
-  /** Alignment inferred from source line geometry. */
   align?: NativeTextAlign;
-  /** Writing direction inferred conservatively from script/wmode. */
   direction?: NativeTextDirection;
-  /** Conservative same-column flow membership used by P2 layout propagation. */
   flow?: NativeTextFlowInfo;
 }
 
@@ -155,9 +142,7 @@ export interface NativeVectorObject {
   evenOdd: boolean;
   blendMode: string;
   clipped: boolean;
-  /** True when this path also establishes a clipping path for following PDF content. */
   definesClip: boolean;
-  /** Direct page content stream/path indexes used for source-targeted P4 rewrites. */
   sourceStreamIndex: number;
   sourcePathIndex: number;
   sourceSignature: string;
@@ -169,9 +154,17 @@ export interface NativeTableCell {
   id: string;
   row: number;
   column: number;
+  rowSpan?: number;
+  columnSpan?: number;
   text: string;
   bounds: NativeRect;
   fontSize?: number;
+  fontFamily?: NativeEditableFontFamily;
+  fontName?: string;
+  align?: NativeTableHorizontalAlign;
+  verticalAlign?: NativeTableVerticalAlign;
+  fillColor?: string;
+  textColor?: string;
 }
 
 export interface NativeTableObject {
@@ -182,8 +175,17 @@ export interface NativeTableObject {
   rows: number;
   columns: number;
   cells: NativeTableCell[];
+  rowHeights?: number[];
+  columnWidths?: number[];
+  headerRows?: number;
+  mergedCells?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  cellPadding?: number;
+  detectionSource?: NativeTableDetectionSource;
+  complexContent?: boolean;
   confidence: number;
-  editability: "cell-replace";
+  editability: "structured-table" | "cell-replace" | "unsupported";
   capability: NativeCapability;
 }
 
@@ -236,7 +238,6 @@ export interface NativeInspection {
   warnings: string[];
 }
 
-/** A rendered replacement span. Unchanged prefix/suffix spans can retain source styling. */
 export interface NativeTextEditRun {
   text: string;
   fontFamily: NativeEditableFontFamily;
@@ -255,7 +256,6 @@ export interface NativeTextEdit {
   originalText: string;
   text: string;
   bounds: NativeRect;
-  /** Original source geometry. P2 can expand/move the destination without redacting the expanded area. */
   sourceBounds?: NativeRect;
   fontFamily: NativeEditableFontFamily;
   fontSize: number;
@@ -271,15 +271,10 @@ export interface NativeTextEdit {
   writingMode?: 0 | 1;
   fontWeight?: NativeFontWeight;
   fontStyle?: NativeFontStyle;
-  /** Source line advance retained when it remains safe for the replacement. */
   lineHeight?: number;
-  /** P2 layout intent. Missing means the P1 fixed-box behavior. */
   layoutMode?: NativeTextLayoutMode;
-  /** Styled replacement runs. Missing means one uniform run using the edit-level font controls. */
   styleRuns?: NativeTextEditRun[];
-  /** True when styleRuns were derived from the source spans rather than user-authored arbitrary styling. */
   preserveSourceStyle?: boolean;
-  /** Marks an automatically generated same-column follower move. */
   reflowFollower?: boolean;
 }
 
@@ -288,12 +283,9 @@ export interface NativeImageEdit {
   kind: "image";
   objectId: string;
   pageNumber: number;
-  /** P3 operation. Missing is migrated as replacement when bytes exist. */
   action?: NativeImageAction;
   bounds: NativeRect;
-  /** Original detected image bounds. Source transforms always remove only this image region, never neighboring text/vector content. */
   sourceBounds?: NativeRect;
-  /** Replacement bytes are optional because P3 source transforms and deletes reuse/remove the selected existing image. */
   bytes?: Uint8Array;
   mimeType?: string;
   removeUnderlying: boolean;
@@ -308,9 +300,7 @@ export interface NativeVectorEdit {
   objectId: string;
   pageNumber: number;
   action: NativeVectorAction;
-  /** Destination geometry in MuPDF page coordinates. */
   bounds: NativeRect;
-  /** Source geometry and direct source identity are retained so P4 edits the exact path operator range. */
   sourceBounds: NativeRect;
   sourceStreamIndex?: number;
   sourcePathIndex?: number;
@@ -318,7 +308,6 @@ export interface NativeVectorEdit {
   commands: NativePathCommand[];
   paint: NativeVectorPaint;
   rotation: number;
-  /** False keeps the source PDF graphics state byte-for-byte outside the rewritten path range. */
   appearanceOverride: boolean;
   fillEnabled: boolean;
   strokeEnabled: boolean;
@@ -334,6 +323,7 @@ export interface NativeVectorEdit {
   evenOdd: boolean;
 }
 
+/** Legacy P1-P4 cell-only edit. Schema 5 keeps it readable and migratable. */
 export interface NativeTableCellEdit {
   id: string;
   kind: "table-cell";
@@ -349,6 +339,41 @@ export interface NativeTableCellEdit {
   fontLanguage?: NativeTextEdit["fontLanguage"];
 }
 
+export interface NativeTableEditCell {
+  id: string;
+  row: number;
+  column: number;
+  rowSpan: number;
+  columnSpan: number;
+  text: string;
+  fontSize: number;
+  fontFamily: NativeEditableFontFamily;
+  align: NativeTableHorizontalAlign;
+  verticalAlign: NativeTableVerticalAlign;
+  fillColor?: string;
+  textColor: string;
+}
+
+export interface NativeTableEdit {
+  id: string;
+  kind: "table";
+  objectId: string;
+  pageNumber: number;
+  action: "rebuild" | "delete";
+  sourceBounds: NativeRect;
+  bounds: NativeRect;
+  rows: number;
+  columns: number;
+  rowHeights: number[];
+  columnWidths: number[];
+  headerRows: number;
+  borderColor: string;
+  borderWidth: number;
+  borderStyle: "solid" | "dashed" | "none";
+  cellPadding: number;
+  cells: NativeTableEditCell[];
+}
+
 export interface NativeFormEdit {
   id: string;
   kind: "form";
@@ -361,7 +386,7 @@ export interface NativeFormEdit {
   value: string;
 }
 
-export type NativeEdit = NativeTextEdit | NativeImageEdit | NativeVectorEdit | NativeTableCellEdit | NativeFormEdit;
+export type NativeEdit = NativeTextEdit | NativeImageEdit | NativeVectorEdit | NativeTableCellEdit | NativeTableEdit | NativeFormEdit;
 
 export interface NativeEditorState {
   projectId: string;

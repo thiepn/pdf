@@ -70,7 +70,7 @@ describe("P4 native vector edit schema", () => {
       evenOdd: vector.evenOdd
     };
 
-    expect(NATIVE_EDITOR_SCHEMA_VERSION).toBe(4);
+    expect(NATIVE_EDITOR_SCHEMA_VERSION).toBeGreaterThanOrEqual(4);
     expect(edit.sourceSignature).toBe(vector.sourceSignature);
     expect(edit.rotation).toBe(17.5);
     expect(edit.appearanceOverride).toBe(false);

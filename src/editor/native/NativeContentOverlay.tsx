@@ -11,6 +11,16 @@ interface Props {
   onSelect: (object: NativePageObject) => void;
 }
 
+function objectZIndex(object: NativePageObject, index: number, count: number, selectedId?: string): number {
+  if (selectedId === object.id) return count * 3 + 1;
+  // A detected table structurally owns the text and grid paths inside its
+  // bounded region. Put the table hitbox above those child objects so users
+  // can select the table directly on canvas instead of accidentally selecting
+  // a cell's reconstructed text or one of its border paths.
+  if (object.type === "table") return count * 2 - index;
+  return count - index;
+}
+
 export function NativeContentOverlay({ objects, zoom, selectedId, enabled, originX = 0, originY = 0, onSelect }: Props) {
   if (!enabled) return null;
   return <div className="native-content-overlay" aria-label="Existing PDF content">
@@ -20,9 +30,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, enabled, origi
         top: (object.bounds.y - originY) * zoom,
         width: Math.max(3, object.bounds.w * zoom),
         height: Math.max(3, object.bounds.h * zoom),
-        // Text bounds can overlap slightly. Keep document order stable so a
-        // later sibling does not make an earlier visible block unclickable.
-        zIndex: selectedId === object.id ? objects.length + 1 : objects.length - index
+        zIndex: objectZIndex(object, index, objects.length, selectedId)
       };
       const label = nativeObjectLabel(object);
       const typeLabel = object.type === "text" && object.paragraph && (object.lineCount ?? 1) > 1 ? "paragraph" : object.type;

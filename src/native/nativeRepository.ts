@@ -5,6 +5,7 @@ import {
   type NativeEditorState,
   type NativeImageEdit,
   type NativeRect,
+  type NativeTableEdit,
   type NativeTextEdit,
   type NativeVectorEdit
 } from "../types/nativeEditor";
@@ -84,6 +85,63 @@ function normalizeVectorEdit(edit: NativeVectorEdit & Record<string, unknown>): 
   };
 }
 
+function color(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
+}
+
+function normalizeTableEdit(edit: NativeTableEdit & Record<string, unknown>): NativeTableEdit {
+  const bounds = normalizedRect(edit.bounds);
+  const sourceBounds = normalizedRect((edit.sourceBounds as NativeRect | undefined) ?? edit.bounds);
+  const rows = Math.max(1, Math.min(100, Math.floor(finite(edit.rows, 1))));
+  const columns = Math.max(1, Math.min(50, Math.floor(finite(edit.columns, 1))));
+  const rowHeights = Array.from({ length: rows }, (_, index) => Math.max(1, finite(Array.isArray(edit.rowHeights) ? edit.rowHeights[index] : undefined, bounds.h / rows)));
+  const columnWidths = Array.from({ length: columns }, (_, index) => Math.max(1, finite(Array.isArray(edit.columnWidths) ? edit.columnWidths[index] : undefined, bounds.w / columns)));
+  const validFamilies = new Set(["Helvetica", "Times-Roman", "Courier", "ko", "ja", "zh-Hans", "zh-Hant"]);
+  const cells = (Array.isArray(edit.cells) ? edit.cells : []).map((raw, index) => {
+    const cell = raw as NativeTableEdit["cells"][number] & Record<string, unknown>;
+    const row = Math.max(0, Math.min(rows - 1, Math.floor(finite(cell.row, 0))));
+    const column = Math.max(0, Math.min(columns - 1, Math.floor(finite(cell.column, 0))));
+    const rowSpan = Math.max(1, Math.min(rows - row, Math.floor(finite(cell.rowSpan, 1))));
+    const columnSpan = Math.max(1, Math.min(columns - column, Math.floor(finite(cell.columnSpan, 1))));
+    const family = validFamilies.has(String(cell.fontFamily)) ? cell.fontFamily as NativeTableEdit["cells"][number]["fontFamily"] : "Helvetica";
+    const align = ["left", "center", "right"].includes(String(cell.align)) ? cell.align as NativeTableEdit["cells"][number]["align"] : "left";
+    const verticalAlign = ["top", "middle", "bottom"].includes(String(cell.verticalAlign)) ? cell.verticalAlign as NativeTableEdit["cells"][number]["verticalAlign"] : "middle";
+    return {
+      id: typeof cell.id === "string" && cell.id ? cell.id : `${edit.objectId}:cell:${index}`,
+      row,
+      column,
+      rowSpan,
+      columnSpan,
+      text: typeof cell.text === "string" ? cell.text : "",
+      fontSize: Math.max(4, Math.min(72, finite(cell.fontSize, 10))),
+      fontFamily: family,
+      align,
+      verticalAlign,
+      fillColor: typeof cell.fillColor === "string" && /^#[0-9a-f]{6}$/i.test(cell.fillColor) ? cell.fillColor.toLowerCase() : undefined,
+      textColor: color(cell.textColor, "#111111")
+    };
+  });
+  return {
+    id: edit.id,
+    kind: "table",
+    objectId: edit.objectId,
+    pageNumber: Math.max(1, Math.floor(finite(edit.pageNumber, 1))),
+    action: edit.action === "delete" ? "delete" : "rebuild",
+    sourceBounds,
+    bounds,
+    rows,
+    columns,
+    rowHeights,
+    columnWidths,
+    headerRows: Math.max(0, Math.min(rows, Math.floor(finite(edit.headerRows, 0)))),
+    borderColor: color(edit.borderColor, "#444444"),
+    borderWidth: Math.max(0, Math.min(20, finite(edit.borderWidth, 1))),
+    borderStyle: ["solid", "dashed", "none"].includes(String(edit.borderStyle)) ? edit.borderStyle as NativeTableEdit["borderStyle"] : "solid",
+    cellPadding: Math.max(0, Math.min(50, finite(edit.cellPadding, 4))),
+    cells
+  };
+}
+
 function normalizeEdit(edit: NativeEdit): NativeEdit {
   if (edit.kind === "image") {
     const stored = edit as NativeImageEdit & { bytes?: unknown };
@@ -108,6 +166,7 @@ function normalizeEdit(edit: NativeEdit): NativeEdit {
     return fontBytes ? { ...stored, fontBytes } : { ...stored, fontBytes: undefined };
   }
   if (edit.kind === "vector") return normalizeVectorEdit(edit as NativeVectorEdit & Record<string, unknown>);
+  if (edit.kind === "table") return normalizeTableEdit(edit as NativeTableEdit & Record<string, unknown>);
   return edit;
 }
 
