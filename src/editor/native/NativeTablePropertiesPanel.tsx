@@ -135,6 +135,13 @@ function sizeCellColumns(cells: NativeTableEditCell[], columns: number): NativeT
   return cells.filter((cell) => cell.column < columns).map((cell) => ({ ...cell, columnSpan: Math.min(cell.columnSpan, columns - cell.column) }));
 }
 
+function anchorInside(cell: NativeTableEditCell, target: NativeTableEditCell): boolean {
+  return cell.row >= target.row
+    && cell.row < target.row + target.rowSpan
+    && cell.column >= target.column
+    && cell.column < target.column + target.columnSpan;
+}
+
 export function NativeTablePropertiesPanel({ object, queued, onQueue }: Props) {
   const [edit, setEdit] = useState<NativeTableEdit>(() => queued ?? initialEdit(object));
 
@@ -144,7 +151,19 @@ export function NativeTablePropertiesPanel({ object, queued, onQueue }: Props) {
   const unsupported = object.editability === "unsupported" || object.complexContent === true;
 
   function updateCell(id: string, patch: Partial<NativeTableEditCell>): void {
-    setEdit((current) => normalizeGrid({ ...current, cells: current.cells.map((cell) => cell.id === id ? { ...cell, ...patch } : cell) }));
+    setEdit((current) => {
+      const source = current.cells.find((cell) => cell.id === id);
+      if (!source) return current;
+      const next: NativeTableEditCell = {
+        ...source,
+        ...patch,
+        rowSpan: Math.max(1, Math.min(Math.floor(patch.rowSpan ?? source.rowSpan), current.rows - source.row)),
+        columnSpan: Math.max(1, Math.min(Math.floor(patch.columnSpan ?? source.columnSpan), current.columns - source.column))
+      };
+      const spanChanged = next.rowSpan !== source.rowSpan || next.columnSpan !== source.columnSpan;
+      const remaining = current.cells.filter((cell) => cell.id !== id && (!spanChanged || !anchorInside(cell, next)));
+      return normalizeGrid({ ...current, cells: [next, ...remaining] });
+    });
   }
 
   function addRow(): void {
@@ -222,6 +241,7 @@ export function NativeTablePropertiesPanel({ object, queued, onQueue }: Props) {
         <div className="property-grid-two"><label className="property-field"><span>Border style</span><select aria-label="Table border style" value={edit.borderStyle} onChange={(event) => setEdit((current) => ({ ...current, borderStyle: event.target.value as NativeTableEdit["borderStyle"] }))}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="none">None</option></select></label><NumberInput label="Cell padding" value={edit.cellPadding} min={0} max={50} step={0.5} onChange={(cellPadding) => setEdit((current) => ({ ...current, cellPadding }))} /></div>
 
         <h4>Cells</h4>
+        <p className="property-note">Increase a cell's row or column span to merge the covered cells into it. The selected cell keeps its content; covered cell content is removed. Reduce the span again to split the area back into editable cells.</p>
         <div className="native-table-editor" style={{ gridTemplateColumns: `repeat(${Math.max(1, edit.columns)}, minmax(110px, 1fr))` }}>
           {[...edit.cells].sort((a, b) => a.row - b.row || a.column - b.column).map((cell) => <label key={cell.id} style={{ gridColumn: `${cell.column + 1} / span ${cell.columnSpan}`, gridRow: `${cell.row + 1} / span ${cell.rowSpan}` }}>
             <small>R{cell.row + 1} C{cell.column + 1}{cell.rowSpan > 1 || cell.columnSpan > 1 ? ` · ${cell.rowSpan}×${cell.columnSpan}` : ""}</small>
