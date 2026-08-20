@@ -5,6 +5,8 @@ import type {
   NativeExportReport,
   NativeImageEdit,
   NativeInspection,
+  NativeTableEdit,
+  NativeTableObject,
   NativeTextEdit,
   NativeVectorEdit,
   NativeVectorObject
@@ -16,10 +18,17 @@ interface VectorInspection {
   warnings: string[];
 }
 
+interface TableInspection {
+  pages: Array<{ pageNumber: number; tables: NativeTableObject[]; warnings: string[] }>;
+  total: number;
+  warnings: string[];
+}
+
 type Response =
   | { type: "READY" }
   | { type: "NATIVE_INSPECTION"; requestId: string; inspection: NativeInspection }
   | { type: "VECTOR_INSPECTION"; requestId: string; inspection: VectorInspection }
+  | { type: "TABLE_INSPECTION"; requestId: string; inspection: TableInspection }
   | { type: "NATIVE_RESULT"; requestId: string; output: ArrayBuffer; report: NativeExportReport }
   | { type: "NATIVE_ERROR"; requestId: string; error: { message: string } };
 
@@ -43,6 +52,7 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
         const reconstructed = reconstructInspectionTextParagraphs(event.data.inspection);
         resolve(registerNativeInspectionPages(reconstructed) as T);
       } else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
+      else if (event.data.type === "TABLE_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Native editor worker failed.")); };
@@ -61,12 +71,19 @@ function vectorWorker(): Worker {
   return new Worker(new URL("../workers/native-vector.worker.ts", import.meta.url), { type: "module" });
 }
 
+function tableWorker(): Worker {
+  return new Worker(new URL("../workers/native-table.worker.ts", import.meta.url), { type: "module" });
+}
+
 function mergeVectorInspection(base: NativeInspection, vector: VectorInspection): NativeInspection {
   const pages = base.pages.map((page) => {
     const replacement = vector.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.vectors ?? [];
     const firstLegacyVector = page.objects.findIndex((object) => object.type === "vector");
     const withoutLegacy = page.objects.filter((object) => object.type !== "vector");
-    const insertion = firstLegacyVector >= 0 ? Math.min(firstLegacyVector, withoutLegacy.length) : Math.min(withoutLegacy.findIndex((object) => object.type === "table" || object.type === "form") < 0 ? withoutLegacy.length : withoutLegacy.findIndex((object) => object.type === "table" || object.type === "form"), withoutLegacy.length);
+    const firstTableOrForm = withoutLegacy.findIndex((object) => object.type === "table" || object.type === "form");
+    const insertion = firstLegacyVector >= 0
+      ? Math.min(firstLegacyVector, withoutLegacy.length)
+      : Math.min(firstTableOrForm < 0 ? withoutLegacy.length : firstTableOrForm, withoutLegacy.length);
     return { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
   });
   return registerNativeInspectionPages({
@@ -77,14 +94,35 @@ function mergeVectorInspection(base: NativeInspection, vector: VectorInspection)
   });
 }
 
+function mergeTableInspection(base: NativeInspection, table: TableInspection): NativeInspection {
+  const pages = base.pages.map((page) => {
+    const replacement = table.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.tables ?? [];
+    const firstLegacyTable = page.objects.findIndex((object) => object.type === "table");
+    const withoutLegacy = page.objects.filter((object) => object.type !== "table");
+    const firstForm = withoutLegacy.findIndex((object) => object.type === "form");
+    const insertion = firstLegacyTable >= 0
+      ? Math.min(firstLegacyTable, withoutLegacy.length)
+      : Math.min(firstForm < 0 ? withoutLegacy.length : firstForm, withoutLegacy.length);
+    return { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+  });
+  return registerNativeInspectionPages({
+    ...base,
+    pages,
+    totals: { ...base.totals, tables: table.total },
+    warnings: [...base.warnings.filter((warning) => !/table/i.test(warning)), ...table.warnings]
+  });
+}
+
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
-  // P4 keeps the already-qualified P1/P2 inspection worker intact. Vector source
-  // discovery is isolated in its own lazy MuPDF worker and merged afterwards.
-  const [base, vector] = await Promise.all([
-    invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, signal),
-    invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, signal)
+  // P5 keeps the qualified P1/P2 worker untouched. Finish that worker first so
+  // a large document never holds three MuPDF documents concurrently, then run
+  // the two source-specialist inspections in parallel and merge their objects.
+  const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, signal);
+  const [vector, table] = await Promise.all([
+    invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, signal),
+    invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, signal)
   ]);
-  return mergeVectorInspection(base, vector);
+  return mergeTableInspection(mergeVectorInspection(base, vector), table);
 }
 
 const FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE = 4;
@@ -96,13 +134,6 @@ function followerExportBounds(edit: NativeTextEdit): NativeTextEdit["bounds"] {
   return { ...edit.bounds, w: edit.bounds.w + extra };
 }
 
-/**
- * P2 follower edits are move-only reconstructions. Their source text already has
- * authoritative line breaks and geometry from structured-text inspection. Keep
- * those line breaks and restore a tiny width allowance consumed by the worker's
- * 3 pt safety inset. The alignment anchor is preserved, and the original source
- * redaction rectangle remains unchanged.
- */
 export function normalizeNativeEditForExport(edit: NativeEdit): NativeEdit {
   if (edit.kind === "text" && edit.reflowFollower) return { ...edit, wrap: false, bounds: followerExportBounds(edit) };
   return edit;
@@ -147,10 +178,12 @@ function prepareImageEdits(edits: NativeImageEdit[]): { payload: NativeImageEdit
 export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
   const imageEdits = edits.filter((edit): edit is NativeImageEdit => edit.kind === "image");
   const vectorEdits = edits.filter((edit): edit is NativeVectorEdit => edit.kind === "vector");
-  const otherEdits = edits.filter((edit) => edit.kind !== "image" && edit.kind !== "vector");
+  const tableEdits = edits.filter((edit): edit is NativeTableEdit => edit.kind === "table");
+  const otherEdits = edits.filter((edit) => edit.kind !== "image" && edit.kind !== "vector" && edit.kind !== "table");
   let working = bytes;
   let nativeReport: NativeExportReport | undefined;
   let vectorReport: NativeExportReport | undefined;
+  let tableReport: NativeExportReport | undefined;
   let imageReport: NativeExportReport | undefined;
 
   if (otherEdits.length) {
@@ -164,6 +197,11 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
     working = result.bytes;
     vectorReport = result.report;
   }
+  if (tableEdits.length) {
+    const result = await invoke<{ bytes: Uint8Array; report: NativeExportReport }>(tableWorker(), { type: "APPLY_TABLES", edits: tableEdits }, working, password, signal);
+    working = result.bytes;
+    tableReport = result.report;
+  }
   if (imageEdits.length) {
     const { payload, transfers } = prepareImageEdits(imageEdits);
     const result = await invoke<{ bytes: Uint8Array; report: NativeExportReport }>(imageWorker(), { type: "APPLY_IMAGES", edits: payload }, working, password, signal, transfers);
@@ -171,5 +209,5 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
     imageReport = result.report;
   }
 
-  return { bytes: working, report: mergeReports([nativeReport, vectorReport, imageReport], working.byteLength) };
+  return { bytes: working, report: mergeReports([nativeReport, vectorReport, tableReport, imageReport], working.byteLength) };
 }
