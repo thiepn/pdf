@@ -14,12 +14,15 @@ async function openTableEditor(page: import("@playwright/test").Page): Promise<i
   return properties;
 }
 
-test("P5 edits structured table cells, geometry and rows then exports a validated PDF", async ({ page }) => {
+test("P5 edits structured table cells, merges cells, changes geometry and rows, then exports a validated PDF", async ({ page }) => {
   const properties = await openTableEditor(page);
   await properties.getByLabel("Table operation").selectOption("rebuild");
   const cell = properties.getByLabel("Cell R1 C1", { exact: true });
   await expect(cell).toBeVisible();
   await cell.fill("Edited heading");
+  const firstCellEditor = cell.locator("..");
+  await firstCellEditor.getByRole("spinbutton", { name: "Column span" }).fill("2");
+  await expect(properties.getByLabel("Cell R1 C2", { exact: true })).toHaveCount(0);
   await properties.getByRole("button", { name: "Add row", exact: true }).click();
   await properties.getByLabel("Table border style").selectOption("dashed");
   await properties.getByLabel("Border width", { exact: true }).fill("1.5");
