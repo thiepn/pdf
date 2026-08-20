@@ -59,10 +59,21 @@ export function EditorCanvasPage(props: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const taskRef = useRef<RenderTask | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const previousPageRef = useRef(props.pageNumber);
   const [pageState, setPageState] = useState<PageState>({ width: 612 * props.zoom, height: 792 * props.zoom, service: null, pdfBounds: { x0: 0, y0: 0, x1: 612, y1: 792 } });
   const [draftRect, setDraftRect] = useState<Rect | null>(null);
   const [guides, setGuides] = useState<Array<{ axis: "x" | "y"; value: number }>>([]);
   const pageObjects = useMemo(() => props.objects.filter((object) => object.pageNumber === props.pageNumber && !object.hidden), [props.objects, props.pageNumber]);
+
+  useEffect(() => {
+    if (previousPageRef.current === props.pageNumber) return;
+    previousPageRef.current = props.pageNumber;
+    dragRef.current = null;
+    setDraftRect(null);
+    setGuides([]);
+    props.onPreview(null);
+    props.onSelect(null, false);
+  }, [props.pageNumber]);
 
   useEffect(() => {
     let cancelled = false;
