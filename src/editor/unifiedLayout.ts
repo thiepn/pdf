@@ -112,6 +112,7 @@ export function nativeTransformSupport(object: NativePageObject, queuedEdits: Na
   if (object.type === "table" && (object.editability === "unsupported" || object.complexContent)) return { movable: false, resizable: false, rotatable: false, reason: "This table contains complex content that P5 intentionally preserves unchanged." };
   if (object.type === "text") {
     if (object.editability === "unsupported") return { movable: false, resizable: false, rotatable: false, reason: object.reason };
+    if (object.editability === "overlay-only") return { movable: false, resizable: false, rotatable: false, reason: "Appearance-only complex-script text cannot be moved or resized as source content because the original text cannot be safely removed and reconstructed." };
     const existing = queuedEdits.find((edit): edit is NativeTextEdit => edit.kind === "text" && edit.objectId === object.id);
     if (existing?.reflowFollower) return { movable: false, resizable: false, rotatable: false, reason: "This paragraph is currently owned by another queued P2 reflow." };
     if (existing?.layoutMode === "expand-flow") return { movable: false, resizable: false, rotatable: false, reason: "Apply or discard the queued P2 layout-aware reflow before manually transforming this paragraph." };
@@ -123,7 +124,7 @@ export function nativeTransformSupport(object: NativePageObject, queuedEdits: Na
   }
   return {
     movable: true,
-    resizable: object.type !== "image" || true,
+    resizable: true,
     rotatable: object.type === "image" || object.type === "vector"
   };
 }
