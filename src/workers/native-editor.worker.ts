@@ -180,7 +180,7 @@ function fontVariant(edit: any): string {
   const bold = edit.fontWeight === "bold";
   const italic = edit.fontStyle === "italic";
   if (family === "Times") return bold && italic ? "Times-BoldItalic" : bold ? "Times-Bold" : italic ? "Times-Italic" : "Times-Roman";
-  if (family === "Courier") return bold && italic ? "Courier-BoldOblique" : bold ? "Courier-Bold" : italic ? "Courier-Oblique" : "Courier";
+  if (family === "Courier") return bold && italic ? "Courier-BoldOblique" : bold ? "Courier-Oblique" : "Courier";
   return bold && italic ? "Helvetica-BoldOblique" : bold ? "Helvetica-Bold" : italic ? "Helvetica-Oblique" : "Helvetica";
 }
 
@@ -554,7 +554,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
         const h = Number(match[4]);
         const pdfCommands: NativePathCommand[] = [{ op: "M", x, y }, { op: "L", x: x + w, y }, { op: "L", x: x + w, y: y + h }, { op: "L", x, y: y + h }, { op: "Z" }];
         const commands = pdfCommands.map((command) => fitzCommandFromPdf(page, command));
-        const item: NativeVectorObject = { id: `p${index + 1}:vector:${vectorIndex}`, type: "vector", pageNumber: index + 1, bounds: fitzRectFromPdf(page, { x: Math.min(x, x + w), y: Math.min(y, y + h), w: Math.abs(w), h: Math.abs(h) }), commands, paint: "stroke", strokeColor: "#333333", lineWidth: 1, alpha: 1, evenOdd: false, editability: "region-rebuild", capability: vectorCapability(commands.length) };
+        const item: NativeVectorObject = { id: `p${index + 1}:vector:${vectorIndex}`, type: "vector", pageNumber: index + 1, bounds: fitzRectFromPdf(page, { x: Math.min(x, x + w), y: Math.min(y, y + h), w: Math.abs(w), h: Math.abs(h) }), commands, paint: "stroke", strokeColor: "#333333", strokeColorSpace: "RGB", strokeComponents: [0.2, 0.2, 0.2], lineWidth: 1, lineCap: "Butt", lineJoin: "Miter", miterLimit: 10, dashPattern: [], dashPhase: 0, fillAlpha: 1, strokeAlpha: 1, evenOdd: false, blendMode: "Normal", clipped: false, definesClip: false, sourceStreamIndex: 0, sourcePathIndex: vectorIndex, sourceSignature: `legacy-rectangle-${index + 1}-${vectorIndex}`, editability: "source-path", capability: vectorCapability(commands.length) };
         objects.push(item);
         vectors += 1;
       });

@@ -1,4 +1,4 @@
-export const NATIVE_EDITOR_SCHEMA_VERSION = 3;
+export const NATIVE_EDITOR_SCHEMA_VERSION = 4;
 
 export interface NativeRect {
   x: number;
@@ -20,6 +20,11 @@ export type NativeFontSource = "built-in" | "built-in-cjk" | "imported-cjk" | "i
 export type NativeTextLayoutMode = "fixed-box" | "expand-flow";
 export type NativeImageAction = "transform" | "replace" | "delete";
 export type NativeImageRotation = 0 | 90 | 180 | 270;
+export type NativeVectorAction = "edit" | "delete";
+export type NativeVectorPaint = "fill" | "stroke" | "fill-stroke";
+export type NativeVectorLineCap = "Butt" | "Round" | "Square";
+export type NativeVectorLineJoin = "Miter" | "Round" | "Bevel";
+export type NativeVectorColorSpace = "Gray" | "RGB" | "BGR" | "CMYK" | "Lab" | "Indexed" | "Separation" | "Unknown";
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -132,13 +137,31 @@ export interface NativeVectorObject {
   pageNumber: number;
   bounds: NativeRect;
   commands: NativePathCommand[];
-  paint: "fill" | "stroke" | "fill-stroke";
+  paint: NativeVectorPaint;
   fillColor?: string;
   strokeColor?: string;
+  fillColorSpace?: NativeVectorColorSpace;
+  strokeColorSpace?: NativeVectorColorSpace;
+  fillComponents?: number[];
+  strokeComponents?: number[];
   lineWidth: number;
-  alpha: number;
+  lineCap: NativeVectorLineCap;
+  lineJoin: NativeVectorLineJoin;
+  miterLimit: number;
+  dashPattern: number[];
+  dashPhase: number;
+  fillAlpha: number;
+  strokeAlpha: number;
   evenOdd: boolean;
-  editability: "region-rebuild";
+  blendMode: string;
+  clipped: boolean;
+  /** True when this path also establishes a clipping path for following PDF content. */
+  definesClip: boolean;
+  /** Direct page content stream/path indexes used for source-targeted P4 rewrites. */
+  sourceStreamIndex: number;
+  sourcePathIndex: number;
+  sourceSignature: string;
+  editability: "source-path" | "clip-protected";
   capability: NativeCapability;
 }
 
@@ -284,17 +307,31 @@ export interface NativeVectorEdit {
   kind: "vector";
   objectId: string;
   pageNumber: number;
+  action: NativeVectorAction;
+  /** Destination geometry in MuPDF page coordinates. */
   bounds: NativeRect;
+  /** Source geometry and direct source identity are retained so P4 edits the exact path operator range. */
+  sourceBounds: NativeRect;
+  sourceStreamIndex?: number;
+  sourcePathIndex?: number;
+  sourceSignature?: string;
   commands: NativePathCommand[];
-  action: "delete" | "restyle" | "transform";
+  paint: NativeVectorPaint;
+  rotation: number;
+  /** False keeps the source PDF graphics state byte-for-byte outside the rewritten path range. */
+  appearanceOverride: boolean;
+  fillEnabled: boolean;
+  strokeEnabled: boolean;
   fillColor?: string;
   strokeColor?: string;
   lineWidth: number;
+  lineCap: NativeVectorLineCap;
+  lineJoin: NativeVectorLineJoin;
+  miterLimit: number;
+  dashPattern: number[];
+  dashPhase: number;
   alpha: number;
-  dx: number;
-  dy: number;
-  scaleX: number;
-  scaleY: number;
+  evenOdd: boolean;
 }
 
 export interface NativeTableCellEdit {
