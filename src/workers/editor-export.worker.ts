@@ -243,10 +243,10 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const pdf = source.asPDF();
       if (!pdf) throw new Error("The source document does not expose a mutable PDF representation.");
       pdf.disableJS?.();
-      // P1-P5 outputs have already been syntax-checked and reopened by their
-      // source writer. Avoid a repair traversal in this second-stage overlay
-      // pass; the unified pipeline performs the final reopen validation.
-      pdf.checkSyntax?.();
+      // P1-P5 outputs have already been validated and reopened by their source
+      // writer. Do not run another document-wide syntax traversal in this
+      // second-stage overlay pass; the unified pipeline performs the final
+      // reopen and annotation-inventory validation before any download.
       const assets = new Map(request.assets.map((asset) => [asset.id, asset]));
       let annotationCount = 0;
       let linkCount = 0;
