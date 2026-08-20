@@ -24,7 +24,7 @@ export interface RunProjectOperationOptions {
   storagePurpose?: string;
 }
 
-import { ownsProjectLease } from "../projects/projectLease";
+import { ownsProjectLease } from "../projects/projectLease.ts";
 import { assertStorageBudget } from "../storage/budget.ts";
 
 const active = new Map<string, ProjectOperationSnapshot>();
