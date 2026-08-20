@@ -119,10 +119,19 @@ function gridError(edit: NativeTableEdit): string | null {
   return null;
 }
 
+function supportsStaticTableText(text: string): boolean {
+  const script = detectScript(text);
+  if (script === "complex") return false;
+  if (script !== "unknown") return true;
+  // detectScript intentionally returns "unknown" for digit/punctuation-only
+  // strings because they contain no script-bearing letters. Those ASCII bytes
+  // are still safely representable by the built-in Latin table fonts.
+  return /^[\u0000-\u007f]*$/u.test(text);
+}
+
 function scriptError(edit: NativeTableEdit): string | null {
   for (const cell of edit.cells) {
-    const script = detectScript(cell.text);
-    if (script === "complex" || script === "unknown") return `Cell R${cell.row + 1} C${cell.column + 1} uses text that the current static table reconstruction cannot shape safely.`;
+    if (!supportsStaticTableText(cell.text)) return `Cell R${cell.row + 1} C${cell.column + 1} uses text that the current static table reconstruction cannot shape safely.`;
   }
   return null;
 }
