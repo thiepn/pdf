@@ -277,7 +277,10 @@ self.onmessage = (event: MessageEvent<Request>) => {
             case "redaction": addRedactionMark(page, object, pdfToFitz, warnings); annotationCount += 1; break;
           }
         }
-        page.update?.();
+        // Every annotation writer updates its own object. Running a second
+        // page-wide update here can walk the newly rewritten source-image graph
+        // from the preceding native pass and stall mixed P6 exports in browsers.
+        // Final reopen and annotation inventory validation remains authoritative.
       } finally { page.destroy(); }
     }
     // Every editable annotation above is updated immediately, and image stamps
