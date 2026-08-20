@@ -14,7 +14,7 @@ import {
   nativeRotationEdit,
   type UnifiedLayoutItem
 } from "../../src/editor/unifiedLayout";
-import type { NativeFormObject, NativeImageObject, NativePageTree, NativeVectorObject } from "../../src/types/nativeEditor";
+import type { NativeFormObject, NativeImageObject, NativePageTree, NativeTextObject, NativeVectorObject } from "../../src/types/nativeEditor";
 
 const capability = { level: "native-safe" as const, label: "test", confidence: 1, reason: "test", preserves: [], risks: [] };
 const page: NativePageTree = { pageNumber: 1, originX: 10, originY: 20, width: 600, height: 760, objects: [] };
@@ -25,6 +25,23 @@ const vector: NativeVectorObject = {
   commands: [{ op: "M", x: 250, y: 300 }, { op: "L", x: 350, y: 360 }, { op: "Z" }], paint: "fill-stroke", fillColor: "#ffffff", strokeColor: "#111111", lineWidth: 2, lineCap: "Butt", lineJoin: "Miter", miterLimit: 10, dashPattern: [], dashPhase: 0, fillAlpha: 1, strokeAlpha: 1, evenOdd: false, blendMode: "Normal", clipped: false, definesClip: false, sourceStreamIndex: 0, sourcePathIndex: 1, sourceSignature: "vector-source", editability: "source-path", capability
 };
 const form: NativeFormObject = { id: "form-1", type: "form", pageNumber: 1, bounds: { x: 100, y: 100, w: 120, h: 24 }, widgetIndex: 0, fieldType: "text", name: "Name", label: "Name", value: "Alice", options: [], readOnly: false, multiline: false, password: false, signed: false, editability: "field-value", capability };
+const appearanceOnlyText: NativeTextObject = {
+  id: "text-rtl-1",
+  type: "text",
+  pageNumber: 1,
+  bounds: { x: 80, y: 180, w: 180, h: 32 },
+  text: "مرحبا",
+  fontName: "Unknown",
+  family: "sans-serif",
+  size: 16,
+  weight: "normal",
+  style: "normal",
+  writingMode: 0,
+  script: "complex",
+  editability: "overlay-only",
+  reason: "Complex shaping requires appearance-only editing.",
+  capability: { ...capability, level: "appearance-only" }
+};
 
 function item(key: string, x: number, y: number, w: number, h: number): UnifiedLayoutItem {
   return { key, source: key.startsWith("native") ? "native" : "editor", id: key, pageNumber: 1, type: "shape", bounds: { x, y, w, h }, rotation: 0, movable: true, resizable: true, rotatable: true };
@@ -91,6 +108,14 @@ describe("P6 qualified native adapters", () => {
     const result = nativeGeometryEdit(form, { x: 130, y: 130, w: 150, h: 30 }, []);
     expect(result.edit).toBeUndefined();
     expect(result.blocked).toMatch(/form geometry/i);
+  });
+  it("blocks appearance-only complex-script source transforms instead of duplicating the visual text", () => {
+    const layout = nativeLayoutItem(appearanceOnlyText, page, []);
+    expect(layout.movable).toBe(false);
+    expect(layout.resizable).toBe(false);
+    const result = nativeGeometryEdit(appearanceOnlyText, { x: 120, y: 220, w: 200, h: 40 }, []);
+    expect(result.edit).toBeUndefined();
+    expect(result.blocked).toMatch(/cannot be moved or resized/i);
   });
   it("only exposes source-safe deletion for P3/P4/P5 object types", () => {
     expect(nativeDeleteEdit(image, []).edit?.kind).toBe("image");
