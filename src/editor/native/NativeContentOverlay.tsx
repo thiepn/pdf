@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { NativePageObject, NativeRect } from "../../types/nativeEditor";
+import "../p6.css";
 
 export type NativeResizeHandle = "nw" | "ne" | "sw" | "se";
 export type NativeTransformMode = "move" | "resize";
@@ -33,10 +34,6 @@ interface DragState {
 
 function objectZIndex(object: NativePageObject, index: number, count: number, selected: boolean): number {
   if (selected) return count * 3 + 1;
-  // A detected table structurally owns the text and grid paths inside its
-  // bounded region. Put the table hitbox above those child objects so users
-  // can select the table directly on canvas instead of accidentally selecting
-  // a cell's reconstructed text or one of its border paths.
   if (object.type === "table") return count * 2 - index;
   return count - index;
 }
@@ -61,13 +58,12 @@ function clampRect(rect: NativeRect, originX: number, originY: number, pageSize?
   };
 }
 
-function snapMove(rect: NativeRect, objects: NativePageObject[], effectiveBounds: Map<string, NativeRect> | undefined, selectedIds: Set<string>, originX: number, originY: number, pageSize: { width: number; height: number } | undefined, gridSize: number): NativeRect {
+function snapMove(rect: NativeRect, movingId: string, objects: NativePageObject[], effectiveBounds: Map<string, NativeRect> | undefined, selectedIds: Set<string>, originX: number, originY: number, pageSize: { width: number; height: number } | undefined, gridSize: number): NativeRect {
   const tolerance = 5;
   let x = Math.round((rect.x - originX) / Math.max(1, gridSize)) * Math.max(1, gridSize) + originX;
   let y = Math.round((rect.y - originY) / Math.max(1, gridSize)) * Math.max(1, gridSize) + originY;
   const width = rect.w;
   const height = rect.h;
-
   const snapX = (target: number, source: number) => { if (Math.abs(source - target) <= tolerance) x += target - source; };
   const snapY = (target: number, source: number) => { if (Math.abs(source - target) <= tolerance) y += target - source; };
 
@@ -87,7 +83,7 @@ function snapMove(rect: NativeRect, objects: NativePageObject[], effectiveBounds
   }
 
   for (const other of objects) {
-    if (selectedIds.has(other.id)) continue;
+    if (other.id === movingId || selectedIds.has(other.id)) continue;
     const bounds = effectiveRect(other, effectiveBounds);
     const sourcesX = [x, x + width / 2, x + width];
     const targetsX = [bounds.x, bounds.x + bounds.w / 2, bounds.x + bounds.w];
@@ -161,7 +157,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     let next = drag.mode === "move"
       ? { ...drag.source, x: drag.source.x + dx, y: drag.source.y + dy }
       : resizeRect(drag.source, dx, dy, drag.handle ?? "se");
-    if (drag.mode === "move" && snapEnabled) next = snapMove(next, objects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
+    if (drag.mode === "move" && snapEnabled) next = snapMove(next, drag.object.id, objects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
     else next = clampRect(next, originX, originY, pageSize);
     setPreview(new Map([[drag.object.id, next]]));
   }
