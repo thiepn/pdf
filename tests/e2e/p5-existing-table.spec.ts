@@ -8,7 +8,7 @@ async function openTableEditor(page: import("@playwright/test").Page): Promise<i
   await expect(page).toHaveURL(/\/editor$/);
   const table = page.getByRole("button", { name: /Select existing table:/ }).first();
   await expect(table).toBeVisible({ timeout: 20_000 });
-  await table.click({ force: true });
+  await table.click();
   const properties = page.locator(".native-unified-properties");
   await expect(properties.getByText("Table editing", { exact: true })).toBeVisible();
   return properties;
