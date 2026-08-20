@@ -202,7 +202,12 @@ function intersectionRatio(a: NativeRect, b: NativeRect): number {
 }
 
 function save(pdf: PdfDocument): Uint8Array {
-  const buffer = pdf.saveToBuffer("garbage=4,clean=yes,compress=yes,compress-images=yes,compress-fonts=yes,appearance=all,encrypt=keep");
+  // P3 source transforms do not need a document-wide clean pass, annotation
+  // appearance rebuild, or image/font recompression. Those aggressive save
+  // options rewrite unrelated object graphs and make a subsequent P6 overlay
+  // pass unnecessarily expensive. Garbage collection still removes unreachable
+  // redacted image objects; the writer immediately reopens and validates output.
+  const buffer = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
   try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
 }
 
