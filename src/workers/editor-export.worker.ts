@@ -243,7 +243,13 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const pdf = source.asPDF();
       if (!pdf) throw new Error("The source document does not expose a mutable PDF representation.");
       pdf.disableJS?.();
-      pdf.check();
+      // Native P1-P5 outputs have already been syntax-checked and reopened by
+      // their writer before reaching this second-stage overlay pass. A full
+      // pdf.check() here can perform an expensive repair traversal over newly
+      // grafted image/resource objects. Use the non-repairing syntax check so
+      // mixed native + overlay export remains bounded; the final unified export
+      // is still reopened and validated by the main editor pipeline.
+      pdf.checkSyntax?.();
       const assets = new Map(request.assets.map((asset) => [asset.id, asset]));
       let annotationCount = 0;
       let linkCount = 0;
