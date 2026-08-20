@@ -1,0 +1,48 @@
+.native-content-hitbox.p6-transformable {
+  cursor: move;
+}
+
+.native-content-hitbox.p6-transformable.active {
+  overflow: visible;
+}
+
+.native-resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--accent, #245d9b);
+  background: var(--surface, #fff);
+  border-radius: 2px;
+  box-sizing: border-box;
+  z-index: 4;
+}
+
+.native-resize-handle--nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.native-resize-handle--ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.native-resize-handle--sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.native-resize-handle--se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+
+.p6-selection-count {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.p6-layout-properties .property-section {
+  border-bottom: 1px solid var(--border-subtle, rgba(100, 110, 120, .18));
+}
+
+.p6-layout-properties .property-grid-two > button {
+  min-height: 34px;
+}
+
+@media (pointer: coarse) {
+  .native-resize-handle {
+    width: 16px;
+    height: 16px;
+  }
+  .native-resize-handle--nw { left: -9px; top: -9px; }
+  .native-resize-handle--ne { right: -9px; top: -9px; }
+  .native-resize-handle--sw { left: -9px; bottom: -9px; }
+  .native-resize-handle--se { right: -9px; bottom: -9px; }
+}
