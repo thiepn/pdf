@@ -17,6 +17,10 @@ async function exportValidated(page: import("@playwright/test").Page): Promise<v
   await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
 }
 
+function selectionCount(properties: import("@playwright/test").Locator, label: "Existing PDF" | "Added objects") {
+  return properties.locator(`dt:has-text("${label}") + dd`);
+}
+
 test("P6 multi-selects existing image and vector, aligns and nudges them through their qualified writers", async ({ page }) => {
   await openEditor(page);
   const image = page.getByRole("button", { name: /Select existing image:/ }).first();
@@ -26,7 +30,8 @@ test("P6 multi-selects existing image and vector, aligns and nudges them through
 
   const properties = page.locator(".p6-layout-properties");
   await expect(properties.getByText("2 selected objects", { exact: true })).toBeVisible();
-  await expect(properties.getByText("2", { exact: true })).toHaveCount(2);
+  await expect(selectionCount(properties, "Existing PDF")).toHaveText("2");
+  await expect(selectionCount(properties, "Added objects")).toHaveText("0");
   await properties.getByRole("button", { name: "Left", exact: true }).click();
   await expect(page.getByText("2 existing-content edits queued")).toBeVisible();
   await page.keyboard.press("ArrowRight");
@@ -66,7 +71,8 @@ test("P6 aligns an added shape and existing PDF image as one mixed selection", a
   await image.click({ modifiers: ["Shift"] });
   const properties = page.locator(".p6-layout-properties");
   await expect(properties.getByText("2 selected objects", { exact: true })).toBeVisible();
-  await expect(properties.getByText("Existing PDF").locator("+").first()).toBeVisible();
+  await expect(selectionCount(properties, "Existing PDF")).toHaveText("1");
+  await expect(selectionCount(properties, "Added objects")).toHaveText("1");
   await properties.getByRole("button", { name: "Page center X", exact: true }).click();
   await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
   await page.keyboard.press("Shift+ArrowDown");
