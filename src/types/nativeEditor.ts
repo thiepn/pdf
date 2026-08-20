@@ -38,7 +38,6 @@ export interface NativeCapability {
   risks: string[];
 }
 
-/** A font/style span retained from MuPDF preserve-spans extraction. */
 export interface NativeTextRun {
   text: string;
   start: number;
@@ -53,11 +52,6 @@ export interface NativeTextRun {
   writingMode: 0 | 1;
 }
 
-/**
- * Source-line evidence retained when span-level structured text is reconstructed
- * into one editable paragraph. P2 groups preserve-spans records into visual lines
- * so mixed formatting is not mistaken for extra paragraph lines.
- */
 export interface NativeTextLine {
   objectId: string;
   text: string;
@@ -160,15 +154,15 @@ export interface NativeTableCell {
   id: string;
   row: number;
   column: number;
-  rowSpan: number;
-  columnSpan: number;
+  rowSpan?: number;
+  columnSpan?: number;
   text: string;
   bounds: NativeRect;
   fontSize?: number;
   fontFamily?: NativeEditableFontFamily;
   fontName?: string;
-  align: NativeTableHorizontalAlign;
-  verticalAlign: NativeTableVerticalAlign;
+  align?: NativeTableHorizontalAlign;
+  verticalAlign?: NativeTableVerticalAlign;
   fillColor?: string;
   textColor?: string;
 }
@@ -181,15 +175,15 @@ export interface NativeTableObject {
   rows: number;
   columns: number;
   cells: NativeTableCell[];
-  rowHeights: number[];
-  columnWidths: number[];
-  headerRows: number;
-  mergedCells: number;
-  borderColor: string;
-  borderWidth: number;
-  cellPadding: number;
-  detectionSource: NativeTableDetectionSource;
-  complexContent: boolean;
+  rowHeights?: number[];
+  columnWidths?: number[];
+  headerRows?: number;
+  mergedCells?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  cellPadding?: number;
+  detectionSource?: NativeTableDetectionSource;
+  complexContent?: boolean;
   confidence: number;
   editability: "structured-table" | "cell-replace" | "unsupported";
   capability: NativeCapability;
