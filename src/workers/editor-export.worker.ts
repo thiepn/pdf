@@ -283,13 +283,13 @@ self.onmessage = (event: MessageEvent<Request>) => {
         } finally { page.destroy(); }
       }
       // Every editable annotation above is updated immediately, and image stamps
-      // receive an explicit appearance stream. Rebuilding *all* document
-      // appearances at save time is therefore redundant. More importantly,
-      // MuPDF's global appearance pass can traverse freshly grafted XObjects
-      // from a preceding P3 image transform and stall a mixed P6 export. Keep
-      // the second-stage save incremental in responsibility; final syntax/reopen
-      // validation remains in EditorPage before any download is exposed.
-      const saved = pdf.saveToBuffer("garbage=2,compress=yes,encrypt=keep");
+      // receive an explicit appearance stream. This second-stage overlay pass
+      // only adds objects, so another document-wide garbage collector would do
+      // no useful work and can traverse freshly rewritten P3 image graphs in
+      // browsers. Keep the save append-focused; the unified pipeline performs
+      // the final syntax/reopen and annotation-inventory validation before any
+      // download is exposed.
+      const saved = pdf.saveToBuffer("compress=yes,encrypt=keep");
       try {
         const bytes = new Uint8Array(saved.asUint8Array());
         const output = Uint8Array.from(bytes).buffer;
