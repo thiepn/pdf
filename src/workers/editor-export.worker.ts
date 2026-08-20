@@ -243,12 +243,9 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const pdf = source.asPDF();
       if (!pdf) throw new Error("The source document does not expose a mutable PDF representation.");
       pdf.disableJS?.();
-      // Native P1-P5 outputs have already been syntax-checked and reopened by
-      // their writer before reaching this second-stage overlay pass. A full
-      // pdf.check() here can perform an expensive repair traversal over newly
-      // grafted image/resource objects. Use the non-repairing syntax check so
-      // mixed native + overlay export remains bounded; the final unified export
-      // is still reopened and validated by the main editor pipeline.
+      // P1-P5 outputs have already been syntax-checked and reopened by their
+      // source writer. Avoid a repair traversal in this second-stage overlay
+      // pass; the unified pipeline performs the final reopen validation.
       pdf.checkSyntax?.();
       const assets = new Map(request.assets.map((asset) => [asset.id, asset]));
       let annotationCount = 0;
@@ -285,7 +282,14 @@ self.onmessage = (event: MessageEvent<Request>) => {
           page.update?.();
         } finally { page.destroy(); }
       }
-      const saved = pdf.saveToBuffer("garbage=2,compress=yes,appearance=all,encrypt=keep");
+      // Every editable annotation above is updated immediately, and image stamps
+      // receive an explicit appearance stream. Rebuilding *all* document
+      // appearances at save time is therefore redundant. More importantly,
+      // MuPDF's global appearance pass can traverse freshly grafted XObjects
+      // from a preceding P3 image transform and stall a mixed P6 export. Keep
+      // the second-stage save incremental in responsibility; final syntax/reopen
+      // validation remains in EditorPage before any download is exposed.
+      const saved = pdf.saveToBuffer("garbage=2,compress=yes,encrypt=keep");
       try {
         const bytes = new Uint8Array(saved.asUint8Array());
         const output = Uint8Array.from(bytes).buffer;
