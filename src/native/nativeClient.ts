@@ -1,5 +1,6 @@
 import { reconstructInspectionTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
+import { recoverStructuredTables } from "./tableRecovery";
 import type {
   NativeEdit,
   NativeExportReport,
@@ -122,7 +123,8 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
     invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, signal),
     invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, signal)
   ]);
-  return mergeTableInspection(mergeVectorInspection(base, vector), table);
+  const recoveredTable = recoverStructuredTables(base, vector, table);
+  return mergeTableInspection(mergeVectorInspection(base, vector), recoveredTable);
 }
 
 const FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE = 4;
