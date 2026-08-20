@@ -17,7 +17,7 @@ describe("P3 native image edit schema", () => {
       opacity: 0.65
     };
 
-    expect(NATIVE_EDITOR_SCHEMA_VERSION).toBe(3);
+    expect(NATIVE_EDITOR_SCHEMA_VERSION).toBe(4);
     expect(edit.bytes).toBeUndefined();
     expect(edit.action).toBe("transform");
     expect(edit.rotation).toBe(90);
