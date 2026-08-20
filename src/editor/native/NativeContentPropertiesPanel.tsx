@@ -8,6 +8,7 @@ import type {
   NativeImageEdit,
   NativeImageObject,
   NativePageObject,
+  NativeRect,
   NativeTableCellEdit,
   NativeTableObject,
   NativeTextEdit,
@@ -192,18 +193,119 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   </section>;
 }
 
+function sourceAlpha(object: NativeVectorObject): number {
+  if (object.paint === "fill") return object.fillAlpha;
+  if (object.paint === "stroke") return object.strokeAlpha;
+  return Math.min(object.fillAlpha, object.strokeAlpha);
+}
+
+function parseDashPattern(value: string): number[] {
+  return value.split(/[\s,]+/).filter(Boolean).map(Number).filter((number) => Number.isFinite(number) && number >= 0);
+}
+
 function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject; queued?: NativeVectorEdit; onQueue: (edit: NativeVectorEdit) => void }) {
-  const [action, setAction] = useState<NativeVectorEdit["action"]>(queued?.action ?? "restyle");
-  const [fill, setFill] = useState(queued?.fillColor ?? object.fillColor ?? "#ffffff");
-  const [stroke, setStroke] = useState(queued?.strokeColor ?? object.strokeColor ?? "#333333");
+  const protectedPath = object.editability === "clip-protected";
+  const [action, setAction] = useState<NativeVectorEdit["action"]>(queued?.action ?? "edit");
+  const [bounds, setBounds] = useState<NativeRect>(queued?.bounds ?? object.bounds);
+  const [rotation, setRotation] = useState(queued?.rotation ?? 0);
+  const [appearanceOverride, setAppearanceOverride] = useState(queued?.appearanceOverride ?? false);
+  const [fillEnabled, setFillEnabled] = useState(queued?.fillEnabled ?? object.paint !== "stroke");
+  const [strokeEnabled, setStrokeEnabled] = useState(queued?.strokeEnabled ?? object.paint !== "fill");
+  const [fill, setFill] = useState(queued?.fillColor ?? object.fillColor ?? "#000000");
+  const [stroke, setStroke] = useState(queued?.strokeColor ?? object.strokeColor ?? "#000000");
   const [lineWidth, setLineWidth] = useState(queued?.lineWidth ?? object.lineWidth);
-  const [alpha, setAlpha] = useState(queued?.alpha ?? object.alpha);
-  const [dx, setDx] = useState(queued?.dx ?? 0);
-  const [dy, setDy] = useState(queued?.dy ?? 0);
-  const [scaleX, setScaleX] = useState(queued?.scaleX ?? 1);
-  const [scaleY, setScaleY] = useState(queued?.scaleY ?? 1);
-  useEffect(() => { setAction(queued?.action ?? "restyle"); setFill(queued?.fillColor ?? object.fillColor ?? "#ffffff"); setStroke(queued?.strokeColor ?? object.strokeColor ?? "#333333"); setLineWidth(queued?.lineWidth ?? object.lineWidth); setAlpha(queued?.alpha ?? object.alpha); setDx(queued?.dx ?? 0); setDy(queued?.dy ?? 0); setScaleX(queued?.scaleX ?? 1); setScaleY(queued?.scaleY ?? 1); }, [object.id]);
-  return <section className="property-section property-stack"><h3>Vector path</h3><p className="property-note">{object.commands.length} detected commands · {object.paint}</p><label className="property-field"><span>Operation</span><select value={action} onChange={(event) => setAction(event.target.value as NativeVectorEdit["action"])}><option value="restyle">Restyle</option><option value="transform">Transform</option><option value="delete">Delete region</option></select></label>{action !== "delete" ? <><div className="property-grid-two"><ColorInput label="Fill" value={fill} onChange={setFill} /><ColorInput label="Stroke" value={stroke} onChange={setStroke} /></div><div className="property-grid-two"><NumberInput label="Stroke width" value={lineWidth} min={0.1} max={50} step={0.1} onChange={setLineWidth} /><NumberInput label="Opacity" value={alpha} min={0} max={1} step={0.05} onChange={setAlpha} /></div><div className="property-grid-two"><NumberInput label="Move X" value={dx} step={1} onChange={setDx} /><NumberInput label="Move Y" value={dy} step={1} onChange={setDy} /><NumberInput label="Scale X" value={scaleX} min={0.05} max={20} step={0.05} onChange={setScaleX} /><NumberInput label="Scale Y" value={scaleY} min={0.05} max={20} step={0.05} onChange={setScaleY} /></div></> : <div className="warning-banner"><strong>Permanent region deletion</strong><span>The detected path region will be redacted in the derived output.</span></div>}<button className={action === "delete" ? "button button--danger" : "button"} onClick={() => onQueue({ id: queued?.id ?? crypto.randomUUID(), kind: "vector", objectId: object.id, pageNumber: object.pageNumber, bounds: object.bounds, commands: object.commands, action, fillColor: action === "delete" ? undefined : fill, strokeColor: action === "delete" ? undefined : stroke, lineWidth, alpha, dx, dy, scaleX, scaleY })} type="button">{queued ? "Update vector change" : "Apply vector change"}</button></section>;
+  const [lineCap, setLineCap] = useState<NativeVectorEdit["lineCap"]>(queued?.lineCap ?? object.lineCap);
+  const [lineJoin, setLineJoin] = useState<NativeVectorEdit["lineJoin"]>(queued?.lineJoin ?? object.lineJoin);
+  const [miterLimit, setMiterLimit] = useState(queued?.miterLimit ?? object.miterLimit);
+  const [dashText, setDashText] = useState((queued?.dashPattern ?? object.dashPattern).join(" "));
+  const [dashPhase, setDashPhase] = useState(queued?.dashPhase ?? object.dashPhase);
+  const [alpha, setAlpha] = useState(queued?.alpha ?? sourceAlpha(object));
+  const [evenOdd, setEvenOdd] = useState(queued?.evenOdd ?? object.evenOdd);
+
+  useEffect(() => {
+    setAction(queued?.action ?? "edit");
+    setBounds(queued?.bounds ?? object.bounds);
+    setRotation(queued?.rotation ?? 0);
+    setAppearanceOverride(queued?.appearanceOverride ?? false);
+    setFillEnabled(queued?.fillEnabled ?? object.paint !== "stroke");
+    setStrokeEnabled(queued?.strokeEnabled ?? object.paint !== "fill");
+    setFill(queued?.fillColor ?? object.fillColor ?? "#000000");
+    setStroke(queued?.strokeColor ?? object.strokeColor ?? "#000000");
+    setLineWidth(queued?.lineWidth ?? object.lineWidth);
+    setLineCap(queued?.lineCap ?? object.lineCap);
+    setLineJoin(queued?.lineJoin ?? object.lineJoin);
+    setMiterLimit(queued?.miterLimit ?? object.miterLimit);
+    setDashText((queued?.dashPattern ?? object.dashPattern).join(" "));
+    setDashPhase(queued?.dashPhase ?? object.dashPhase);
+    setAlpha(queued?.alpha ?? sourceAlpha(object));
+    setEvenOdd(queued?.evenOdd ?? object.evenOdd);
+  }, [object.id]);
+
+  function queue(): void {
+    if (protectedPath) return;
+    onQueue({
+      id: queued?.id ?? crypto.randomUUID(),
+      kind: "vector",
+      objectId: object.id,
+      pageNumber: object.pageNumber,
+      action,
+      bounds,
+      sourceBounds: object.bounds,
+      sourceStreamIndex: object.sourceStreamIndex,
+      sourcePathIndex: object.sourcePathIndex,
+      sourceSignature: object.sourceSignature,
+      commands: object.commands,
+      paint: object.paint,
+      rotation,
+      appearanceOverride,
+      fillEnabled,
+      strokeEnabled,
+      fillColor: fillEnabled ? fill : undefined,
+      strokeColor: strokeEnabled ? stroke : undefined,
+      lineWidth: Math.max(0.01, lineWidth),
+      lineCap,
+      lineJoin,
+      miterLimit: Math.max(1, miterLimit),
+      dashPattern: parseDashPattern(dashText),
+      dashPhase,
+      alpha: Math.max(0, Math.min(1, alpha)),
+      evenOdd
+    });
+  }
+
+  return <section className="property-section property-stack">
+    <p className="eyebrow">Existing vector · P4</p><h3>Vector editing</h3>
+    <dl className="native-object-facts">
+      <dt>Geometry</dt><dd>{object.commands.length} path commands</dd>
+      <dt>Paint</dt><dd>{object.paint}</dd>
+      <dt>Source</dt><dd>Stream {object.sourceStreamIndex + 1} · path {object.sourcePathIndex + 1}</dd>
+      <dt>Blend</dt><dd>{object.blendMode}</dd>
+      <dt>Clipping</dt><dd>{object.definesClip ? "Defines clipping" : object.clipped ? "Inside clip" : "None"}</dd>
+    </dl>
+    {protectedPath ? <div className="warning-banner"><strong>Clip-protected path</strong><span>This path also controls clipping for later PDF content. Direct editing is intentionally disabled because changing it could alter unrelated text, images, or graphics.</span></div> : <>
+      <label className="property-field"><span>Operation</span><select aria-label="Vector operation" value={action} onChange={(event) => setAction(event.target.value as NativeVectorEdit["action"])}><option value="edit">Edit source path</option><option value="delete">Delete source path</option></select></label>
+      {action === "edit" ? <>
+        <GeometryEditor bounds={bounds} onChange={setBounds} />
+        <NumberInput label="Rotation" value={rotation} min={-360} max={360} step={1} onChange={setRotation} />
+        <label className="property-toggle"><input checked={appearanceOverride} type="checkbox" onChange={(event) => setAppearanceOverride(event.target.checked)} />Override source appearance</label>
+        {!appearanceOverride ? <p className="property-note">Geometry-only editing keeps the original inherited PDF graphics state, including source color space, blend mode, opacity, clipping, dash style, caps and joins.</p> : <>
+          <label className="property-toggle"><input checked={fillEnabled} type="checkbox" onChange={(event) => setFillEnabled(event.target.checked)} />Fill path</label>
+          {fillEnabled ? <ColorInput label="Fill" value={fill} onChange={setFill} /> : null}
+          <label className="property-toggle"><input checked={strokeEnabled} type="checkbox" onChange={(event) => setStrokeEnabled(event.target.checked)} />Stroke path</label>
+          {strokeEnabled ? <>
+            <ColorInput label="Stroke" value={stroke} onChange={setStroke} />
+            <div className="property-grid-two"><NumberInput label="Stroke width" value={lineWidth} min={0.01} max={100} step={0.1} onChange={setLineWidth} /><NumberInput label="Opacity" value={alpha} min={0} max={1} step={0.05} onChange={setAlpha} /></div>
+            <div className="property-grid-two"><label className="property-field"><span>Line cap</span><select aria-label="Vector line cap" value={lineCap} onChange={(event) => setLineCap(event.target.value as NativeVectorEdit["lineCap"])}><option value="Butt">Butt</option><option value="Round">Round</option><option value="Square">Square</option></select></label><label className="property-field"><span>Line join</span><select aria-label="Vector line join" value={lineJoin} onChange={(event) => setLineJoin(event.target.value as NativeVectorEdit["lineJoin"])}><option value="Miter">Miter</option><option value="Round">Round</option><option value="Bevel">Bevel</option></select></label></div>
+            <div className="property-grid-two"><NumberInput label="Miter limit" value={miterLimit} min={1} max={100} step={0.5} onChange={setMiterLimit} /><NumberInput label="Dash phase" value={dashPhase} step={0.5} onChange={setDashPhase} /></div>
+            <label className="property-field"><span>Dash pattern</span><input aria-label="Vector dash pattern" placeholder="6 3" value={dashText} onChange={(event) => setDashText(event.target.value)} /></label>
+          </> : <NumberInput label="Opacity" value={alpha} min={0} max={1} step={0.05} onChange={setAlpha} />}
+          {fillEnabled ? <label className="property-toggle"><input checked={evenOdd} type="checkbox" onChange={(event) => setEvenOdd(event.target.checked)} />Use even-odd fill rule</label> : null}
+          <p className="property-note">Appearance override is scoped to this path with its own graphics-state save/restore. Complex source color spaces are converted to DeviceRGB for the edited path only.</p>
+        </>}
+      </> : <div className="warning-banner"><strong>Permanent source-path deletion</strong><span>Only this exact path operator range is removed from its PDF content stream. Overlapping text, images and unrelated vector paths are not redacted.</span></div>}
+      <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "edit" && appearanceOverride && !fillEnabled && !strokeEnabled} onClick={queue} type="button">{queued ? "Update vector change" : action === "delete" ? "Delete existing vector" : "Apply source vector edit"}</button>
+    </>}
+  </section>;
 }
 
 function TableEditor({ object, queued, onQueue }: { object: NativeTableObject; queued: NativeTableCellEdit[]; onQueue: (edits: NativeEdit[]) => void }) {
@@ -225,7 +327,7 @@ function FormEditor({ object, queued, onQueue }: { object: NativeFormObject; que
   return <section className="property-section property-stack"><h3>{object.label || object.name || "Form field"}</h3><dl className="native-object-facts"><dt>Type</dt><dd>{object.fieldType}</dd><dt>Name</dt><dd>{object.name || "Unnamed"}</dd><dt>State</dt><dd>{object.readOnly ? "Read only" : object.signed ? "Signed" : "Editable"}</dd></dl>{object.options.length ? <label className="property-field"><span>Value</span><select disabled={disabled} value={value} onChange={(event) => setValue(event.target.value)}>{object.options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label> : checkbox ? <label className="property-toggle"><input checked={!["", "off", "false", "0", "no"].includes(value.toLowerCase())} disabled={disabled} type="checkbox" onChange={(event) => setValue(event.target.checked ? "Yes" : "Off")} />Checked</label> : <label className="property-field"><span>Value</span>{object.multiline ? <textarea disabled={disabled} rows={5} value={value} onChange={(event) => setValue(event.target.value)} /> : <input disabled={disabled} type={object.password ? "password" : "text"} value={value} onChange={(event) => setValue(event.target.value)} />}</label>}<button className="button" disabled={disabled || value === object.value} onClick={() => onQueue({ id: queued?.id ?? crypto.randomUUID(), kind: "form", objectId: object.id, pageNumber: object.pageNumber, widgetIndex: object.widgetIndex, name: object.name, fieldType: object.fieldType, originalValue: object.value, value })} type="button">{queued ? "Update field change" : "Apply field change"}</button></section>;
 }
 
-function GeometryEditor({ bounds, onChange }: { bounds: NativeImageEdit["bounds"]; onChange: (bounds: NativeImageEdit["bounds"]) => void }) {
+function GeometryEditor({ bounds, onChange }: { bounds: NativeRect; onChange: (bounds: NativeRect) => void }) {
   return <div className="property-grid-two"><NumberInput label="X" value={bounds.x} step={1} onChange={(x) => onChange({ ...bounds, x })} /><NumberInput label="Y" value={bounds.y} step={1} onChange={(y) => onChange({ ...bounds, y })} /><NumberInput label="Width" value={bounds.w} min={1} step={1} onChange={(w) => onChange({ ...bounds, w })} /><NumberInput label="Height" value={bounds.h} min={1} step={1} onChange={(h) => onChange({ ...bounds, h })} /></div>;
 }
 
