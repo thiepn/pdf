@@ -47,7 +47,7 @@ check("editor state migration", /migrateEditorState/.test(editor) && /EDITOR_SCH
 check("security state migration", /migrateSecurityState/.test(security) && /userPassword:\s*""/.test(security) && /ownerPassword:\s*""/.test(security), "security state migrates without persisting passwords");
 check(
   "native state normalization",
-  /NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*5/.test(nativeTypes)
+  /NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*6/.test(nativeTypes)
     && native.includes("const queuedEdits = Array.isArray")
     && native.includes("bytesFromStored")
     && native.includes('bytes?.byteLength ? "replace" : "transform"')
@@ -60,8 +60,14 @@ check(
     && native.includes("normalizeTableEdit")
     && native.includes('if (edit.kind === "table")')
     && native.includes("rowHeights")
-    && native.includes("columnWidths"),
-  "schema-2/3/4 native edits normalize into schema 5, preserving image/vector migrations and normalizing structured table geometry, cells and appearance"
+    && native.includes("columnWidths")
+    && native.includes("normalizeComplexEdit")
+    && native.includes('if (edit.kind === "complex")')
+    && native.includes('action: edit.action === "delete" ? "delete" : "transform"')
+    && native.includes('resourceName: typeof edit.resourceName === "string"')
+    && native.includes("sourceInvocationIndex")
+    && native.includes("sourceSignature"),
+  "legacy native edits normalize into schema 6, preserving image/vector/table migrations and normalizing P7 nested-content instance identity, geometry and action"
 );
 check("compliance state normalization", /(?:schemaVersion:\s*2|COMPLIANCE_SCHEMA_VERSION\s*=\s*2)/.test(compliance) && /migrateOptions/.test(compliance), "compliance state normalizes into schema 2");
 check("batch v1-v3 migration", /CURRENT_BATCH_SCHEMA_VERSION\s*=\s*3/.test(batch) && /(?:recipe\.schemaVersion|schemaVersion) === 2/.test(batch) && /recipe\.rotate/.test(batch), "Batch v1 and v2 recipes migrate to schema 3");
