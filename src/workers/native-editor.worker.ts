@@ -2,11 +2,11 @@ import * as mupdf from "mupdf";
 import {
   classifyTextEditability,
   detectTables,
+  estimatedTextWidth,
   formCapability,
   imageCapability,
   rectFromArray,
-  vectorCapability,
-  wrapTextToBox
+  vectorCapability
 } from "../native/nativeModel";
 import type {
   NativeEdit,
@@ -19,6 +19,7 @@ import type {
   NativePageTree,
   NativePathCommand,
   NativeRect,
+  NativeTextEditRun,
   NativeTextObject,
   NativeVectorObject
 } from "../types/nativeEditor";
@@ -109,6 +110,13 @@ function rgb(hex?: string): [number, number, number] {
   return [parseInt(value.slice(0, 2), 16) / 255, parseInt(value.slice(2, 4), 16) / 255, parseInt(value.slice(4, 6), 16) / 255];
 }
 
+function colorFromStructuredText(value: unknown): string | undefined {
+  if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  return `#${(numeric >>> 0 & 0xffffff).toString(16).padStart(6, "0")}`;
+}
+
 const winAnsiExtras = new Map<number, number>([
   [0x20ac, 0x80], [0x201a, 0x82], [0x0192, 0x83], [0x201e, 0x84], [0x2026, 0x85], [0x2020, 0x86], [0x2021, 0x87],
   [0x02c6, 0x88], [0x2030, 0x89], [0x0160, 0x8a], [0x2039, 0x8b], [0x0152, 0x8c], [0x017d, 0x8e], [0x2018, 0x91],
@@ -137,7 +145,7 @@ function append(pdf: PdfDocument, page: PdfPage, content: string): void {
   const object = page.getObject();
   const stream = pdf.addStream(content);
   const current = object.get("Contents");
-  if (!current) object.put("Contents", stream);
+  if (!current || current.isNull?.()) object.put("Contents", stream);
   else if (current.isArray?.()) current.push(stream);
   else {
     const array = pdf.newArray();
@@ -149,11 +157,18 @@ function append(pdf: PdfDocument, page: PdfPage, content: string): void {
 
 function resources(pdf: PdfDocument, page: PdfPage, category: string): any {
   const object = page.getObject();
-  let root = object.get("Resources") || object.getInheritable?.("Resources");
-  root = root ? pdf.graftObject(root) : pdf.newDictionary();
-  object.put("Resources", root);
+  // MuPDF's PDFObject.get() returns a PDF null object for missing keys rather
+  // than JavaScript null. Test the PDF object type before mutating it. Reuse
+  // page-local resources; clone inherited resources only when the page lacks a
+  // concrete dictionary so newly-created document-bound objects stay local.
+  let root = object.get("Resources");
+  if (!root?.isDictionary?.()) {
+    const inherited = object.getInheritable?.("Resources");
+    root = inherited?.isDictionary?.() ? pdf.graftObject(inherited) : pdf.newDictionary();
+    object.put("Resources", root);
+  }
   let dictionary = root.get(category);
-  if (!dictionary) {
+  if (!dictionary?.isDictionary?.()) {
     dictionary = pdf.newDictionary();
     root.put(category, dictionary);
   }
@@ -165,23 +180,176 @@ function fontVariant(edit: any): string {
   const bold = edit.fontWeight === "bold";
   const italic = edit.fontStyle === "italic";
   if (family === "Times") return bold && italic ? "Times-BoldItalic" : bold ? "Times-Bold" : italic ? "Times-Italic" : "Times-Roman";
-  if (family === "Courier") return bold && italic ? "Courier-BoldOblique" : bold ? "Courier-Bold" : italic ? "Courier-Oblique" : "Courier";
+  if (family === "Courier") return bold && italic ? "Courier-BoldOblique" : bold ? "Courier-Oblique" : "Courier";
   return bold && italic ? "Helvetica-BoldOblique" : bold ? "Helvetica-Bold" : italic ? "Helvetica-Oblique" : "Helvetica";
 }
 
-function addFontResource(pdf: PdfDocument, page: PdfPage, edit: any): { resource: string; encode: (text: string) => string } {
+interface AddedFont {
+  resource: string;
+  encode: (text: string) => string;
+  font: any;
+  wmode: 0 | 1;
+}
+
+function addFontResource(pdf: PdfDocument, page: PdfPage, edit: any): AddedFont {
   const fonts = resources(pdf, page, "Font");
   const resource = `LPSN${++sequence}`;
   const language = edit.fontLanguage ?? (["ko", "ja", "zh-Hans", "zh-Hant"].includes(edit.fontFamily) ? edit.fontFamily : undefined);
+  const wmode = Number(edit.writingMode ?? 0) === 1 ? 1 : 0;
   if (language) {
     const font = edit.fontBytes?.byteLength
       ? new (mupdf as any).Font(edit.fontName || language, new Uint8Array(edit.fontBytes))
       : new (mupdf as any).Font(language);
-    fonts.put(resource, pdf.addCJKFont(font, language, edit.writingMode ?? 0, "sans-serif"));
-    return { resource, encode: utf16Hex };
+    fonts.put(resource, pdf.addCJKFont(font, language, wmode, "sans-serif"));
+    return { resource, encode: utf16Hex, font, wmode };
   }
-  fonts.put(resource, pdf.addSimpleFont(new (mupdf as any).Font(fontVariant(edit)), "Latin"));
-  return { resource, encode: winAnsiHex };
+  if (edit.fontSource === "imported-latin" && edit.fontBytes?.byteLength) {
+    const font = new (mupdf as any).Font(edit.fontName || "Imported Latin", new Uint8Array(edit.fontBytes));
+    fonts.put(resource, pdf.addSimpleFont(font, "Latin"));
+    return { resource, encode: winAnsiHex, font, wmode: 0 };
+  }
+  const font = new (mupdf as any).Font(fontVariant(edit));
+  fonts.put(resource, pdf.addSimpleFont(font, "Latin"));
+  return { resource, encode: winAnsiHex, font, wmode };
+}
+
+function measuredTextWidth(font: AddedFont, text: string, size: number): number {
+  let width = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    const glyph = safe(() => Number(font.font.encodeCharacter(code)), 0);
+    const advance = glyph > 0 ? safe(() => Number(font.font.advanceGlyph(glyph, font.wmode)), Number.NaN) : Number.NaN;
+    width += Number.isFinite(advance) && advance >= 0 ? advance * size : estimatedTextWidth(char, size);
+  }
+  return width;
+}
+
+interface PreparedStyle {
+  font: AddedFont;
+  fontSize: number;
+  color: string;
+  source: NativeTextEditRun;
+}
+
+interface StyledChar {
+  char: string;
+  style: PreparedStyle;
+  width: number;
+}
+
+interface StyledLine {
+  chars: StyledChar[];
+  width: number;
+}
+
+function styleKey(run: NativeTextEditRun, edit: any): string {
+  return [run.fontFamily, run.fontSize, run.fontWeight ?? "normal", run.fontStyle ?? "normal", run.fontName ?? "", edit.fontSource, edit.fontLanguage ?? ""].join("|");
+}
+
+function prepareStyles(pdf: PdfDocument, page: PdfPage, edit: any): { chars: StyledChar[]; maxSize: number } {
+  const sourceRuns: NativeTextEditRun[] = Array.isArray(edit.styleRuns) && edit.styleRuns.length
+    ? edit.styleRuns
+    : [{ text: edit.text, fontFamily: edit.fontFamily, fontSize: edit.fontSize, color: edit.color, fontWeight: edit.fontWeight, fontStyle: edit.fontStyle, fontName: edit.fontName }];
+  const cache = new Map<string, PreparedStyle>();
+  const chars: StyledChar[] = [];
+  let maxSize = Math.max(1, Number(edit.fontSize) || 1);
+  for (const run of sourceRuns) {
+    if (!run.text) continue;
+    const fontSize = Math.max(1, Number(run.fontSize) || Number(edit.fontSize) || 1);
+    maxSize = Math.max(maxSize, fontSize);
+    const key = styleKey(run, edit);
+    let style = cache.get(key);
+    if (!style) {
+      const fontLike = {
+        ...edit,
+        fontFamily: run.fontFamily ?? edit.fontFamily,
+        fontSize,
+        fontWeight: run.fontWeight ?? edit.fontWeight,
+        fontStyle: run.fontStyle ?? edit.fontStyle,
+        fontName: edit.fontSource === "imported-latin" ? edit.fontName : run.fontName ?? edit.fontName
+      };
+      style = { font: addFontResource(pdf, page, fontLike), fontSize, color: run.color || edit.color || "#111111", source: run };
+      cache.set(key, style);
+    }
+    for (const char of [...run.text]) chars.push({ char, style, width: measuredTextWidth(style.font, char, style.fontSize) });
+  }
+  const combined = chars.map((item) => item.char).join("");
+  if (combined !== edit.text) {
+    const fallbackRun: NativeTextEditRun = { text: edit.text, fontFamily: edit.fontFamily, fontSize: edit.fontSize, color: edit.color, fontWeight: edit.fontWeight, fontStyle: edit.fontStyle, fontName: edit.fontName };
+    const style: PreparedStyle = { font: addFontResource(pdf, page, edit), fontSize: Math.max(1, edit.fontSize), color: edit.color || "#111111", source: fallbackRun };
+    return { chars: [...edit.text].map((char) => ({ char, style, width: measuredTextWidth(style.font, char, style.fontSize) })), maxSize: style.fontSize };
+  }
+  return { chars, maxSize };
+}
+
+function trimLeadingWhitespace(chars: StyledChar[]): StyledChar[] {
+  let index = 0;
+  while (index < chars.length && chars[index].char !== "\n" && /\s/u.test(chars[index].char)) index += 1;
+  return chars.slice(index);
+}
+
+function trimTrailingWhitespace(chars: StyledChar[]): StyledChar[] {
+  let end = chars.length;
+  while (end > 0 && chars[end - 1].char !== "\n" && /\s/u.test(chars[end - 1].char)) end -= 1;
+  return chars.slice(0, end);
+}
+
+function lineOf(chars: StyledChar[]): StyledLine {
+  const clean = trimTrailingWhitespace(chars);
+  return { chars: clean, width: clean.reduce((sum, item) => sum + item.width, 0) };
+}
+
+function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLine[] {
+  const safeWidth = Math.max(1, width - 3);
+  const lines: StyledLine[] = [];
+  let current: StyledChar[] = [];
+  let currentWidth = 0;
+
+  const flush = () => {
+    lines.push(lineOf(current));
+    current = [];
+    currentWidth = 0;
+  };
+
+  for (const item of chars) {
+    if (item.char === "\n") { flush(); continue; }
+    if (!wrap) {
+      current.push(item);
+      currentWidth += item.width;
+      continue;
+    }
+    if (current.length && currentWidth + item.width > safeWidth) {
+      let breakIndex = -1;
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        if (/\s/u.test(current[index].char)) { breakIndex = index; break; }
+      }
+      if (breakIndex >= 0) {
+        const before = current.slice(0, breakIndex);
+        const remainder = trimLeadingWhitespace(current.slice(breakIndex + 1));
+        lines.push(lineOf(before));
+        current = remainder;
+        currentWidth = current.reduce((sum, value) => sum + value.width, 0);
+      } else flush();
+    }
+    if (!current.length && /\s/u.test(item.char)) continue;
+    current.push(item);
+    currentWidth += item.width;
+    if (wrap && currentWidth > safeWidth && current.length === 1) flush();
+  }
+  if (current.length || !lines.length) lines.push(lineOf(current));
+  return lines;
+}
+
+function chunks(line: StyledLine): Array<{ style: PreparedStyle; text: string; width: number }> {
+  const output: Array<{ style: PreparedStyle; text: string; width: number }> = [];
+  for (const item of line.chars) {
+    const previous = output.at(-1);
+    if (previous?.style === item.style) {
+      previous.text += item.char;
+      previous.width += item.width;
+    } else output.push({ style: item.style, text: item.char, width: item.width });
+  }
+  return output;
 }
 
 function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
@@ -194,24 +362,30 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
     annotation.update?.();
     return;
   }
-  const font = addFontResource(pdf, page, edit);
   const [x0, y0, x1, y1] = pdfRect(page, edit.bounds);
   const width = x1 - x0;
   const height = y1 - y0;
-  const [r, g, b] = rgb(edit.color);
-  const lines = edit.wrap ? wrapTextToBox(edit.text, width, edit.fontSize) : edit.text.split(/\r?\n/);
-  const lineHeight = edit.fontSize * 1.2;
+  const prepared = prepareStyles(pdf, page, edit);
+  const lines = wrapStyled(prepared.chars, width, Boolean(edit.wrap));
+  const lineHeight = Math.max(prepared.maxSize, Number(edit.lineHeight) || prepared.maxSize * 1.2);
+  const requiredHeight = lines.length * lineHeight;
+  if (requiredHeight > height + 0.01) throw new Error(`Replacement text does not fit the destination at the retained line spacing (${lines.length} lines require ${Number(requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Expand the text flow, lower the font size, or shorten the text.`);
+  if (!edit.wrap && lines.some((line) => line.width > Math.max(1, width - 3))) throw new Error(`Replacement text is wider than the destination at the selected font metrics. Enable paragraph reflow, lower the font size, or shorten the text.`);
   let content = "";
   if (edit.backgroundColor && edit.backgroundColor !== "transparent") {
     const [br, bg, bb] = rgb(edit.backgroundColor);
     content += `q ${br} ${bg} ${bb} rg ${x0} ${y0} ${width} ${height} re f Q\n`;
   }
-  lines.slice(0, Math.max(1, Math.floor(height / lineHeight))).forEach((line: string, index: number) => {
-    const glyphCount = [...line].length;
-    const estimated = glyphCount * edit.fontSize * (edit.fontLanguage ? 1 : 0.52);
-    const x = edit.align === "center" ? x0 + Math.max(0, (width - estimated) / 2) : edit.align === "right" ? Math.max(x0, x1 - estimated) : x0 + 1.5;
-    const y = y1 - edit.fontSize - index * lineHeight;
-    content += `BT /${font.resource} ${edit.fontSize} Tf ${r} ${g} ${b} rg 1 0 0 1 ${x} ${y} Tm ${font.encode(line)} Tj ET\n`;
+  lines.forEach((line, index) => {
+    const startX = edit.align === "center" ? x0 + Math.max(0, (width - line.width) / 2) : edit.align === "right" ? Math.max(x0, x1 - line.width) : x0 + 1.5;
+    const baselineSize = Math.max(prepared.maxSize, ...line.chars.map((item) => item.style.fontSize));
+    const y = y1 - baselineSize - index * lineHeight;
+    let cursor = startX;
+    for (const chunk of chunks(line)) {
+      const [r, g, b] = rgb(chunk.style.color);
+      content += `BT /${chunk.style.font.resource} ${chunk.style.fontSize} Tf ${r} ${g} ${b} rg 1 0 0 1 ${cursor} ${y} Tm ${chunk.style.font.encode(chunk.text)} Tj ET\n`;
+      cursor += chunk.width;
+    }
   });
   append(pdf, page, content);
 }
@@ -353,6 +527,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
               size: Number(line.font?.size ?? Math.max(8, box.h * 0.75)),
               weight: line.font?.weight === "bold" ? "bold" : "normal",
               style: line.font?.style === "italic" ? "italic" : "normal",
+              color: colorFromStructuredText(line.argb ?? line.color),
               writingMode: Number(line.wmode ?? 0) === 1 ? 1 : 0,
               ...classification
             };
@@ -379,7 +554,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
         const h = Number(match[4]);
         const pdfCommands: NativePathCommand[] = [{ op: "M", x, y }, { op: "L", x: x + w, y }, { op: "L", x: x + w, y: y + h }, { op: "L", x, y: y + h }, { op: "Z" }];
         const commands = pdfCommands.map((command) => fitzCommandFromPdf(page, command));
-        const item: NativeVectorObject = { id: `p${index + 1}:vector:${vectorIndex}`, type: "vector", pageNumber: index + 1, bounds: fitzRectFromPdf(page, { x: Math.min(x, x + w), y: Math.min(y, y + h), w: Math.abs(w), h: Math.abs(h) }), commands, paint: "stroke", strokeColor: "#333333", lineWidth: 1, alpha: 1, evenOdd: false, editability: "region-rebuild", capability: vectorCapability(commands.length) };
+        const item: NativeVectorObject = { id: `p${index + 1}:vector:${vectorIndex}`, type: "vector", pageNumber: index + 1, bounds: fitzRectFromPdf(page, { x: Math.min(x, x + w), y: Math.min(y, y + h), w: Math.abs(w), h: Math.abs(h) }), commands, paint: "stroke", strokeColor: "#333333", strokeColorSpace: "RGB", strokeComponents: [0.2, 0.2, 0.2], lineWidth: 1, lineCap: "Butt", lineJoin: "Miter", miterLimit: 10, dashPattern: [], dashPhase: 0, fillAlpha: 1, strokeAlpha: 1, evenOdd: false, blendMode: "Normal", clipped: false, definesClip: false, sourceStreamIndex: 0, sourcePathIndex: vectorIndex, sourceSignature: `legacy-rectangle-${index + 1}-${vectorIndex}`, editability: "source-path", capability: vectorCapability(commands.length) };
         objects.push(item);
         vectors += 1;
       });
@@ -399,7 +574,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
 }
 
 function redactRegion(page: PdfPage, bounds: NativeRect): void {
-  const redaction = page.createAnnotation("Redaction");
+  const redaction = page.createAnnotation("Redact");
   redaction.setRect(pageRect(bounds));
   redaction.update?.();
   page.applyRedactions(false, (mupdf as any).PDFPage.REDACT_IMAGE_PIXELS, (mupdf as any).PDFPage.REDACT_LINE_ART_REMOVE_IF_TOUCHED, (mupdf as any).PDFPage.REDACT_TEXT_REMOVE);
@@ -430,6 +605,18 @@ function save(pdf: PdfDocument): Uint8Array {
   try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
 }
 
+function comparableText(value: string): { spaced: string; compact: string } {
+  const normalized = value.normalize("NFC");
+  return { spaced: normalized.replace(/\s+/gu, " ").trim(), compact: normalized.replace(/\s+/gu, "") };
+}
+
+function containsReplacement(extracted: string, replacement: string): boolean {
+  const source = comparableText(extracted);
+  const target = comparableText(replacement);
+  if (!target.spaced) return true;
+  return source.spaced.includes(target.spaced) || source.compact.includes(target.compact);
+}
+
 self.onmessage = (event: MessageEvent<Request>) => {
   const request = event.data;
   if (request.type === "CANCEL") { cancelled.add(request.requestId); return; }
@@ -448,13 +635,27 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const edits = request.edits ?? [];
       const changed = new Set<number>();
       let appliedForms = 0;
+
+      // P2 redacts every original text source before writing any expanded or moved
+      // replacement. This prevents a follower's old redaction rectangle from
+      // deleting newly reflowed text that has already grown into that area.
+      for (const edit of edits) {
+        if (edit.kind !== "text" && edit.kind !== "table-cell") continue;
+        if ((edit as any).mode === "overlay" || edit.originalText === undefined) continue;
+        active(request.requestId);
+        const page = pdf.loadPage(edit.pageNumber - 1);
+        try {
+          changed.add(edit.pageNumber);
+          redactRegion(page, (edit as any).sourceBounds ?? edit.bounds);
+        } finally { page.destroy(); }
+      }
+
       for (const edit of edits) {
         active(request.requestId);
         const page = pdf.loadPage(edit.pageNumber - 1);
         try {
           changed.add(edit.pageNumber);
           if (edit.kind === "text" || edit.kind === "table-cell") {
-            if ((edit as any).mode !== "overlay" && edit.originalText !== undefined) redactRegion(page, edit.bounds);
             addText(pdf, page, {
               ...edit,
               fontFamily: (edit as any).fontFamily ?? "Helvetica",
@@ -487,7 +688,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           try {
             const extracted = page.toStructuredText().asText();
             const annotationFallback = edit.kind === "text" && edit.fontSource === "annotation-fallback";
-            if (edit.text && !annotationFallback && !extracted.includes(edit.text)) throw new Error(`Replacement text was not found on page ${edit.pageNumber}.`);
+            if (edit.text && !annotationFallback && !containsReplacement(extracted, edit.text)) throw new Error(`Replacement text was not found on page ${edit.pageNumber}.`);
           } finally { page.destroy(); }
         }
         const requestedForms = edits.filter((item) => item.kind === "form");
@@ -506,6 +707,9 @@ self.onmessage = (event: MessageEvent<Request>) => {
         }
         const warnings: string[] = [];
         if (edits.some((item) => item.kind === "text" && item.fontSource === "annotation-fallback")) warnings.push("Some complex-script replacements were exported as editable visual text layers because safe static shaping is not available.");
+        if (edits.some((item) => item.kind === "text" && item.layoutMode === "expand-flow")) warnings.push("Layout-aware text reflow was applied only to explicitly queued same-column text blocks; unrelated page graphics were not moved.");
+        const followerCount = edits.filter((item) => item.kind === "text" && item.reflowFollower).length;
+        if (followerCount) warnings.push(`${followerCount} following text block${followerCount === 1 ? " was" : "s were"} repositioned to preserve the detected column flow.`);
         if (edits.some((item) => item.kind === "vector")) warnings.push("Vector edits reconstruct detected path regions; clipping and inherited graphics state may differ from the source object.");
         const report: NativeExportReport = {
           operation: "native-content-edit",

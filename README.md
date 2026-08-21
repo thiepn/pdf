@@ -5,19 +5,19 @@ PDF Studio is a private, installable PDF workspace that processes documents insi
 **Site:** https://thiepn.github.io/pdf/  
 **Repository:** https://github.com/thiepn/pdf
 
-**v6.1.0 is the Intuitiveness & Discoverability release candidate**: it keeps the mature v6 PDF engine and reliability work while simplifying how users find, understand, and move between tools.
+**v7.0.0 is the Universal Editing release candidate**: it promotes the P1–P8 existing-content engine, unified object manipulation, nested-content support, and fidelity certification into one feature-frozen release candidate.
 
 ## Release status
 
-- **Version:** `6.1.0`
+- **Version:** `7.0.0`
 - **Default source channel:** Release candidate
-- **Stable promotion:** Qualified `v6.1.0` tag only
+- **Stable promotion:** Qualified `v7.0.0` tag only
 - **Hosting:** Static GitHub Pages deployment
 - **Processing:** Browser-local
 - **Licence:** GNU AGPL-3.0-or-later
 - **Qualified CI toolchain:** Node 22.16.0 / npm 10.9.2
 
-Phase 30 established the stable-release qualification model. v6.0.1–v6.0.6 then hardened PWA updates, package validation, schema protection, browser storage, ingress durability, deletion safety, and release provenance. **v6.1.0 does not add PDF capabilities or change persistent formats.** It standardizes product vocabulary, removes duplicate navigation, makes Simple mode genuinely simple, groups editor tools, clarifies staged redaction, replaces technical OCR defaults with understandable quality presets, adds guided page-range examples, hides implementation terminology behind technical details, and expands the bundled offline Help system. Source builds still default to `release-candidate`; only the exact `v6.1.0` GitHub tag workflow builds with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
+Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.0.0 is the first release candidate built around direct editing of existing PDF content.** P1–P8 add exact text editing with layout-aware reflow, source image manipulation, vector and table reconstruction, unified mixed-object layout, reusable nested Form XObject editing, and source-vs-output fidelity certification. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.0.0` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
 ### v6.1.0 interface principles
 
@@ -87,6 +87,13 @@ Phase 30 established the stable-release qualification model. v6.0.1–v6.0.6 the
 - One canvas for detected existing PDF content and newly added editor objects
 - Direct selection of existing text, images, simple vectors, detected tables, and supported AcroForm fields
 - Capability labels distinguish native-safe, safe reconstruction, appearance-only, and unsupported edits
+- Layout-aware paragraph editing can expand or contract supported text while moving deterministic downstream followers instead of forcing every edit into its original box
+- Existing source images support direct move, resize, crop/fit, opacity, rotation, replacement, and deletion through the qualified image writer
+- Supported source vectors preserve path identity while exposing geometry, paint, stroke, dash, alpha, transform, and deletion controls
+- Detected structured tables support multi-cell editing, merge/rebuild, row/column geometry, and safe whole-table transforms
+- Mixed added/native selections share alignment, distribution, sizing, nudging, and page-relative layout operations without collapsing the underlying PDF object model
+- Reusable nested Form XObject instances can be transformed or removed independently without flattening their shared source content
+- P8 source/output fidelity certification fails closed on collateral page-geometry, untouched-content, form, attachment, outline, encryption, and metadata regressions
 - Latin fixed-box reconstruction plus static Korean, Japanese, Simplified Chinese, and Traditional Chinese CID-font reconstruction
 - Optional imported CJK TrueType/OpenType fonts
 - Image contain/cover/stretch replacement with editable geometry and optional permanent underlying-content removal

@@ -25,6 +25,11 @@ interface LockManagerLike {
 const LEASE_MS = 12_000;
 const HEARTBEAT_MS = 4_000;
 const tabId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const ownedProjectIds = new Set<string>();
+
+export function ownsProjectLease(projectId: string): boolean {
+  return ownedProjectIds.has(projectId);
+}
 
 function randomId(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -49,6 +54,11 @@ export function createProjectLease(projectId: string): ProjectLease {
   let webLockOwned = false;
   let releaseWebLock: (() => void) | null = null;
   let acquiring: Promise<boolean> | null = null;
+
+  function markOwned(value: boolean): void {
+    if (value) ownedProjectIds.add(projectId);
+    else ownedProjectIds.delete(projectId);
+  }
 
   function notify(next: ProjectLeaseMode): void {
     if (mode === next) return;
@@ -81,6 +91,7 @@ export function createProjectLease(projectId: string): ProjectLease {
       const verified = readFallback();
       if (!verified || verified.ownerId !== tabId || verified.nonce !== nonce) return false;
       fallbackOwned = true;
+      markOwned(true);
       channel?.postMessage({ type: "LEASE", projectId, ownerId: tabId });
       return true;
     } catch {
@@ -95,12 +106,14 @@ export function createProjectLease(projectId: string): ProjectLease {
       const current = readFallback();
       if (current && current.ownerId !== tabId) {
         fallbackOwned = false;
+        markOwned(false);
         clearHeartbeat();
         notify("read-only");
         return;
       }
       if (!writeFallbackLease()) {
         fallbackOwned = false;
+        markOwned(false);
         clearHeartbeat();
         notify("read-only");
       }
@@ -123,6 +136,7 @@ export function createProjectLease(projectId: string): ProjectLease {
         }
         webLockOwned = true;
         fallbackOwned = false;
+        markOwned(true);
         clearHeartbeat();
         notify("owner");
         channel?.postMessage({ type: "LEASE", projectId, ownerId: tabId });
@@ -130,6 +144,7 @@ export function createProjectLease(projectId: string): ProjectLease {
         await new Promise<void>((release) => { releaseWebLock = release; });
         releaseWebLock = null;
         webLockOwned = false;
+        markOwned(false);
       }).catch(() => settle(false));
     });
   }
@@ -138,11 +153,13 @@ export function createProjectLease(projectId: string): ProjectLease {
     const current = readFallback();
     if (current && current.ownerId !== tabId) {
       fallbackOwned = false;
+      markOwned(false);
       notify("read-only");
       return false;
     }
     if (!writeFallbackLease()) {
       fallbackOwned = false;
+      markOwned(false);
       notify("read-only");
       return false;
     }
@@ -158,7 +175,10 @@ export function createProjectLease(projectId: string): ProjectLease {
     acquiring = (async () => {
       if (lockManager) {
         const acquired = await acquireWebLock();
-        if (!acquired) notify("read-only");
+        if (!acquired) {
+          markOwned(false);
+          notify("read-only");
+        }
         return acquired;
       }
       return acquireFallback();
@@ -181,6 +201,7 @@ export function createProjectLease(projectId: string): ProjectLease {
       }
     }
     fallbackOwned = false;
+    markOwned(false);
     releaseWebLock?.();
     channel?.postMessage({ type: "RELEASE", projectId, ownerId: tabId });
     channel?.close();
@@ -192,6 +213,7 @@ export function createProjectLease(projectId: string): ProjectLease {
     const current = readFallback();
     if (current && current.ownerId !== tabId) {
       fallbackOwned = false;
+      markOwned(false);
       clearHeartbeat();
       notify("read-only");
     }
@@ -201,7 +223,11 @@ export function createProjectLease(projectId: string): ProjectLease {
     if (event.data.projectId !== projectId || event.data.ownerId === tabId || webLockOwned) return;
     if (!lockManager) {
       const current = readFallback();
-      if (current?.ownerId !== tabId) notify("read-only");
+      if (current?.ownerId !== tabId) {
+        fallbackOwned = false;
+        markOwned(false);
+        notify("read-only");
+      }
     }
   });
 

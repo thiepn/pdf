@@ -60,7 +60,11 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate dependency tree and source
         run: npm run audit:tree && npm run audit:dependencies && npm run audit:source && npm run audit:pages
-      - name: Dependency-independent stability and Phase 16-30 regressions
+      - name: Generate and validate P8 compatibility corpus
+        run: |
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
+      - name: Dependency-independent stability and release regressions
         run: |
           npm run gate:phase11
           npm run test:runtime:phase16
@@ -85,6 +89,8 @@ jobs:
           npm run test:runtime:v6.0.5
           npm run test:runtime:v6.0.6
           npm run test:runtime:v6.1.0
+          npm run audit:p9:release-candidate
+          npm run test:runtime:v7.0.0
           npm run audit:phase30:migrations
           npm run audit:phase30:security
           npm run test:corpus:phase28
@@ -152,8 +158,9 @@ jobs:
           base="${PAGE_URL%/}/"
           curl --fail --location --retry 8 --retry-delay 5 "${base}"
           curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '6.1.0' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '7.0.0' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "7.0.0"' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "release-candidate"' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'assets' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}icons/icon-192.png" --output /dev/null

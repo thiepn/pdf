@@ -11,7 +11,7 @@ const distAudit = await readFile("scripts/check-dist.mjs", "utf8");
 let passed = 0;
 const check = (condition, message) => { if (!condition) throw new Error(message); passed += 1; };
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) || Number(packageJson.version.match(/phase(\d+)$/)?.[1] ?? 0) >= 27, "Phase 27 qualification remains enabled in later release phases.");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) || Number(packageJson.version.match(/phase(\d+)$/)?.[1] ?? 0) >= 27, "Phase 27 qualification remains enabled in later release phases.");
 check(packageJson.packageManager === "npm@10.9.2", "npm toolchain must remain pinned.");
 check(packageJson.scripts?.["audit:lockfile"]?.includes("phase27/lockfile-audit.mjs"), "Lockfile audit script must be wired.");
 check(packageJson.scripts?.["audit:toolchain"]?.includes("phase27/toolchain-audit.mjs"), "Toolchain audit script must be wired.");

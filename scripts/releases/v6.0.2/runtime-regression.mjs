@@ -22,7 +22,7 @@ const releasePage = await readFile(new URL("../../../src/views/ReleasePage.tsx",
 const phase30Unit = await readFile(new URL("../../../tests/unit/phase30ReleaseFreeze.test.ts", import.meta.url), "utf8");
 const packageValidation = await readFile(new URL("../../../src/projects/packageValidation.ts", import.meta.url), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.x compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/assertNoSameVersionStableDowngrade/.test(rawSw) && /channelRank\(candidate\.channel\)/.test(rawSw), "service worker prevents same-version Stable downgrade");
 check(/Production offline asset manifest is unavailable/.test(rawSw) && /caches\.delete\(CACHE_VERSION\)/.test(rawSw), "production precache fails closed and removes partial cache");
 check(/GET_OFFLINE_STATUS/.test(manager) && /if \(!status\?\.ready\) return false/.test(manager) && /CLIENT_HEALTHY/.test(manager), "healthy handshake requires complete offline release");
@@ -30,7 +30,7 @@ check(/ReleaseHealthReporter/.test(main) && /!safeMode \? <ReleaseHealthReporter
 check(/Refuse same-version candidate overwrite of Stable Pages/.test(deploy) && /refs\/tags\/v\$\{version\}/.test(deploy), "main Pages deployment refuses same-version Stable overwrite");
 check((/Verify stable tag points at current main/.test(tagged) && /refs\/heads\/main/.test(tagged)) || (/Verify stable tag commit belongs to main history/.test(tagged) && /merge-base --is-ancestor/.test(tagged)), "Stable tag must originate from main history");
 check(/PDF Studio \{release\.version\}/.test(releasePage) && !/v6\.0\.1/.test(releasePage), "release UI derives current version dynamically");
-check(/toMatch\(\/\^6\\\./.test(phase30Unit) && !/toBe\("6\.0\.1"\)/.test(phase30Unit), "Phase 30 unit assertion accepts later qualified v6 releases");
+check(/toMatch\(\/\^\[67\]\\\.\\d\+\\\.\\d\+\$\//.test(phase30Unit) && !/toBe\("6\.0\.1"\)/.test(phase30Unit), "Phase 30 unit assertion accepts qualified v6/v7 releases");
 
 function loadWorker({ channel, epoch, keys = [], manifestOk = true }) {
   const deleted = [];

@@ -31,8 +31,8 @@ const manifest: ProjectManifest = {
 };
 
 describe("Phase 30 release freeze", () => {
-  it("keeps the qualified v6 release line and project package v9", () => {
-    expect(APP_VERSION).toMatch(/^6\.\d+\.\d+$/);
+  it("keeps the qualified release line and project package v9", () => {
+    expect(APP_VERSION).toMatch(/^[67]\.\d+\.\d+$/);
     expect(PROJECT_PACKAGE_VERSION).toBe(9);
     expect([...SUPPORTED_PROJECT_PACKAGE_VERSIONS]).toEqual([1,2,3,4,5,6,7,8,9]);
   });

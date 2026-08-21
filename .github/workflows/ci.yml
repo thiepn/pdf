@@ -28,9 +28,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install Unicode corpus font
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends fonts-noto-core
+        run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install --yes --no-install-recommends fonts-noto-core
       - name: Install external-reader validation tools
         run: python -m pip install --requirement requirements-phase11.txt
       - name: Run dependency-independent stability gate
@@ -41,7 +39,7 @@ jobs:
           name: phase11-corpus-evidence
           path: |
             docs/phase-11/corpus-validation-report.json
-            tests/corpus/generated/manifest.json
+            tests/corpus/generated
 
   validate:
     runs-on: ubuntu-latest
@@ -60,25 +58,33 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: Install Unicode corpus font
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends fonts-noto-core
       - name: Pin npm toolchain
         run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
       - name: Resolve deterministic build metadata
         run: echo "BUILD_TIMESTAMP=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
       - name: Install external-reader validation tools
         run: python -m pip install --requirement requirements-phase11.txt
+      - name: Generate and validate P8 compatibility corpus
+        run: |
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
+      - name: Download qualified Phase 11 corpus
+        uses: actions/download-artifact@v8
+        with:
+          name: phase11-corpus-evidence
+          path: .
       - name: Audit lockfile and toolchain
         run: npm run audit:lockfile && npm run audit:toolchain
       - name: Install exact dependencies
         run: npm ci --no-audit --no-fund
       - name: Validate installed dependency tree
         run: npm run audit:tree
-      - name: v6.1.0 non-browser release qualification
+      - name: P9 release-candidate freeze audit
+        run: npm run audit:p9:release-candidate
+      - name: v7.0.0 non-browser release qualification
         run: npm run release:web
         env:
+          PHASE11_CORPUS_REUSE: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
           VITE_SOURCE_URL: https://github.com/${{ github.repository }}
           VITE_BUILD_TIMESTAMP: ${{ env.BUILD_TIMESTAMP }}
@@ -105,10 +111,19 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: phase30-source-audit
-          path: source-audit-report.json
+          path: |
+            source-audit-report.json
+            docs/p8/compatibility-corpus-report.json
+            tests/corpus/p8/manifest.json
+            docs/P9_RELEASE_CANDIDATE.md
+            docs/p9/release-freeze.json
 
   browser-regression:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-noble
+    env:
+      HOME: /root
     timeout-minutes: 60
     needs: [phase11-stability-gate, validate]
     steps:
@@ -122,27 +137,29 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - name: Install Unicode corpus font
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends fonts-noto-core
       - name: Pin npm toolchain
         run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
       - name: Install exact dependencies
         run: npm ci --no-audit --no-fund
+      - name: Download qualified Phase 11 corpus
+        uses: actions/download-artifact@v8
+        with:
+          name: phase11-corpus-evidence
+          path: .
       - name: Generate browser corpora
         run: |
           python -m pip install --requirement requirements-phase11.txt
-          python scripts/phase11/generate_corpus.py
+          test -f tests/corpus/generated/manifest.json
+          python scripts/phase11/validate_corpus.py
           python scripts/phase28/generate_adversarial_corpus.py
           python scripts/phase28/validate_adversarial_corpus.py
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
       - name: Download exact verified distribution
         uses: actions/download-artifact@v8
         with:
           name: phase30-verified-dist
           path: dist
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser regression and privacy checks against verified dist
         run: npm run test:e2e
         env:

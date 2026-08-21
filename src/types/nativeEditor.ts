@@ -1,4 +1,4 @@
-export const NATIVE_EDITOR_SCHEMA_VERSION = 2;
+export const NATIVE_EDITOR_SCHEMA_VERSION = 6;
 
 export interface NativeRect {
   x: number;
@@ -10,6 +10,26 @@ export interface NativeRect {
 export type NativeScript = "latin" | "cjk-ko" | "cjk-ja" | "cjk-zh-hans" | "cjk-zh-hant" | "complex" | "unknown";
 export type NativeEditability = "fixed-box" | "cjk-fixed-box" | "overlay-only" | "unsupported";
 export type NativeCapabilityLevel = "native-safe" | "safe-reconstruction" | "appearance-only" | "unsupported";
+export type NativeTextDirection = "ltr" | "rtl" | "ttb" | "unknown";
+export type NativeTextAlign = "left" | "center" | "right";
+export type NativeFontFamily = "serif" | "sans-serif" | "monospace";
+export type NativeFontWeight = "normal" | "bold";
+export type NativeFontStyle = "normal" | "italic";
+export type NativeEditableFontFamily = "Helvetica" | "Times-Roman" | "Courier" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
+export type NativeFontSource = "built-in" | "built-in-cjk" | "imported-cjk" | "imported-latin" | "annotation-fallback";
+export type NativeTextLayoutMode = "fixed-box" | "expand-flow";
+export type NativeImageAction = "transform" | "replace" | "delete";
+export type NativeImageRotation = 0 | 90 | 180 | 270;
+export type NativeVectorAction = "edit" | "delete";
+export type NativeVectorPaint = "fill" | "stroke" | "fill-stroke";
+export type NativeVectorLineCap = "Butt" | "Round" | "Square";
+export type NativeVectorLineJoin = "Miter" | "Round" | "Bevel";
+export type NativeVectorColorSpace = "Gray" | "RGB" | "BGR" | "CMYK" | "Lab" | "Indexed" | "Separation" | "Unknown";
+export type NativeTableHorizontalAlign = "left" | "center" | "right";
+export type NativeTableVerticalAlign = "top" | "middle" | "bottom";
+export type NativeTableDetectionSource = "mupdf-table-hunt" | "vector-grid" | "aligned-text";
+export type NativeComplexAction = "transform" | "delete";
+export type NativeComplexContentKind = "text" | "image" | "vector" | "form" | "unknown";
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -20,6 +40,41 @@ export interface NativeCapability {
   risks: string[];
 }
 
+export interface NativeTextRun {
+  text: string;
+  start: number;
+  end: number;
+  bounds: NativeRect;
+  fontName: string;
+  family: NativeFontFamily;
+  size: number;
+  weight: NativeFontWeight;
+  style: NativeFontStyle;
+  color?: string;
+  writingMode: 0 | 1;
+}
+
+export interface NativeTextLine {
+  objectId: string;
+  text: string;
+  bounds: NativeRect;
+  fontName: string;
+  family: NativeFontFamily;
+  size: number;
+  weight: NativeFontWeight;
+  style: NativeFontStyle;
+  color?: string;
+  writingMode: 0 | 1;
+}
+
+export interface NativeTextFlowInfo {
+  id: string;
+  index: number;
+  bounds: NativeRect;
+  gapBefore?: number;
+  gapAfter?: number;
+}
+
 export interface NativeTextObject {
   id: string;
   type: "text";
@@ -27,15 +82,26 @@ export interface NativeTextObject {
   bounds: NativeRect;
   text: string;
   fontName: string;
-  family: "serif" | "sans-serif" | "monospace";
+  family: NativeFontFamily;
   size: number;
-  weight: "normal" | "bold";
-  style: "normal" | "italic";
+  weight: NativeFontWeight;
+  style: NativeFontStyle;
+  color?: string;
   writingMode: 0 | 1;
   script: NativeScript;
   editability: NativeEditability;
   reason: string;
   capability: NativeCapability;
+  paragraph?: boolean;
+  sourceObjectIds?: string[];
+  lines?: NativeTextLine[];
+  runs?: NativeTextRun[];
+  sourceSpanCount?: number;
+  lineCount?: number;
+  lineHeight?: number;
+  align?: NativeTextAlign;
+  direction?: NativeTextDirection;
+  flow?: NativeTextFlowInfo;
 }
 
 export interface NativeImageObject {
@@ -60,13 +126,29 @@ export interface NativeVectorObject {
   pageNumber: number;
   bounds: NativeRect;
   commands: NativePathCommand[];
-  paint: "fill" | "stroke" | "fill-stroke";
+  paint: NativeVectorPaint;
   fillColor?: string;
   strokeColor?: string;
+  fillColorSpace?: NativeVectorColorSpace;
+  strokeColorSpace?: NativeVectorColorSpace;
+  fillComponents?: number[];
+  strokeComponents?: number[];
   lineWidth: number;
-  alpha: number;
+  lineCap: NativeVectorLineCap;
+  lineJoin: NativeVectorLineJoin;
+  miterLimit: number;
+  dashPattern: number[];
+  dashPhase: number;
+  fillAlpha: number;
+  strokeAlpha: number;
   evenOdd: boolean;
-  editability: "region-rebuild";
+  blendMode: string;
+  clipped: boolean;
+  definesClip: boolean;
+  sourceStreamIndex: number;
+  sourcePathIndex: number;
+  sourceSignature: string;
+  editability: "source-path" | "clip-protected";
   capability: NativeCapability;
 }
 
@@ -74,9 +156,17 @@ export interface NativeTableCell {
   id: string;
   row: number;
   column: number;
+  rowSpan?: number;
+  columnSpan?: number;
   text: string;
   bounds: NativeRect;
   fontSize?: number;
+  fontFamily?: NativeEditableFontFamily;
+  fontName?: string;
+  align?: NativeTableHorizontalAlign;
+  verticalAlign?: NativeTableVerticalAlign;
+  fillColor?: string;
+  textColor?: string;
 }
 
 export interface NativeTableObject {
@@ -87,8 +177,17 @@ export interface NativeTableObject {
   rows: number;
   columns: number;
   cells: NativeTableCell[];
+  rowHeights?: number[];
+  columnWidths?: number[];
+  headerRows?: number;
+  mergedCells?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  cellPadding?: number;
+  detectionSource?: NativeTableDetectionSource;
+  complexContent?: boolean;
   confidence: number;
-  editability: "cell-replace";
+  editability: "structured-table" | "cell-replace" | "unsupported";
   capability: NativeCapability;
 }
 
@@ -113,7 +212,28 @@ export interface NativeFormObject {
   capability: NativeCapability;
 }
 
-export type NativePageObject = NativeTextObject | NativeImageObject | NativeVectorObject | NativeTableObject | NativeFormObject;
+/**
+ * P7 models a top-level invocation of a PDF Form XObject as one nested group.
+ * The shared Form object itself is intentionally immutable; edits target only
+ * the page-level `Do` invocation so other instances remain unchanged.
+ */
+export interface NativeComplexObject {
+  id: string;
+  type: "complex";
+  pageNumber: number;
+  bounds: NativeRect;
+  resourceName: string;
+  sourceStreamIndex: number;
+  sourceInvocationIndex: number;
+  sourceSignature: string;
+  instanceCount: number;
+  contentKinds: NativeComplexContentKind[];
+  clipped: boolean;
+  editability: "instance-transform" | "clip-protected" | "unsupported";
+  capability: NativeCapability;
+}
+
+export type NativePageObject = NativeTextObject | NativeImageObject | NativeVectorObject | NativeTableObject | NativeFormObject | NativeComplexObject;
 
 export interface NativePageTree {
   pageNumber: number;
@@ -137,8 +257,18 @@ export interface NativeInspection {
   canEdit: boolean;
   pages: NativePageTree[];
   fonts: NativeFontSummary[];
-  totals: { text: number; images: number; vectors: number; tables: number; forms: number };
+  totals: { text: number; images: number; vectors: number; tables: number; forms: number; complex?: number };
   warnings: string[];
+}
+
+export interface NativeTextEditRun {
+  text: string;
+  fontFamily: NativeEditableFontFamily;
+  fontSize: number;
+  color: string;
+  fontWeight?: NativeFontWeight;
+  fontStyle?: NativeFontStyle;
+  fontName?: string;
 }
 
 export interface NativeTextEdit {
@@ -149,20 +279,26 @@ export interface NativeTextEdit {
   originalText: string;
   text: string;
   bounds: NativeRect;
-  fontFamily: "Helvetica" | "Times-Roman" | "Courier" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
+  sourceBounds?: NativeRect;
+  fontFamily: NativeEditableFontFamily;
   fontSize: number;
   color: string;
   backgroundColor: string;
-  align: "left" | "center" | "right";
+  align: NativeTextAlign;
   mode: "replace" | "overlay";
   wrap: boolean;
-  fontSource: "built-in" | "built-in-cjk" | "imported-cjk" | "annotation-fallback";
+  fontSource: NativeFontSource;
   fontName?: string;
   fontBytes?: Uint8Array;
   fontLanguage?: "ko" | "ja" | "zh-Hans" | "zh-Hant";
   writingMode?: 0 | 1;
-  fontWeight?: "normal" | "bold";
-  fontStyle?: "normal" | "italic";
+  fontWeight?: NativeFontWeight;
+  fontStyle?: NativeFontStyle;
+  lineHeight?: number;
+  layoutMode?: NativeTextLayoutMode;
+  styleRuns?: NativeTextEditRun[];
+  preserveSourceStyle?: boolean;
+  reflowFollower?: boolean;
 }
 
 export interface NativeImageEdit {
@@ -170,13 +306,14 @@ export interface NativeImageEdit {
   kind: "image";
   objectId: string;
   pageNumber: number;
+  action?: NativeImageAction;
   bounds: NativeRect;
-  /** Original detected image bounds. Kept separate so moving/resizing a replacement still removes the original source region. */
   sourceBounds?: NativeRect;
-  bytes: Uint8Array;
-  mimeType: string;
+  bytes?: Uint8Array;
+  mimeType?: string;
   removeUnderlying: boolean;
   fit: "contain" | "cover" | "stretch";
+  rotation?: NativeImageRotation;
   opacity?: number;
 }
 
@@ -185,19 +322,31 @@ export interface NativeVectorEdit {
   kind: "vector";
   objectId: string;
   pageNumber: number;
+  action: NativeVectorAction;
   bounds: NativeRect;
+  sourceBounds: NativeRect;
+  sourceStreamIndex?: number;
+  sourcePathIndex?: number;
+  sourceSignature?: string;
   commands: NativePathCommand[];
-  action: "delete" | "restyle" | "transform";
+  paint: NativeVectorPaint;
+  rotation: number;
+  appearanceOverride: boolean;
+  fillEnabled: boolean;
+  strokeEnabled: boolean;
   fillColor?: string;
   strokeColor?: string;
   lineWidth: number;
+  lineCap: NativeVectorLineCap;
+  lineJoin: NativeVectorLineJoin;
+  miterLimit: number;
+  dashPattern: number[];
+  dashPhase: number;
   alpha: number;
-  dx: number;
-  dy: number;
-  scaleX: number;
-  scaleY: number;
+  evenOdd: boolean;
 }
 
+/** Legacy P1-P4 cell-only edit. Schema 5 keeps it readable and migratable. */
 export interface NativeTableCellEdit {
   id: string;
   kind: "table-cell";
@@ -208,9 +357,44 @@ export interface NativeTableCellEdit {
   originalText: string;
   text: string;
   fontSize: number;
-  fontFamily?: NativeTextEdit["fontFamily"];
-  fontSource?: NativeTextEdit["fontSource"];
+  fontFamily?: NativeEditableFontFamily;
+  fontSource?: NativeFontSource;
   fontLanguage?: NativeTextEdit["fontLanguage"];
+}
+
+export interface NativeTableEditCell {
+  id: string;
+  row: number;
+  column: number;
+  rowSpan: number;
+  columnSpan: number;
+  text: string;
+  fontSize: number;
+  fontFamily: NativeEditableFontFamily;
+  align: NativeTableHorizontalAlign;
+  verticalAlign: NativeTableVerticalAlign;
+  fillColor?: string;
+  textColor: string;
+}
+
+export interface NativeTableEdit {
+  id: string;
+  kind: "table";
+  objectId: string;
+  pageNumber: number;
+  action: "rebuild" | "delete";
+  sourceBounds: NativeRect;
+  bounds: NativeRect;
+  rows: number;
+  columns: number;
+  rowHeights: number[];
+  columnWidths: number[];
+  headerRows: number;
+  borderColor: string;
+  borderWidth: number;
+  borderStyle: "solid" | "dashed" | "none";
+  cellPadding: number;
+  cells: NativeTableEditCell[];
 }
 
 export interface NativeFormEdit {
@@ -225,7 +409,22 @@ export interface NativeFormEdit {
   value: string;
 }
 
-export type NativeEdit = NativeTextEdit | NativeImageEdit | NativeVectorEdit | NativeTableCellEdit | NativeFormEdit;
+export interface NativeComplexEdit {
+  id: string;
+  kind: "complex";
+  objectId: string;
+  pageNumber: number;
+  action: NativeComplexAction;
+  sourceBounds: NativeRect;
+  bounds: NativeRect;
+  resourceName: string;
+  sourceStreamIndex: number;
+  sourceInvocationIndex: number;
+  sourceSignature: string;
+  rotation: number;
+}
+
+export type NativeEdit = NativeTextEdit | NativeImageEdit | NativeVectorEdit | NativeTableCellEdit | NativeTableEdit | NativeFormEdit | NativeComplexEdit;
 
 export interface NativeEditorState {
   projectId: string;
@@ -245,6 +444,7 @@ export interface NativeExportReport {
   vectorEdits: number;
   tableCellEdits: number;
   formEdits: number;
+  complexEdits?: number;
   warnings: string[];
   durationMs: number;
 }

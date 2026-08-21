@@ -11,12 +11,13 @@ test("advanced workspace exposes one unified editor and source content is direct
   await expect(page.getByRole("tab", { name: /pdf-studio-welcome Edit/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("checkbox", { name: "PDF content", exact: true })).toBeChecked();
 
-  const sourceText = page.getByRole("button", { name: /Select existing text:/ }).first();
+  const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
   await expect(sourceText).toBeVisible({ timeout: 20_000 });
   await sourceText.click();
-  await expect(page.getByText("Existing PDF content", { exact: true })).toBeVisible();
+  await expect(page.getByText("Existing PDF content · P2", { exact: true })).toBeVisible();
   await expect(page.getByText(/Directly editable|Editable with reconstruction|Limited editing/).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /Apply text change|Update text change/ })).toBeVisible();
+  await expect(page.locator(".native-unified-properties").locator("textarea").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change|Update (?:text|paragraph|layout-aware text) change/ })).toBeVisible();
 });
 
 test("legacy native workspace route redirects to the unified editor", async ({ page }) => {

@@ -61,7 +61,7 @@ function opacity(hex: string, fallback: number): number {
 
 function setCommon(annotation: any, object: EditorObject, author = "PDF Studio"): void {
   annotation.setName(object.id);
-  annotation.setFlags?.(4); // Printable and visible in ordinary viewers.
+  annotation.setFlags?.(4);
   if (annotation.hasAuthor?.()) annotation.setAuthor(author);
   annotation.setCreationDate?.(new Date(object.createdAt));
   annotation.setModificationDate?.(new Date(object.modifiedAt));
@@ -235,74 +235,78 @@ self.onmessage = (event: MessageEvent<Request>) => {
   if (request.type === "CANCEL") { cancelled.add(request.requestId); return; }
   const startedAt = performance.now();
   const warnings: string[] = [];
+  let pdf: any;
   try {
     assertActive(request.requestId);
-    const source = (mupdf as any).Document.openDocument(request.bytes, "application/pdf");
-    try {
-      if (source.needsPassword() && (!request.password || source.authenticatePassword(request.password) === 0)) throw new Error("The PDF password is required or incorrect.");
-      const pdf = source.asPDF();
-      if (!pdf) throw new Error("The source document does not expose a mutable PDF representation.");
-      pdf.disableJS?.();
-      pdf.check();
-      const assets = new Map(request.assets.map((asset) => [asset.id, asset]));
-      let annotationCount = 0;
-      let linkCount = 0;
-      let imageCount = 0;
-      const byPage = new Map<number, EditorObject[]>();
-      for (const object of request.objects.filter((item) => !item.hidden)) {
-        const pageObjects = byPage.get(object.pageNumber) ?? [];
-        pageObjects.push(object);
-        byPage.set(object.pageNumber, pageObjects);
-      }
-      for (const [pageNumber, objects] of byPage) {
-        assertActive(request.requestId);
-        if (pageNumber < 1 || pageNumber > pdf.countPages()) { warnings.push(`Objects assigned to missing page ${pageNumber} were skipped.`); continue; }
-        const page = pdf.loadPage(pageNumber - 1);
-        try {
-          const pdfToFitz = invert(page.getTransform() as AffineMatrix);
-          for (const object of objects.sort((left, right) => left.zIndex - right.zIndex)) {
-            assertActive(request.requestId);
-            if (object.rotation !== 0) warnings.push(`Rotation for ${object.type} object ${object.id.slice(0, 8)} is preview-only in this export and was normalized.`);
-            switch (object.type) {
-              case "text": addText(page, object, pdfToFitz, warnings); annotationCount += 1; break;
-              case "image": if (addImage(pdf, page, object, pdfToFitz, assets.get(object.assetId), warnings)) { annotationCount += 1; imageCount += 1; } break;
-              case "shape": addShape(page, object, pdfToFitz); annotationCount += 1; break;
-              case "ink": addInk(page, object, pdfToFitz); annotationCount += 1; break;
-              case "highlight": addHighlight(page, object, pdfToFitz); annotationCount += 1; break;
-              case "note": addNote(page, object, pdfToFitz); annotationCount += 1; break;
-              case "link": addLink(pdf, page, object, pdfToFitz); linkCount += 1; break;
-              case "stamp": addStamp(page, object, pdfToFitz); annotationCount += 1; break;
-              case "signature": addSignature(page, object, pdfToFitz, warnings); annotationCount += 1; break;
-              case "redaction": addRedactionMark(page, object, pdfToFitz, warnings); annotationCount += 1; break;
-            }
-          }
-          page.update?.();
-        } finally { page.destroy(); }
-      }
-      const saved = pdf.saveToBuffer("garbage=2,compress=yes,appearance=all,encrypt=keep");
+    pdf = new (mupdf as any).PDFDocument(new Uint8Array(request.bytes));
+    if (pdf.needsPassword?.() && (!request.password || pdf.authenticatePassword(request.password) === 0)) throw new Error("The PDF password is required or incorrect.");
+    pdf.disableJS?.();
+    const assets = new Map(request.assets.map((asset) => [asset.id, asset]));
+    let annotationCount = 0;
+    let linkCount = 0;
+    let imageCount = 0;
+    const byPage = new Map<number, EditorObject[]>();
+    for (const object of request.objects.filter((item) => !item.hidden)) {
+      const pageObjects = byPage.get(object.pageNumber) ?? [];
+      pageObjects.push(object);
+      byPage.set(object.pageNumber, pageObjects);
+    }
+    for (const [pageNumber, objects] of byPage) {
+      assertActive(request.requestId);
+      if (pageNumber < 1 || pageNumber > pdf.countPages()) { warnings.push(`Objects assigned to missing page ${pageNumber} were skipped.`); continue; }
+      const page = pdf.loadPage(pageNumber - 1);
       try {
-        const bytes = new Uint8Array(saved.asUint8Array());
-        const output = Uint8Array.from(bytes).buffer;
-        self.postMessage({
-          type: "EDITOR_EXPORT_RESULT",
-          requestId: request.requestId,
-          output,
-          report: {
-            objectCount: annotationCount + linkCount,
-            annotationCount,
-            linkCount,
-            imageCount,
-            pageCount: pdf.countPages(),
-            outputBytes: bytes.byteLength,
-            durationMs: performance.now() - startedAt,
-            warnings: [...new Set(warnings)]
+        const pdfToFitz = invert(page.getTransform() as AffineMatrix);
+        for (const object of objects.sort((left, right) => left.zIndex - right.zIndex)) {
+          assertActive(request.requestId);
+          if (object.rotation !== 0) warnings.push(`Rotation for ${object.type} object ${object.id.slice(0, 8)} is preview-only in this export and was normalized.`);
+          switch (object.type) {
+            case "text": addText(page, object, pdfToFitz, warnings); annotationCount += 1; break;
+            case "image": if (addImage(pdf, page, object, pdfToFitz, assets.get(object.assetId), warnings)) { annotationCount += 1; imageCount += 1; } break;
+            case "shape": addShape(page, object, pdfToFitz); annotationCount += 1; break;
+            case "ink": addInk(page, object, pdfToFitz); annotationCount += 1; break;
+            case "highlight": addHighlight(page, object, pdfToFitz); annotationCount += 1; break;
+            case "note": addNote(page, object, pdfToFitz); annotationCount += 1; break;
+            case "link": addLink(pdf, page, object, pdfToFitz); linkCount += 1; break;
+            case "stamp": addStamp(page, object, pdfToFitz); annotationCount += 1; break;
+            case "signature": addSignature(page, object, pdfToFitz, warnings); annotationCount += 1; break;
+            case "redaction": addRedactionMark(page, object, pdfToFitz, warnings); annotationCount += 1; break;
           }
-        }, [output]);
-      } finally { saved.destroy(); }
-    } finally { source.destroy(); }
+        }
+      } finally { page.destroy(); }
+    }
+    // Overlay compilation must produce a complete in-memory PDF. Incremental
+    // saves on a buffer-backed MuPDF document can stall in browser workers,
+    // and P6 mixed exports no longer need them because native edits are replayed
+    // after this overlay stage against the complete saved document.
+    const saved = pdf.saveToBuffer("compress=yes,encrypt=keep");
+    try {
+      const bytes = new Uint8Array(saved.asUint8Array());
+      const output = Uint8Array.from(bytes).buffer;
+      self.postMessage({
+        type: "EDITOR_EXPORT_RESULT",
+        requestId: request.requestId,
+        output,
+        report: {
+          objectCount: annotationCount + linkCount,
+          annotationCount,
+          linkCount,
+          imageCount,
+          pageCount: pdf.countPages(),
+          outputBytes: bytes.byteLength,
+          durationMs: performance.now() - startedAt,
+          warnings: [...new Set(warnings)]
+        }
+      }, [output]);
+    } finally { saved.destroy(); }
   } catch (error) {
     self.postMessage({ type: "EDITOR_EXPORT_ERROR", requestId: request.requestId, error: error instanceof Error ? { name: error.name, message: error.message } : { name: "UnknownError", message: String(error) } });
-  } finally { cancelled.delete(request.requestId); }
+  } finally {
+    pdf?.destroy?.();
+    cancelled.delete(request.requestId);
+  }
 };
+
+self.postMessage({ type: "EDITOR_EXPORT_READY" });
 
 export {};

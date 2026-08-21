@@ -12,7 +12,7 @@ const projectRepo = await readFile(new URL("../../src/projects/projectRepository
 const heartbeat = await readFile(new URL("../../src/recovery/sessionHeartbeat.ts", import.meta.url), "utf8");
 const database = await readFile(new URL("../../src/storage/database.ts", import.meta.url), "utf8");
 const projectFiles = await readFile(new URL("../../src/storage/projectFiles.ts", import.meta.url), "utf8");
-check(/^6\.\d+\.\d+$/.test(packageJson.version) || Number(packageJson.version.match(/phase(\d+)$/)?.[1] ?? 0) >= 28, "Phase 28 package/recovery guarantees remain enabled in later phases");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) || Number(packageJson.version.match(/phase(\d+)$/)?.[1] ?? 0) >= 28, "Phase 28 package/recovery guarantees remain enabled in later phases");
 check(/existingChecksum === (?:existing|compatibleExisting)\.checksum/.test(projectRepo), "Duplicate reuse verifies stored source checksum");
 check(!/catch\s*\{\s*await deleteProject\(existing\.id\)/s.test(projectRepo), "Transient duplicate-read failure never auto-deletes an existing project");
 check(/actualChecksum !== project\.checksum/.test(projectRepo), "Project backups verify source integrity before encoding");

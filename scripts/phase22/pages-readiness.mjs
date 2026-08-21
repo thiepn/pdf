@@ -36,7 +36,7 @@ check(/PLAYWRIGHT_SKIP_BUILD:\s*["']?1/.test(deploy) && /Install Playwright brow
 check(/actions\/download-artifact@v/.test(ci) && /phase30-verified-dist/.test(ci) && /PLAYWRIGHT_SKIP_BUILD:\s*["']?1/.test(ci), "Verified artifact browser matrix", "CI browser regression downloads and tests the verified distribution artifact instead of rebuilding.");
 check(/dist-fingerprint\.mjs/.test(ci) && /Reproducible production build/.test(ci) && /Reproducible deployment build/.test(deploy), "Reproducible build gate", "CI and Pages deployment compare same-commit production distribution fingerprints.");
 const currentVersion = JSON.parse(packageJson).version;
-check(/^6\.\d+\.\d+$/.test(currentVersion), "Current web release version", `Package version ${currentVersion} remains on the qualified v6 release line.`);
+check(/^[67]\.\d+\.\d+$/.test(currentVersion), "Current web release version", `Package version ${currentVersion} remains on the qualified v6/v7 release line.`);
 check(/release-metadata\.json/.test(offlineGenerator) && /VITE_RELEASE_CHANNEL/.test(offlineGenerator), "Release channel metadata", "Production bundles expose offline-cached machine-readable version/channel evidence.");
 check(/__LPS_RELEASE_BUILD_EPOCH__/.test(sw) && /replaceAll\("__LPS_RELEASE_BUILD_EPOCH__"/.test(offlineGenerator) && /RELEASE_BUILD_EPOCH/.test(sw), "Maintenance service-worker build identity", "Same-version release-channel promotions force a distinct worker/cache identity.");
 check(release.includes(`tags: ["v${currentVersion}"]`) && /VITE_RELEASE_CHANNEL:\s*stable/.test(release) && /smoke-stable/.test(release), "Stable promotion workflow", `Only the exact v${currentVersion} tag builds the stable channel and smoke-tests it after Pages deployment.`);

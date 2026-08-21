@@ -16,7 +16,7 @@ const ci = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.
 const readme = await readFile(new URL("../../README.md", import.meta.url), "utf8");
 const security = await readFile(new URL("../../SECURITY.md", import.meta.url), "utf8");
 
-check("qualified 6.x release line", /^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), `package and runtime remain synchronized on ${packageJson.version}`);
+check("qualified release line", /^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), `package and runtime remain synchronized on ${packageJson.version}`);
 check("candidate by default", /VITE_RELEASE_CHANNEL === "stable" \? "stable" : "release-candidate"/.test(release), "source defaults to release-candidate unless the qualified stable build explicitly opts in");
 check("package compatibility contract", /SUPPORTED_PROJECT_PACKAGE_VERSIONS\s*=\s*\[1, 2, 3, 4, 5, 6, 7, 8, 9\]/.test(release) && /isSupportedProjectPackageVersion/.test(projectPackage), "project backup compatibility is centralized at v1-v9");
 check("phase30 runtime in release gate", packageJson.scripts["release:web"]?.includes("test:runtime:phase30"), "the final web release gate includes Phase 30");

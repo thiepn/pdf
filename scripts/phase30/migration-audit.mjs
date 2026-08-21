@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 const files = Object.fromEntries(await Promise.all([
   "src/core/release.ts",
   "src/types/project.ts",
+  "src/types/nativeEditor.ts",
   "src/projects/projectPackage.ts",
   "src/projects/projectRepository.ts",
   "src/projects/projectManifestMigration.ts",
@@ -25,6 +26,7 @@ function check(name, condition, detail) {
 }
 const release = files["src/core/release.ts"];
 const projectTypes = files["src/types/project.ts"];
+const nativeTypes = files["src/types/nativeEditor.ts"];
 const packageSource = files["src/projects/projectPackage.ts"];
 const projectRepo = files["src/projects/projectRepository.ts"];
 const projectManifestMigration = files["src/projects/projectManifestMigration.ts"];
@@ -43,7 +45,30 @@ check("project manifest migration", /migrateProjectManifestForSchema/.test(proje
 check("settings v1-v5 migration", /settings-v4/.test(settings) && /settings-v3/.test(settings) && /settings-v2/.test(settings) && /settings-v1/.test(settings) && /settings-v5/.test(settings), "legacy settings keys v1-v4 migrate into v5");
 check("editor state migration", /migrateEditorState/.test(editor) && /EDITOR_SCHEMA_VERSION/.test(editor), "editor state migrates to the current editor schema");
 check("security state migration", /migrateSecurityState/.test(security) && /userPassword:\s*""/.test(security) && /ownerPassword:\s*""/.test(security), "security state migrates without persisting passwords");
-check("native state normalization", /NATIVE_EDITOR_SCHEMA_VERSION/.test(native) && /queuedEdits:\s*Array\.isArray/.test(native), "legacy native-edit state is normalized");
+check(
+  "native state normalization",
+  /NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*6/.test(nativeTypes)
+    && native.includes("const queuedEdits = Array.isArray")
+    && native.includes("bytesFromStored")
+    && native.includes('bytes?.byteLength ? "replace" : "transform"')
+    && native.includes("sourceBounds: stored.sourceBounds ?? stored.bounds")
+    && native.includes("normalizeVectorEdit")
+    && native.includes('legacyAction === "delete" ? "delete" : "edit"')
+    && native.includes('appearanceOverride = typeof edit.appearanceOverride === "boolean" ? edit.appearanceOverride : legacyAction === "restyle"')
+    && native.includes("legacyDx")
+    && native.includes("legacyScaleX")
+    && native.includes("normalizeTableEdit")
+    && native.includes('if (edit.kind === "table")')
+    && native.includes("rowHeights")
+    && native.includes("columnWidths")
+    && native.includes("normalizeComplexEdit")
+    && native.includes('if (edit.kind === "complex")')
+    && native.includes('action: edit.action === "delete" ? "delete" : "transform"')
+    && native.includes('resourceName: typeof edit.resourceName === "string"')
+    && native.includes("sourceInvocationIndex")
+    && native.includes("sourceSignature"),
+  "legacy native edits normalize into schema 6, preserving image/vector/table migrations and normalizing P7 nested-content instance identity, geometry and action"
+);
 check("compliance state normalization", /(?:schemaVersion:\s*2|COMPLIANCE_SCHEMA_VERSION\s*=\s*2)/.test(compliance) && /migrateOptions/.test(compliance), "compliance state normalizes into schema 2");
 check("batch v1-v3 migration", /CURRENT_BATCH_SCHEMA_VERSION\s*=\s*3/.test(batch) && /(?:recipe\.schemaVersion|schemaVersion) === 2/.test(batch) && /recipe\.rotate/.test(batch), "Batch v1 and v2 recipes migrate to schema 3");
 
