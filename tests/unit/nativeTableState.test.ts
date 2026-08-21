@@ -27,7 +27,7 @@ describe("P5 structured table edit schema", () => {
       ]
     };
 
-    expect(NATIVE_EDITOR_SCHEMA_VERSION).toBe(5);
+    expect(NATIVE_EDITOR_SCHEMA_VERSION).toBe(6);
     expect(edit.kind).toBe("table");
     expect(edit.cells[0].columnSpan).toBe(2);
     expect(edit.borderStyle).toBe("dashed");
