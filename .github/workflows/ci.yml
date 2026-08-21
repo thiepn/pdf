@@ -79,7 +79,9 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate installed dependency tree
         run: npm run audit:tree
-      - name: v6.1.0 non-browser release qualification
+      - name: P9 release-candidate freeze audit
+        run: npm run audit:p9:release-candidate
+      - name: v7.0.0 non-browser release qualification
         run: npm run release:web
         env:
           PHASE11_CORPUS_REUSE: "1"
@@ -113,6 +115,8 @@ jobs:
             source-audit-report.json
             docs/p8/compatibility-corpus-report.json
             tests/corpus/p8/manifest.json
+            docs/P9_RELEASE_CANDIDATE.md
+            docs/p9/release-freeze.json
 
   browser-regression:
     runs-on: ubuntu-latest
