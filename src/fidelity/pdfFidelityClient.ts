@@ -40,7 +40,36 @@ function operatorSet(...names: string[]): Set<number> {
 const IMAGE_OPERATORS = operatorSet("paintImageXObject", "paintInlineImageXObject", "paintImageMaskXObject", "paintSolidColorImageMask");
 const VECTOR_OPERATORS = operatorSet("constructPath", "stroke", "closeStroke", "fill", "eoFill", "fillStroke", "eoFillStroke", "closeFillStroke", "closeEOFillStroke");
 
-async function semanticFingerprint(page: any, pageNumber: number): Promise<PdfPageSemanticFingerprint> {
+function annotationCounts(annotations: any[]): Pick<PdfPageSemanticFingerprint, "annotationCount" | "linkCount" | "widgetCount"> {
+  let annotationCount = 0;
+  let linkCount = 0;
+  let widgetCount = 0;
+  for (const annotation of annotations ?? []) {
+    if (annotation?.subtype === "Link") linkCount += 1;
+    else if (annotation?.subtype === "Widget") widgetCount += 1;
+    else annotationCount += 1;
+  }
+  return { annotationCount, linkCount, widgetCount };
+}
+
+async function semanticFingerprint(page: any, pageNumber: number, deep: boolean): Promise<PdfPageSemanticFingerprint> {
+  // Edited pages are intentionally allowed to change text, images and vectors.
+  // Running PDF.js text/operator extraction there adds cost and can exercise
+  // transient writer-specific content we never compare. For affected pages P8
+  // therefore validates only annotations/widgets plus page geometry. Untouched
+  // sampled pages still receive the full semantic fingerprint.
+  if (!deep) {
+    const annotations = await page.getAnnotations({ intent: "display" });
+    return {
+      pageNumber,
+      textCharacters: 0,
+      textDigest: stableTextDigest(""),
+      imageOperations: 0,
+      vectorOperations: 0,
+      ...annotationCounts(annotations)
+    };
+  }
+
   const [text, operatorList, annotations] = await Promise.all([
     page.getTextContent({ includeMarkedContent: false }),
     page.getOperatorList(),
@@ -62,24 +91,13 @@ async function semanticFingerprint(page: any, pageNumber: number): Promise<PdfPa
     if (VECTOR_OPERATORS.has(operation)) vectorOperations += 1;
   }
 
-  let annotationCount = 0;
-  let linkCount = 0;
-  let widgetCount = 0;
-  for (const annotation of annotations ?? []) {
-    if (annotation?.subtype === "Link") linkCount += 1;
-    else if (annotation?.subtype === "Widget") widgetCount += 1;
-    else annotationCount += 1;
-  }
-
   return {
     pageNumber,
     textCharacters,
     textDigest: stableTextDigest(pieces.join("\u241f")),
     imageOperations,
     vectorOperations,
-    annotationCount,
-    linkCount,
-    widgetCount
+    ...annotationCounts(annotations)
   };
 }
 
@@ -94,10 +112,10 @@ export async function inspectPdfFidelityProfile(
   try {
     if (signal?.aborted) throw new DOMException("Fidelity inspection cancelled.", "AbortError");
     const affected = normalizedPages(document.numPages, affectedPages);
+    const affectedSet = new Set(affected);
     const sampledPages = forcedSamplePages
       ? normalizedPages(document.numPages, forcedSamplePages)
       : chooseFidelitySamplePages(document.numPages, affected);
-    const sampleSet = new Set(sampledPages);
 
     const [metadataResult, outlineResult, attachmentsResult, fieldsResult, actionsResult, labelsResult] = await Promise.allSettled([
       document.getMetadata(),
@@ -132,7 +150,7 @@ export async function inspectPdfFidelityProfile(
           rotation: Number(pageAny.rotate ?? 0),
           userUnit: Number(pageAny.userUnit ?? 1)
         });
-        if (sampleSet.has(pageNumber)) semantics.push(await semanticFingerprint(page, pageNumber));
+        semantics.push(await semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber)));
       } finally {
         page.cleanup();
       }
