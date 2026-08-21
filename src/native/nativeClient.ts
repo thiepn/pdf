@@ -42,6 +42,22 @@ type Response =
   | { type: "NATIVE_RESULT"; requestId: string; output: ArrayBuffer; report: NativeExportReport }
   | { type: "NATIVE_ERROR"; requestId: string; error: { message: string } };
 
+interface NativeExportReplay {
+  sourceBytes: Uint8Array;
+  outputBytes: Uint8Array;
+  edits: NativeEdit[];
+  password?: string;
+}
+
+let pendingExportReplay: NativeExportReplay | undefined;
+
+export function takeNativeExportReplay(bytes: Uint8Array): Omit<NativeExportReplay, "outputBytes"> | undefined {
+  const replay = pendingExportReplay;
+  if (!replay || replay.outputBytes !== bytes) return undefined;
+  pendingExportReplay = undefined;
+  return { sourceBytes: replay.sourceBytes, edits: replay.edits, password: replay.password };
+}
+
 function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint8Array, password?: string, signal?: AbortSignal, extra: Transferable[] = []): Promise<T> {
   const requestId = crypto.randomUUID();
   const source = Uint8Array.from(bytes).buffer;
@@ -132,10 +148,6 @@ function mergeComplexInspection(base: NativeInspection, complex: ComplexInspecti
   const pages = base.pages.map((page) => {
     const replacement = complex.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.complex ?? [];
     const withoutLegacy = page.objects.filter((object) => object.type !== "complex");
-    // Nested groups intentionally precede child objects. The canvas uses source
-    // ordering for hit-test z-index, so a click selects the Form instance as one
-    // P7 group while its already-inspected child text/images remain available in
-    // the layers list when the group is not the intended target.
     return { ...page, objects: [...replacement, ...withoutLegacy] };
   });
   return registerNativeInspectionPages({
@@ -147,10 +159,6 @@ function mergeComplexInspection(base: NativeInspection, complex: ComplexInspecti
 }
 
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
-  // Keep P1/P2 first so large documents do not hold all specialist MuPDF
-  // documents simultaneously. P4/P5 can run together; P7 then runs after they
-  // release their workers because nested Form inspection is another full PDF
-  // traversal and is intentionally lazy/on-demand with the editor route.
   const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, signal);
   const [vector, table] = await Promise.all([
     invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, signal),
@@ -214,6 +222,7 @@ function prepareImageEdits(edits: NativeImageEdit[]): { payload: NativeImageEdit
 }
 
 export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
+  const replaySource = Uint8Array.from(bytes);
   const imageEdits = edits.filter((edit): edit is NativeImageEdit => edit.kind === "image");
   const vectorEdits = edits.filter((edit): edit is NativeVectorEdit => edit.kind === "vector");
   const tableEdits = edits.filter((edit): edit is NativeTableEdit => edit.kind === "table");
@@ -249,13 +258,12 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
     imageReport = result.report;
   }
   if (complexEdits.length) {
-    // P7 is last: the qualified P1-P5 writers may normalize page streams, while
-    // the nested worker rematches the final page-level Form invocation and then
-    // validates that only the requested instance placement/count changed.
     const result = await invoke<{ bytes: Uint8Array; report: NativeExportReport }>(complexWorker(), { type: "APPLY_COMPLEX", edits: complexEdits }, working, password, signal);
     working = result.bytes;
     complexReport = result.report;
   }
 
-  return { bytes: working, report: mergeReports([nativeReport, vectorReport, tableReport, imageReport, complexReport], working.byteLength) };
+  const report = mergeReports([nativeReport, vectorReport, tableReport, imageReport, complexReport], working.byteLength);
+  pendingExportReplay = { sourceBytes: replaySource, outputBytes: working, edits, password };
+  return { bytes: working, report };
 }
