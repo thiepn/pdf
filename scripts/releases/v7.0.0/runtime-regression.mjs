@@ -29,7 +29,7 @@ check(/APPLY_VECTORS/.test(vector) && /sourceSignature/.test(vector), "P4 exact 
 check(/APPLY_TABLES/.test(table) && /table/i.test(table), "P5 structured table writer remains qualified");
 check(/UnifiedLayoutItem/.test(layout) && /alignBounds/.test(layout) && /distributeBounds/.test(layout), "P6 unified mixed-object layout remains present");
 check(/APPLY_COMPLEX/.test(complex) && /resourceName/.test(complex), "P7 nested Form XObject editing remains qualified");
-check(/validatePdfFidelity/.test(fidelity) && /unaffectedSampleSet/.test(fidelity), "P8 fidelity certification remains bounded and active");
+check(/validatePdfFidelity/.test(fidelity) && fidelity.includes("const affectedSet = new Set(affected)") && fidelity.includes("semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber))"), "P8 fidelity certification remains bounded and active");
 check(/applyNativeEdits/.test(nativeClient) && /takeNativeExportReplay/.test(nativeClient), "mixed overlay/native export replay architecture remains present");
 check(/validatePdfFidelity/.test(editor) || /exportEditorPdf/.test(editor), "unified editor exports through qualified validation path");
 check(packageJson.scripts?.["release:web"]?.includes("audit:p9:release-candidate"), "P9 freeze audit is part of the full release gate");
