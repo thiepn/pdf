@@ -149,6 +149,8 @@ jobs:
           python scripts/phase11/validate_corpus.py
           python scripts/phase28/generate_adversarial_corpus.py
           python scripts/phase28/validate_adversarial_corpus.py
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
       - name: Download exact verified distribution
         uses: actions/download-artifact@v8
         with:
