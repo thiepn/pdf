@@ -69,7 +69,7 @@ for (const path of [
   "tests/e2e/p8-fidelity-compatibility.spec.ts"
 ]) check(await exists(path), `release-critical P1–P8 artifact exists: ${path}`);
 
-check(/schemaVersion:\s*6/.test(nativeTypes), "native editor schema remains the P7/P8-qualified schema v6");
+check(/NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*6/.test(nativeTypes), "native editor schema remains the P7/P8-qualified schema v6");
 check(editor.includes("validatePdfFidelity") || fidelity.includes("validatePdfFidelity"), "unified export remains fidelity-certified");
 check(fidelity.includes("unaffectedSampleSet") && fidelity.includes("semanticFingerprint"), "P8 semantic deep-scan remains bounded to untouched sampled pages");
 check(/rotated and cropped/i.test(p8Test) && /incremental revision/i.test(p8Test), "P8 compatibility editor/export cases remain browser-gated");
