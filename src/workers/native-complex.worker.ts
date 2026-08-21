@@ -225,31 +225,46 @@ function contentStreams(page: PdfPage): PdfObject[] {
   return contents.isStream?.() ? [contents] : [];
 }
 
+function dictionaryObject(value: PdfObject | undefined): PdfObject | undefined {
+  if (!value) return undefined;
+  if (value.isDictionary?.()) return value;
+  const resolved = safe(() => value.resolve?.(), undefined as PdfObject | undefined);
+  return resolved?.isDictionary?.() ? resolved : undefined;
+}
+
 function pageResources(page: PdfPage): PdfObject | undefined {
   const object = page.getObject();
-  const own = object.get("Resources");
-  if (own?.isDictionary?.()) return own;
-  const inherited = object.getInheritable?.("Resources");
-  return inherited?.isDictionary?.() ? inherited : undefined;
+  const own = dictionaryObject(object.get("Resources"));
+  if (own) return own;
+  return dictionaryObject(object.getInheritable?.("Resources"));
 }
 
 function resolvedXObject(resources: PdfObject | undefined, name: string): PdfObject | undefined {
-  const dictionary = resources?.get?.("XObject");
-  if (!dictionary?.isDictionary?.()) return undefined;
+  const dictionary = dictionaryObject(resources?.get?.("XObject"));
+  if (!dictionary) return undefined;
   const raw = dictionary.get(name);
-  const resolved = raw?.resolve?.() ?? raw;
-  return resolved?.isStream?.() ? resolved : undefined;
+  // MuPDF stream methods operate on the indirect reference. Resolving that
+  // reference first turns it into the stream dictionary and makes isStream()
+  // false, which previously caused every Form XObject to disappear from P7.
+  return raw?.isStream?.() ? raw : undefined;
 }
 
 function objectName(object: PdfObject | undefined, key: string): string {
-  return String(object?.get?.(key)?.valueOf?.() ?? "").replace(/^\//, "");
+  const value = object?.get?.(key);
+  if (!value) return "";
+  const name = safe(() => value.asName?.(), undefined as string | undefined);
+  return String(name ?? value.valueOf?.() ?? "").replace(/^\//, "");
 }
 
 function arrayNumbers(object: PdfObject | undefined, key: string, fallback: number[]): number[] {
   const array = object?.get?.(key);
   if (!array?.isArray?.()) return [...fallback];
   const result: number[] = [];
-  for (let index = 0; index < Number(array.length ?? 0); index += 1) result.push(finite(array.get(index)?.valueOf?.(), fallback[index] ?? 0));
+  for (let index = 0; index < Number(array.length ?? 0); index += 1) {
+    const item = array.get(index);
+    const value = safe(() => item?.asNumber?.(), undefined as number | undefined);
+    result.push(finite(value ?? item?.valueOf?.(), fallback[index] ?? 0));
+  }
   return result.length ? result : [...fallback];
 }
 
@@ -282,10 +297,10 @@ function formContentKinds(form: PdfObject): NativeComplexContentKind[] {
   const source = safe(() => byteString(streamBytes(form)), "");
   if (/\bBT\b/.test(source)) kinds.add("text");
   if (/(?:\bm\b|\bl\b|\bc\b|\bre\b)[\s\S]*?(?:\bS\b|\bf\*?\b|\bB\*?\b)/.test(source)) kinds.add("vector");
-  const resources = form.get("Resources");
+  const resources = dictionaryObject(form.get("Resources"));
   const names = [...source.matchAll(/\/([^\s<>\[\]()/%]+)\s+Do\b/g)].map((match) => match[1]);
   for (const name of names) {
-    const nested = resolvedXObject(resources?.isDictionary?.() ? resources : undefined, name);
+    const nested = resolvedXObject(resources, name);
     const subtype = objectName(nested, "Subtype");
     if (subtype === "Image") kinds.add("image");
     else if (subtype === "Form") kinds.add("form");
@@ -482,7 +497,7 @@ function pageDestinationTransform(edit: NativeComplexEdit): Matrix {
   if (Math.abs(edit.rotation) > 1e-9) {
     const cx = destination.x + destination.w / 2;
     const cy = destination.y + destination.h / 2;
-    result = multiply(translate(cx, cy), multiply(rotate(edit.rotation), multiply(translate(-cx, -cy), result)));
+    result = multiply(translate(cx, cy), multiply(rotate(edit.rotation), multiply(translate(-cx, -cy), result));
   }
   return result;
 }
