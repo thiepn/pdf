@@ -24,6 +24,7 @@ export interface RunProjectOperationOptions {
   storagePurpose?: string;
 }
 
+import { ownsProjectLease } from "../projects/projectLease.ts";
 import { assertStorageBudget } from "../storage/budget.ts";
 
 const active = new Map<string, ProjectOperationSnapshot>();
@@ -51,7 +52,6 @@ function combineSignals(primary: AbortSignal, secondary?: AbortSignal): AbortSig
   else secondary.addEventListener("abort", () => abort(secondary), { once: true });
   return controller.signal;
 }
-
 
 export function getActiveProjectOperations(): ProjectOperationSnapshot[] {
   return [...active.values()];
@@ -130,6 +130,14 @@ export async function runProjectOperation<T>(
       update({ detail: "Checking local storage headroom…", progress: 0.01 });
       await assertStorageBudget(options.reserveBytes, options.storagePurpose ?? "save the resulting revision");
     }
+
+    // The unified workspace already owns a long-lived exclusive project lease.
+    // Re-entering a second Web Lock for the same project operation is redundant
+    // and can stall behind browser lock scheduling while local autosave is active.
+    // The in-module active map still serializes operations in this tab, and the
+    // authoritative project lease already excludes mutating work in other tabs.
+    if (ownsProjectLease(projectId)) return await execute();
+
     const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
     if (locks?.request) {
       const result = await locks.request(`local-pdf-studio-operation:${projectId}`, { mode: "exclusive", ifAvailable: true }, async (lock) => {

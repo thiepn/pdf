@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { asAffineMatrix, CoordinateService, type Point, type Rect } from "../../core/coordinates";
 import type { EditorObject, EditorTool, InkPoint } from "../../types/editor";
-import type { NativePageObject } from "../../types/nativeEditor";
-import { NativeContentOverlay } from "../native/NativeContentOverlay";
+import type { NativePageObject, NativeRect } from "../../types/nativeEditor";
+import { NativeContentOverlay, type NativeTransformMode } from "../native/NativeContentOverlay";
 import { clampRect, createObjectForTool, normalizeRect, rectHeight, rectWidth, snapRect } from "../editorModel";
 import { EditorObjectView, type ResizeHandle } from "./EditorObjectView";
 
@@ -21,9 +21,13 @@ interface Props {
   nativeObjects?: NativePageObject[];
   nativeOrigin?: { x: number; y: number };
   selectedNativeId?: string;
+  selectedNativeIds?: Set<string>;
+  nativeEffectiveBounds?: Map<string, NativeRect>;
+  nativeTransformableIds?: Set<string>;
   showNativeContent?: boolean;
   onSelect: (id: string | null, additive: boolean) => void;
-  onSelectNative?: (object: NativePageObject) => void;
+  onSelectNative?: (object: NativePageObject, additive: boolean) => void;
+  onTransformNative?: (object: NativePageObject, bounds: NativeRect, mode: NativeTransformMode) => void;
   onCreate: (object: EditorObject) => void;
   onPreview: (object: EditorObject | null) => void;
   onCommit: (label: string, object: EditorObject) => void;
@@ -55,10 +59,21 @@ export function EditorCanvasPage(props: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const taskRef = useRef<RenderTask | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const previousPageRef = useRef(props.pageNumber);
   const [pageState, setPageState] = useState<PageState>({ width: 612 * props.zoom, height: 792 * props.zoom, service: null, pdfBounds: { x0: 0, y0: 0, x1: 612, y1: 792 } });
   const [draftRect, setDraftRect] = useState<Rect | null>(null);
   const [guides, setGuides] = useState<Array<{ axis: "x" | "y"; value: number }>>([]);
   const pageObjects = useMemo(() => props.objects.filter((object) => object.pageNumber === props.pageNumber && !object.hidden), [props.objects, props.pageNumber]);
+
+  useEffect(() => {
+    if (previousPageRef.current === props.pageNumber) return;
+    previousPageRef.current = props.pageNumber;
+    dragRef.current = null;
+    setDraftRect(null);
+    setGuides([]);
+    props.onPreview(null);
+    props.onSelect(null, false);
+  }, [props.pageNumber]);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +263,7 @@ export function EditorCanvasPage(props: Props) {
   }
 
   const draftStyle = draftRect ? { left: draftRect.x0, top: draftRect.y0, width: rectWidth(draftRect), height: rectHeight(draftRect) } : undefined;
+  const nativePageSize = { width: pageState.width / Math.max(.05, props.zoom), height: pageState.height / Math.max(.05, props.zoom) };
   return (
     <section className="editor-page-shell" style={{ width: pageState.width, height: pageState.height }}>
       <div
@@ -259,7 +275,22 @@ export function EditorCanvasPage(props: Props) {
         style={{ width: pageState.width, height: pageState.height }}
       >
         <canvas ref={canvasRef} />
-        <NativeContentOverlay enabled={Boolean(props.showNativeContent && props.activeTool === "select")} objects={props.nativeObjects ?? []} onSelect={(object) => props.onSelectNative?.(object)} originX={props.nativeOrigin?.x} originY={props.nativeOrigin?.y} selectedId={props.selectedNativeId} zoom={props.zoom} />
+        <NativeContentOverlay
+          effectiveBounds={props.nativeEffectiveBounds}
+          enabled={Boolean(props.showNativeContent && props.activeTool === "select")}
+          gridSize={props.gridSize}
+          objects={props.nativeObjects ?? []}
+          onSelect={(object, additive) => props.onSelectNative?.(object, additive)}
+          onTransform={props.onTransformNative}
+          originX={props.nativeOrigin?.x}
+          originY={props.nativeOrigin?.y}
+          pageSize={nativePageSize}
+          selectedId={props.selectedNativeId}
+          selectedIds={props.selectedNativeIds}
+          snapEnabled={props.snapEnabled}
+          transformableIds={props.nativeTransformableIds}
+          zoom={props.zoom}
+        />
         <div className="editor-object-layer">
           {pageObjects.map((object) => {
             const viewportBounds = pageState.service?.pdfRectToViewport(object.bounds) ?? object.bounds;
