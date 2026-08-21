@@ -307,4 +307,6 @@ self.onmessage = (event: MessageEvent<Request>) => {
   }
 };
 
+self.postMessage({ type: "EDITOR_EXPORT_READY" });
+
 export {};
