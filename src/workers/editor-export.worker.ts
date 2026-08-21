@@ -61,7 +61,7 @@ function opacity(hex: string, fallback: number): number {
 
 function setCommon(annotation: any, object: EditorObject, author = "PDF Studio"): void {
   annotation.setName(object.id);
-  annotation.setFlags?.(4); // Printable and visible in ordinary viewers.
+  annotation.setFlags?.(4);
   if (annotation.hasAuthor?.()) annotation.setAuthor(author);
   annotation.setCreationDate?.(new Date(object.createdAt));
   annotation.setModificationDate?.(new Date(object.modifiedAt));
@@ -238,10 +238,6 @@ self.onmessage = (event: MessageEvent<Request>) => {
   let pdf: any;
   try {
     assertActive(request.requestId);
-    // Native P1-P5 writers all construct a mutable PDFDocument directly. Use
-    // the same path for the overlay stage so bytes produced by a preceding
-    // source-image rewrite are not reparsed through the generic Document/asPDF
-    // wrapper before we append editable annotations.
     pdf = new (mupdf as any).PDFDocument(new Uint8Array(request.bytes));
     if (pdf.needsPassword?.() && (!request.password || pdf.authenticatePassword(request.password) === 0)) throw new Error("The PDF password is required or incorrect.");
     pdf.disableJS?.();
@@ -277,17 +273,10 @@ self.onmessage = (event: MessageEvent<Request>) => {
             case "redaction": addRedactionMark(page, object, pdfToFitz, warnings); annotationCount += 1; break;
           }
         }
-        // Every annotation writer updates its own object. Running a second
-        // page-wide update here can walk the newly rewritten source-image graph
-        // from the preceding native pass and stall mixed P6 exports in browsers.
-        // Final reopen and annotation inventory validation remains authoritative.
       } finally { page.destroy(); }
     }
-    // Every editable annotation above is updated immediately, and image stamps
-    // receive an explicit appearance stream. This second-stage overlay pass
-    // only adds objects; final syntax/reopen and annotation-inventory validation
-    // remains in EditorPage before any download is exposed.
-    const saved = pdf.saveToBuffer("compress=yes,encrypt=keep");
+    const saveOptions = pdf.canBeSavedIncrementally?.() ? "incremental" : "compress=yes,encrypt=keep";
+    const saved = pdf.saveToBuffer(saveOptions);
     try {
       const bytes = new Uint8Array(saved.asUint8Array());
       const output = Uint8Array.from(bytes).buffer;

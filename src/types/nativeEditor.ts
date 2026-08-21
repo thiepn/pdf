@@ -1,4 +1,4 @@
-export const NATIVE_EDITOR_SCHEMA_VERSION = 5;
+export const NATIVE_EDITOR_SCHEMA_VERSION = 6;
 
 export interface NativeRect {
   x: number;
@@ -28,6 +28,8 @@ export type NativeVectorColorSpace = "Gray" | "RGB" | "BGR" | "CMYK" | "Lab" | "
 export type NativeTableHorizontalAlign = "left" | "center" | "right";
 export type NativeTableVerticalAlign = "top" | "middle" | "bottom";
 export type NativeTableDetectionSource = "mupdf-table-hunt" | "vector-grid" | "aligned-text";
+export type NativeComplexAction = "transform" | "delete";
+export type NativeComplexContentKind = "text" | "image" | "vector" | "form" | "unknown";
 
 export interface NativeCapability {
   level: NativeCapabilityLevel;
@@ -210,7 +212,28 @@ export interface NativeFormObject {
   capability: NativeCapability;
 }
 
-export type NativePageObject = NativeTextObject | NativeImageObject | NativeVectorObject | NativeTableObject | NativeFormObject;
+/**
+ * P7 models a top-level invocation of a PDF Form XObject as one nested group.
+ * The shared Form object itself is intentionally immutable; edits target only
+ * the page-level `Do` invocation so other instances remain unchanged.
+ */
+export interface NativeComplexObject {
+  id: string;
+  type: "complex";
+  pageNumber: number;
+  bounds: NativeRect;
+  resourceName: string;
+  sourceStreamIndex: number;
+  sourceInvocationIndex: number;
+  sourceSignature: string;
+  instanceCount: number;
+  contentKinds: NativeComplexContentKind[];
+  clipped: boolean;
+  editability: "instance-transform" | "clip-protected" | "unsupported";
+  capability: NativeCapability;
+}
+
+export type NativePageObject = NativeTextObject | NativeImageObject | NativeVectorObject | NativeTableObject | NativeFormObject | NativeComplexObject;
 
 export interface NativePageTree {
   pageNumber: number;
@@ -234,7 +257,7 @@ export interface NativeInspection {
   canEdit: boolean;
   pages: NativePageTree[];
   fonts: NativeFontSummary[];
-  totals: { text: number; images: number; vectors: number; tables: number; forms: number };
+  totals: { text: number; images: number; vectors: number; tables: number; forms: number; complex?: number };
   warnings: string[];
 }
 
@@ -386,7 +409,22 @@ export interface NativeFormEdit {
   value: string;
 }
 
-export type NativeEdit = NativeTextEdit | NativeImageEdit | NativeVectorEdit | NativeTableCellEdit | NativeTableEdit | NativeFormEdit;
+export interface NativeComplexEdit {
+  id: string;
+  kind: "complex";
+  objectId: string;
+  pageNumber: number;
+  action: NativeComplexAction;
+  sourceBounds: NativeRect;
+  bounds: NativeRect;
+  resourceName: string;
+  sourceStreamIndex: number;
+  sourceInvocationIndex: number;
+  sourceSignature: string;
+  rotation: number;
+}
+
+export type NativeEdit = NativeTextEdit | NativeImageEdit | NativeVectorEdit | NativeTableCellEdit | NativeTableEdit | NativeFormEdit | NativeComplexEdit;
 
 export interface NativeEditorState {
   projectId: string;
@@ -406,6 +444,7 @@ export interface NativeExportReport {
   vectorEdits: number;
   tableCellEdits: number;
   formEdits: number;
+  complexEdits?: number;
   warnings: string[];
   durationMs: number;
 }

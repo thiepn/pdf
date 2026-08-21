@@ -1,3 +1,4 @@
+import { applyNativeEdits, takeNativeExportReplay } from "../native/nativeClient";
 import type { EditorExportAsset, EditorExportReport, EditorObject } from "../types/editor";
 
 interface Success {
@@ -12,7 +13,7 @@ interface Failure {
   error: { name: string; message: string };
 }
 
-export async function exportEditorPdf(
+async function exportOverlayPdf(
   bytes: Uint8Array,
   objects: EditorObject[],
   assets: EditorExportAsset[],
@@ -38,4 +39,30 @@ export async function exportEditorPdf(
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Editor export worker failed.")); };
     worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
   });
+}
+
+export async function exportEditorPdf(
+  bytes: Uint8Array,
+  objects: EditorObject[],
+  assets: EditorExportAsset[],
+  signal?: AbortSignal,
+  password?: string
+): Promise<{ bytes: Uint8Array; report: EditorExportReport }> {
+  const replay = takeNativeExportReplay(bytes);
+  if (!replay) return exportOverlayPdf(bytes, objects, assets, signal, password);
+
+  // P6 mixed exports must compile overlay annotations against the original PDF.
+  // Feeding a full native-image rewrite back into MuPDF's annotation exporter can
+  // stall across Chromium, Firefox and WebKit. Compile overlays first, then replay
+  // the already-qualified native edits so the final PDF contains both layers.
+  const overlay = await exportOverlayPdf(replay.sourceBytes, objects, assets, signal, replay.password ?? password);
+  const native = await applyNativeEdits(overlay.bytes, replay.edits, replay.password ?? password, signal);
+  return {
+    bytes: native.bytes,
+    report: {
+      ...overlay.report,
+      pageCount: native.report.pageCount,
+      outputBytes: native.bytes.byteLength
+    }
+  };
 }

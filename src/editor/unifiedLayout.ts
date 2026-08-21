@@ -4,6 +4,7 @@ import { buildPreservedEditRuns, editableFamilyForSource } from "../native/textS
 import { evaluateTextFit } from "../native/textFit";
 import type { EditorObject } from "../types/editor";
 import type {
+  NativeComplexEdit,
   NativeEdit,
   NativeEditableFontFamily,
   NativeImageEdit,
@@ -94,7 +95,7 @@ export function canvasToNativeRect(bounds: UnifiedCanvasBounds, page: NativePage
 
 export function effectiveNativeBounds(object: NativePageObject, queuedEdits: NativeEdit[]): NativeRect {
   const wholeObject = [...queuedEdits].reverse().find((edit) => edit.objectId === object.id
-    && (edit.kind === "text" || edit.kind === "image" || edit.kind === "vector" || edit.kind === "table"));
+    && (edit.kind === "text" || edit.kind === "image" || edit.kind === "vector" || edit.kind === "table" || edit.kind === "complex"));
   if (wholeObject && "bounds" in wholeObject) return { ...wholeObject.bounds };
   return { ...object.bounds };
 }
@@ -103,11 +104,14 @@ export function effectiveNativeRotation(object: NativePageObject, queuedEdits: N
   const edit = [...queuedEdits].reverse().find((candidate) => candidate.objectId === object.id);
   if (object.type === "vector" && edit?.kind === "vector") return finite(edit.rotation);
   if (object.type === "image" && edit?.kind === "image") return finite(edit.rotation ?? 0);
+  if (object.type === "complex" && edit?.kind === "complex") return finite(edit.rotation);
   return 0;
 }
 
 export function nativeTransformSupport(object: NativePageObject, queuedEdits: NativeEdit[]): Pick<UnifiedLayoutItem, "movable" | "resizable" | "rotatable" | "reason"> {
   if (object.type === "form") return { movable: false, resizable: false, rotatable: false, reason: "Interactive form geometry is not rewritten by the qualified form-value engine." };
+  if (object.type === "complex" && object.editability === "unsupported") return { movable: false, resizable: false, rotatable: false, reason: object.capability.reason };
+  if (object.type === "complex") return { movable: true, resizable: true, rotatable: true, reason: object.clipped ? "The nested group remains inside its original page clipping boundary." : undefined };
   if (object.type === "vector" && object.editability === "clip-protected") return { movable: false, resizable: false, rotatable: false, reason: "This vector controls clipping for other page content." };
   if (object.type === "table" && (object.editability === "unsupported" || object.complexContent)) return { movable: false, resizable: false, rotatable: false, reason: "This table contains complex content that P5 intentionally preserves unchanged." };
   if (object.type === "text") {
@@ -254,6 +258,30 @@ function vectorGeometryEdit(object: NativeVectorObject, bounds: NativeRect, queu
   };
 }
 
+function complexGeometryEdit(object: Extract<NativePageObject, { type: "complex" }>, bounds: NativeRect, queuedEdits: NativeEdit[]): NativeComplexEdit | undefined {
+  if (object.editability === "unsupported") return undefined;
+  const existing = queuedEdits.find((edit): edit is NativeComplexEdit => edit.kind === "complex" && edit.objectId === object.id);
+  return existing ? {
+    ...structuredClone(existing),
+    action: "transform",
+    bounds,
+    sourceBounds: existing.sourceBounds ?? object.bounds
+  } : {
+    id: crypto.randomUUID(),
+    kind: "complex",
+    objectId: object.id,
+    pageNumber: object.pageNumber,
+    action: "transform",
+    sourceBounds: object.bounds,
+    bounds,
+    resourceName: object.resourceName,
+    sourceStreamIndex: object.sourceStreamIndex,
+    sourceInvocationIndex: object.sourceInvocationIndex,
+    sourceSignature: object.sourceSignature,
+    rotation: 0
+  };
+}
+
 function defaultSizes(values: number[] | undefined, count: number, total: number): number[] {
   if (values?.length === count && values.every((value) => Number.isFinite(value) && value > 0)) return [...values];
   return Array.from({ length: Math.max(1, count) }, () => total / Math.max(1, count));
@@ -325,6 +353,10 @@ export function nativeGeometryEdit(object: NativePageObject, bounds: NativeRect,
     const edit = tableGeometryEdit(object, bounds, queuedEdits);
     return edit ? { edit } : { blocked: support.reason ?? "This table cannot be transformed safely." };
   }
+  if (object.type === "complex") {
+    const edit = complexGeometryEdit(object, bounds, queuedEdits);
+    return edit ? { edit } : { blocked: support.reason ?? "This nested PDF group cannot be transformed safely." };
+  }
   return { blocked: support.reason ?? "This object type does not expose editable geometry." };
 }
 
@@ -337,6 +369,10 @@ export function nativeDeleteEdit(object: NativePageObject, queuedEdits: NativeEd
   if (object.type === "table") {
     const edit = tableGeometryEdit(object, effectiveNativeBounds(object, queuedEdits), queuedEdits);
     return edit ? { edit: { ...edit, action: "delete" } } : { blocked: "This table cannot be deleted safely as one structured object." };
+  }
+  if (object.type === "complex") {
+    const edit = complexGeometryEdit(object, effectiveNativeBounds(object, queuedEdits), queuedEdits);
+    return edit ? { edit: { ...edit, action: "delete" } } : { blocked: "This nested PDF group cannot be deleted safely." };
   }
   return { blocked: object.type === "text" ? "P6 does not delete source text by broad rectangular redaction; edit its content through the qualified text panel instead." : "Interactive form fields are not deleted by the value-editing engine." };
 }
@@ -352,6 +388,10 @@ export function nativeRotationEdit(object: NativePageObject, deltaDegrees: numbe
     const current = finite(edit.rotation ?? 0);
     const normalized = ((Math.round((current + deltaDegrees) / 90) * 90) % 360 + 360) % 360 as 0 | 90 | 180 | 270;
     return { edit: { ...edit, rotation: normalized } };
+  }
+  if (object.type === "complex") {
+    const edit = complexGeometryEdit(object, bounds, queuedEdits);
+    return edit ? { edit: { ...edit, rotation: finite(edit.rotation) + deltaDegrees } } : { blocked: "This nested PDF group cannot be rotated safely." };
   }
   return { blocked: "This existing-content engine does not expose safe rotation for the selected object type." };
 }

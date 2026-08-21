@@ -1,6 +1,7 @@
 import { idbDelete, idbGet, idbPut } from "../storage/database";
 import {
   NATIVE_EDITOR_SCHEMA_VERSION,
+  type NativeComplexEdit,
   type NativeEdit,
   type NativeEditorState,
   type NativeImageEdit,
@@ -142,6 +143,25 @@ function normalizeTableEdit(edit: NativeTableEdit & Record<string, unknown>): Na
   };
 }
 
+function normalizeComplexEdit(edit: NativeComplexEdit & Record<string, unknown>): NativeComplexEdit {
+  const sourceBounds = normalizedRect((edit.sourceBounds as NativeRect | undefined) ?? edit.bounds);
+  const bounds = normalizedRect((edit.bounds as NativeRect | undefined) ?? sourceBounds);
+  return {
+    id: edit.id,
+    kind: "complex",
+    objectId: edit.objectId,
+    pageNumber: Math.max(1, Math.floor(finite(edit.pageNumber, 1))),
+    action: edit.action === "delete" ? "delete" : "transform",
+    sourceBounds,
+    bounds,
+    resourceName: typeof edit.resourceName === "string" ? edit.resourceName.replace(/^\//, "") : "",
+    sourceStreamIndex: Math.max(0, Math.floor(finite(edit.sourceStreamIndex, 0))),
+    sourceInvocationIndex: Math.max(0, Math.floor(finite(edit.sourceInvocationIndex, 0))),
+    sourceSignature: typeof edit.sourceSignature === "string" ? edit.sourceSignature : "",
+    rotation: finite(edit.rotation, 0)
+  };
+}
+
 function normalizeEdit(edit: NativeEdit): NativeEdit {
   if (edit.kind === "image") {
     const stored = edit as NativeImageEdit & { bytes?: unknown };
@@ -167,6 +187,7 @@ function normalizeEdit(edit: NativeEdit): NativeEdit {
   }
   if (edit.kind === "vector") return normalizeVectorEdit(edit as NativeVectorEdit & Record<string, unknown>);
   if (edit.kind === "table") return normalizeTableEdit(edit as NativeTableEdit & Record<string, unknown>);
+  if (edit.kind === "complex") return normalizeComplexEdit(edit as NativeComplexEdit & Record<string, unknown>);
   return edit;
 }
 

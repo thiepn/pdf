@@ -58,16 +58,50 @@ export function createMinimalPdf(): Uint8Array {
     "80 0 0 50 430 665 cm",
     "/Im1 Do",
     "Q",
+    // P7 fixture: two independent placements of one shared Form XObject. The
+    // Form itself contains text, vector artwork and an image, so P7 can prove
+    // that an instance is transformed/deleted without flattening nested content
+    // or changing the second use of the same reusable object.
+    "q",
+    "1 0 0 1 330 470 cm",
+    "/Fm1 Do",
+    "Q",
+    "q",
+    "0.65 0 0 0.65 390 190 cm",
+    "/Fm1 Do",
+    "Q",
     ""
   ].join("\n");
   const imageHex = "FF000000FF000000FFFFFF00>\n";
+  const formContent = [
+    "q",
+    "0.97 0.93 0.82 rg",
+    "0.45 0.28 0.08 RG",
+    "1.5 w",
+    "0 0 180 80 re B",
+    "Q",
+    "BT",
+    "/F1 14 Tf",
+    "12 52 Td",
+    "(Nested PDF group) Tj",
+    "0 -23 Td",
+    "/F1 9 Tf",
+    "(Text + vector + image) Tj",
+    "ET",
+    "q",
+    "24 0 0 24 142 44 cm",
+    "/Im1 Do",
+    "Q",
+    ""
+  ].join("\n");
   const objects = [
     "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
     "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> /XObject << /Im1 6 0 R >> >> /Contents 4 0 R >>\nendobj\n",
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> /XObject << /Im1 6 0 R /Fm1 7 0 R >> >> /Contents 4 0 R >>\nendobj\n",
     streamObject(4, "", content),
     "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    streamObject(6, "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode", imageHex)
+    streamObject(6, "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode", imageHex),
+    streamObject(7, "/Type /XObject /Subtype /Form /FormType 1 /BBox [0 0 180 80] /Resources << /Font << /F1 5 0 R >> /XObject << /Im1 6 0 R >> >>", formContent)
   ];
 
   let body = "%PDF-1.7\n%âãÏÓ\n";

@@ -14,7 +14,7 @@ import {
   nativeRotationEdit,
   type UnifiedLayoutItem
 } from "../../src/editor/unifiedLayout";
-import type { NativeFormObject, NativeImageObject, NativePageTree, NativeTextObject, NativeVectorObject } from "../../src/types/nativeEditor";
+import type { NativeComplexObject, NativeFormObject, NativeImageObject, NativePageTree, NativeTextObject, NativeVectorObject } from "../../src/types/nativeEditor";
 
 const capability = { level: "native-safe" as const, label: "test", confidence: 1, reason: "test", preserves: [], risks: [] };
 const page: NativePageTree = { pageNumber: 1, originX: 10, originY: 20, width: 600, height: 760, objects: [] };
@@ -25,6 +25,21 @@ const vector: NativeVectorObject = {
   commands: [{ op: "M", x: 250, y: 300 }, { op: "L", x: 350, y: 360 }, { op: "Z" }], paint: "fill-stroke", fillColor: "#ffffff", strokeColor: "#111111", lineWidth: 2, lineCap: "Butt", lineJoin: "Miter", miterLimit: 10, dashPattern: [], dashPhase: 0, fillAlpha: 1, strokeAlpha: 1, evenOdd: false, blendMode: "Normal", clipped: false, definesClip: false, sourceStreamIndex: 0, sourcePathIndex: 1, sourceSignature: "vector-source", editability: "source-path", capability
 };
 const form: NativeFormObject = { id: "form-1", type: "form", pageNumber: 1, bounds: { x: 100, y: 100, w: 120, h: 24 }, widgetIndex: 0, fieldType: "text", name: "Name", label: "Name", value: "Alice", options: [], readOnly: false, multiline: false, password: false, signed: false, editability: "field-value", capability };
+const complex: NativeComplexObject = {
+  id: "complex-1",
+  type: "complex",
+  pageNumber: 1,
+  bounds: { x: 330, y: 242, w: 180, h: 80 },
+  resourceName: "Fm1",
+  sourceStreamIndex: 0,
+  sourceInvocationIndex: 0,
+  sourceSignature: "Fm1:330,242,180,80",
+  instanceCount: 2,
+  contentKinds: ["text", "vector", "image"],
+  clipped: false,
+  editability: "instance-transform",
+  capability
+};
 const appearanceOnlyText: NativeTextObject = {
   id: "text-rtl-1",
   type: "text",
@@ -117,9 +132,41 @@ describe("P6 qualified native adapters", () => {
     expect(result.edit).toBeUndefined();
     expect(result.blocked).toMatch(/cannot be moved or resized/i);
   });
-  it("only exposes source-safe deletion for P3/P4/P5 object types", () => {
+  it("only exposes source-safe deletion for qualified native object types", () => {
     expect(nativeDeleteEdit(image, []).edit?.kind).toBe("image");
     expect(nativeDeleteEdit(vector, []).edit?.kind).toBe("vector");
+    expect(nativeDeleteEdit(complex, []).edit?.kind).toBe("complex");
     expect(nativeDeleteEdit(form, []).edit).toBeUndefined();
+  });
+});
+
+describe("P7 nested PDF group adapter", () => {
+  it("preserves Form XObject instance identity across geometry and rotation edits", () => {
+    const moved = nativeGeometryEdit(complex, { x: 360, y: 260, w: 210, h: 96 }, []);
+    expect(moved.blocked).toBeUndefined();
+    expect(moved.edit?.kind).toBe("complex");
+    if (moved.edit?.kind !== "complex") throw new Error("Expected complex edit");
+    expect(moved.edit.action).toBe("transform");
+    expect(moved.edit.resourceName).toBe("Fm1");
+    expect(moved.edit.sourceStreamIndex).toBe(0);
+    expect(moved.edit.sourceInvocationIndex).toBe(0);
+    expect(moved.edit.sourceSignature).toBe(complex.sourceSignature);
+    expect(moved.edit.sourceBounds).toEqual(complex.bounds);
+
+    const rotated = nativeRotationEdit(complex, 15, [moved.edit]);
+    expect(rotated.edit?.kind).toBe("complex");
+    if (rotated.edit?.kind !== "complex") throw new Error("Expected complex edit");
+    expect(rotated.edit.rotation).toBe(15);
+    expect(rotated.edit.bounds).toEqual(moved.edit.bounds);
+  });
+
+  it("deletes only the selected nested instance through the P7 complex edit kind", () => {
+    const deleted = nativeDeleteEdit(complex, []);
+    expect(deleted.blocked).toBeUndefined();
+    expect(deleted.edit?.kind).toBe("complex");
+    if (deleted.edit?.kind !== "complex") throw new Error("Expected complex edit");
+    expect(deleted.edit.action).toBe("delete");
+    expect(deleted.edit.resourceName).toBe(complex.resourceName);
+    expect(deleted.edit.sourceInvocationIndex).toBe(complex.sourceInvocationIndex);
   });
 });
