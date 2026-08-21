@@ -61,7 +61,7 @@ function opacity(hex: string, fallback: number): number {
 
 function setCommon(annotation: any, object: EditorObject, author = "PDF Studio"): void {
   annotation.setName(object.id);
-  annotation.setFlags?.(4); // Printable and visible in ordinary viewers.
+  annotation.setFlags?.(4);
   if (annotation.hasAuthor?.()) annotation.setAuthor(author);
   annotation.setCreationDate?.(new Date(object.createdAt));
   annotation.setModificationDate?.(new Date(object.modifiedAt));
@@ -257,7 +257,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const page = pdf.loadPage(pageNumber - 1);
       try {
         const pdfToFitz = invert(page.getTransform() as AffineMatrix);
-        for (const object of objects.sort((left, right) => left.zIndex - b.zIndex)) {
+        for (const object of objects.sort((left, right) => left.zIndex - right.zIndex)) {
           assertActive(request.requestId);
           if (object.rotation !== 0) warnings.push(`Rotation for ${object.type} object ${object.id.slice(0, 8)} is preview-only in this export and was normalized.`);
           switch (object.type) {
@@ -275,12 +275,6 @@ self.onmessage = (event: MessageEvent<Request>) => {
         }
       } finally { page.destroy(); }
     }
-    // Overlay objects are annotations/links. Once a prior native-content pass
-    // has been committed and reopened, MuPDF can normally append these edits
-    // incrementally. Avoiding a second full-document rewrite prevents the P6
-    // mixed native-image + overlay export from walking the rewritten image graph
-    // again. Repaired/non-incremental documents retain the qualified full-save
-    // fallback, and EditorPage still reopens and validates the final output.
     const saveOptions = pdf.canBeSavedIncrementally?.() ? "incremental" : "compress=yes,encrypt=keep";
     const saved = pdf.saveToBuffer(saveOptions);
     try {
