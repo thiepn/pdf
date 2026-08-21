@@ -1,6 +1,7 @@
 import { reconstructInspectionTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
+import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 import type {
   NativeComplexEdit,
   NativeComplexObject,
@@ -264,6 +265,9 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
   }
 
   const report = mergeReports([nativeReport, vectorReport, tableReport, imageReport, complexReport], working.byteLength);
+  const fidelity = await validatePdfFidelity(replaySource, working, edits.map((edit) => edit.pageNumber), password, signal);
+  if (!fidelity.passed) throw new Error(`P8 fidelity validation failed: ${fidelity.failures.join(" ")}`);
+  report.warnings.push(...fidelity.warnings);
   pendingExportReplay = { sourceBytes: replaySource, outputBytes: working, edits, password };
   return { bytes: working, report };
 }
