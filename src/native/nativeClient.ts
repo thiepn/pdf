@@ -2,6 +2,8 @@ import { reconstructInspectionTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
 import type {
+  NativeComplexEdit,
+  NativeComplexObject,
   NativeEdit,
   NativeExportReport,
   NativeImageEdit,
@@ -25,11 +27,18 @@ interface TableInspection {
   warnings: string[];
 }
 
+interface ComplexInspection {
+  pages: Array<{ pageNumber: number; complex: NativeComplexObject[]; warnings: string[] }>;
+  total: number;
+  warnings: string[];
+}
+
 type Response =
   | { type: "READY" }
   | { type: "NATIVE_INSPECTION"; requestId: string; inspection: NativeInspection }
   | { type: "VECTOR_INSPECTION"; requestId: string; inspection: VectorInspection }
   | { type: "TABLE_INSPECTION"; requestId: string; inspection: TableInspection }
+  | { type: "COMPLEX_INSPECTION"; requestId: string; inspection: ComplexInspection }
   | { type: "NATIVE_RESULT"; requestId: string; output: ArrayBuffer; report: NativeExportReport }
   | { type: "NATIVE_ERROR"; requestId: string; error: { message: string } };
 
@@ -54,6 +63,7 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
         resolve(registerNativeInspectionPages(reconstructed) as T);
       } else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
       else if (event.data.type === "TABLE_INSPECTION") resolve(event.data.inspection as T);
+      else if (event.data.type === "COMPLEX_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Native editor worker failed.")); };
@@ -74,6 +84,10 @@ function vectorWorker(): Worker {
 
 function tableWorker(): Worker {
   return new Worker(new URL("../workers/native-table.worker.ts", import.meta.url), { type: "module" });
+}
+
+function complexWorker(): Worker {
+  return new Worker(new URL("../workers/native-complex.worker.ts", import.meta.url), { type: "module" });
 }
 
 function mergeVectorInspection(base: NativeInspection, vector: VectorInspection): NativeInspection {
@@ -114,17 +128,38 @@ function mergeTableInspection(base: NativeInspection, table: TableInspection): N
   });
 }
 
+function mergeComplexInspection(base: NativeInspection, complex: ComplexInspection): NativeInspection {
+  const pages = base.pages.map((page) => {
+    const replacement = complex.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.complex ?? [];
+    const withoutLegacy = page.objects.filter((object) => object.type !== "complex");
+    // Nested groups intentionally precede child objects. The canvas uses source
+    // ordering for hit-test z-index, so a click selects the Form instance as one
+    // P7 group while its already-inspected child text/images remain available in
+    // the layers list when the group is not the intended target.
+    return { ...page, objects: [...replacement, ...withoutLegacy] };
+  });
+  return registerNativeInspectionPages({
+    ...base,
+    pages,
+    totals: { ...base.totals, complex: complex.total },
+    warnings: [...base.warnings.filter((warning) => !/nested|Form XObject/i.test(warning)), ...complex.warnings]
+  });
+}
+
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
-  // P5 keeps the qualified P1/P2 worker untouched. Finish that worker first so
-  // a large document never holds three MuPDF documents concurrently, then run
-  // the two source-specialist inspections in parallel and merge their objects.
+  // Keep P1/P2 first so large documents do not hold all specialist MuPDF
+  // documents simultaneously. P4/P5 can run together; P7 then runs after they
+  // release their workers because nested Form inspection is another full PDF
+  // traversal and is intentionally lazy/on-demand with the editor route.
   const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, signal);
   const [vector, table] = await Promise.all([
     invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, signal),
     invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, signal)
   ]);
   const recoveredTable = recoverStructuredTables(base, vector, table);
-  return mergeTableInspection(mergeVectorInspection(base, vector), recoveredTable);
+  const established = mergeTableInspection(mergeVectorInspection(base, vector), recoveredTable);
+  const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, signal);
+  return mergeComplexInspection(established, complex);
 }
 
 const FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE = 4;
@@ -154,6 +189,7 @@ function mergeReports(reports: Array<NativeExportReport | undefined>, outputByte
     vectorEdits: available.reduce((sum, report) => sum + report.vectorEdits, 0),
     tableCellEdits: available.reduce((sum, report) => sum + report.tableCellEdits, 0),
     formEdits: available.reduce((sum, report) => sum + report.formEdits, 0),
+    complexEdits: available.reduce((sum, report) => sum + (report.complexEdits ?? 0), 0),
     warnings: available.flatMap((report) => report.warnings),
     durationMs: available.reduce((sum, report) => sum + report.durationMs, 0)
   };
@@ -181,12 +217,14 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
   const imageEdits = edits.filter((edit): edit is NativeImageEdit => edit.kind === "image");
   const vectorEdits = edits.filter((edit): edit is NativeVectorEdit => edit.kind === "vector");
   const tableEdits = edits.filter((edit): edit is NativeTableEdit => edit.kind === "table");
-  const otherEdits = edits.filter((edit) => edit.kind !== "image" && edit.kind !== "vector" && edit.kind !== "table");
+  const complexEdits = edits.filter((edit): edit is NativeComplexEdit => edit.kind === "complex");
+  const otherEdits = edits.filter((edit) => edit.kind !== "image" && edit.kind !== "vector" && edit.kind !== "table" && edit.kind !== "complex");
   let working = bytes;
   let nativeReport: NativeExportReport | undefined;
   let vectorReport: NativeExportReport | undefined;
   let tableReport: NativeExportReport | undefined;
   let imageReport: NativeExportReport | undefined;
+  let complexReport: NativeExportReport | undefined;
 
   if (otherEdits.length) {
     const { payload, transfers } = prepareNonSpecialistEdits(otherEdits);
@@ -210,6 +248,14 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
     working = result.bytes;
     imageReport = result.report;
   }
+  if (complexEdits.length) {
+    // P7 is last: the qualified P1-P5 writers may normalize page streams, while
+    // the nested worker rematches the final page-level Form invocation and then
+    // validates that only the requested instance placement/count changed.
+    const result = await invoke<{ bytes: Uint8Array; report: NativeExportReport }>(complexWorker(), { type: "APPLY_COMPLEX", edits: complexEdits }, working, password, signal);
+    working = result.bytes;
+    complexReport = result.report;
+  }
 
-  return { bytes: working, report: mergeReports([nativeReport, vectorReport, tableReport, imageReport], working.byteLength) };
+  return { bytes: working, report: mergeReports([nativeReport, vectorReport, tableReport, imageReport, complexReport], working.byteLength) };
 }
