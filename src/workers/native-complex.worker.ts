@@ -243,9 +243,6 @@ function resolvedXObject(resources: PdfObject | undefined, name: string): PdfObj
   const dictionary = dictionaryObject(resources?.get?.("XObject"));
   if (!dictionary) return undefined;
   const raw = dictionary.get(name);
-  // MuPDF stream methods operate on the indirect reference. Resolving that
-  // reference first turns it into the stream dictionary and makes isStream()
-  // false, which previously caused every Form XObject to disappear from P7.
   return raw?.isStream?.() ? raw : undefined;
 }
 
@@ -497,7 +494,7 @@ function pageDestinationTransform(edit: NativeComplexEdit): Matrix {
   if (Math.abs(edit.rotation) > 1e-9) {
     const cx = destination.x + destination.w / 2;
     const cy = destination.y + destination.h / 2;
-    result = multiply(translate(cx, cy), multiply(rotate(edit.rotation), multiply(translate(-cx, -cy), result));
+    result = multiply(translate(cx, cy), multiply(rotate(edit.rotation), multiply(translate(-cx, -cy), result)));
   }
   return result;
 }
