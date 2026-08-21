@@ -12,7 +12,7 @@ async function openNestedGroupEditor(page: import("@playwright/test").Page): Pro
   const properties = page.locator(".p7-complex-properties");
   await expect(properties.getByRole("heading", { name: "Nested PDF group" })).toBeVisible();
   await expect(properties.getByText("Instance editing")).toBeVisible();
-  await expect(properties.getByText("text, images, vector artwork")).toBeVisible();
+  await expect(properties.getByText(/text.*vector artwork.*images/)).toBeVisible();
   return properties;
 }
 
