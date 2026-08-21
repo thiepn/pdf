@@ -1,8 +1,8 @@
-name: Publish qualified v6.1.0 stable release
+name: Publish qualified v7.0.0 stable release
 
 on:
   push:
-    tags: ["v6.1.0"]
+    tags: ["v7.0.0"]
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Verify exact stable tag
-        run: test "$GITHUB_REF_NAME" = "v6.1.0"
+        run: test "$GITHUB_REF_NAME" = "v7.0.0"
       - name: Verify stable tag commit belongs to main history
         run: |
           set -euo pipefail
@@ -63,7 +63,13 @@ jobs:
           npm run audit:toolchain
           npm ci --no-audit --no-fund
           npm run audit:tree
-      - name: Run frozen Phase 30 web release gate
+      - name: Generate and validate P8 compatibility corpus
+        run: |
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
+      - name: Run P9 release-candidate freeze audit
+        run: npm run audit:p9:release-candidate
+      - name: Run frozen v7 web release gate
         run: npm run release:web
         env:
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
@@ -95,27 +101,28 @@ jobs:
           VITE_RELEASE_CHANNEL: stable
       - name: Verify stable build metadata
         run: |
-          grep -q '"version": "6.1.0"' dist/release-metadata.json
+          grep -q '"version": "7.0.0"' dist/release-metadata.json
           grep -q '"channel": "stable"' dist/release-metadata.json
       - name: High-severity dependency security gate
         run: npm run audit:security
       - name: Create release archives
         run: |
           mkdir -p release-assets
-          git archive --format=zip --output="release-assets/pdf-studio-v6.1.0-source.zip" HEAD
-          git archive --format=tar.gz --output="release-assets/pdf-studio-v6.1.0-source.tar.gz" HEAD
-          (cd dist && zip -qr "../release-assets/pdf-studio-v6.1.0-dist.zip" .)
-          cp docs/phase-11/corpus-validation-report.json "release-assets/pdf-studio-v6.1.0-corpus-validation.json"
-          cp docs/phase-28/adversarial-corpus-report.json "release-assets/pdf-studio-v6.1.0-adversarial-corpus-validation.json"
-          cp docs/releases/v6.1.0/intuitiveness-report.md "release-assets/pdf-studio-v6.1.0-qualification.md"
-          (cd release-assets && sha256sum pdf-studio-* > pdf-studio-v6.1.0.sha256)
+          git archive --format=zip --output="release-assets/pdf-studio-v7.0.0-source.zip" HEAD
+          git archive --format=tar.gz --output="release-assets/pdf-studio-v7.0.0-source.tar.gz" HEAD
+          (cd dist && zip -qr "../release-assets/pdf-studio-v7.0.0-dist.zip" .)
+          cp docs/phase-11/corpus-validation-report.json "release-assets/pdf-studio-v7.0.0-corpus-validation.json"
+          cp docs/phase-28/adversarial-corpus-report.json "release-assets/pdf-studio-v7.0.0-adversarial-corpus-validation.json"
+          cp docs/p8/compatibility-corpus-report.json "release-assets/pdf-studio-v7.0.0-compatibility-corpus-validation.json"
+          cp docs/P9_RELEASE_CANDIDATE.md "release-assets/pdf-studio-v7.0.0-qualification.md"
+          (cd release-assets && sha256sum pdf-studio-* > pdf-studio-v7.0.0.sha256)
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - uses: actions/upload-artifact@v7
         with:
-          name: v6.1.0-release-assets
+          name: v7.0.0-release-assets
           path: release-assets
 
   deploy-stable:
@@ -144,9 +151,9 @@ jobs:
           base="${PAGE_URL%/}/"
           curl --fail --location --retry 8 --retry-delay 5 "${base}"
           curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '6.1.0' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '7.0.0' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "stable"' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "6.1.0"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "7.0.0"' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'release-metadata.json' > /dev/null
 
@@ -156,7 +163,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: v6.1.0-release-assets
+          name: v7.0.0-release-assets
           path: release-assets
       - uses: softprops/action-gh-release@v2
         with:
