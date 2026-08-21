@@ -2,6 +2,9 @@ import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 import { applyNativeEdits, takeNativeExportReplay } from "../native/nativeClient";
 import type { EditorExportAsset, EditorExportReport, EditorObject } from "../types/editor";
 
+interface Ready {
+  type: "EDITOR_EXPORT_READY";
+}
 interface Success {
   type: "EDITOR_EXPORT_RESULT";
   requestId: string;
@@ -13,6 +16,7 @@ interface Failure {
   requestId: string;
   error: { name: string; message: string };
 }
+type Response = Ready | Success | Failure;
 
 async function exportOverlayPdf(
   bytes: Uint8Array,
@@ -28,17 +32,30 @@ async function exportOverlayPdf(
   const transfers: Transferable[] = [source, ...transferableAssets.map((asset) => asset.bytes)];
 
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      worker.terminate();
+      reject(new DOMException("Export cancelled.", "AbortError"));
+      return;
+    }
     const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Export cancelled.", "AbortError")); };
     signal?.addEventListener("abort", cancel, { once: true });
-    worker.onmessage = (event: MessageEvent<Success | Failure>) => {
+    worker.onmessage = (event: MessageEvent<Response>) => {
+      if (event.data.type === "EDITOR_EXPORT_READY") {
+        if (signal?.aborted) {
+          cleanup();
+          reject(new DOMException("Export cancelled.", "AbortError"));
+          return;
+        }
+        worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
+        return;
+      }
       if (event.data.requestId !== requestId) return;
       cleanup();
       if (event.data.type === "EDITOR_EXPORT_ERROR") reject(new Error(event.data.error.message));
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report });
     };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Editor export worker failed.")); };
-    worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
   });
 }
 

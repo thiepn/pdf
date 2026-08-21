@@ -24,7 +24,7 @@ const complianceRepo = await readFile(new URL("../../../src/compliance/complianc
 const releaseWorkflow = await readFile(new URL("../../../.github/workflows/release.yml", import.meta.url), "utf8");
 const deployWorkflow = await readFile(new URL("../../../.github/workflows/deploy.yml", import.meta.url), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.0.4+ 6.x compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check((/Import success is authoritative/.test(home) || /Persist logical acknowledgement/.test(home)) && /acknowledgeSharedInboxFiles\(\[inboxId\]\)/.test(home), "successful shared import is not converted into a failure by inbox cleanup");
 check(/project\.schemaVersion <= PROJECT_SCHEMA_VERSION/.test(repo) && /compatibleExisting = migrateProjectManifestForSchema/.test(repo), "checksum deduplication skips future-schema manifests");
 check(assertReadableStateSchema(1, 3, "test") === 1, "legacy state schema is readable");

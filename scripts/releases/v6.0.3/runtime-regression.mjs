@@ -18,7 +18,7 @@ const projectPackage = await readFile(new URL("../../../src/projects/projectPack
 const tagged = await readFile(new URL("../../../.github/workflows/release.yml", import.meta.url), "utf8");
 const deploy = await readFile(new URL("../../../.github/workflows/deploy.yml", import.meta.url), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.0.3+ 6.x compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/!safeMode && "serviceWorker" in navigator/.test(main), "Safe Mode suppresses service-worker controllerchange reload participation");
 check(!/await removeSharedInboxFiles\(\[shared\.id\]\);\s*const kind/.test(home) && /processFile\(shared\.file, kind, undefined, shared\.id\)/.test(home), "shared inbox item is not removed before project import succeeds");
 check(/inboxId\) \{[\s\S]*(removeSharedInboxFiles|acknowledgeSharedInboxFiles)\(\[inboxId\]\)/.test(home), "successful shared import removes or durably acknowledges the inbox item only after project creation");

@@ -28,7 +28,7 @@ const projectPackage = await readFile(new URL("src/projects/projectPackage.ts", 
 const workspace = await readFile(new URL("src/workspace/workspaceRepository.ts", root), "utf8");
 const deploy = await readFile(new URL(".github/workflows/deploy.yml", root), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.0.5+ 6.x compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/storeSharedInboxFiles\(files\)/.test(launchFiles) && /peekPendingPwaLaunchFiles/.test(launchFiles) && /acknowledgePendingPwaLaunchFiles/.test(launchFiles), "OS file launches are durably staged or non-destructively queued");
 check(/peekPendingPwaLaunchFiles/.test(home) && !/takePendingPwaLaunchFiles/.test(home) && /launchId/.test(home), "Home acknowledges fallback launch files only after import success or explicit cancel");
 check(/Promise\.allSettled\(inserted\.map/.test(shareInbox), "page-context launch inbox writes roll back atomically");
