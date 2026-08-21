@@ -33,7 +33,12 @@ interface DragState {
 }
 
 function objectZIndex(object: NativePageObject, index: number, count: number, selected: boolean): number {
-  if (selected) return count * 3 + 1;
+  if (selected) return count * 4 + 1;
+  // P7 nested groups intentionally sit above child content during direct canvas
+  // hit testing. The underlying child text/image/vector objects remain available
+  // through the layers list, while a click on the composed block selects it as
+  // one reusable Form-XObject instance.
+  if (object.type === "complex") return count * 3 - index;
   if (object.type === "table") return count * 2 - index;
   return count - index;
 }
@@ -184,7 +189,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
         zIndex: objectZIndex(object, index, objects.length, selected)
       };
       const label = nativeObjectLabel(object);
-      const typeLabel = object.type === "text" && object.paragraph && (object.lineCount ?? 1) > 1 ? "paragraph" : object.type;
+      const typeLabel = object.type === "text" && object.paragraph && (object.lineCount ?? 1) > 1 ? "paragraph" : object.type === "complex" ? "nested group" : object.type;
       const transformable = Boolean(onTransform && transformableIds?.has(object.id));
       return <button
         aria-label={`Select existing ${typeLabel}: ${label}`}
@@ -212,5 +217,6 @@ export function nativeObjectLabel(object: NativePageObject): string {
   if (object.type === "table") return `${object.rows}×${object.columns} table`;
   if (object.type === "form") return object.label || object.name || object.fieldType;
   if (object.type === "image") return `${Math.round(object.bounds.w)}×${Math.round(object.bounds.h)} image`;
+  if (object.type === "complex") return `/${object.resourceName} · ${object.contentKinds.join(" + ")}`;
   return `${object.commands.length} path commands`;
 }
