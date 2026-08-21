@@ -1,3 +1,4 @@
+import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 import { applyNativeEdits, takeNativeExportReplay } from "../native/nativeClient";
 import type { EditorExportAsset, EditorExportReport, EditorObject } from "../types/editor";
 
@@ -41,6 +42,28 @@ async function exportOverlayPdf(
   });
 }
 
+function visibleObjectPages(objects: EditorObject[]): number[] {
+  return objects.filter((object) => !object.hidden).map((object) => object.pageNumber);
+}
+
+async function certifyEditorExport(
+  sourceBytes: Uint8Array,
+  result: { bytes: Uint8Array; report: EditorExportReport },
+  affectedPages: Iterable<number>,
+  password?: string,
+  signal?: AbortSignal
+): Promise<{ bytes: Uint8Array; report: EditorExportReport }> {
+  const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, password, signal);
+  if (!fidelity.passed) throw new Error(`P8 fidelity validation failed: ${fidelity.failures.join(" ")}`);
+  return {
+    bytes: result.bytes,
+    report: {
+      ...result.report,
+      warnings: [...new Set([...result.report.warnings, ...fidelity.warnings])]
+    }
+  };
+}
+
 export async function exportEditorPdf(
   bytes: Uint8Array,
   objects: EditorObject[],
@@ -49,20 +72,31 @@ export async function exportEditorPdf(
   password?: string
 ): Promise<{ bytes: Uint8Array; report: EditorExportReport }> {
   const replay = takeNativeExportReplay(bytes);
-  if (!replay) return exportOverlayPdf(bytes, objects, assets, signal, password);
+  if (!replay) {
+    const overlay = await exportOverlayPdf(bytes, objects, assets, signal, password);
+    return certifyEditorExport(bytes, overlay, visibleObjectPages(objects), password, signal);
+  }
 
-  // P6 mixed exports must compile overlay annotations against the original PDF.
-  // Feeding a full native-image rewrite back into MuPDF's annotation exporter can
-  // stall across Chromium, Firefox and WebKit. Compile overlays first, then replay
-  // the already-qualified native edits so the final PDF contains both layers.
-  const overlay = await exportOverlayPdf(replay.sourceBytes, objects, assets, signal, replay.password ?? password);
-  const native = await applyNativeEdits(overlay.bytes, replay.edits, replay.password ?? password, signal);
-  return {
+  // P6 mixed exports compile overlay annotations against the original PDF.
+  // Native P1-P7 edits are then replayed, and P8 validates the final document
+  // end-to-end against that original source rather than trusting either stage.
+  const exportPassword = replay.password ?? password;
+  const overlay = await exportOverlayPdf(replay.sourceBytes, objects, assets, signal, exportPassword);
+  const native = await applyNativeEdits(overlay.bytes, replay.edits, exportPassword, signal);
+  const result = {
     bytes: native.bytes,
     report: {
       ...overlay.report,
       pageCount: native.report.pageCount,
-      outputBytes: native.bytes.byteLength
+      outputBytes: native.bytes.byteLength,
+      warnings: [...new Set([...overlay.report.warnings, ...native.report.warnings])]
     }
   };
+  return certifyEditorExport(
+    replay.sourceBytes,
+    result,
+    [...visibleObjectPages(objects), ...replay.edits.map((edit) => edit.pageNumber)],
+    exportPassword,
+    signal
+  );
 }
