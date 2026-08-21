@@ -1,4 +1,5 @@
-import type { NativeEdit, NativePageObject, NativeTableEdit } from "../../types/nativeEditor";
+import type { NativeComplexEdit, NativeEdit, NativePageObject, NativeTableEdit } from "../../types/nativeEditor";
+import { NativeComplexPropertiesPanel } from "./NativeComplexPropertiesPanel";
 import { NativeContentPropertiesPanel as LegacyNativeContentPropertiesPanel } from "./LegacyNativeContentPropertiesPanel";
 import { NativeTablePropertiesPanel } from "./NativeTablePropertiesPanel";
 
@@ -10,10 +11,15 @@ interface Props {
 }
 
 /**
- * P5 keeps the already-qualified P1-P4 properties implementation byte-for-byte
- * in LegacyNativeContentPropertiesPanel and intercepts only structured tables.
+ * P7 preserves the qualified P1-P5 property implementations and intercepts only
+ * first-class nested Form XObject groups. Structured tables remain on the P5
+ * panel; all earlier object types continue through the legacy implementation.
  */
 export function NativeContentPropertiesPanel({ object, queuedEdits, onQueue, onRemove }: Props) {
+  if (object.type === "complex") {
+    const queued = queuedEdits.find((edit): edit is NativeComplexEdit => edit.kind === "complex" && edit.objectId === object.id);
+    return <NativeComplexPropertiesPanel object={object} queued={queued} onQueue={(edit) => onQueue([edit])} onRemove={() => onRemove(object.id)} />;
+  }
   if (object.type !== "table") return <LegacyNativeContentPropertiesPanel object={object} queuedEdits={queuedEdits} onQueue={onQueue} onRemove={onRemove} />;
   const queued = queuedEdits.find((edit): edit is NativeTableEdit => edit.kind === "table" && edit.objectId === object.id);
   return <aside className="editor-properties native-unified-properties">
