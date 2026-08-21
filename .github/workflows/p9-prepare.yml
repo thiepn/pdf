@@ -27,14 +27,14 @@ jobs:
         run: |
           node scripts/p9/prepare_release_candidate.mjs
           node scripts/p9/patch_release_regressions.mjs
-      - name: Commit generated release freeze
+      - name: Commit generated source freeze
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- package.json package-lock.json src/core/release.ts README.md CHANGELOG.md .github/workflows/ci.yml .github/workflows/deploy.yml .github/workflows/release.yml tests/e2e/phase27.spec.ts scripts/releases/v6.0.1/runtime-regression.mjs scripts/releases/v6.0.2/runtime-regression.mjs scripts/releases/v6.0.3/runtime-regression.mjs scripts/releases/v6.0.4/runtime-regression.mjs scripts/releases/v6.0.5/runtime-regression.mjs scripts/releases/v6.0.6/runtime-regression.mjs scripts/releases/v6.1.0/runtime-regression.mjs
+          git add -- package.json package-lock.json src/core/release.ts README.md CHANGELOG.md tests/e2e/phase27.spec.ts scripts/releases/v6.0.1/runtime-regression.mjs scripts/releases/v6.0.2/runtime-regression.mjs scripts/releases/v6.0.3/runtime-regression.mjs scripts/releases/v6.0.4/runtime-regression.mjs scripts/releases/v6.0.5/runtime-regression.mjs scripts/releases/v6.0.6/runtime-regression.mjs scripts/releases/v6.1.0/runtime-regression.mjs
           if git diff --cached --quiet; then
-            echo "P9 release metadata is already synchronized."
+            echo "P9 source release metadata is already synchronized."
             exit 0
           fi
           git commit -m "chore(P9): freeze v7.0.0 release candidate [p9-sync]"
