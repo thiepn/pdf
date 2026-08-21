@@ -71,7 +71,7 @@ for (const path of [
 
 check(/NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*6/.test(nativeTypes), "native editor schema remains the P7/P8-qualified schema v6");
 check(editor.includes("validatePdfFidelity") || fidelity.includes("validatePdfFidelity"), "unified export remains fidelity-certified");
-check(fidelity.includes("unaffectedSampleSet") && fidelity.includes("semanticFingerprint"), "P8 semantic deep-scan remains bounded to untouched sampled pages");
+check(fidelity.includes("const affectedSet = new Set(affected)") && fidelity.includes("semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber))") && fidelity.includes("if (!deep)"), "P8 semantic deep-scan remains bounded to untouched sampled pages");
 check(/rotated and cropped/i.test(p8Test) && /incremental revision/i.test(p8Test), "P8 compatibility editor/export cases remain browser-gated");
 
 const passed = checks.filter((item) => item.passed).length;
