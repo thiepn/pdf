@@ -275,8 +275,11 @@ self.onmessage = (event: MessageEvent<Request>) => {
         }
       } finally { page.destroy(); }
     }
-    const saveOptions = pdf.canBeSavedIncrementally?.() ? "incremental" : "compress=yes,encrypt=keep";
-    const saved = pdf.saveToBuffer(saveOptions);
+    // Overlay compilation must produce a complete in-memory PDF. Incremental
+    // saves on a buffer-backed MuPDF document can stall in browser workers,
+    // and P6 mixed exports no longer need them because native edits are replayed
+    // after this overlay stage against the complete saved document.
+    const saved = pdf.saveToBuffer("compress=yes,encrypt=keep");
     try {
       const bytes = new Uint8Array(saved.asUint8Array());
       const output = Uint8Array.from(bytes).buffer;
