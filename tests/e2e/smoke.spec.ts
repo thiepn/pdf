@@ -6,7 +6,7 @@ test("Phase 27 release-qualified home, validation, recovery, professional worksp
   await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
 
   await page.goto("./#/release");
-  await expect(page.getByRole("heading", { name: /PDF Studio 6.1.0/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
 
   await page.goto("./#/validation");
   await expect(page.getByRole("button", { name: /Run validation/i })).toBeVisible();
@@ -47,7 +47,7 @@ test("Phase 27 release-qualified home, validation, recovery, professional worksp
   await expect(page.getByText(/Security inspector|Inspecting PDF security/)).toBeVisible();
 
   await page.goto("./#/diagnostics/system");
-  await expect(page.getByRole("heading", { name: /PDF Studio 6.1.0/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
 
   await page.goto("./#/diagnostics/viewer");
   await expect(page.getByRole("heading", { name: "PDF.js viewer baseline", exact: true })).toBeVisible();
