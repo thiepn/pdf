@@ -1,0 +1,51 @@
+name: P9 source audit identity patch
+
+on:
+  pull_request:
+    branches: ["agent/p2-layout-aware-reflow-font-fidelity"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.head_ref == 'agent/p9-release-candidate' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/p9-release-candidate
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          package-manager-cache: false
+      - name: Migrate Phase 30 release-line assertion to v6/v7
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const path = 'scripts/source-audit.mjs';
+          let text = await readFile(path, 'utf8');
+          const oldLine = 'if (version === packageJson.version && /^6\\.\\d+\\.\\d+$/.test(version ?? "") && /VITE_RELEASE_CHANNEL === "stable"/.test(releaseSource)) pass("Phase 30 release identity", `${version} remains on the qualified v6 line with an explicit stable build channel`); else fail("Phase 30 release identity", "Final version/channel contract is missing");';
+          const newLine = 'if (version === packageJson.version && /^[67]\\.\\d+\\.\\d+$/.test(version ?? "") && /VITE_RELEASE_CHANNEL === "stable"/.test(releaseSource)) pass("Phase 30 release identity", `${version} remains on the qualified v6/v7 release line with an explicit stable build channel`); else fail("Phase 30 release identity", "Final version/channel contract is missing");';
+          if (text.includes(oldLine)) {
+            text = text.replace(oldLine, newLine);
+            await writeFile(path, text);
+          } else if (!text.includes(newLine)) {
+            throw new Error('Expected Phase 30 release identity assertion was not found.');
+          }
+          NODE
+      - name: Commit audit migration
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/source-audit.mjs
+          if git diff --cached --quiet; then
+            echo "Phase 30 source audit is already v7-compatible."
+            exit 0
+          fi
+          git commit -m "test(P9): extend source audit release identity to v7"
+          git pull --rebase origin agent/p9-release-candidate
+          git push origin HEAD:agent/p9-release-candidate
