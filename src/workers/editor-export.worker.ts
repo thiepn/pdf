@@ -238,10 +238,6 @@ self.onmessage = (event: MessageEvent<Request>) => {
   let pdf: any;
   try {
     assertActive(request.requestId);
-    // Native P1-P5 writers all construct a mutable PDFDocument directly. Use
-    // the same path for the overlay stage so bytes produced by a preceding
-    // source-image rewrite are not reparsed through the generic Document/asPDF
-    // wrapper before we append editable annotations.
     pdf = new (mupdf as any).PDFDocument(new Uint8Array(request.bytes));
     if (pdf.needsPassword?.() && (!request.password || pdf.authenticatePassword(request.password) === 0)) throw new Error("The PDF password is required or incorrect.");
     pdf.disableJS?.();
@@ -261,7 +257,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const page = pdf.loadPage(pageNumber - 1);
       try {
         const pdfToFitz = invert(page.getTransform() as AffineMatrix);
-        for (const object of objects.sort((left, right) => left.zIndex - right.zIndex)) {
+        for (const object of objects.sort((left, right) => left.zIndex - b.zIndex)) {
           assertActive(request.requestId);
           if (object.rotation !== 0) warnings.push(`Rotation for ${object.type} object ${object.id.slice(0, 8)} is preview-only in this export and was normalized.`);
           switch (object.type) {
@@ -277,17 +273,16 @@ self.onmessage = (event: MessageEvent<Request>) => {
             case "redaction": addRedactionMark(page, object, pdfToFitz, warnings); annotationCount += 1; break;
           }
         }
-        // Every annotation writer updates its own object. Running a second
-        // page-wide update here can walk the newly rewritten source-image graph
-        // from the preceding native pass and stall mixed P6 exports in browsers.
-        // Final reopen and annotation inventory validation remains authoritative.
       } finally { page.destroy(); }
     }
-    // Every editable annotation above is updated immediately, and image stamps
-    // receive an explicit appearance stream. This second-stage overlay pass
-    // only adds objects; final syntax/reopen and annotation-inventory validation
-    // remains in EditorPage before any download is exposed.
-    const saved = pdf.saveToBuffer("compress=yes,encrypt=keep");
+    // Overlay objects are annotations/links. Once a prior native-content pass
+    // has been committed and reopened, MuPDF can normally append these edits
+    // incrementally. Avoiding a second full-document rewrite prevents the P6
+    // mixed native-image + overlay export from walking the rewritten image graph
+    // again. Repaired/non-incremental documents retain the qualified full-save
+    // fallback, and EditorPage still reopens and validates the final output.
+    const saveOptions = pdf.canBeSavedIncrementally?.() ? "incremental" : "compress=yes,encrypt=keep";
+    const saved = pdf.saveToBuffer(saveOptions);
     try {
       const bytes = new Uint8Array(saved.asUint8Array());
       const output = Uint8Array.from(bytes).buffer;
