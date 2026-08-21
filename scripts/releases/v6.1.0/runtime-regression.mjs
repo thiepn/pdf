@@ -25,7 +25,7 @@ const commandPalette = await read("src/components/CommandPalette.tsx");
 const distAudit = await read("scripts/check-dist.mjs");
 const browserCompatibility = await read("tests/e2e/browser-compatibility.spec.ts");
 
-check(packageJson.version === "6.1.0" && release.includes('APP_VERSION = "6.1.0"'), "version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/preservationOpen:\s*false/.test(workspace), "technical preservation details default closed");
 check(/Simple/.test(shell) || /Advanced & support/.test(shell), "advanced support is progressively disclosed");
 check(/Advanced & support/.test(shell) && !/label: "Activity"/.test(shell), "engineering destinations removed from primary navigation");

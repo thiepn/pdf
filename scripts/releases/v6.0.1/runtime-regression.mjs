@@ -15,7 +15,7 @@ const release = await readFile(new URL("../../../src/core/release.ts", import.me
 const generator = await readFile(new URL("../../../scripts/generate-offline-assets.mjs", import.meta.url), "utf8");
 let sw = await readFile(new URL("../../../public/sw.js", import.meta.url), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.0.1+ 6.x compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(sw.includes("__LPS_RELEASE_CHANNEL__") && sw.includes("__LPS_RELEASE_BUILD_EPOCH__"), "service worker is build-identity templated");
 check(/replaceAll\("__LPS_RELEASE_CHANNEL__"/.test(generator) && /replaceAll\("__LPS_RELEASE_BUILD_EPOCH__"/.test(generator), "build stamps service-worker identity");
 

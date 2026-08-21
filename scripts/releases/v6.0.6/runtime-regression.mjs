@@ -26,7 +26,7 @@ const swManager = await readFile(new URL("src/release/serviceWorkerManager.ts", 
 const deploy = await readFile(new URL(".github/workflows/deploy.yml", root), "utf8");
 const releaseWorkflow = await readFile(new URL(".github/workflows/release.yml", root), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.0.6+ compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/hasFutureSettingsSchema/.test(settings) && /newer PDF Studio version/.test(settings) && /return \{ \.\.\.defaultSettings \}/.test(settings), "future settings remain untouched by older builds");
 rejects(() => migrateBatchRecipe({ schemaVersion: 4, id: "future", name: "Future", steps: [], outputSuffix: "x", updatedAt: 1 }), /newer PDF Studio/, "future Batch recipes are rejected rather than down-converted");
 check(/schemaVersion > CURRENT_BATCH_SCHEMA_VERSION/.test(batch), "Batch schema upper boundary is explicit");

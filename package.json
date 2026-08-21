@@ -1,7 +1,7 @@
 {
   "name": "pdf-studio",
   "private": true,
-  "version": "6.1.0",
+  "version": "7.0.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0",
@@ -59,7 +59,7 @@
     "test:runtime:phase22": "node --experimental-strip-types scripts/phase22/runtime-regression.mjs",
     "audit:pages": "node scripts/phase22/pages-readiness.mjs",
     "test:phase22": "npm run gate:phase11 && npm run test:runtime:phase16 && npm run test:runtime:phase17 && npm run test:runtime:phase18 && npm run test:runtime:phase19 && npm run test:runtime:phase20 && npm run test:runtime:phase21 && npm run test:runtime:phase22 && npm run audit:source && npm run audit:pages && vitest run tests/unit && playwright test",
-    "release:web": "npm run gate:phase11 && npm run test:runtime:phase16 && npm run test:runtime:phase17 && npm run test:runtime:phase18 && npm run test:runtime:phase19 && npm run test:runtime:phase20 && npm run test:runtime:phase21 && npm run test:runtime:phase22 && npm run test:runtime:phase23 && npm run test:runtime:phase24 && npm run test:runtime:phase25 && npm run test:runtime:phase26 && npm run test:runtime:phase27 && npm run test:runtime:phase28 && npm run test:runtime:phase29 && npm run test:runtime:phase30 && npm run test:runtime:v6.0.1 && npm run test:runtime:v6.0.2 && npm run test:runtime:v6.0.3 && npm run test:runtime:v6.0.4 && npm run test:runtime:v6.0.5 && npm run test:runtime:v6.0.6 && npm run test:runtime:v6.1.0 && npm run test:corpus:phase28 && npm run audit:phase30:migrations && npm run audit:phase30:security && npm run audit:lockfile && npm run audit:toolchain && npm run audit:dependencies && npm run audit:source && npm run audit:pages && npm run typecheck && npm run test && npm run build:verified && npm run audit:tree && npm run audit:security",
+    "release:web": "npm run gate:phase11 && npm run test:runtime:phase16 && npm run test:runtime:phase17 && npm run test:runtime:phase18 && npm run test:runtime:phase19 && npm run test:runtime:phase20 && npm run test:runtime:phase21 && npm run test:runtime:phase22 && npm run test:runtime:phase23 && npm run test:runtime:phase24 && npm run test:runtime:phase25 && npm run test:runtime:phase26 && npm run test:runtime:phase27 && npm run test:runtime:phase28 && npm run test:runtime:phase29 && npm run test:runtime:phase30 && npm run test:runtime:v6.0.1 && npm run test:runtime:v6.0.2 && npm run test:runtime:v6.0.3 && npm run test:runtime:v6.0.4 && npm run test:runtime:v6.0.5 && npm run test:runtime:v6.0.6 && npm run test:runtime:v6.1.0 && npm run audit:p9:release-candidate && npm run test:runtime:v7.0.0 && npm run test:corpus:phase28 && npm run audit:phase30:migrations && npm run audit:phase30:security && npm run audit:lockfile && npm run audit:toolchain && npm run audit:dependencies && npm run audit:source && npm run audit:pages && npm run typecheck && npm run test && npm run build:verified && npm run audit:tree && npm run audit:security",
     "test:runtime:phase23": "node --experimental-strip-types scripts/phase23/runtime-regression.mjs",
     "test:phase23": "npm run gate:phase11 && npm run test:runtime:phase16 && npm run test:runtime:phase17 && npm run test:runtime:phase18 && npm run test:runtime:phase19 && npm run test:runtime:phase20 && npm run test:runtime:phase21 && npm run test:runtime:phase22 && npm run test:runtime:phase23 && npm run audit:source && npm run audit:pages && vitest run tests/unit && playwright test",
     "test:runtime:phase24": "node --experimental-strip-types scripts/phase24/runtime-regression.mjs",
@@ -97,7 +97,10 @@
     "test:runtime:v6.0.6": "node --experimental-strip-types scripts/releases/v6.0.6/runtime-regression.mjs",
     "test:v6.0.6": "npm run test:phase30 && npm run test:runtime:v6.0.1 && npm run test:runtime:v6.0.2 && npm run test:runtime:v6.0.3 && npm run test:runtime:v6.0.4 && npm run test:runtime:v6.0.5 && npm run test:runtime:v6.0.6",
     "test:runtime:v6.1.0": "node --experimental-strip-types scripts/releases/v6.1.0/runtime-regression.mjs",
-    "test:v6.1.0": "npm run test:v6.0.6 && npm run test:runtime:v6.1.0"
+    "test:v6.1.0": "npm run test:v6.0.6 && npm run test:runtime:v6.1.0",
+    "audit:p9:release-candidate": "node scripts/p9/release-candidate-audit.mjs",
+    "test:runtime:v7.0.0": "node --experimental-strip-types scripts/releases/v7.0.0/runtime-regression.mjs",
+    "test:v7.0.0": "npm run release:web && npm run test:runtime:v7.0.0"
   },
   "dependencies": {
     "mupdf": "1.28.0",

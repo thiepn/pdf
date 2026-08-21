@@ -1,5 +1,16 @@
 # Changelog
 
+## 7.0.0 — Universal Editing Release Candidate
+
+- Promoted P1–P8 into one feature-frozen existing-content editing architecture.
+- Added exact existing-text editing with layout-aware paragraph reflow, font/style preservation evidence, and deterministic downstream movement for supported layouts.
+- Added direct source-image manipulation, exact vector-path editing, structured table reconstruction, and supported reusable nested Form XObject instance transforms/deletion.
+- Unified added editor objects and qualified source PDF objects under shared move, resize, alignment, distribution, rotation, and keyboard layout operations.
+- Added source-vs-output fidelity certification for page geometry, untouched sampled semantics, annotations/widgets, forms, attachments, outlines, labels, JavaScript presence, encryption state, core metadata, and compatibility-significant PDF container features.
+- Added a nine-class P8 compatibility corpus independently reopened by PyMuPDF and pypdf, plus Chromium/Firefox/WebKit editor/export regression coverage.
+- Preserved project package v9, database schema v13, and backward compatibility with supported v1–v9 project packages; v7 is a capability release, not a storage-format migration.
+- Froze v7.0.0 publication behind the P9 release-candidate audit, existing Phase 11–30 and v6 maintenance regressions, reproducible distribution checks, dependency/security gates, exact-artifact Playwright qualification, deployed smoke tests, and exact-tag Stable provenance.
+
 ## 6.1.0 — Intuitiveness & Discoverability
 
 - Standardized major workflow names across the workspace, Tools, Viewer, command palette, and Help.

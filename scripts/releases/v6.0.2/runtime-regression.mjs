@@ -22,7 +22,7 @@ const releasePage = await readFile(new URL("../../../src/views/ReleasePage.tsx",
 const phase30Unit = await readFile(new URL("../../../tests/unit/phase30ReleaseFreeze.test.ts", import.meta.url), "utf8");
 const packageValidation = await readFile(new URL("../../../src/projects/packageValidation.ts", import.meta.url), "utf8");
 
-check(/^6\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "6.x compatibility version synchronization");
+check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/assertNoSameVersionStableDowngrade/.test(rawSw) && /channelRank\(candidate\.channel\)/.test(rawSw), "service worker prevents same-version Stable downgrade");
 check(/Production offline asset manifest is unavailable/.test(rawSw) && /caches\.delete\(CACHE_VERSION\)/.test(rawSw), "production precache fails closed and removes partial cache");
 check(/GET_OFFLINE_STATUS/.test(manager) && /if \(!status\?\.ready\) return false/.test(manager) && /CLIENT_HEALTHY/.test(manager), "healthy handshake requires complete offline release");
