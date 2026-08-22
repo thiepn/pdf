@@ -4,6 +4,7 @@ import { importPdfProject } from "../projects/projectRepository";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { Icon } from "../components/Icon";
 import { getTask, pdfTasks, taskCategories, taskRoute, taskSearchText, type PdfTask } from "../ia/taskCatalog";
+import "../ia/taskArchitecture.css";
 
 export function ToolsPage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
