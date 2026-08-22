@@ -109,7 +109,7 @@ export function App() {
                             : route.name === "batch" ? <BatchPage />
                               : route.name === "compare" ? <ComparePage />
                                 : route.name === "create" ? <CreatePdfPage />
-                                  : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
+                                  : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} taskId={route.name === "workspace" ? route.taskId : undefined} />
                                     : <HomePage />;
 
   const unified = isDocumentRoute(route);
