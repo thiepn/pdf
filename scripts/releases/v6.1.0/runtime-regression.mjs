@@ -27,19 +27,19 @@ const browserCompatibility = await read("tests/e2e/browser-compatibility.spec.ts
 
 check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/preservationOpen:\s*false/.test(workspace), "technical preservation details default closed");
-check(/Simple/.test(shell) || /Advanced & support/.test(shell), "advanced support is progressively disclosed");
-check(/Advanced & support/.test(shell) && !/label: "Activity"/.test(shell), "engineering destinations removed from primary navigation");
+check(/<details aria-label="Advanced & support" className="sidebar-advanced">/.test(shell) && /<summary>Support<\/summary>/.test(shell), "advanced support is progressively disclosed");
+check(!/route:\s*\{ name: "diagnostics" \}/.test(shell) && !/route:\s*\{ name: "validation" \}/.test(shell) && !/route:\s*\{ name: "storage" \}/.test(shell), "engineering and release destinations stay out of normal support navigation");
 check(/Download original PDF/.test(viewer) && /Back up project/.test(viewer) && !/>Edit PDF</.test(viewer) && !/>Organize</.test(viewer), "viewer toolbar avoids duplicate workspace navigation");
 check(/toolGroups/.test(editor) && /Insert/.test(editor) && /Shapes/.test(editor) && /Markup/.test(editor) && /Mark redaction/.test(editor), "editor tools are grouped and redaction is clearly staged");
 check(/not permanent yet/i.test(editor) && /Apply redactions/.test(editor), "redaction permanence warning remains visible");
 check(/LegacyNativeContentPropertiesPanel/.test(nativePropsEntry) && /Technical details/.test(nativeProps) && /Directly editable/.test(nativeProps) && /pending change/.test(nativeProps), "existing-content editor uses plain capability language");
 check(/Recognition quality/.test(ocr) && /Balanced \(recommended\)/.test(ocr) && /Advanced image cleanup/.test(ocr), "OCR defaults to understandable quality presets");
 check(/selection-examples/.test(organizer) && /Pages 1–5/.test(organizer) && /All except 3/.test(organizer), "page selection provides clickable examples");
-check(/Advanced tools/.test(tools) && /Forms & Protect/.test(tools) && /Print & Advanced/.test(tools) && !/Compare 3\.0|Creator 2\.0|Phase 18/.test(tools), "tools page uses consistent user-facing vocabulary");
+check(/Document utilities/.test(tools) && /Specialist document tools/.test(tools) && /Forms & Protect/.test(tools) && !/Inspect PDF structure|title="Repair PDF"/.test(tools) && !/Compare 3\.0|Creator 2\.0|Phase 18/.test(tools), "tools page prioritizes document tasks and keeps diagnostics out of normal discovery");
 check((help.match(/id:\s*"/g) ?? []).length >= 20 && /redaction/.test(help) && /print-advanced/.test(help) && /what-changes/.test(help), "offline help covers major everyday and advanced workflows");
 check(/Prevent browser cleanup/.test(pwa), "persistent-storage action is described by its user outcome");
 check(!/<p className="eyebrow">Phase 17<\/p>/.test(nativeRoute), "legacy compatibility route does not expose internal phase numbering");
-check(/Download history/.test(commandPalette) && /App self-check/.test(commandPalette) && /Troubleshooting & recovery/.test(commandPalette), "command palette matches canonical navigation vocabulary");
+check(/PDF tools/.test(commandPalette) && /Troubleshooting & recovery/.test(commandPalette) && !/App self-check/.test(commandPalette) && !/"inspector"|"preservation"/.test(commandPalette), "command palette keeps engineering and release actions out of ordinary command search");
 check(packageJson.dependencies?.["pdfjs-dist"] === "5.4.624", "PDF.js remains pinned to the last release before Map upsert APIs became mandatory");
 check(/getOrInsertComputed/.test(distAudit) && /FORBIDDEN_RUNTIME_APIS/.test(distAudit), "distribution audit rejects unsupported Map upsert APIs");
 check(/deleteProperty\(Map\.prototype, "getOrInsertComputed"\)/.test(browserCompatibility) && /plain-text\.pdf/.test(browserCompatibility) && /PLAIN_PAGE_1_MARKER/.test(browserCompatibility), "browser regression opens a real PDF without Map upsert APIs");

@@ -3,7 +3,6 @@ import { ProjectCard } from "../components/ProjectCard";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { createMinimalPdf } from "../fixtures/minimalPdf";
 import { createProjectFromBytes, importPdfProject, importProjectPackage, listProjects } from "../projects/projectRepository";
-import { PwaReadinessCard } from "../components/PwaReadinessCard";
 import { acknowledgeSharedInboxFiles, listSharedInboxFiles, removeSharedInboxFiles } from "../pwa/shareInbox";
 import { acknowledgePendingPwaLaunchFiles, peekPendingPwaLaunchFiles, PWA_LAUNCH_FILES_EVENT } from "../pwa/launchFiles";
 import { classifyIncomingFile } from "../pwa/fileIngress";
@@ -39,7 +38,7 @@ export function HomePage() {
   async function processFile(file: File, kind: "pdf" | "package", suppliedPassword?: string, inboxId?: string, launchId?: string): Promise<boolean> {
     setBusy(true);
     setError(null);
-    setStatus(`Inspecting ${file.name}…`);
+    setStatus(`Opening ${file.name}…`);
     try {
       const project = kind === "package"
         ? await importProjectPackage(file, suppliedPassword)
@@ -55,7 +54,7 @@ export function HomePage() {
         await acknowledgeSharedInboxFiles([inboxId]);
         deferredInboxIds.current.delete(inboxId);
       }
-      setStatus("Project stored locally. Opening unified workspace…");
+      setStatus("Opening document…");
       navigateTo({ name: "workspace", projectId: project.id, mode: "viewer" });
       return true;
     } catch (reason) {
@@ -127,9 +126,9 @@ export function HomePage() {
     <div className="home-stack">
       <section className="product-hero">
         <div>
-          <p className="eyebrow">Private by architecture</p>
-          <h2>Work with PDFs without uploading them.</h2>
-          <p>Open a PDF once, then move between reading, editing, page organization, forms, protection, OCR, optimization, and advanced tools inside one recoverable workspace.</p>
+          <p className="eyebrow">Private PDF workspace</p>
+          <h2>Open a PDF and get to the task.</h2>
+          <p>Edit, organize, convert, OCR, compress, fill, protect, or review PDFs without uploading them.</p>
           <div className="hero-actions">
             <button className="button button--large" disabled={busy} onClick={() => fileInputRef.current?.click()} type="button"><Icon name="documents" size={17} />Open PDF</button>
             <button className="button button--secondary button--large" disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore project</button>
@@ -141,7 +140,7 @@ export function HomePage() {
         <div className="privacy-card">
           <span className="privacy-card__icon"><Icon name="shield" size={22} /></span>
           <strong>Local processing</strong>
-          <p>The PDF bytes, extracted text, passwords, and project state remain inside this browser.</p>
+          <p>Your PDFs, extracted text, passwords, and project state stay in this browser.</p>
           <dl>
             <div><dt>Upload</dt><dd>None</dd></div>
             <div><dt>Storage</dt><dd>Local browser storage</dd></div>
@@ -162,11 +161,9 @@ export function HomePage() {
         </section>
       ) : null}
 
-      <PwaReadinessCard compact />
-
       <section className="home-tools-strip">
-        <div><p className="eyebrow">Unified PDF workspace</p><strong>One document, one tab, every workflow</strong><span>Switch tools without reopening the file. Simple mode shows everyday tools. Advanced mode adds specialist inspection, repair, print, and standards controls.</span></div>
-        <a className="button button--secondary" href={routeHref({ name: "tools" })}>Open Quick Tools</a>
+        <div><p className="eyebrow">Common tasks</p><strong>Choose the job, not the PDF technology</strong><span>Open the tool list for merge, scan, OCR, compression, conversion, comparison, and other document tasks.</span></div>
+        <a className="button button--secondary" href={routeHref({ name: "tools" })}>Browse PDF tools</a>
       </section>
 
       <section className="section-block">
@@ -177,14 +174,8 @@ export function HomePage() {
         {projects.length ? (
           <div className="project-grid">{projects.map((project) => <ProjectCard key={project.id} project={project} />)}</div>
         ) : (
-          <div className="empty-state"><strong>No local projects yet</strong><p>Open a PDF to create an automatically recoverable project.</p></div>
+          <div className="empty-state"><strong>No local projects yet</strong><p>Open a PDF to create a recoverable local project.</p></div>
         )}
-      </section>
-
-      <section aria-label="PDF Studio foundations" className="foundation-grid foundation-grid--quiet">
-        <article><span>01</span><strong>Local-first processing</strong><p>PDFs, OCR results, scan images, recipes, and generated outputs remain on the device.</p></article>
-        <article><span>02</span><strong>Shared validation pipeline</strong><p>Generated PDFs reopen and verify page structure before download or project creation.</p></article>
-        <article><span>03</span><strong>Explicit preservation boundaries</strong><p>Raster OCR and compression warn before replacing searchable, vector, or interactive PDF structures.</p></article>
       </section>
     </div>
   );
