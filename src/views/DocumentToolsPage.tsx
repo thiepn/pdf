@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Icon } from "../components/Icon";
-import { routeHref } from "../core/appRouter";
-import { pdfTasks, taskCategories, taskRoute, taskSearchText, type PdfTask } from "../ia/taskCatalog";
+import { readAppRoute, routeHref } from "../core/appRouter";
+import { getTask, pdfTasks, taskCategories, taskRoute, taskSearchText, type PdfTask } from "../ia/taskCatalog";
 import "../ia/taskArchitecture.css";
 import { ToolboxPage } from "./ToolboxPage";
 
 const relatedTaskIds = new Set(["merge-pdfs", "compare-pdfs", "batch-automation"]);
 
 export function DocumentToolsPage({ projectId, onTitleChange }: { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }) {
-  const [query, setQuery] = useState("");
-  const [utilitiesOpen, setUtilitiesOpen] = useState(false);
+  const route = readAppRoute();
+  const selectedTask = getTask(route.name === "workspace" ? route.taskId : undefined);
+  const selectedUtility = selectedTask?.target.kind === "workspace" && selectedTask.target.mode === "toolbox" ? selectedTask : undefined;
+  const [query, setQuery] = useState(() => selectedTask?.label ?? "");
+  const [utilitiesOpen, setUtilitiesOpen] = useState(() => Boolean(selectedUtility));
 
-  useEffect(() => { onTitleChange?.("Tools", "Find a PDF task by outcome"); }, [onTitleChange]);
+  useEffect(() => {
+    onTitleChange?.("Tools", selectedTask ? selectedTask.label : "Find a PDF task by outcome");
+    if (selectedUtility) setUtilitiesOpen(true);
+  }, [onTitleChange, selectedTask, selectedUtility]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -28,7 +34,9 @@ export function DocumentToolsPage({ projectId, onTitleChange }: { projectId: str
   const related = pdfTasks.filter((task) => relatedTaskIds.has(task.id));
 
   return <div className="document-tools-hub">
-    <section className="document-tools-hub__hero"><div><p className="eyebrow">Current PDF</p><h2>What do you want to do?</h2><p>Choose the task. PDF Studio opens the correct workspace; specialist engines no longer need to be remembered as navigation tabs.</p></div><label><span className="visually-hidden">Search current PDF tasks</span><input onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)} placeholder="Search crop, redact, OCR, metadata…" type="search" value={query}/></label></section>
+    <section className="document-tools-hub__hero"><div><p className="eyebrow">Current PDF</p><h2>{selectedTask ? selectedTask.label : "What do you want to do?"}</h2><p>{selectedTask?.description ?? "Choose the task. PDF Studio opens the correct workspace; specialist engines no longer need to be remembered as navigation tabs."}</p></div><label><span className="visually-hidden">Search current PDF tasks</span><input onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)} placeholder="Search crop, redact, OCR, metadata…" type="search" value={query}/></label></section>
+
+    {selectedUtility ? <section className="task-focus" aria-label="Selected document utility"><div><span className="task-focus__icon"><Icon name={selectedUtility.icon} size={26}/></span><div><p className="eyebrow">Selected task</p><h2>{selectedUtility.label}</h2><p>{selectedUtility.description} The matching document utilities are open below.</p></div></div><button className="button button--secondary" onClick={() => setQuery("")} type="button">Browse all tasks</button></section> : null}
 
     {taskCategories.map((category) => {
       const tasks = visible.filter((task) => task.category === category.id);
