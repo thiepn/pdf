@@ -3,13 +3,13 @@ import { routeHref } from "../core/appRouter";
 
 const capabilities = [
   ["Read and manage local projects", "Available", "Open, search, back up, restore, and reopen PDFs without uploading them."],
-  ["Edit PDFs", "Available", "Add content and annotations, and edit supported existing text, images, vectors, table cells, and form values."],
-  ["Pages", "Available", "Reorder, rotate, duplicate, delete, reverse, extract, split, and merge pages."],
-  ["Forms & Protect", "Available", "Fill forms, permanently apply redactions, remove risky active content, flatten supported structures, and add password protection."],
+  ["Edit & annotate", "Available", "Add content and annotations, and edit supported existing text, images, vectors, table cells, and form values."],
+  ["Pages", "Available", "Reorder, rotate, duplicate, delete, reverse, extract, split, crop, insert blank pages, and merge PDFs."],
+  ["Protect & forms", "Available", "Fill forms, permanently apply redactions, remove risky active content, flatten supported structures, and add password protection."],
   ["OCR and scanning", "Available with limits", "Printed-text OCR can create searchable raster PDFs. Image-based reconstruction does not preserve every interactive PDF structure."],
-  ["Optimize and PDF utilities", "Available", "Lossless cleanup, stronger image-based compression, crop, page decoration, metadata, grayscale, splitting, and local conversions."],
-  ["Compare and Create PDF", "Available", "Compare text or scanned PDFs with automatic page matching, or create PDFs from Markdown, text, and simple HTML."],
-  ["Accessibility and standards", "Advanced", "Check accessibility, archive readiness, signatures, print preparation, and security findings. Formal standards certification remains external."],
+  ["Convert & optimize", "Available", "Lossless cleanup, stronger image-based compression, metadata editing/removal, grayscale output, and local text/Markdown/HTML/page-image exports."],
+  ["Create & compare", "Available", "Create PDFs from Markdown, text, or simple HTML, or compare text and scanned PDFs with automatic page matching."],
+  ["Review & accessibility", "Advanced", "Check accessibility, prepare print layouts, add Bates numbering, review archive readiness, and inspect specialist document findings. Formal standards certification remains external."],
   ["Certificate-backed signing", "Not built in", "The app can inspect embedded signatures and create visual signatures, but signing with a trusted digital certificate requires an external signing integration."],
   ["Offline/PWA", "Available", "The app can be installed, cached for offline use, and hosted statically on GitHub Pages without a backend."]
 ] as const;
