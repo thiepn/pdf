@@ -17,13 +17,13 @@ const navigation: Array<{ route: AppRoute; label: string; icon: IconName }> = [
   { route: { name: "help" }, label: "Help", icon: "help" }
 ];
 
+// Keep normal support navigation focused on things a user may actually need.
+// Engineering laboratories, release self-checks, and raw storage diagnostics remain
+// reachable from Help/About for troubleshooting but do not compete with PDF work.
 const utilityNavigation: Array<{ route: AppRoute; label: string; description: string }> = [
   { route: { name: "activity" }, label: "Download history", description: "Local output records" },
-  { route: { name: "storage" }, label: "Local storage", description: "Quota and retention" },
-  { route: { name: "maintenance" }, label: "Troubleshooting & recovery", description: "Safe mode and cache repair" },
-  { route: { name: "diagnostics" }, label: "Diagnostics", description: "Advanced browser checks" },
-  { route: { name: "validation" }, label: "App self-check", description: "Release verification" },
-  { route: { name: "release" }, label: "About this app", description: "Capabilities and limitations" }
+  { route: { name: "maintenance" }, label: "Troubleshooting & recovery", description: "Safe mode, project health, and app recovery" },
+  { route: { name: "release" }, label: "About this app", description: "Capabilities, limitations, and technical support" }
 ];
 
 const mobileNavigation = navigation.filter((item) => ["home", "projects", "tools", "settings", "help"].includes(item.route.name));
@@ -64,8 +64,8 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
       <nav className="nav-list" aria-label="Application navigation">{navigation.map((item) => <a aria-current={isActive(route, item.route) ? "page" : undefined} className={isActive(route, item.route) ? "nav-item nav-item--active" : "nav-item"} href={routeHref(item.route)} key={item.route.name}><Icon className="nav-item__icon" name={item.icon} /><span>{item.label}</span></a>)}</nav>
       <CommandPalette />
       <details className="sidebar-advanced">
-        <summary>Advanced & support</summary>
-        <nav aria-label="Advanced and support navigation" className="sidebar-utility-links">{utilityNavigation.map((item) => <a href={routeHref(item.route)} key={item.route.name}><strong>{item.label}</strong><small>{item.description}</small></a>)}</nav>
+        <summary>Support</summary>
+        <nav aria-label="Support navigation" className="sidebar-utility-links">{utilityNavigation.map((item) => <a href={routeHref(item.route)} key={item.route.name}><strong>{item.label}</strong><small>{item.description}</small></a>)}</nav>
       </details>
       <div className="sidebar__footer sidebar__footer--stacked"><div><span className="privacy-dot" /> Files stay on this device</div><div><ConnectionStatus compact /> · v{APP_VERSION}</div></div>
     </aside>
