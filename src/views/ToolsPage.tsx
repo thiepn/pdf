@@ -35,7 +35,7 @@ export function ToolsPage() {
     try {
       const project = await importPdfProject(file, suppliedPassword);
       if (suppliedPassword) rememberProjectSessionPassword(project.id, suppliedPassword);
-      navigateTo({ name: "workspace", projectId: project.id, mode: task.target.mode });
+      navigateTo({ name: "workspace", projectId: project.id, mode: task.target.mode, taskId: task.id });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message) && !suppliedPassword) {
