@@ -37,12 +37,8 @@ export function readAppRoute(hash = window.location.hash): AppRoute {
 
   if (name === "workspace" && id) {
     const parts = clean.split("/").filter(Boolean);
-    return {
-      name: "workspace",
-      projectId: decodeURIComponent(id),
-      mode: normalizeWorkspaceMode(parts[2]),
-      taskId: parts[3] ? decodeURIComponent(parts[3]) : undefined
-    };
+    const base = { name: "workspace" as const, projectId: decodeURIComponent(id), mode: normalizeWorkspaceMode(parts[2]) };
+    return parts[3] ? { ...base, taskId: decodeURIComponent(parts[3]) } : base;
   }
   if (name === "viewer" && id) return { name: "viewer", projectId: decodeURIComponent(id) };
   if (name === "editor" && id) return { name: "editor", projectId: decodeURIComponent(id) };
@@ -57,7 +53,7 @@ export function readAppRoute(hash = window.location.hash): AppRoute {
   if (name === "compliance" && id) return { name: "compliance", projectId: decodeURIComponent(id) };
   if (name === "organizer" && id) return { name: "organizer", projectId: decodeURIComponent(id) };
   if (name === "toolbox" && id) return { name: "toolbox", projectId: decodeURIComponent(id) };
-  if (name === "tools") return { name: "tools", taskId: id ? decodeURIComponent(id) : undefined };
+  if (name === "tools") return id ? { name: "tools", taskId: decodeURIComponent(id) } : { name: "tools" };
   if (name === "merge") return { name: "merge" };
   if (name === "scan") return { name: "scan" };
   if (name === "batch") return { name: "batch" };
