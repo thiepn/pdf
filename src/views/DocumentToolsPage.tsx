@@ -1,24 +1,31 @@
-import { useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { Icon } from "../components/Icon";
 import { routeHref } from "../core/appRouter";
 import { pdfTasks, taskCategories, taskRoute, taskSearchText, type PdfTask } from "../ia/taskCatalog";
+import "../ia/taskArchitecture.css";
 import { ToolboxPage } from "./ToolboxPage";
+
+const relatedTaskIds = new Set(["merge-pdfs", "compare-pdfs", "batch-automation"]);
 
 export function DocumentToolsPage({ projectId, onTitleChange }: { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }) {
   const [query, setQuery] = useState("");
   const [utilitiesOpen, setUtilitiesOpen] = useState(false);
 
+  useEffect(() => { onTitleChange?.("Tools", "Find a PDF task by outcome"); }, [onTitleChange]);
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const tasks = pdfTasks.filter((task) => task.audience !== "recovery");
+    const tasks = pdfTasks.filter((task) => task.target.kind === "workspace" && task.audience !== "recovery");
     return needle ? tasks.filter((task) => taskSearchText(task).includes(needle)) : tasks;
   }, [query]);
 
   const recovery = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const tasks = pdfTasks.filter((task) => task.audience === "recovery");
+    const tasks = pdfTasks.filter((task) => task.target.kind === "workspace" && task.audience === "recovery");
     return needle ? tasks.filter((task) => taskSearchText(task).includes(needle)) : [];
   }, [query]);
+
+  const related = pdfTasks.filter((task) => relatedTaskIds.has(task.id));
 
   return <div className="document-tools-hub">
     <section className="document-tools-hub__hero"><div><p className="eyebrow">Current PDF</p><h2>What do you want to do?</h2><p>Choose the task. PDF Studio opens the correct workspace; specialist engines no longer need to be remembered as navigation tabs.</p></div><label><span className="visually-hidden">Search current PDF tasks</span><input onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)} placeholder="Search crop, redact, OCR, metadata…" type="search" value={query}/></label></section>
@@ -31,7 +38,9 @@ export function DocumentToolsPage({ projectId, onTitleChange }: { projectId: str
 
     {recovery.length ? <section className="document-task-section"><header><div><p className="eyebrow">Troubleshoot this PDF</p><h3>Diagnosis and repair are shown only when you search for them.</h3></div></header><div className="document-task-grid">{recovery.map((task) => <DocumentTask key={task.id} onUtilities={() => setUtilitiesOpen(true)} projectId={projectId} task={task}/>)}</div></section> : null}
 
-    {!visible.length && !recovery.length ? <div className="empty-state"><strong>No matching task</strong><p>Try edit, pages, protect, convert, compare, accessibility, or print.</p></div> : null}
+    {!visible.length && !recovery.length ? <div className="empty-state"><strong>No matching task</strong><p>Try edit, pages, protect, convert, accessibility, or print.</p></div> : null}
+
+    {!query ? <section className="document-task-section"><header><div><p className="eyebrow">Related workflows</p><h3>Actions that open a separate multi-document or automation workspace.</h3></div></header><div className="document-task-grid">{related.map((task) => <DocumentTask key={task.id} onUtilities={() => setUtilitiesOpen(true)} projectId={projectId} task={task}/>)}</div></section> : null}
 
     <details className="document-utilities-disclosure" onToggle={(event) => setUtilitiesOpen(event.currentTarget.open)} open={utilitiesOpen}>
       <summary><span><strong>Document utilities</strong><small>Watermarks, page numbers, crop, blank pages, metadata, grayscale, and content export</small></span><span aria-hidden="true">⌄</span></summary>
