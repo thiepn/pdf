@@ -15,7 +15,7 @@ export type AppRoute =
   | { name: "compliance"; projectId: string }
   | { name: "organizer"; projectId: string }
   | { name: "toolbox"; projectId: string }
-  | { name: "tools" }
+  | { name: "tools"; taskId?: string }
   | { name: "merge" }
   | { name: "scan" }
   | { name: "batch" }
@@ -52,7 +52,7 @@ export function readAppRoute(hash = window.location.hash): AppRoute {
   if (name === "compliance" && id) return { name: "compliance", projectId: decodeURIComponent(id) };
   if (name === "organizer" && id) return { name: "organizer", projectId: decodeURIComponent(id) };
   if (name === "toolbox" && id) return { name: "toolbox", projectId: decodeURIComponent(id) };
-  if (name === "tools") return { name: "tools" };
+  if (name === "tools") return { name: "tools", taskId: id ? decodeURIComponent(id) : undefined };
   if (name === "merge") return { name: "merge" };
   if (name === "scan") return { name: "scan" };
   if (name === "batch") return { name: "batch" };
@@ -87,7 +87,7 @@ export function routeHref(route: AppRoute): string {
     case "organizer": return `#/workspace/${encodeURIComponent(route.projectId)}/organizer`;
     case "toolbox": return `#/workspace/${encodeURIComponent(route.projectId)}/toolbox`;
     /* Legacy cases below remain accepted by readAppRoute. */
-    case "tools": return "#/tools";
+    case "tools": return `#/tools${route.taskId ? `/${encodeURIComponent(route.taskId)}` : ""}`;
     case "merge": return "#/merge";
     case "scan": return "#/scan";
     case "batch": return "#/batch";
