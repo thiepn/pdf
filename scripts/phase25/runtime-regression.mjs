@@ -12,6 +12,7 @@ const creatorWorker=await readFile(new URL("../../src/workers/creator.worker.ts"
 const raster=await readFile(new URL("../../src/creator/rasterPdf.ts",import.meta.url),"utf8");
 const comparePage=await readFile(new URL("../../src/views/ComparePage.tsx",import.meta.url),"utf8");
 const toolsPage=await readFile(new URL("../../src/views/ToolsPage.tsx",import.meta.url),"utf8");
+const taskCatalog=await readFile(new URL("../../src/ia/taskCatalog.ts",import.meta.url),"utf8");
 
 check("Markdown structure",()=>assert.deepEqual(parseMarkdownBlocks("# T\n\nHello **world**\n\n- A").map(item=>item.type),["heading","paragraph","bullet"]));
 check("Plain text paragraphs",()=>assert.equal(parsePlainTextBlocks("One\n\nTwo").length,2));
@@ -24,5 +25,5 @@ check("Searchable creator worker",()=>{assert.match(creatorWorker,/new \(mupdf a
 check("Visual shaping fallback",()=>{assert.match(raster,/buildJpegPdf/);assert.match(raster,/not searchable\/selectable/);});
 check("Create PDF Studio UI",()=>{assert.match(creatorPage,/Searchable text PDF/);assert.match(creatorPage,/Visual compatibility PDF/);assert.match(creatorPage,/Save as project/);});
 check("Compare 2.0 UI",()=>{assert.match(comparePage,/Analyze document/);assert.match(comparePage,/Page map/);assert.match(comparePage,/inserted/);});
-check("Tools entry point",()=>assert.match(toolsPage,/Create PDF/));
+check("Tools entry point",()=>{assert.match(taskCatalog,/id:\s*"create-pdf"/);assert.match(taskCatalog,/label:\s*"Create PDF"/);assert.match(taskCatalog,/route:\s*\{ name:\s*"create" \}/);assert.match(toolsPage,/taskCategories/);assert.match(toolsPage,/pdfTasks/);});
 console.log(`Phase 25 runtime regression: ${passed}/12 passed.`);
