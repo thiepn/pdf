@@ -1,7 +1,7 @@
 import type { WorkspaceMode } from "../types/workspace";
 export type AppRoute =
   | { name: "home" }
-  | { name: "workspace"; projectId: string; mode: WorkspaceMode }
+  | { name: "workspace"; projectId: string; mode: WorkspaceMode; taskId?: string }
   | { name: "viewer"; projectId: string }
   | { name: "editor"; projectId: string }
   | { name: "secure"; projectId: string }
@@ -37,7 +37,12 @@ export function readAppRoute(hash = window.location.hash): AppRoute {
 
   if (name === "workspace" && id) {
     const parts = clean.split("/").filter(Boolean);
-    return { name: "workspace", projectId: decodeURIComponent(id), mode: normalizeWorkspaceMode(parts[2]) };
+    return {
+      name: "workspace",
+      projectId: decodeURIComponent(id),
+      mode: normalizeWorkspaceMode(parts[2]),
+      taskId: parts[3] ? decodeURIComponent(parts[3]) : undefined
+    };
   }
   if (name === "viewer" && id) return { name: "viewer", projectId: decodeURIComponent(id) };
   if (name === "editor" && id) return { name: "editor", projectId: decodeURIComponent(id) };
@@ -72,7 +77,7 @@ export function readAppRoute(hash = window.location.hash): AppRoute {
 
 export function routeHref(route: AppRoute): string {
   switch (route.name) {
-    case "workspace": return `#/workspace/${encodeURIComponent(route.projectId)}/${route.mode}`;
+    case "workspace": return `#/workspace/${encodeURIComponent(route.projectId)}/${route.mode}${route.taskId ? `/${encodeURIComponent(route.taskId)}` : ""}`;
     case "viewer": return `#/workspace/${encodeURIComponent(route.projectId)}/viewer`;
     case "editor": return `#/workspace/${encodeURIComponent(route.projectId)}/editor`;
     case "secure": return `#/workspace/${encodeURIComponent(route.projectId)}/secure`;
