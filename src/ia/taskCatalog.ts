@@ -86,7 +86,7 @@ export function getTask(taskId?: string | null): PdfTask | undefined {
 
 export function taskRoute(task: PdfTask, projectId?: string): AppRoute | null {
   if (task.target.kind === "route") return task.target.route;
-  if (projectId) return { name: "workspace", projectId, mode: task.target.mode };
+  if (projectId) return { name: "workspace", projectId, mode: task.target.mode, taskId: task.id };
   return { name: "tools", taskId: task.id };
 }
 
