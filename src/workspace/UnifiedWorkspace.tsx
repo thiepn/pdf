@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { getProject } from "../projects/projectRepository";
 import { createProjectLease, type ProjectLease, type ProjectLeaseMode } from "../projects/projectLease";
-import { readSettings, SETTINGS_CHANGED_EVENT, writeSettings } from "../settings/settingsStore";
+import { readSettings, SETTINGS_CHANGED_EVENT } from "../settings/settingsStore";
 import type { ProjectManifest } from "../types/project";
 import type { AppSettings } from "../types/settings";
 import type { WorkspaceCheckpoint, WorkspaceEvent, WorkspaceMode, WorkspaceSession } from "../types/workspace";
 import type { DocumentRevision, DocumentTransaction } from "../types/revision";
 import { listDocumentLineage, listDocumentTransactions, reconcileInterruptedTransactions } from "../revisions/revisionRepository";
 import { CompressionPage } from "../views/CompressionPage";
+import { DocumentToolsPage } from "../views/DocumentToolsPage";
 import { EditorPage } from "../views/EditorPage";
 import { InspectorPage } from "../views/InspectorPage";
 import { OcrPage } from "../views/OcrPage";
@@ -20,7 +21,6 @@ import { CompliancePage } from "../views/CompliancePage";
 import { RepairPage } from "../views/RepairPage";
 import { SecurePage } from "../views/SecurePage";
 import { ViewerPage } from "../views/ViewerPage";
-import { ToolboxPage } from "../views/ToolboxPage";
 import { Icon, type IconName } from "../components/Icon";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { getPreservationContract } from "./preservationContracts";
@@ -49,9 +49,13 @@ interface UnifiedWorkspaceProps {
   onTitleChange?: (title: string, subtitle?: string) => void;
 }
 
-const allModes: WorkspaceMode[] = ["viewer", "editor", "organizer", "toolbox", "compress", "secure", "ocr", "compliance", "professional"];
-const simpleModes: WorkspaceMode[] = ["viewer", "editor", "organizer", "toolbox", "compress", "secure", "ocr"];
-const technicalModes: WorkspaceMode[] = ["inspector", "repair", "preservation"];
+const primaryModes: WorkspaceMode[] = ["viewer", "editor", "organizer", "toolbox"];
+const primaryModeItems: Array<{ mode: WorkspaceMode; label: string; icon: IconName }> = [
+  { mode: "viewer", label: "Read", icon: "read" },
+  { mode: "editor", label: "Edit", icon: "edit" },
+  { mode: "organizer", label: "Pages", icon: "pages" },
+  { mode: "toolbox", label: "Tools", icon: "toolbox" }
+];
 
 export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWorkspaceProps) {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
@@ -121,7 +125,6 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     return () => { cancelled = true; };
   }, [mode, projectId, refreshSession, refreshTimeline]);
 
-
   useEffect(() => {
     setInterruptedSession(readInterruptedWorkspaceSession(projectId));
     return beginWorkspaceHeartbeat(projectId, mode);
@@ -168,11 +171,10 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
 
   useEffect(() => {
     if (!project) return;
-    onTitleChange?.(project.name, childSubtitle ?? `${project.summary.pageCount} pages · Unified workspace`);
-  }, [childSubtitle, onTitleChange, project]);
+    onTitleChange?.(project.name, childSubtitle ?? `${project.summary.pageCount} pages · ${workspaceModeLabel(mode)}`);
+  }, [childSubtitle, mode, onTitleChange, project]);
 
   const contract = useMemo(() => getPreservationContract(mode), [mode]);
-  const availableModes = settings.experienceMode === "advanced" ? allModes : simpleModes;
   const contextActions = useMemo(() => buildContextActions(project), [project]);
   const modeRequiresOwnership = !["viewer", "inspector"].includes(mode);
   const workspaceLocked = leaseMode !== "owner" && modeRequiresOwnership;
@@ -285,16 +287,6 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     await refreshTimeline();
   }
 
-  function setExperienceMode(experienceMode: AppSettings["experienceMode"]): void {
-    const next = { ...settings, experienceMode };
-    try {
-      writeSettings(next);
-      setSettings(next);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    }
-  }
-
   async function togglePanel(panel: "timelineOpen" | "preservationOpen"): Promise<void> {
     if (!session) return;
     const opening = !session[panel];
@@ -311,7 +303,9 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   }
 
   if (error && !project) return <div className="workspace-fatal"><strong>Workspace unavailable</strong><p>{error}</p><a className="button" href={routeHref({ name: "projects" })}>Open projects</a></div>;
-  if (!project || !session) return <div className="viewer-loading"><span className="spinner" /><strong>Opening unified workspace…</strong></div>;
+  if (!project || !session) return <div className="viewer-loading"><span className="spinner" /><strong>Opening document…</strong></div>;
+
+  const activePrimaryMode = primaryModes.includes(mode) ? mode : "toolbox";
 
   return <div className="unified-workspace">
     <div className="workspace-tabs" role="tablist" aria-label="Open PDF documents">
@@ -345,7 +339,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
 
     <header className="workspace-commandbar">
       <div className="workspace-commandbar__identity">
-        <div><p className="eyebrow">{settings.experienceMode === "simple" ? "Simple workspace" : "Advanced workspace"}</p><h1 id="workspace-document-title">{project.name}</h1></div>
+        <div><p className="eyebrow">{workspaceModeLabel(mode)}</p><h1 id="workspace-document-title">{project.name}</h1></div>
         <div className="workspace-document-facts">
           <span>{project.summary.pageCount} pages</span>
           <span>{formatBytes(project.byteLength)}</span>
@@ -355,25 +349,19 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
         </div>
       </div>
       <div className="workspace-commandbar__actions">
-        <a className="button button--secondary button--small" href={routeHref({ name: "batch" })}>Batch automation</a>
-        <div className="segmented-control" aria-label="Workspace tools">
-          <button aria-pressed={settings.experienceMode === "simple"} className={settings.experienceMode === "simple" ? "active" : ""} onClick={() => setExperienceMode("simple")} type="button">Simple</button>
-          <button aria-pressed={settings.experienceMode === "advanced"} className={settings.experienceMode === "advanced" ? "active" : ""} onClick={() => setExperienceMode("advanced")} type="button">Advanced</button>
-        </div>
-        {settings.experienceMode === "advanced" && settings.showPreservationWarnings ? <button className={session.preservationOpen ? "button button--secondary button--small active" : "button button--secondary button--small"} onClick={() => void togglePanel("preservationOpen")} type="button">What changes?</button> : null}
+        <a className="button button--secondary button--small" href={routeHref({ name: "tools" })}>All PDF tasks</a>
+        {settings.showPreservationWarnings ? <button className={session.preservationOpen ? "button button--secondary button--small active" : "button button--secondary button--small"} onClick={() => void togglePanel("preservationOpen")} type="button">What changes?</button> : null}
         <button className={session.timelineOpen ? "button button--secondary button--small active" : "button button--secondary button--small"} onClick={() => void togglePanel("timelineOpen")} type="button">History</button>
       </div>
     </header>
 
-    <nav className="workspace-modes" aria-label="Document workspace modes">
-      {availableModes.map((item) => <button aria-current={item === mode ? "page" : undefined} className={item === mode ? "workspace-mode workspace-mode--active" : "workspace-mode"} key={item} onClick={() => void switchMode(item)} type="button"><ModeIcon mode={item} /><span>{workspaceModeLabel(item)}</span></button>)}
-      {settings.experienceMode === "simple" ? <button className="workspace-mode workspace-mode--more" onClick={() => setExperienceMode("advanced")} type="button"><span aria-hidden="true">•••</span><span>More tools</span></button> : null}
+    <nav className="workspace-modes workspace-modes--primary" aria-label="Document workspace">
+      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "workspace-mode workspace-mode--active" : "workspace-mode"} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><Icon name={item.icon}/><span>{item.label}</span></button>)}
     </nav>
-    {settings.experienceMode === "advanced" ? <div className="workspace-technical-tools"><span>Advanced diagnostics</span>{technicalModes.map((item) => <button className={item === mode ? "active" : ""} key={item} onClick={() => void switchMode(item)} type="button"><ModeIcon mode={item}/>{workspaceModeLabel(item)}</button>)}</div> : null}
 
-    {contextActions.length ? <div className="workspace-contextbar"><strong>Suggested next step</strong>{contextActions.map((action) => <button key={action.mode} onClick={() => void switchMode(action.mode)} type="button">{action.label}</button>)}</div> : null}
+    {contextActions.length ? <div className="workspace-contextbar"><strong>Suggested</strong>{contextActions.map((action) => <button key={`${action.mode}-${action.label}`} onClick={() => void switchMode(action.mode)} type="button">{action.label}</button>)}</div> : null}
     {error ? <div aria-live="assertive" className="error-banner" role="alert"><strong>Workspace action failed</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
-      {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
+    {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
     {activeOperation ? <div className="workspace-operation-banner" role="status" aria-live="polite"><div><strong>{activeOperation.label}</strong><span>{activeOperation.detail ?? operationStageLabel(activeOperation.stage)}</span>{activeOperation.progress !== undefined ? <progress max="1" value={activeOperation.progress} /> : null}</div><div><small>{formatElapsed(Date.now() - activeOperation.startedAt)}</small>{activeOperation.cancellable ? <button className="button button--small button--secondary" onClick={() => cancelProjectOperation(projectId)} type="button">Cancel</button> : null}</div></div> : null}
     {leaseMode !== "owner" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
 
@@ -390,35 +378,27 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
         <div className={contract.destructive ? "preservation-verdict preservation-verdict--warning" : "preservation-verdict"}>{contract.destructive ? "This tool creates a separate output and may rebuild some PDF structures." : "Your original PDF remains unchanged."}</div>
       </aside> : null}
       {session.timelineOpen ? <aside className="workspace-insight-panel workspace-timeline">
-        <div className="workspace-insight-panel__header"><div><p className="eyebrow">Project timeline</p><h2>History & checkpoints</h2></div><button aria-label="Close history panel" onClick={() => void togglePanel("timelineOpen")} type="button">×</button></div>
+        <div className="workspace-insight-panel__header"><div><p className="eyebrow">Project history</p><h2>History & checkpoints</h2></div><button aria-label="Close history panel" onClick={() => void togglePanel("timelineOpen")} type="button">×</button></div>
         <div className="checkpoint-create"><input aria-label="Checkpoint label" onChange={(event) => setCheckpointLabel(event.target.value)} placeholder="Checkpoint name" value={checkpointLabel} /><button disabled={checkpointBusy} onClick={() => void createCheckpoint()} type="button">{checkpointBusy ? "Saving…" : "Create"}</button></div>
         <div className="timeline-section"><h3>Restorable checkpoints</h3>{checkpoints.length ? checkpoints.map((checkpoint) => <article className="checkpoint-card" key={checkpoint.id}><div><strong>{checkpoint.label}</strong><small>{formatTime(checkpoint.createdAt)} · {formatBytes(checkpoint.byteLength)}</small></div><div><button disabled={checkpointBusy} onClick={() => void restoreCheckpoint(checkpoint)} type="button">Restore copy</button><button aria-label={`Delete ${checkpoint.label}`} onClick={() => void removeCheckpoint(checkpoint.id)} type="button">×</button></div></article>) : <p className="muted">No checkpoints yet. A checkpoint stores a complete local project package.</p>}</div>
-        <div className="timeline-section"><h3>Revision lineage</h3>{revisions.length ? <ol className="timeline-list">{revisions.slice(0,20).map((revision) => <li key={revision.id}><span className="timeline-dot timeline-dot--committed" /><div><strong>{revision.operation}</strong><small>revision {revision.sequence} · {formatTime(revision.createdAt)} · {revision.projectId === projectId ? "current project" : "related output"}</small></div></li>)}</ol> : <p className="muted">No document revisions recorded yet.</p>}</div>
-        <div className="timeline-section"><h3>Document transactions</h3>{transactions.length ? <ol className="timeline-list">{transactions.slice(0,20).map((transaction) => <li key={transaction.id}><span className={`timeline-dot timeline-dot--${transaction.status}`} /><div><strong>{transaction.operation}</strong><small>{transaction.status} · {formatTime(transaction.completedAt ?? transaction.startedAt)}</small></div></li>)}</ol> : <p className="muted">No committed document transformations yet.</p>}</div>
-        <div className="timeline-section"><h3>Workspace events</h3>{events.length ? <ol className="timeline-list">{events.map((event) => <li key={event.id}><span className="timeline-dot" /><div><strong>{event.label}</strong><small>{formatTime(event.createdAt)}</small></div></li>)}</ol> : <p className="muted">No project events recorded yet.</p>}</div>
+        <details className="timeline-technical"><summary>Technical history</summary><div className="timeline-section"><h3>Revision lineage</h3>{revisions.length ? <ol className="timeline-list">{revisions.slice(0,20).map((revision) => <li key={revision.id}><span className="timeline-dot timeline-dot--committed" /><div><strong>{revision.operation}</strong><small>revision {revision.sequence} · {formatTime(revision.createdAt)} · {revision.projectId === projectId ? "current project" : "related output"}</small></div></li>)}</ol> : <p className="muted">No document revisions recorded yet.</p>}</div><div className="timeline-section"><h3>Document transactions</h3>{transactions.length ? <ol className="timeline-list">{transactions.slice(0,20).map((transaction) => <li key={transaction.id}><span className={`timeline-dot timeline-dot--${transaction.status}`} /><div><strong>{transaction.operation}</strong><small>{transaction.status} · {formatTime(transaction.completedAt ?? transaction.startedAt)}</small></div></li>)}</ol> : <p className="muted">No committed document transformations yet.</p>}</div><div className="timeline-section"><h3>Workspace events</h3>{events.length ? <ol className="timeline-list">{events.map((event) => <li key={event.id}><span className="timeline-dot" /><div><strong>{event.label}</strong><small>{formatTime(event.createdAt)}</small></div></li>)}</ol> : <p className="muted">No project events recorded yet.</p>}</div></details>
       </aside> : null}
     </div>
-    <nav className="workspace-mobile-nav" aria-label="Document tools">
-      {[
-        { mode: "viewer" as WorkspaceMode, label: "Read", icon: "read" as IconName },
-        { mode: "editor" as WorkspaceMode, label: "Edit", icon: "edit" as IconName },
-        { mode: "organizer" as WorkspaceMode, label: "Pages", icon: "pages" as IconName },
-        { mode: "toolbox" as WorkspaceMode, label: "Tools", icon: "toolbox" as IconName }
-      ].map((item) => <button aria-current={mode === item.mode ? "page" : undefined} className={mode === item.mode ? "active" : ""} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><Icon name={item.icon} /><small>{item.label}</small></button>)}
+
+    <nav className="workspace-mobile-nav" aria-label="Document workspace">
+      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "active" : ""} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><Icon name={item.icon}/><small>{item.label}</small></button>)}
       <button aria-controls="workspace-mobile-tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className={mobileToolsOpen ? "active" : ""} onClick={() => setMobileToolsOpen((open) => !open)} type="button"><Icon name="more" /><small>More</small></button>
     </nav>
-    {mobileToolsOpen ? <div className="workspace-mobile-sheet-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="More document tools" aria-modal="true" className="workspace-mobile-sheet" id="workspace-mobile-tools" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
+    {mobileToolsOpen ? <div className="workspace-mobile-sheet-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="More document actions" aria-modal="true" className="workspace-mobile-sheet" id="workspace-mobile-tools" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
       <div className="workspace-mobile-sheet__handle" aria-hidden="true" />
-      <header><div><p className="eyebrow">Document tools</p><h2>More</h2></div><button aria-label="Close tools" onClick={closeMobileTools} type="button">×</button></header>
-      <div className="workspace-mobile-sheet__grid">{availableModes.filter((item) => !["viewer", "editor", "organizer", "toolbox"].includes(item)).map((item) => <button className={item === mode ? "active" : ""} key={item} onClick={() => void switchMode(item)} type="button"><ModeIcon mode={item}/><span>{workspaceModeLabel(item)}</span></button>)}</div>
-      {settings.experienceMode === "advanced" ? <div className="workspace-mobile-sheet__technical"><strong>Technical</strong>{technicalModes.map((item) => <button className={item === mode ? "active" : ""} key={item} onClick={() => void switchMode(item)} type="button"><ModeIcon mode={item}/><span>{workspaceModeLabel(item)}</span></button>)}</div> : <button className="workspace-mobile-sheet__upgrade" onClick={() => setExperienceMode("advanced")} type="button">Show advanced tools</button>}
-      <div className="workspace-mobile-sheet__actions"><button onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes?</button> : null}<a href={routeHref({ name: "batch" })}>Batch automation</a><a href={routeHref({ name: "projects" })}>Documents</a></div>
+      <header><div><p className="eyebrow">Document</p><h2>More</h2></div><button aria-label="Close more actions" onClick={closeMobileTools} type="button">×</button></header>
+      <div className="workspace-mobile-sheet__actions"><button onClick={() => void switchMode("toolbox")} type="button">Find a PDF task</button><button onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes?</button> : null}<a href={routeHref({ name: "batch" })}>Batch automation</a><a href={routeHref({ name: "projects" })}>Documents</a><a href={routeHref({ name: "help" })}>Help</a></div>
     </section></div> : null}
   </div>;
 }
 
 function LockedMode({ mode, onRetry }: { mode: WorkspaceMode; onRetry: () => void }) {
-  return <div className="workspace-locked-mode"><div><p className="eyebrow">Write protection</p><h2>{workspaceModeLabel(mode)} is locked in this tab</h2><p>Only the tab that owns this local project may change editor, OCR, security, or compliance state. This prevents two tabs from silently overwriting each other.</p><button className="button" onClick={onRetry} type="button">Try editing here</button></div></div>;
+  return <div className="workspace-locked-mode"><div><p className="eyebrow">Write protection</p><h2>{workspaceModeLabel(mode)} is locked in this tab</h2><p>Only the tab that owns this local project may change document state. This prevents two tabs from silently overwriting each other.</p><button className="button" onClick={onRetry} type="button">Try editing here</button></div></div>;
 }
 
 function ModeContent({ mode, projectId, readOnly, onSubtitle }: { mode: WorkspaceMode; projectId: string; readOnly: boolean; onSubtitle: (value?: string) => void }) {
@@ -434,17 +414,12 @@ function ModeContent({ mode, projectId, readOnly, onSubtitle }: { mode: Workspac
   if (mode === "preservation") return <PreservationPage onTitleChange={onTitleChange} projectId={projectId} />;
   if (mode === "native") return <NativeEditorPage onTitleChange={onTitleChange} projectId={projectId} />;
   if (mode === "compliance") return <CompliancePage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "toolbox") return <ToolboxPage onTitleChange={onTitleChange} projectId={projectId} />;
+  if (mode === "toolbox") return <DocumentToolsPage onTitleChange={onTitleChange} projectId={projectId} />;
   return <ProfessionalPage onTitleChange={onTitleChange} projectId={projectId} />;
 }
 
 function ContractSection({ label, items, tone }: { label: string; items: string[]; tone: "safe" | "neutral" | "warning" }) {
   return <section className={`contract-section contract-section--${tone}`}><h3>{label}</h3><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></section>;
-}
-
-function ModeIcon({ mode }: { mode: WorkspaceMode }) {
-  const icons: Record<WorkspaceMode, IconName> = { viewer: "read", editor: "edit", organizer: "pages", secure: "secure", ocr: "ocr", compress: "compress", inspector: "inspect", repair: "repair", professional: "professional", preservation: "preservation", native: "native", compliance: "compliance", toolbox: "toolbox" };
-  return <Icon name={icons[mode]} />;
 }
 
 function buildContextActions(project: ProjectManifest | null): Array<{ mode: WorkspaceMode; label: string }> {
@@ -453,7 +428,7 @@ function buildContextActions(project: ProjectManifest | null): Array<{ mode: Wor
   if (project.summary.formFieldCount) actions.push({ mode: "secure", label: `Fill ${project.summary.formFieldCount} form fields` });
   if (project.summary.encrypted) actions.push({ mode: "secure", label: "Review protection" });
   if (project.summary.pageCount > 30) actions.push({ mode: "organizer", label: "Organize pages" });
-  if (!project.summary.hasOutline && project.summary.pageCount > 15) actions.push({ mode: "inspector", label: "Inspect document structure" });
+  if (project.byteLength > 20_000_000) actions.push({ mode: "compress", label: "Reduce file size" });
   return actions.slice(0, 3);
 }
 
