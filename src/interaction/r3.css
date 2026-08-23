@@ -15,20 +15,78 @@
   opacity: .72;
 }
 
+.viewer-document-actions {
+  position: relative;
+}
+
+.viewer-document-actions > summary {
+  cursor: pointer;
+  font-weight: 650;
+  list-style: none;
+}
+
+.viewer-document-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.viewer-document-actions > div {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 28px rgb(0 0 0 / .12);
+  display: grid;
+  gap: .25rem;
+  min-width: 13rem;
+  padding: .4rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + .4rem);
+  z-index: 30;
+}
+
+.viewer-document-actions button,
+.viewer-document-actions a {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  padding: .55rem .65rem;
+  text-align: left;
+  text-decoration: none;
+}
+
+.search-options,
+.viewer-info-r3 > details {
+  margin-block: .5rem;
+}
+
+.search-options > summary,
+.viewer-info-r3 > details > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
 /* Edit: implementation provenance belongs in technical details, not the default editing surface. */
 .p6-selection-count,
-.native-queued-count {
+.native-queued-count,
+.viewer-performance-badge {
   display: none !important;
 }
 
 .editor-file-group > div > span {
+  font-size: 0;
   max-width: 34rem;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.unified-layer-list .editor-layer-item small {
+.editor-file-group > div > span::after {
+  color: var(--muted);
+  content: "Original PDF stays unchanged";
+  font-size: .78rem;
+}
+
+.unified-layer-list .editor-layer-item small,
+.native-unified-properties .property-section > .eyebrow {
   display: none;
 }
 
@@ -50,6 +108,12 @@
 
 .native-capability-card > details {
   margin-top: .55rem;
+}
+
+/* Selection commands are contextual; layout controls only need to appear with a multi-selection. */
+.editor-contextbar:not(:has(.p6-selection-count)) button:nth-of-type(n+3) {
+  /* Existing selectors still own behavior; this rule intentionally avoids hiding
+     sidebar/property toggles or controls emitted by a real multi-selection. */
 }
 
 /* Pages: actions follow selection instead of permanently occupying the command bar. */
