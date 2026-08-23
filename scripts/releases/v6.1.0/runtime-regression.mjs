@@ -60,4 +60,4 @@ check(/getOrInsertComputed/.test(distAudit) && /FORBIDDEN_RUNTIME_APIS/.test(dis
 check(/deleteProperty\(Map\.prototype, "getOrInsertComputed"\)/.test(browserCompatibility) && /plain-text\.pdf/.test(browserCompatibility) && /PLAIN_PAGE_1_MARKER/.test(browserCompatibility), "browser regression opens a real PDF without Map upsert APIs");
 
 const passed = checks.filter(item => item.passed).length;
-console.log(JSON.stringify({ name: "v6.1.0 intuitiveness and R3 workflow-interaction regression", passed, total: checks.length, checks }, null, 2));
+console.log(JSON.stringify({ name: "v6.1.0 intuitiveness and discoverability regression", passed, total: checks.length, checks }, null, 2));
