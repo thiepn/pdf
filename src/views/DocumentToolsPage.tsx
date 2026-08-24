@@ -3,7 +3,7 @@ import { Icon } from "../components/Icon";
 import { readAppRoute, routeHref } from "../core/appRouter";
 import { getTask, pdfTasks, taskCategories, taskRoute, taskSearchText, type PdfTask } from "../ia/taskCatalog";
 import { buildTaskCapabilityContext, evaluateTaskCapability, isCapabilityBlocked, type TaskCapability, type TaskCapabilityContext } from "../capabilities/taskCapability";
-import { TaskCapabilityBlocker, TaskCapabilityChip, TaskCapabilityNotice } from "../capabilities/TaskCapabilityStatus";
+import { TaskCapabilityBlocker, TaskCapabilityChip } from "../capabilities/TaskCapabilityStatus";
 import "../ia/taskArchitecture.css";
 import { ToolboxPage } from "./ToolboxPage";
 
@@ -53,7 +53,6 @@ export function DocumentToolsPage({ projectId, onTitleChange }: { projectId: str
     if (isCapabilityBlocked(capability)) return <TaskCapabilityBlocker capability={capability} onBack={() => { window.location.hash = routeHref({ name: "workspace", projectId, mode: "toolbox" }).slice(1); }} projectId={projectId} taskLabel={selectedUtility.label} />;
     return <div className="document-tools-hub document-tools-hub--focused">
       <section className="task-focus task-focus--workflow" aria-label="Selected document task"><div><span className="task-focus__icon"><Icon name={selectedUtility.icon} size={26}/></span><div><p className="eyebrow">Current PDF</p><h2>{selectedUtility.label}</h2><p>{selectedUtility.description}</p><TaskCapabilityChip capability={capability}/></div></div><a className="button button--secondary" href={routeHref({ name: "workspace", projectId, mode: "toolbox" })}>Back to all PDF tasks</a></section>
-      <TaskCapabilityNotice capability={capability}/>
       <ToolboxPage initialTaskId={selectedUtility.id} projectId={projectId} />
     </div>;
   }
