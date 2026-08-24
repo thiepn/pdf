@@ -45,7 +45,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
   await page.getByRole("link", { name: /OCR PDF/i }).click();
   await expect(page).toHaveURL(/\/ocr\/ocr-pdf$/);
-  await expect(page.getByText("Recognition quality", { exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: /Recognition quality/i })).toBeVisible();
 
   await page.getByRole("navigation", { name: "Document workspace" }).getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("link", { name: /Fill PDF forms/i }).click();
