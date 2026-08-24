@@ -1,0 +1,165 @@
+/* R5 — Desktop home reconstruction
+ * Preserve the existing intent-first Home behavior while removing nested-card
+ * dashboard styling. Open PDF remains the dominant action; local-processing
+ * trust and common tasks become supporting editorial information.
+ */
+
+@media (min-width: 901px) {
+  .home-stack {
+    width: min(1120px, calc(100% - 48px));
+    margin-inline: auto;
+    gap: 24px;
+  }
+
+  .product-hero {
+    gap: 34px;
+    padding: 34px 38px;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .product-hero h2 {
+    max-width: 760px;
+    margin: 7px 0 10px;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    line-height: 1.02;
+    letter-spacing: -.04em;
+  }
+
+  .product-hero > div:first-child > p:not(.eyebrow) {
+    max-width: 720px;
+    font-size: .98rem;
+    line-height: 1.55;
+  }
+
+  .hero-actions {
+    gap: 7px;
+    margin-top: 22px;
+  }
+
+  .hero-actions .button {
+    min-height: 40px;
+    border-radius: 6px;
+    font-size: .84rem;
+  }
+
+  .privacy-card {
+    align-self: stretch;
+    min-width: 260px;
+    padding: 6px 0 4px 22px;
+    border: 0;
+    border-left: 1px solid rgb(255 255 255 / 20%);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .privacy-card__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 5px;
+  }
+
+  .privacy-card > strong {
+    margin-top: 12px;
+    font-size: .88rem;
+  }
+
+  .privacy-card > p {
+    margin-block: 5px 14px;
+    font-size: .78rem;
+    line-height: 1.5;
+  }
+
+  .privacy-card dl {
+    gap: 0;
+    margin: 0;
+  }
+
+  .privacy-card dl > div {
+    padding: 7px 0;
+    border-top: 1px solid rgb(255 255 255 / 13%);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .privacy-card dt,
+  .privacy-card dd {
+    font-size: .72rem;
+  }
+
+  .home-tools-strip {
+    gap: 18px;
+    padding: 13px 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .home-tools-strip > div {
+    gap: 2px;
+  }
+
+  .home-tools-strip strong {
+    font-size: .88rem;
+  }
+
+  .home-tools-strip span {
+    color: var(--muted);
+    font-size: .78rem;
+    line-height: 1.45;
+  }
+
+  .home-tools-strip .button {
+    flex: 0 0 auto;
+    min-height: 36px;
+    border-radius: 5px;
+    font-size: .78rem;
+  }
+
+  .home-stack .section-block {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .home-stack .section-heading {
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .home-stack .section-heading h2 {
+    margin-top: 3px;
+    font-size: 1.02rem;
+  }
+
+  .home-stack .project-grid {
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .home-stack .project-card {
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .home-stack .empty-state {
+    margin-top: 10px;
+    padding: 24px 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1080px) {
+  .product-hero {
+    grid-template-columns: minmax(0, 1fr) 250px;
+    padding-inline: 28px;
+  }
+}
