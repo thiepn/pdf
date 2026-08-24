@@ -29,7 +29,7 @@ The same resolver is consumed by:
 2. current-document **Tools** after project metadata is known;
 3. task-specific workspace routes before the target implementation mounts.
 
-Ctrl/Cmd+K already routes through the canonical task catalog. Because current-document task routes retain `taskId`, command-palette launches therefore pass through the same workspace guard instead of bypassing support checks.
+Ctrl/Cmd+K already routes through the canonical task catalog. Because current-document task routes retain `taskId`, command-palette launches pass through the same workspace guard instead of bypassing support checks.
 
 ## Preflight evidence levels
 
@@ -57,7 +57,11 @@ This context powers current-document task cards without launching expensive work
 
 ### Deep task-entry preflight
 
-Used only when a task needs source-level evidence that is not already persisted. In R4 the first such case is **Apply permanent redactions**, which inspects existing PDF redaction annotations before the secure workspace mounts.
+Used only when a task needs source-level evidence that is not already persisted. R4 deep-inspects Protect/security structure at task entry for:
+
+- **Fill PDF forms** — distinguish truly writable fields from read-only, signature, or button-only widgets;
+- **Apply permanent redactions** — detect existing PDF redaction annotations;
+- **Flatten supported PDF content** — determine whether there are supported non-signature form fields or page annotations to flatten.
 
 An inconclusive deep inspection is not converted into a false unsupported claim. Protected or temporarily unreadable PDFs are allowed to continue to the secure workspace, which can request the session password and run its existing authoritative inspection.
 
@@ -67,7 +71,9 @@ An inconclusive deep inspection is not converted into a false unsupported claim.
 
 `unsupported-for-document` when `formFieldCount === 0`.
 
-Recovery: use Edit for visually flat forms or choose a PDF with supported AcroForm fields.
+If widgets exist, task-entry security inspection also blocks when none are writable supported form fields.
+
+Recovery: use Edit for visually flat forms or choose a PDF with writable AcroForm fields.
 
 ### Split PDF
 
@@ -83,9 +89,15 @@ Recovery routes to **Mark areas for redaction**.
 
 If redactions exist, the task is `available-with-warning` because application permanently removes covered content from the derived output.
 
-### OCR PDF
+### Flatten supported PDF content
 
-`temporarily-unavailable` when Worker or WebAssembly support is absent.
+After deep inspection, `unsupported-for-document` when no supported non-signature form fields or page annotations exist.
+
+When flattenable content exists, the task remains `available-with-warning` because the new copy loses interactivity or editability for the flattened content.
+
+### OCR PDF and Protect tasks
+
+OCR and Protect/security tasks are `temporarily-unavailable` when required Worker or WebAssembly support is absent.
 
 When runtime support exists, OCR remains `available-with-warning` because the current pipeline creates a searchable raster reconstruction rather than preserving original page operators and adding only an invisible text layer.
 
@@ -94,6 +106,7 @@ When runtime support exists, OCR remains `available-with-warning` because the cu
 R4 exposes material boundaries before execution for:
 
 - visual signatures — appearance only, not certificate-backed signing;
+- permanent redaction — destructive only in the derived output;
 - redaction marks — not permanent until applied;
 - CropBox cropping — not secure erasure;
 - splitting — whole-document structures may not carry cleanly to parts;
@@ -127,7 +140,7 @@ Legacy workspace routes without a task ID remain compatible because they do not 
 
 ## Failure policy
 
-Capability preflight fails closed when PDF Studio cannot even establish the project-level context required to judge a task. The blocker explains that the support check itself failed and routes back to Tools.
+Capability preflight fails closed when PDF Studio cannot establish the project-level context required to judge a task. The blocker explains that the support check itself failed and routes back to Tools.
 
 Deep source inspection is different: if the source is protected and the secure workspace is specifically responsible for authenticating it, R4 records the deep check as inconclusive and does not invent an unsupported result.
 
