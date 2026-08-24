@@ -5,14 +5,17 @@
  */
 
 @media (min-width: 901px) {
-  /* Tools: outcome browser becomes a dense utility list, not a dashboard. */
+  /* Tools: outcome browser becomes a dense utility list, not a dashboard.
+   * DocumentToolsPage lazy-loads taskArchitecture.css after this global R5 layer,
+   * so selectors are scoped through .document-tools-hub to keep the R5 contract
+   * authoritative without !important. */
   .document-tools-hub {
     width: min(1040px, calc(100% - 32px));
     gap: 16px;
     margin: 14px auto 28px;
   }
 
-  .document-tools-hub__hero {
+  .document-tools-hub .document-tools-hub__hero {
     align-items: center;
     gap: 18px;
     padding: 8px 0 13px;
@@ -23,52 +26,52 @@
     box-shadow: none;
   }
 
-  .document-tools-hub__hero h2 {
+  .document-tools-hub .document-tools-hub__hero h2 {
     margin: 1px 0 2px;
     font-size: 1.08rem;
     letter-spacing: -.01em;
   }
 
-  .document-tools-hub__hero p {
+  .document-tools-hub .document-tools-hub__hero p {
     margin: 0;
     color: var(--muted);
     font-size: .84rem;
     line-height: 1.45;
   }
 
-  .document-tools-hub__hero > label {
+  .document-tools-hub .document-tools-hub__hero > label {
     width: min(320px, 38vw);
   }
 
-  .document-tools-hub__hero input {
+  .document-tools-hub .document-tools-hub__hero input {
     min-height: 36px;
     padding-inline: 11px;
     border-radius: 5px;
     font-size: .84rem;
   }
 
-  .document-task-section {
+  .document-tools-hub .document-task-section {
     gap: 7px;
   }
 
-  .document-task-section > header h3 {
+  .document-tools-hub .document-task-section > header h3 {
     margin-top: 2px;
     font-size: .84rem;
     line-height: 1.4;
   }
 
-  .document-task-section > header .eyebrow {
+  .document-tools-hub .document-task-section > header .eyebrow {
     font-size: .72rem;
     letter-spacing: .07em;
   }
 
-  .document-task-grid {
+  .document-tools-hub .document-task-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0;
     border-top: 1px solid var(--line);
   }
 
-  .document-task-card {
+  .document-tools-hub .document-task-card {
     min-height: 72px;
     gap: 10px;
     padding: 10px 11px;
@@ -80,39 +83,39 @@
     transition: background 100ms ease;
   }
 
-  .document-task-card:nth-child(odd) {
+  .document-tools-hub .document-task-card:nth-child(odd) {
     border-right: 1px solid var(--line);
   }
 
-  .document-task-card:hover,
-  .document-task-card:focus-visible {
+  .document-tools-hub .document-task-card:hover,
+  .document-tools-hub .document-task-card:focus-visible {
     border-color: var(--line);
     background: var(--surface-subtle);
     transform: none;
   }
 
-  .document-task-card > svg {
+  .document-tools-hub .document-task-card > svg {
     width: 18px;
     height: 18px;
     margin-top: 1px;
   }
 
-  .document-task-card > span {
+  .document-tools-hub .document-task-card > span {
     gap: 3px;
   }
 
-  .document-task-card strong {
+  .document-tools-hub .document-task-card strong {
     font-size: .86rem;
     font-weight: 700;
   }
 
-  .document-task-card small {
+  .document-tools-hub .document-task-card small {
     font-size: .76rem;
     line-height: 1.4;
   }
 
-  .document-task-card em,
-  .document-task-card .task-capability-chip {
+  .document-tools-hub .document-task-card em,
+  .document-tools-hub .document-task-card .task-capability-chip {
     width: max-content;
     margin-top: 3px;
     padding: 2px 5px;
@@ -120,19 +123,19 @@
     font-size: .68rem;
   }
 
-  .document-task-card .task-capability-reason,
-  .document-task-card .task-capability-recovery {
+  .document-tools-hub .document-task-card .task-capability-reason,
+  .document-tools-hub .document-task-card .task-capability-recovery {
     margin-top: 1px;
     font-size: .72rem;
   }
 
-  .task-focus--workflow {
+  .document-tools-hub .task-focus--workflow {
     padding: 10px 12px;
     border-radius: 6px;
     box-shadow: none;
   }
 
-  .task-focus--workflow .task-focus__icon {
+  .document-tools-hub .task-focus--workflow .task-focus__icon {
     width: 38px;
     height: 38px;
     border-radius: 5px;
@@ -240,11 +243,11 @@
 }
 
 @media (min-width: 901px) and (max-width: 1080px) {
-  .document-task-grid {
+  .document-tools-hub .document-task-grid {
     grid-template-columns: 1fr;
   }
 
-  .document-task-card:nth-child(odd) {
+  .document-tools-hub .document-task-card:nth-child(odd) {
     border-right: 0;
   }
 }
