@@ -62,13 +62,15 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
     <aside className="sidebar app-sidebar" aria-label="Application sidebar">
       <a aria-label="PDF Studio home" className="brand" href={routeHref({ name: "home" })}><img alt="" aria-hidden="true" className="brand__mark" src={`${import.meta.env.BASE_URL}icons/icon.svg`} /><div><strong>PDF Studio</strong><span>Private browser workspace</span></div></a>
       <nav className="nav-list" aria-label="Application navigation">{navigation.map((item) => <a aria-current={isActive(route, item.route) ? "page" : undefined} className={isActive(route, item.route) ? "nav-item nav-item--active" : "nav-item"} href={routeHref(item.route)} key={item.route.name}><Icon className="nav-item__icon" name={item.icon} /><span>{item.label}</span></a>)}</nav>
-      <CommandPalette />
+      {!viewer ? <CommandPalette /> : null}
       <details aria-label="Advanced & support" className="sidebar-advanced">
         <summary>Support</summary>
         <nav aria-label="Support navigation" className="sidebar-utility-links">{utilityNavigation.map((item) => <a href={routeHref(item.route)} key={item.route.name}><strong>{item.label}</strong><small>{item.description}</small></a>)}</nav>
       </details>
       <div className="sidebar__footer sidebar__footer--stacked"><div><span className="privacy-dot" /> Files stay on this device</div><div><ConnectionStatus compact /> · v{APP_VERSION}</div></div>
     </aside>
+
+    {viewer ? <CommandPalette showTrigger={false} /> : null}
 
     <main aria-label={hideTopbar ? title : undefined} className="main-content" id="main-workspace" ref={mainRef} tabIndex={-1}>
       <div aria-atomic="true" aria-live="polite" className="visually-hidden" role="status">{title}</div>
