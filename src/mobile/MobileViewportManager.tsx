@@ -6,10 +6,16 @@ export function MobileViewportManager() {
     const root = document.documentElement;
     const update = () => {
       const viewport = window.visualViewport;
-      const metrics = deriveViewportMetrics(window.innerHeight, viewport?.height ?? window.innerHeight, viewport?.offsetTop ?? 0);
+      const visualHeight = viewport?.height ?? window.innerHeight;
+      const visualWidth = viewport?.width ?? window.innerWidth;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      const metrics = deriveViewportMetrics(window.innerHeight, visualHeight, offsetTop);
       root.style.setProperty("--app-viewport-height", `${Math.round(metrics.visualHeight)}px`);
+      root.style.setProperty("--app-viewport-width", `${Math.round(visualWidth)}px`);
+      root.style.setProperty("--visual-viewport-offset-top", `${Math.round(metrics.offsetTop)}px`);
       root.style.setProperty("--keyboard-inset", `${metrics.keyboardInset}px`);
       root.dataset.viewportClass = classifyResponsiveWidth(window.innerWidth);
+      root.dataset.orientation = window.innerWidth > window.innerHeight ? "landscape" : "portrait";
       if (metrics.keyboardOpen) root.dataset.keyboardOpen = "true";
       else delete root.dataset.keyboardOpen;
     };
