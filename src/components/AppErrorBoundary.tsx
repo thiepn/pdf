@@ -1,6 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { recordDiagnosticError } from "../diagnostics/errorRepository";
 import { routeHref } from "../core/appRouter";
+import { presentIssue } from "../trust/issuePresentation";
+import { TrustNotice } from "../trust/TrustNotice";
 
 interface Props { children: ReactNode }
 interface State { error: Error | null; diagnosticId?: string }
@@ -25,17 +27,25 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   render() {
     if (!this.state.error) return this.props.children;
-    return <main className="fatal-screen" role="alert">
+    const issue = presentIssue(this.state.error, {
+      action: "Workspace rendering",
+      recovery: "Reload the workspace once. If the same screen returns, open Diagnostics before retrying the document task.",
+      originalSafe: true,
+      outputReleased: false
+    });
+    return <main className="fatal-screen">
       <section>
         <p className="eyebrow">Workspace recovery</p>
-        <h1>PDF Studio stopped rendering</h1>
-        <p>Your source files remain in browser storage. Reload the application or open diagnostics before retrying the operation.</p>
-        <div className="fatal-screen__actions">
-          <button className="button" onClick={() => window.location.reload()} type="button">Reload workspace</button>
-          <a className="button button--secondary" href={routeHref({ name: "diagnostics", lab: "system" })}>Open diagnostics</a>
-          <a className="button button--ghost" href={routeHref({ name: "home" })}>Return home</a>
-        </div>
-        <details><summary>Technical details</summary><pre>{this.state.error.message}{this.state.diagnosticId ? `\nDiagnostic ID: ${this.state.diagnosticId}` : ""}</pre></details>
+        <h1>PDF Studio stopped this workspace safely</h1>
+        <TrustNotice
+          diagnosticId={this.state.diagnosticId}
+          issue={issue}
+          actions={<>
+            <button className="button" onClick={() => window.location.reload()} type="button">Reload workspace</button>
+            <a className="button button--secondary" href={routeHref({ name: "diagnostics", lab: "system" })}>Open diagnostics</a>
+            <a className="button button--ghost" href={routeHref({ name: "home" })}>Return home</a>
+          </>}
+        />
       </section>
     </main>;
   }
