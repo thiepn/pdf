@@ -2,6 +2,7 @@ import { routeHref } from "../core/appRouter";
 import { getTask, taskRoute } from "../ia/taskCatalog";
 import type { TaskCapability } from "./taskCapability";
 import "./capability.css";
+import "../trust/trust.css";
 
 export function TaskCapabilityChip({ capability }: { capability: TaskCapability }) {
   if (capability.state === "available" || capability.state === "hidden") return null;
@@ -12,7 +13,7 @@ export function TaskCapabilityNotice({ capability }: { capability: TaskCapabilit
   if (capability.state !== "available-with-warning" && capability.state !== "experimental") return null;
   return <section className={`task-capability-notice task-capability-notice--${capability.state}`} role="status">
     <div><strong>{capability.label}</strong>{capability.reason ? <span>{capability.reason}</span> : null}</div>
-    {capability.recovery ? <small>{capability.recovery}</small> : null}
+    {capability.recovery ? <div className="task-capability-guidance"><strong>Before you continue</strong><span>{capability.recovery}</span></div> : null}
   </section>;
 }
 
@@ -32,8 +33,9 @@ export function TaskCapabilityBlocker({
   return <section className="task-capability-blocker" aria-live="polite">
     <p className="eyebrow">{capability.label}</p>
     <h2>{taskLabel} cannot start for this document</h2>
-    {capability.reason ? <p>{capability.reason}</p> : null}
-    {capability.recovery ? <p className="muted">{capability.recovery}</p> : null}
+    {capability.reason ? <div className="task-capability-explanation"><strong>Why</strong><p>{capability.reason}</p></div> : null}
+    {capability.recovery ? <div className="task-capability-explanation"><strong>What you can do</strong><p>{capability.recovery}</p></div> : null}
+    <p className="task-capability-safety">This task did not start. Your PDF is unchanged.</p>
     <div className="task-capability-blocker__actions">
       {alternative && alternativeRoute ? <a className="button" href={routeHref(alternativeRoute)}>Open {alternative.label}</a> : null}
       {onBack ? <button className="button button--secondary" onClick={onBack} type="button">Choose another task</button> : null}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { navigateTo } from "../core/appRouter";
+import { recordDiagnosticError } from "../diagnostics/errorRepository";
 import { getTask } from "../ia/taskCatalog";
 import type { WorkspaceMode } from "../types/workspace";
 import { UnifiedWorkspace } from "../workspace/UnifiedWorkspace";
@@ -60,11 +61,19 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         if (!cancelled) setCapability(evaluateTaskCapability(task, deepContext));
       } catch (reason) {
         if (cancelled) return;
+        void recordDiagnosticError(reason, {
+          area: "capability",
+          operation: `preflight:${task.id}`,
+          route: window.location.hash,
+          projectId,
+          severity: "warning",
+          recoverable: true
+        });
         setCapability({
           state: "temporarily-unavailable",
-          label: "Support check failed",
-          reason: `PDF Studio could not verify whether this task is safe to start: ${reason instanceof Error ? reason.message : String(reason)}`,
-          recovery: "Return to Tools and retry after the document finishes opening."
+          label: "Safety check unavailable",
+          reason: "PDF Studio could not finish the document safety check, so this task was not allowed to start.",
+          recovery: "Wait for the PDF to finish opening and retry. If the check keeps failing, open Troubleshooting & recovery."
         });
       }
     })();
