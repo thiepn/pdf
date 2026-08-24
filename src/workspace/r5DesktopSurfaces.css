@@ -1,0 +1,253 @@
+/* R5 — Desktop surface reconstruction
+ * Reduce card-heavy presentation and make tool/property surfaces read like a
+ * focused desktop editor. This file is presentation-only and is scoped to
+ * desktop widths so Phase 23 mobile/touch layouts remain unchanged.
+ */
+
+@media (min-width: 901px) {
+  /* Tools: outcome browser becomes a dense utility list, not a dashboard.
+   * DocumentToolsPage lazy-loads taskArchitecture.css after this global R5 layer,
+   * so selectors are scoped through .document-tools-hub to keep the R5 contract
+   * authoritative without !important. */
+  .document-tools-hub {
+    width: min(1040px, calc(100% - 32px));
+    gap: 16px;
+    margin: 14px auto 28px;
+  }
+
+  .document-tools-hub .document-tools-hub__hero {
+    align-items: center;
+    gap: 18px;
+    padding: 8px 0 13px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .document-tools-hub .document-tools-hub__hero h2 {
+    margin: 1px 0 2px;
+    font-size: 1.08rem;
+    letter-spacing: -.01em;
+  }
+
+  .document-tools-hub .document-tools-hub__hero p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .84rem;
+    line-height: 1.45;
+  }
+
+  .document-tools-hub .document-tools-hub__hero > label {
+    width: min(320px, 38vw);
+  }
+
+  .document-tools-hub .document-tools-hub__hero input {
+    min-height: 36px;
+    padding-inline: 11px;
+    border-radius: 5px;
+    font-size: .84rem;
+  }
+
+  .document-tools-hub .document-task-section {
+    gap: 7px;
+  }
+
+  .document-tools-hub .document-task-section > header h3 {
+    margin-top: 2px;
+    font-size: .84rem;
+    line-height: 1.4;
+  }
+
+  .document-tools-hub .document-task-section > header .eyebrow {
+    font-size: .72rem;
+    letter-spacing: .07em;
+  }
+
+  .document-tools-hub .document-task-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .document-tools-hub .document-task-card {
+    min-height: 72px;
+    gap: 10px;
+    padding: 10px 11px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    transition: background 100ms ease;
+  }
+
+  .document-tools-hub .document-task-card:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+
+  .document-tools-hub .document-task-card:hover,
+  .document-tools-hub .document-task-card:focus-visible {
+    border-color: var(--line);
+    background: var(--surface-subtle);
+    transform: none;
+  }
+
+  .document-tools-hub .document-task-card > svg {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+  }
+
+  .document-tools-hub .document-task-card > span {
+    gap: 3px;
+  }
+
+  .document-tools-hub .document-task-card strong {
+    font-size: .86rem;
+    font-weight: 700;
+  }
+
+  .document-tools-hub .document-task-card small {
+    font-size: .76rem;
+    line-height: 1.4;
+  }
+
+  .document-tools-hub .document-task-card em,
+  .document-tools-hub .document-task-card .task-capability-chip {
+    width: max-content;
+    margin-top: 3px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: .68rem;
+  }
+
+  .document-tools-hub .document-task-card .task-capability-reason,
+  .document-tools-hub .document-task-card .task-capability-recovery {
+    margin-top: 1px;
+    font-size: .72rem;
+  }
+
+  .document-tools-hub .task-focus--workflow {
+    padding: 10px 12px;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .document-tools-hub .task-focus--workflow .task-focus__icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 5px;
+  }
+
+  /* Editor properties: one continuous inspector rather than stacked cards. */
+  .unified-workspace .editor-properties,
+  .unified-workspace .native-unified-properties {
+    border-radius: 0;
+    background: var(--surface-strong);
+    box-shadow: none;
+  }
+
+  .unified-workspace .editor-properties > header {
+    min-height: 40px;
+    padding: 8px 11px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .unified-workspace .editor-properties > header span,
+  .unified-workspace .editor-properties > header strong {
+    font-size: .78rem;
+  }
+
+  .unified-workspace .editor-properties__body {
+    padding: 0;
+  }
+
+  .unified-workspace .editor-properties .property-section,
+  .unified-workspace .native-unified-properties .property-section {
+    margin: 0;
+    padding: 11px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .unified-workspace .editor-properties .property-section h3,
+  .unified-workspace .native-unified-properties .property-section h3 {
+    margin: 0 0 8px;
+    font-size: .78rem;
+    letter-spacing: .01em;
+  }
+
+  .unified-workspace .editor-properties .property-field,
+  .unified-workspace .editor-properties .property-toggle,
+  .unified-workspace .editor-properties .property-color,
+  .unified-workspace .native-unified-properties .property-field,
+  .unified-workspace .native-unified-properties .property-toggle,
+  .unified-workspace .native-unified-properties .property-color {
+    font-size: .76rem;
+  }
+
+  .unified-workspace .editor-properties input,
+  .unified-workspace .editor-properties select,
+  .unified-workspace .editor-properties textarea,
+  .unified-workspace .native-unified-properties input,
+  .unified-workspace .native-unified-properties select,
+  .unified-workspace .native-unified-properties textarea {
+    border-radius: 5px;
+    font-size: .78rem;
+  }
+
+  .unified-workspace .editor-properties input:not([type="checkbox"]):not([type="color"]),
+  .unified-workspace .editor-properties select,
+  .unified-workspace .native-unified-properties input:not([type="checkbox"]):not([type="color"]),
+  .unified-workspace .native-unified-properties select {
+    min-height: 32px;
+  }
+
+  .unified-workspace .editor-properties .property-actions,
+  .unified-workspace .editor-properties .property-segmented {
+    gap: 4px;
+  }
+
+  .unified-workspace .editor-properties .property-actions button,
+  .unified-workspace .editor-properties .property-segmented button,
+  .unified-workspace .native-unified-properties button {
+    min-height: 32px;
+    border-radius: 5px;
+    font-size: .74rem;
+  }
+
+  .unified-workspace .editor-panel-empty {
+    padding: 18px 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .unified-workspace .editor-panel-empty strong {
+    font-size: .84rem;
+  }
+
+  .unified-workspace .editor-panel-empty p {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: .76rem;
+    line-height: 1.45;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1080px) {
+  .document-tools-hub .document-task-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .document-tools-hub .document-task-card:nth-child(odd) {
+    border-right: 0;
+  }
+}
