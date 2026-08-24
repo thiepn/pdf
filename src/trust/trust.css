@@ -31,8 +31,9 @@
 .trust-notice__actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
 .trust-notice--compact { width: 100%; padding: 12px 14px; box-shadow: none; }
 
-/* R7: an available app update is guidance, not a modal layer. It must never
-   intercept ordinary workspace controls merely because its box overlaps them. */
+/* R7: an available app update is guidance, not a modal layer. The banner shell
+   and passive message are click-through; only the explicit action group accepts
+   pointer input. This keeps workspace controls usable even if geometry overlaps. */
 .update-banner,
 .app-shell--viewer .update-banner {
   position: fixed;
@@ -47,9 +48,8 @@
   box-shadow: 0 12px 36px rgb(0 0 0 / 20%);
   pointer-events: none;
 }
-.update-banner > * { pointer-events: auto; }
-.update-banner > span { min-width: 0; line-height: 1.4; }
-.update-banner > div { flex: 0 0 auto; }
+.update-banner > span { min-width: 0; line-height: 1.4; pointer-events: none; }
+.update-banner > div { flex: 0 0 auto; pointer-events: auto; }
 
 @media (max-width: 680px) {
   .trust-notice { grid-template-columns: 1fr; }

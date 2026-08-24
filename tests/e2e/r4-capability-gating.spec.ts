@@ -58,7 +58,7 @@ test("task-specific direct URLs and Ctrl+K cannot bypass document capability pre
 
   await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/secure/apply-redactions`);
   await expect(page.getByRole("heading", { name: /Apply permanent redactions cannot start for this document/i })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/No saved editor redaction marks or existing PDF redaction annotations|could not verify whether this task is safe to start/i)).toBeVisible();
+  await expect(page.getByText(/No saved editor redaction marks or existing PDF redaction annotations|could not finish the document safety check/i)).toBeVisible();
 });
 
 test("a document that satisfies preflight keeps the task available", async ({ page }) => {
