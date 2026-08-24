@@ -1,0 +1,67 @@
+.trust-notice {
+  width: min(760px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
+}
+.trust-notice--user-action { border-left-color: var(--warning); }
+.trust-notice--document-limitation { border-left-color: #6c7280; }
+.trust-notice--browser-limitation { border-left-color: #4e6990; }
+.trust-notice--resource-limitation,
+.trust-notice--product-defect { border-left-color: var(--danger); }
+.trust-notice--cancelled { border-left-color: var(--muted); }
+.trust-notice__body { min-width: 0; display: grid; gap: 7px; }
+.trust-notice__label { margin: 0; color: var(--muted); font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.trust-notice__title { font-size: .96rem; line-height: 1.35; }
+.trust-notice__summary { margin: 0; color: var(--muted); line-height: 1.5; }
+.trust-notice__recovery { display: grid; gap: 2px; margin-top: 3px; }
+.trust-notice__recovery strong { font-size: .75rem; }
+.trust-notice__recovery span { color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.trust-notice__safety { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 3px; color: var(--good); font-size: .78rem; font-weight: 700; }
+.trust-notice__technical { margin-top: 3px; color: var(--muted); font-size: .76rem; }
+.trust-notice__technical summary { width: max-content; cursor: pointer; font-weight: 700; }
+.trust-notice__technical pre { max-height: 180px; margin: 8px 0 5px; }
+.trust-notice__actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+.trust-notice--compact { width: 100%; padding: 12px 14px; box-shadow: none; }
+
+/* R7: an available app update is guidance, not a modal layer. It must never
+   intercept ordinary workspace controls merely because its box overlaps them. */
+.update-banner,
+.app-shell--viewer .update-banner {
+  position: fixed;
+  z-index: 140;
+  inset: auto 16px 16px auto;
+  width: min(420px, calc(100vw - 32px));
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #8ca9cd;
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 20%);
+  pointer-events: none;
+}
+.update-banner > * { pointer-events: auto; }
+.update-banner > span { min-width: 0; line-height: 1.4; }
+.update-banner > div { flex: 0 0 auto; }
+
+@media (max-width: 680px) {
+  .trust-notice { grid-template-columns: 1fr; }
+  .trust-notice__actions { align-items: stretch; }
+  .trust-notice__actions > * { flex: 1 1 auto; }
+  .update-banner,
+  .app-shell--viewer .update-banner {
+    right: 10px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+    align-items: stretch;
+    flex-direction: column;
+  }
+  :root[data-keyboard-open="true"] .update-banner { display: none; }
+}
