@@ -150,7 +150,26 @@ function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, tra
   };
 }
 
-function inspectDocument(document: any, authentication: SecurityInspectionReport["authentication"]): SecurityInspectionReport {
+function inspectPageAnnotationSubtypes(page: any): { annotationCount: number; redactionMarkCount: number } {
+  const pageObject = safeCall(() => page.getObject?.(), null);
+  const rawAnnotations = safeCall(() => pageObject?.get?.("Annots"), null);
+  const annotations = safeCall(() => rawAnnotations?.resolve?.() ?? rawAnnotations, rawAnnotations);
+  if (!annotations || typeof annotations.length !== "number") return { annotationCount: 0, redactionMarkCount: 0 };
+
+  let annotationCount = 0;
+  let redactionMarkCount = 0;
+  for (let index = 0; index < annotations.length; index += 1) {
+    const rawAnnotation = safeCall(() => annotations.get?.(index), null);
+    const annotation = safeCall(() => rawAnnotation?.resolve?.() ?? rawAnnotation, rawAnnotation);
+    const subtypeObject = safeCall(() => annotation?.get?.("Subtype"), null);
+    const subtype = safeString(safeCall(() => subtypeObject?.asName?.() ?? subtypeObject?.valueOf?.() ?? subtypeObject, ""));
+    if (subtype === "Redact" || subtype === "Redaction") redactionMarkCount += 1;
+    else if (subtype && subtype !== "Widget" && subtype !== "Link") annotationCount += 1;
+  }
+  return { annotationCount, redactionMarkCount };
+}
+
+function inspectDocument(document: any, authentication: SecurityInspectionReport["authentication"], requestId: string): SecurityInspectionReport {
   const pdf = document.asPDF();
   if (!pdf) throw new Error("The document is not a PDF.");
   pdf.disableJS?.();
@@ -163,6 +182,7 @@ function inspectDocument(document: any, authentication: SecurityInspectionReport
   let linkCount = 0;
 
   for (let pageIndex = 0; pageIndex < pdf.countPages(); pageIndex += 1) {
+    assertActive(requestId);
     const page = pdf.loadPage(pageIndex);
     try {
       const transform = page.getTransform() as AffineMatrix;
@@ -173,12 +193,9 @@ function inspectDocument(document: any, authentication: SecurityInspectionReport
         if (inspected.signature) signatures.push(inspected.signature);
       });
       linkCount += safeCall(() => page.getLinks(), [] as any[]).length;
-      const annotations = safeCall(() => page.getAnnotations(), [] as any[]);
-      for (const annotation of annotations) {
-        const type = safeString(safeCall(() => annotation.getType(), ""));
-        if (type === "Redaction" || type === "Redact") redactionMarkCount += 1;
-        else annotationCount += 1;
-      }
+      const annotations = inspectPageAnnotationSubtypes(page);
+      annotationCount += annotations.annotationCount;
+      redactionMarkCount += annotations.redactionMarkCount;
     } finally { page.destroy(); }
   }
 
@@ -461,7 +478,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const authentication = authenticate(source, request.password);
       assertActive(request.requestId);
       if (request.type === "INSPECT_SECURITY") {
-        const report = inspectDocument(source, authentication);
+        const report = inspectDocument(source, authentication, request.requestId);
         self.postMessage({ type: "SECURITY_INSPECTION_RESULT", requestId: request.requestId, report });
       } else {
         const result = applySecurity(source, request.options);

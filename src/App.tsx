@@ -23,6 +23,7 @@ const ActivityPage = lazy(() => import("./views/ActivityPage").then(({ ActivityP
 const MaintenancePage = lazy(() => import("./views/MaintenancePage").then(({ MaintenancePage }) => ({ default: MaintenancePage })));
 const HelpPage = lazy(() => import("./views/HelpPage").then(({ HelpPage }) => ({ default: HelpPage })));
 const UnifiedWorkspace = lazy(() => import("./workspace/UnifiedWorkspace").then(({ UnifiedWorkspace }) => ({ default: UnifiedWorkspace })));
+const CapabilityGatedWorkspace = lazy(() => import("./capabilities/CapabilityGatedWorkspace").then(({ CapabilityGatedWorkspace }) => ({ default: CapabilityGatedWorkspace })));
 
 interface HeaderState {
   title: string;
@@ -109,8 +110,9 @@ export function App() {
                             : route.name === "batch" ? <BatchPage />
                               : route.name === "compare" ? <ComparePage />
                                 : route.name === "create" ? <CreatePdfPage />
-                                  : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
-                                    : <HomePage />;
+                                  : route.name === "workspace" ? <CapabilityGatedWorkspace mode={route.mode} onTitleChange={handleViewerTitle} projectId={route.projectId} taskId={route.taskId} />
+                                    : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
+                                      : <HomePage />;
 
   const unified = isDocumentRoute(route);
   return <AppShell fullBleed={unified} hideTopbar={unified} route={route} subtitle={header.subtitle} title={header.title}>
