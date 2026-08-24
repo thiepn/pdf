@@ -15,9 +15,10 @@ test("workspace opens the sample with four stable document destinations", async 
   await expect(page).toHaveURL(/\/editor$/);
   await expect(page.getByRole("button", { name: /Text/ }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "History" }).click();
+  const historyButton = page.getByRole("button", { name: "History", exact: true });
+  await historyButton.click();
   await expect(page.getByRole("heading", { name: "History & checkpoints" })).toBeVisible();
-  await page.getByRole("button", { name: "History" }).click();
+  await historyButton.click();
 
   await navigation.getByRole("button", { name: "Tools", exact: true }).click();
   await expect(page).toHaveURL(/\/toolbox$/);
