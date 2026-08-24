@@ -93,8 +93,13 @@ test("R6 phone editor uses floating quick tools instead of a second reserved bot
   const quickTools = page.getByRole("navigation", { name: "Editor quick tools" });
   await expect(quickTools).toBeVisible();
   expect(await quickTools.evaluate((element) => getComputedStyle(element).position)).toBe("absolute");
-  expect(await quickTools.getByRole("button").count()).toBe(5);
-  expect(await quickTools.getByRole("button").nth(3).isVisible()).toBe(false);
+  expect(await quickTools.locator("button").count()).toBe(5);
+  expect(await quickTools.getByRole("button").count()).toBe(4);
+  await expect(quickTools.getByRole("button", { name: "Select" })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Pan" })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Text" })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: /^Tools/ })).toBeVisible();
+  expect(await quickTools.locator("button").nth(3).isVisible()).toBe(false);
 
   const quickBox = await quickTools.boundingBox();
   const navBox = await workspaceNav.boundingBox();
