@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
-import { createPortal } from "react-dom";
 import { readAppRoute, routeHref, type AppRoute } from "../core/appRouter";
 import { pdfTasks, taskCategories, taskRoute, taskSearchText } from "../ia/taskCatalog";
 import { useModalFocus } from "../accessibility/modalFocus";
@@ -13,6 +12,10 @@ interface CommandItem {
   defaultVisible: boolean;
 }
 
+interface CommandPaletteProps {
+  showTrigger?: boolean;
+}
+
 const globalCommands: CommandItem[] = [
   { id: "home", label: "Home", description: "Open or continue a local document", route: { name: "home" }, searchText: "home start open continue recent", defaultVisible: true },
   { id: "documents", label: "Documents", description: "Manage local PDF projects and backups", route: { name: "projects" }, searchText: "documents projects backup restore local files", defaultVisible: true },
@@ -22,7 +25,7 @@ const globalCommands: CommandItem[] = [
   { id: "maintenance", label: "Troubleshooting & recovery", description: "Recover projects or repair the application when something goes wrong", route: { name: "maintenance" }, searchText: "safe mode recovery cache support troubleshoot broken app", defaultVisible: false }
 ];
 
-export function CommandPalette() {
+export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,9 +71,12 @@ export function CommandPalette() {
     return commands.filter((item) => `${item.label} ${item.description} ${item.searchText}`.toLowerCase().includes(needle)).slice(0, 24);
   }, [commands, query]);
 
-  if (!open) return <button aria-haspopup="dialog" aria-label="Open command palette" className="command-palette-trigger" onClick={() => setOpen(true)} ref={triggerRef} type="button"><span>Find a PDF task</span><kbd>Ctrl K</kbd></button>;
+  if (!open) {
+    if (!showTrigger) return null;
+    return <button aria-haspopup="dialog" aria-label="Open command palette" className="command-palette-trigger" onClick={() => setOpen(true)} ref={triggerRef} type="button"><span>Find a PDF task</span><kbd>Ctrl K</kbd></button>;
+  }
 
-  const palette = <div className="command-palette-backdrop" onMouseDown={(event: MouseEvent<HTMLDivElement>) => { if (event.currentTarget === event.target) closePalette(); }} role="presentation">
+  return <div className="command-palette-backdrop" onMouseDown={(event: MouseEvent<HTMLDivElement>) => { if (event.currentTarget === event.target) closePalette(); }} role="presentation">
     <section aria-describedby="command-palette-help" aria-labelledby="command-palette-title" aria-modal="true" className="command-palette" ref={dialogRef} role="dialog">
       <header><div><strong id="command-palette-title">Find a PDF task</strong><span>Search by outcome, not menu name</span></div><button aria-label="Close command palette" onClick={closePalette} type="button">×</button></header>
       <p className="visually-hidden" id="command-palette-help">Type what you want to do. Press Escape to close this dialog.</p>
@@ -78,6 +84,4 @@ export function CommandPalette() {
       <nav aria-label="Command results" className="command-palette__results" id="command-palette-results">{results.length ? results.map((item) => <a href={routeHref(item.route)} key={item.id} onClick={closePalette}><strong>{item.label}</strong><span>{item.description}</span></a>) : <p aria-live="polite">No matching task. Try a broader verb such as edit, pages, protect, convert, or compare.</p>}</nav>
     </section>
   </div>;
-
-  return createPortal(palette, document.body);
 }
