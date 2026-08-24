@@ -14,6 +14,10 @@ async function openVectorEditor(page: import("@playwright/test").Page): Promise<
   return properties;
 }
 
+async function expectQueuedEdit(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.locator(".native-queued-count").filter({ hasText: "1 existing-content edit queued" })).toHaveCount(1);
+}
+
 test("P4 edits exact source vector geometry and appearance without redacting neighboring content", async ({ page }) => {
   const properties = await openVectorEditor(page);
   await properties.getByLabel("Vector operation").selectOption("edit");
@@ -30,7 +34,7 @@ test("P4 edits exact source vector geometry and appearance without redacting nei
   await properties.getByLabel("Vector line join").selectOption("Bevel");
   await properties.getByLabel("Vector dash pattern").fill("9 3 2 3");
   await properties.getByRole("button", { name: "Apply source vector edit" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
@@ -43,7 +47,7 @@ test("P4 deletes only the exact existing source path and exports a validated PDF
   const properties = await openVectorEditor(page);
   await properties.getByLabel("Vector operation").selectOption("delete");
   await properties.getByRole("button", { name: "Delete existing vector" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
