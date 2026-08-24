@@ -31,7 +31,8 @@ test("phone workspace exposes touch-first document navigation and sheets", async
   await mobileNav.getByRole("button", { name: "More" }).click();
   const moreDialog = page.getByRole("dialog", { name: "More document tools" });
   await expect(moreDialog).toBeVisible();
-  await expect(moreDialog.getByRole("button", { name: "OCR" })).toBeVisible();
+  await expect(moreDialog.getByRole("button", { name: "Find a PDF task" })).toBeVisible();
+  await expect(moreDialog.getByRole("link", { name: "Batch automation" })).toBeVisible();
 });
 
 test("tablet retains canvas space and touch-sized controls", async ({ page }, testInfo) => {
@@ -68,7 +69,8 @@ test("phone editor controls remain reachable and touch sized at narrow widths", 
     await page.goto(`./?e2eViewport=${width}#/home`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "Open sample" }).click();
-    await page.getByRole("navigation", { name: "Document tools" }).getByRole("button", { name: "Edit" }).click();
+    const navigation = page.getByRole("navigation", { name: "Document workspace" });
+    await navigation.getByRole("button", { name: "Edit", exact: true }).click();
     const quickTools = page.getByRole("navigation", { name: "Editor quick tools" });
     for (const control of await quickTools.getByRole("button").all()) {
       const box = await control.boundingBox();
