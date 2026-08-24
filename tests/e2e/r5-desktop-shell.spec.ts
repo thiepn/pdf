@@ -55,5 +55,19 @@ test.describe("R5 desktop workspace hierarchy", () => {
     expect(await editorCommandbar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
     await expect(page.locator(".editor-file-group strong")).toBeHidden();
     await expect(page.locator(".editor-file-group span")).toBeVisible();
+
+    const editorProperties = page.locator(".editor-properties").first();
+    await expect(editorProperties).toBeVisible();
+    expect(await editorProperties.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+
+    await navigation.getByRole("button", { name: "Tools", exact: true }).click();
+    await expect(page).toHaveURL(/\/toolbox$/);
+    const toolHero = page.locator(".document-tools-hub__hero");
+    await expect(toolHero).toBeVisible();
+    expect(await toolHero.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+
+    const firstTask = page.locator(".document-task-card").first();
+    await expect(firstTask).toBeVisible();
+    expect(await firstTask.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
   });
 });
