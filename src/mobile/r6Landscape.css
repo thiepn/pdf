@@ -1,0 +1,184 @@
+/* R6 short-height landscape policy.
+ * CSS width alone can make a rotated phone look tablet-sized; short-height touch layouts
+ * retain phone document navigation so mode switching is never lost after rotation.
+ */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 900px) {
+  .app-shell--viewer .main-content,
+  .workspace--full,
+  .unified-workspace {
+    height: var(--app-viewport-height, 100dvh);
+    min-height: 0;
+  }
+
+  .unified-workspace {
+    overflow: hidden;
+  }
+
+  .workspace-commandbar,
+  .workspace-modes,
+  .workspace-technical-tools,
+  .workspace-contextbar {
+    display: none;
+  }
+
+  .workspace-tabs {
+    min-height: 38px;
+    max-height: 38px;
+  }
+
+  .workspace-tab {
+    min-width: min(42vw, 220px);
+  }
+
+  .workspace-tab__main,
+  .workspace-tab__icon,
+  .workspace-tabs .icon-button {
+    min-height: 38px;
+    height: 38px;
+  }
+
+  .workspace-tab__main small,
+  .workspace-tab__document {
+    display: none;
+  }
+
+  .workspace-body {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace-mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    flex: 0 0 auto;
+    min-height: calc(50px + env(safe-area-inset-bottom));
+    padding: 2px max(6px, env(safe-area-inset-right)) calc(2px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    border-top: 1px solid var(--chrome-border);
+    color: var(--chrome-muted);
+    background: color-mix(in srgb, var(--chrome-bg) 96%, transparent);
+    box-shadow: 0 -4px 14px rgb(0 0 0 / 12%);
+  }
+
+  .workspace-mobile-nav button {
+    min-width: 0;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 1px;
+    padding: 2px;
+    border: 0;
+    border-radius: 5px;
+    color: inherit;
+    background: transparent;
+  }
+
+  .workspace-mobile-nav button > .studio-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .workspace-mobile-nav button > small {
+    font-size: .58rem;
+    font-weight: 700;
+  }
+
+  .workspace-mobile-nav button.active {
+    color: var(--chrome-fg);
+    box-shadow: inset 0 2px var(--accent);
+  }
+
+  .viewer-app,
+  .editor-app,
+  .organizer-app {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .viewer-layout,
+  .viewer-layout--collapsed,
+  .editor-layout,
+  .editor-layout--no-sidebar,
+  .editor-layout--no-properties,
+  .editor-layout--no-sidebar.editor-layout--no-properties {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .viewer-commandbar,
+  .editor-commandbar {
+    min-height: 42px;
+    padding-block: 1px;
+  }
+
+  .viewer-sidebar,
+  .editor-left-panel,
+  .editor-properties,
+  .workspace-insight-panel {
+    position: absolute;
+    z-index: 100;
+    inset: auto 0 0;
+    width: auto;
+    max-height: calc(var(--app-viewport-height, 100dvh) - 4px);
+    border-radius: 14px 14px 0 0;
+  }
+
+  .editor-toolrail {
+    display: none;
+  }
+
+  .editor-app {
+    position: relative;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
+  .editor-stage {
+    min-height: 0;
+    padding: 6px 8px 62px;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .editor-mobile-toolbar {
+    position: absolute;
+    z-index: 76;
+    left: 50%;
+    bottom: 4px;
+    width: min(330px, calc(100% - 16px));
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    transform: translateX(-50%);
+    padding: 2px;
+    border: 1px solid var(--chrome-border);
+    border-radius: 10px;
+    color: var(--chrome-muted);
+    background: color-mix(in srgb, var(--chrome-bg) 96%, transparent);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
+  }
+
+  .editor-mobile-toolbar button {
+    min-width: 0;
+    min-height: 42px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    color: inherit;
+    background: transparent;
+  }
+
+  .editor-mobile-toolbar button:nth-child(4) {
+    display: none;
+  }
+
+  .workspace-mobile-sheet-backdrop,
+  .editor-tools-sheet-backdrop {
+    height: var(--app-viewport-height, 100dvh);
+  }
+
+  .workspace-mobile-sheet,
+  .editor-tools-sheet {
+    max-height: calc(var(--app-viewport-height, 100dvh) - 4px);
+    border-radius: 14px 14px 0 0;
+  }
+}
