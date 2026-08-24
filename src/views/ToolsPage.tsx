@@ -3,7 +3,8 @@ import { navigateTo, readAppRoute, routeHref } from "../core/appRouter";
 import { importPdfProject } from "../projects/projectRepository";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { Icon } from "../components/Icon";
-import { getTask, pdfTasks, taskCategories, taskRoute, taskSearchText, type PdfTask } from "../ia/taskCatalog";
+import { getTask, pdfTasks, taskCategories, taskRoute, type PdfTask } from "../ia/taskCatalog";
+import { taskMatchesQuery } from "../ia/taskSearch";
 import { createGenericTaskCapabilityContext, evaluateTaskCapability, isCapabilityBlocked, type TaskCapability } from "../capabilities/taskCapability";
 import { TaskCapabilityChip } from "../capabilities/TaskCapabilityStatus";
 import "../ia/taskArchitecture.css";
@@ -55,9 +56,9 @@ export function ToolsPage() {
   }
 
   const visibleTasks = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = query.trim();
     if (!needle) return pdfTasks.filter((task) => task.audience !== "recovery");
-    return pdfTasks.filter((task) => taskSearchText(task).includes(needle));
+    return pdfTasks.filter((task) => taskMatchesQuery(task, needle));
   }, [query]);
 
   const recoveryTasks = visibleTasks.filter((task) => task.audience === "recovery");
