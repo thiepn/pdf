@@ -156,9 +156,8 @@ test("R6 tablet side panels overlay instead of shrinking the editor canvas", asy
   const before = await stage.boundingBox();
   expect(before?.width ?? 0).toBeGreaterThan(500);
 
-  const propertiesButton = page.getByRole("button", { name: /Properties/ }).first();
-  await propertiesButton.click();
   const properties = page.locator(".editor-properties");
+  if (!await properties.isVisible()) await page.getByRole("button", { name: "Properties", exact: true }).click();
   await expect(properties).toBeVisible();
   expect(await properties.evaluate((element) => getComputedStyle(element).position)).toBe("absolute");
   const after = await stage.boundingBox();
