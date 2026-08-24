@@ -21,11 +21,17 @@ export interface TaskCapability {
   alternativeTaskId?: string;
 }
 
+export interface TaskSecurityEvidence {
+  fillableFormFieldCount: number;
+  redactionMarkCount: number;
+  flattenableObjectCount: number;
+}
+
 export interface TaskCapabilityContext {
   project?: ProjectManifest;
   editorRedactionMarkCount: number;
-  sourceRedactionMarkCount?: number;
-  sourceRedactionsChecked: boolean;
+  securityEvidence?: TaskSecurityEvidence;
+  securityEvidenceChecked: boolean;
   runtime: {
     worker: boolean;
     webAssembly: boolean;
@@ -33,11 +39,12 @@ export interface TaskCapabilityContext {
 }
 
 export interface BuildTaskCapabilityContextOptions {
-  inspectSourceRedactions?: boolean;
+  inspectSecurity?: boolean;
 }
 
 const AVAILABLE: TaskCapability = { state: "available", label: "Ready" };
-const DOCUMENT_PREFLIGHT_TASKS = new Set(["fill-forms", "apply-redactions", "split-pdf"]);
+const DOCUMENT_PREFLIGHT_TASKS = new Set(["fill-forms", "apply-redactions", "split-pdf", "flatten-pdf"]);
+const SECURITY_WORKER_TASKS = new Set(["fill-forms", "apply-redactions", "sanitize-pdf", "password-protect", "flatten-pdf"]);
 
 export function detectTaskCapabilityRuntime(): TaskCapabilityContext["runtime"] {
   return {
@@ -49,7 +56,7 @@ export function detectTaskCapabilityRuntime(): TaskCapabilityContext["runtime"] 
 export function createGenericTaskCapabilityContext(): TaskCapabilityContext {
   return {
     editorRedactionMarkCount: 0,
-    sourceRedactionsChecked: false,
+    securityEvidenceChecked: false,
     runtime: detectTaskCapabilityRuntime()
   };
 }
@@ -64,20 +71,26 @@ export async function buildTaskCapabilityContext(
   const context: TaskCapabilityContext = {
     project,
     editorRedactionMarkCount: editorState.objects.filter((object) => object.type === "redaction" && !object.hidden).length,
-    sourceRedactionsChecked: false,
+    securityEvidenceChecked: false,
     runtime: detectTaskCapabilityRuntime()
   };
 
-  if (options.inspectSourceRedactions && context.runtime.worker) {
+  if (options.inspectSecurity && context.runtime.worker && context.runtime.webAssembly) {
     try {
       const bytes = await loadProjectBytes(project);
       const report = await inspectSecurity(bytes, readProjectSessionPassword(project.id));
-      context.sourceRedactionMarkCount = report.redactionMarkCount;
-      context.sourceRedactionsChecked = true;
+      const fillableFormFieldCount = report.formFields.filter((field) => !field.readOnly && field.type !== "signature" && field.type !== "button").length;
+      const flattenableFormFieldCount = report.formFields.filter((field) => field.type !== "signature").length;
+      context.securityEvidence = {
+        fillableFormFieldCount,
+        redactionMarkCount: report.redactionMarkCount,
+        flattenableObjectCount: flattenableFormFieldCount + report.annotationCount
+      };
+      context.securityEvidenceChecked = true;
     } catch {
       // Protected or temporarily unreadable documents are re-checked in Protect.
-      // An inconclusive preflight must never become a false unsupported claim.
-      context.sourceRedactionsChecked = false;
+      // An inconclusive deep preflight must never become a false unsupported claim.
+      context.securityEvidenceChecked = false;
     }
   }
 
@@ -87,11 +100,11 @@ export async function buildTaskCapabilityContext(
 export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityContext): TaskCapability {
   const project = context.project;
 
-  if (task.id === "ocr-pdf" && (!context.runtime.worker || !context.runtime.webAssembly)) {
+  if ((task.id === "ocr-pdf" || SECURITY_WORKER_TASKS.has(task.id)) && (!context.runtime.worker || !context.runtime.webAssembly)) {
     return {
       state: "temporarily-unavailable",
       label: "Unavailable right now",
-      reason: "OCR needs Web Workers and WebAssembly, which are unavailable in this browser session.",
+      reason: `${task.label} needs Web Workers and WebAssembly, which are unavailable in this browser session.`,
       recovery: "Use a current Chromium, Firefox, or WebKit-based browser with WebAssembly enabled."
     };
   }
@@ -106,6 +119,16 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
     };
   }
 
+  if (task.id === "fill-forms" && project && context.securityEvidenceChecked && context.securityEvidence?.fillableFormFieldCount === 0) {
+    return {
+      state: "unsupported-for-document",
+      label: "No fillable fields",
+      reason: "This PDF contains form widgets, but none are supported writable fields. They are read-only, signature/button fields, or otherwise non-fillable here.",
+      recovery: "Use Edit for appearance-only text and marks, or choose a PDF with writable AcroForm fields.",
+      alternativeTaskId: "edit-pdf"
+    };
+  }
+
   if (task.id === "split-pdf" && project && project.summary.pageCount < 2) {
     return {
       state: "unsupported-for-document",
@@ -116,8 +139,8 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
   }
 
   if (task.id === "apply-redactions" && project) {
-    const knownMarks = context.editorRedactionMarkCount + (context.sourceRedactionMarkCount ?? 0);
-    if (context.sourceRedactionsChecked && knownMarks === 0) {
+    const knownMarks = context.editorRedactionMarkCount + (context.securityEvidence?.redactionMarkCount ?? 0);
+    if (context.securityEvidenceChecked && knownMarks === 0) {
       return {
         state: "unsupported-for-document",
         label: "Nothing to redact yet",
@@ -128,11 +151,20 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
     }
     return {
       state: "available-with-warning",
-      label: context.sourceRedactionsChecked ? "Review first" : "Checked before opening",
+      label: context.securityEvidenceChecked ? "Review first" : "Checked before opening",
       reason: knownMarks > 0
         ? `${knownMarks} redaction mark${knownMarks === 1 ? " is" : "s are"} available. Applying redactions permanently removes covered content from the new output.`
         : "PDF Studio will check the source PDF for existing redaction annotations before Protect starts. If none exist, mark areas in Edit first.",
       recovery: "The original PDF remains unchanged; permanent removal applies to the new output."
+    };
+  }
+
+  if (task.id === "flatten-pdf" && project && context.securityEvidenceChecked && context.securityEvidence?.flattenableObjectCount === 0) {
+    return {
+      state: "unsupported-for-document",
+      label: "Nothing to flatten",
+      reason: "No supported non-signature form fields or page annotations were found in this PDF.",
+      recovery: "Choose another Protect task or a PDF that contains forms or annotations."
     };
   }
 
@@ -148,6 +180,12 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
         state: "available-with-warning",
         label: "Review first",
         reason: "A redaction mark is not permanent removal. Apply permanent redactions in Protect after marking the content."
+      };
+    case "apply-redactions":
+      return {
+        state: "available-with-warning",
+        label: "Review first",
+        reason: "Permanent redaction removes covered content from the derived output after the marked regions are validated."
       };
     case "split-pdf":
       return {
@@ -232,6 +270,6 @@ export function taskNeedsDocumentPreflight(task: PdfTask): boolean {
   return DOCUMENT_PREFLIGHT_TASKS.has(task.id);
 }
 
-export function taskNeedsSourceRedactionInspection(task: PdfTask): boolean {
-  return task.id === "apply-redactions";
+export function taskNeedsDeepSecurityInspection(task: PdfTask): boolean {
+  return task.id === "apply-redactions" || task.id === "fill-forms" || task.id === "flatten-pdf";
 }
