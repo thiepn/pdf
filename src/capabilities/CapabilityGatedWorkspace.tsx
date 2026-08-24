@@ -42,9 +42,23 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
     }
 
     setCapability(null);
-    void buildTaskCapabilityContext(projectId, { inspectSecurity: taskNeedsDeepSecurityInspection(task) })
-      .then((context) => { if (!cancelled) setCapability(evaluateTaskCapability(task, context)); })
-      .catch((reason) => {
+    void (async () => {
+      try {
+        const cheapContext = await buildTaskCapabilityContext(projectId);
+        if (cancelled) return;
+        const cheapCapability = evaluateTaskCapability(task, cheapContext);
+
+        // Cheap manifest/editor evidence is authoritative when it already proves
+        // the task cannot start. Do not spin up a security worker just to reach
+        // the same answer (for example a PDF with zero form widgets).
+        if (!canStartTask(cheapCapability) || !taskNeedsDeepSecurityInspection(task)) {
+          setCapability(cheapCapability);
+          return;
+        }
+
+        const deepContext = await buildTaskCapabilityContext(projectId, { inspectSecurity: true });
+        if (!cancelled) setCapability(evaluateTaskCapability(task, deepContext));
+      } catch (reason) {
         if (cancelled) return;
         setCapability({
           state: "temporarily-unavailable",
@@ -52,17 +66,16 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
           reason: `PDF Studio could not verify whether this task is safe to start: ${reason instanceof Error ? reason.message : String(reason)}`,
           recovery: "Return to Tools and retry after the document finishes opening."
         });
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [mode, projectId, task]);
 
-  if (!task) return <UnifiedWorkspace mode={mode} onTitleChange={onTitleChange} projectId={projectId} />;
-
-  if (!capability) {
+  if (task && !capability) {
     return <div className="task-capability-loading task-capability-loading--route" role="status"><span className="spinner"/><strong>Checking whether {task.label} is supported for this PDF…</strong></div>;
   }
 
-  if (!canStartTask(capability)) {
+  if (task && capability && !canStartTask(capability)) {
     return <TaskCapabilityBlocker
       capability={capability}
       onBack={() => navigateTo({ name: "workspace", projectId, mode: "toolbox" })}
@@ -71,8 +84,11 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
     />;
   }
 
+  // Keep the same wrapper/component position for taskless and supported task
+  // routes. This lets React update UnifiedWorkspace in place instead of tearing
+  // down and reacquiring the same project lease during normal task navigation.
   return <div className="capability-gated-workspace">
-    <TaskCapabilityNotice capability={capability} />
+    {task && capability ? <TaskCapabilityNotice capability={capability} /> : null}
     <UnifiedWorkspace mode={mode} onTitleChange={onTitleChange} projectId={projectId} />
   </div>;
 }
