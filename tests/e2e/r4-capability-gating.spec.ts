@@ -47,8 +47,11 @@ test("task-specific direct URLs and Ctrl+K cannot bypass document capability pre
   await expect(page.getByText(/No supported interactive form fields were detected/i)).toBeVisible();
 
   await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/viewer`);
+  const paletteTrigger = page.getByRole("button", { name: "Open command palette" });
+  await expect(paletteTrigger).toBeVisible();
   await page.keyboard.press("Control+K");
   const dialog = page.getByRole("dialog", { name: /Find a PDF task/i });
+  await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: "Search PDF tasks" }).fill("fill pdf forms");
   await dialog.getByRole("link", { name: /Fill PDF forms/i }).click();
   await expect(page).toHaveURL(/\/secure\/fill-forms$/);
