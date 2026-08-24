@@ -189,8 +189,9 @@
     min-height: 40px;
     justify-content: center;
     gap: 6px;
-    padding: 8px 13px 7px;
+    padding: 8px 13px 5px;
     border: 0;
+    border-bottom: 2px solid transparent;
     border-radius: 0;
     color: var(--muted);
     background: transparent;
@@ -206,9 +207,10 @@
   }
 
   .workspace-modes--primary .workspace-mode--active {
+    border-bottom-color: var(--accent);
     color: var(--ink);
     background: transparent;
-    box-shadow: inset 0 -2px var(--accent);
+    box-shadow: none;
     font-weight: 750;
   }
 
