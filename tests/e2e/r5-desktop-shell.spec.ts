@@ -23,16 +23,37 @@ test.describe("R5 desktop workspace hierarchy", () => {
     expect(modeRailHeight).toBeLessThanOrEqual(46);
 
     const activeRead = navigation.getByRole("button", { name: "Read", exact: true });
-    const activeStyle = await activeRead.evaluate((element) => getComputedStyle(element));
-    expect(activeStyle.borderBottomWidth).toBe("2px");
-    expect(activeStyle.borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
+    await expect(activeRead).toHaveAttribute("aria-current", "page");
+    const activeBorder = await activeRead.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { width: style.borderBottomWidth, color: style.borderBottomColor };
+    });
+    expect(activeBorder.width).toBe("2px");
+    expect(activeBorder.color).not.toBe("rgba(0, 0, 0, 0)");
 
     const contextbar = page.locator(".workspace-contextbar");
     if (await contextbar.count()) await expect(contextbar).toBeHidden();
+
+    const viewerCommandbar = page.locator(".viewer-commandbar");
+    await expect(viewerCommandbar).toBeVisible();
+    expect(await viewerCommandbar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
+    await expect(page.locator(".viewer-file-title strong")).toBeHidden();
+    await expect(page.locator(".viewer-file-title span")).toBeVisible();
 
     const history = page.getByRole("button", { name: "History", exact: true });
     await expect(history).toBeVisible();
     await history.click();
     await expect(page.getByRole("heading", { name: "History & checkpoints" })).toBeVisible();
+    await history.click();
+
+    await navigation.getByRole("button", { name: "Edit", exact: true }).click();
+    await expect(page).toHaveURL(/\/editor$/);
+    await expect(page.getByRole("tab", { name: /pdf-studio-welcome Edit/ })).toHaveAttribute("aria-selected", "true");
+
+    const editorCommandbar = page.locator(".editor-commandbar");
+    await expect(editorCommandbar).toBeVisible();
+    expect(await editorCommandbar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
+    await expect(page.locator(".editor-file-group strong")).toBeHidden();
+    await expect(page.locator(".editor-file-group span")).toBeVisible();
   });
 });
