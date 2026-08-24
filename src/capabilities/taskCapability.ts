@@ -100,10 +100,13 @@ export async function buildTaskCapabilityContext(
         flattenableObjectCount: flattenableFormFieldCount + report.annotationCount
       };
       context.securityEvidenceChecked = true;
-    } catch {
-      // Protected, temporarily unreadable, or slow documents are re-checked in Protect.
-      // An inconclusive deep preflight must never become a false unsupported claim or an endless loading state.
+    } catch (reason) {
+      // Deep inspection is a safety gate for task-specific destructive/protect routes.
+      // If it cannot complete, fail closed instead of mounting a tool that may remain
+      // stuck while repeating the same inspection. The caller converts this into a
+      // temporary blocker, which is distinct from falsely claiming the PDF is unsupported.
       context.securityEvidenceChecked = false;
+      throw reason;
     } finally {
       if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
     }
