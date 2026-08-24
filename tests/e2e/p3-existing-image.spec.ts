@@ -14,6 +14,10 @@ async function openImageEditor(page: import("@playwright/test").Page): Promise<i
   return properties;
 }
 
+async function expectQueuedEdit(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.locator(".native-queued-count").filter({ hasText: "1 existing-content edit queued" })).toHaveCount(1);
+}
+
 test("P3 moves, resizes, rotates, crops and changes opacity of an existing source image without an upload", async ({ page }) => {
   const properties = await openImageEditor(page);
   await properties.getByLabel("Image operation").selectOption("transform");
@@ -25,7 +29,7 @@ test("P3 moves, resizes, rotates, crops and changes opacity of an existing sourc
   await properties.getByLabel("Image rotation").selectOption("90");
   await properties.getByLabel("Opacity", { exact: true }).fill("0.7");
   await properties.getByRole("button", { name: "Apply source image transform" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
@@ -38,7 +42,7 @@ test("P3 deletes only the selected existing image and exports a validated PDF", 
   const properties = await openImageEditor(page);
   await properties.getByLabel("Image operation").selectOption("delete");
   await properties.getByRole("button", { name: "Delete existing image" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();

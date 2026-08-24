@@ -11,8 +11,10 @@ test("opens metadata PDF, imports a second PDF, and reopens persisted projects",
   await page.goto("./#/home");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${phase28Corpus}/unicode-metadata.pdf`);
   await expect(page.getByText("UNICODE_METADATA_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("tab", { name: "info", exact: true }).click();
-  await expect(page.locator(".info-list")).toContainText("unicode-metadata.pdf");
+  await page.getByRole("tab", { name: "Info", exact: true }).click();
+  const fileInfo = page.locator(".info-list").filter({ hasText: "unicode-metadata.pdf" });
+  await expect(fileInfo).toBeVisible();
+  await expect(fileInfo).toContainText("unicode-metadata.pdf");
   const metadataProjectUrl = page.url();
 
   await page.goto("./#/home");

@@ -17,6 +17,10 @@ async function openNestedGroupEditor(page: import("@playwright/test").Page): Pro
   return properties;
 }
 
+async function expectQueuedEdit(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.locator(".native-queued-count").filter({ hasText: "1 existing-content edit queued" })).toHaveCount(1);
+}
+
 test("P7 transforms one reusable Form XObject instance without flattening the shared nested group", async ({ page }) => {
   const properties = await openNestedGroupEditor(page);
   await properties.getByLabel("Nested group operation").selectOption("transform");
@@ -27,7 +31,7 @@ test("P7 transforms one reusable Form XObject instance without flattening the sh
   await width.fill(String(Number(await width.inputValue()) + 30));
   await properties.getByLabel("Rotation", { exact: true }).fill("12");
   await properties.getByRole("button", { name: "Apply nested group transform" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
@@ -41,7 +45,7 @@ test("P7 deletes only the selected Form XObject invocation and preserves the reu
   await properties.getByLabel("Nested group operation").selectOption("delete");
   await expect(properties.getByText("Delete one instance only")).toBeVisible();
   await properties.getByRole("button", { name: "Delete nested group" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();

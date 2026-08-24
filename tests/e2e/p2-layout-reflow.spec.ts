@@ -21,7 +21,7 @@ test("P2 exposes font-fidelity evidence and exports through the layout-aware tex
   await editor.fill("P2 fidelity edit");
   await expect(properties.getByText(/Complete text fits:|Layout remains stable|Paragraph (?:expands|contracts)/).first()).toBeVisible();
   await properties.getByRole("button", { name: /Apply layout-aware text change/ }).click();
-  await expect(page.getByText(/\d+ existing-content edit(?:s)? queued/)).toBeVisible();
+  await expect(page.locator(".native-queued-count").filter({ hasText: /\d+ existing-content edit(?:s)? queued/ })).toHaveCount(1);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();

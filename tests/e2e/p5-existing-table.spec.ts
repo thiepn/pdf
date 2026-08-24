@@ -14,6 +14,10 @@ async function openTableEditor(page: import("@playwright/test").Page): Promise<i
   return properties;
 }
 
+async function expectQueuedEdit(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.locator(".native-queued-count").filter({ hasText: "1 existing-content edit queued" })).toHaveCount(1);
+}
+
 test("P5 edits structured table cells, merges cells, changes geometry and rows, then exports a validated PDF", async ({ page }) => {
   const properties = await openTableEditor(page);
   await properties.getByLabel("Table operation").selectOption("rebuild");
@@ -27,7 +31,7 @@ test("P5 edits structured table cells, merges cells, changes geometry and rows, 
   await properties.getByLabel("Table border style").selectOption("dashed");
   await properties.getByLabel("Border width", { exact: true }).fill("1.5");
   await properties.getByRole("button", { name: "Apply structured table edit" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
@@ -40,7 +44,7 @@ test("P5 deletes the detected table while preserving the rest of the PDF", async
   const properties = await openTableEditor(page);
   await properties.getByLabel("Table operation").selectOption("delete");
   await properties.getByRole("button", { name: "Delete existing table" }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expectQueuedEdit(page);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();

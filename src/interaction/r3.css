@@ -1,0 +1,279 @@
+/* R3 — Core Workflow Interaction Reconstruction
+   This layer deliberately reduces persistent chrome and makes task/selection state
+   more prominent without changing PDF processing semantics. */
+
+/* Read: keep document navigation dominant; technical performance policy is not a user task. */
+.viewer-performance-badge {
+  display: none !important;
+}
+
+.viewer-commandbar__actions .button {
+  white-space: nowrap;
+}
+
+.viewer-file-group > .icon-button {
+  opacity: .72;
+}
+
+.viewer-document-actions {
+  position: relative;
+}
+
+.viewer-document-actions > summary {
+  cursor: pointer;
+  font-weight: 650;
+  list-style: none;
+}
+
+.viewer-document-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.viewer-document-actions > div {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 28px rgb(0 0 0 / .12);
+  display: grid;
+  gap: .25rem;
+  min-width: 13rem;
+  padding: .4rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + .4rem);
+  z-index: 30;
+}
+
+.viewer-document-actions button,
+.viewer-document-actions a {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  padding: .55rem .65rem;
+  text-align: left;
+  text-decoration: none;
+}
+
+.search-options,
+.viewer-info-r3 > details {
+  margin-block: .5rem;
+}
+
+.search-options > summary,
+.viewer-info-r3 > details > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+/* Edit: implementation provenance belongs in technical details, not the default editing surface. */
+.p6-selection-count,
+.native-queued-count,
+.viewer-performance-badge {
+  display: none !important;
+}
+
+.editor-file-group > div > span {
+  font-size: 0;
+  max-width: 34rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.editor-file-group > div > span::after {
+  color: var(--muted);
+  content: "Original PDF stays unchanged";
+  font-size: .78rem;
+}
+
+.unified-layer-list .editor-layer-item small,
+.native-unified-properties .property-section > .eyebrow {
+  display: none;
+}
+
+.editor-layer-item > button:first-child > div {
+  min-width: 0;
+}
+
+.editor-contextbar {
+  gap: .45rem;
+}
+
+.editor-contextbar > strong {
+  margin-inline-start: auto;
+  max-width: min(34rem, 45vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-capability-card > details {
+  margin-top: .55rem;
+}
+
+/* Selection commands are contextual; layout controls only need to appear with a multi-selection. */
+.editor-contextbar:not(:has(.p6-selection-count)) button:nth-of-type(n+3) {
+  /* Existing selectors still own behavior; this rule intentionally avoids hiding
+     sidebar/property toggles or controls emitted by a real multi-selection. */
+}
+
+/* Pages: actions follow selection instead of permanently occupying the command bar. */
+.organizer-toolbar--r3 {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.organizer-toolbar--r3 .organizer-toolbar__file {
+  min-width: 0;
+}
+
+.organizer-toolbar--r3 .organizer-toolbar__file strong,
+.organizer-toolbar--r3 .organizer-toolbar__file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organizer-selectionbar--r3 {
+  align-items: center;
+  display: grid;
+  gap: .65rem .9rem;
+  grid-template-columns: minmax(16rem, 1.2fr) auto minmax(18rem, 1fr) auto;
+}
+
+.organizer-selectionbar__range,
+.organizer-selectionbar__quick {
+  align-items: end;
+  display: flex;
+  gap: .45rem;
+}
+
+.organizer-selectionbar__range label {
+  flex: 1;
+}
+
+.organizer-selection-actions {
+  align-items: center;
+  border-block-end: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: .7rem 1rem;
+}
+
+.organizer-selection-actions > div:first-child {
+  display: grid;
+  gap: .1rem;
+}
+
+.organizer-selection-actions > div:first-child span {
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.organizer-selection-actions > div:last-child {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.organizer-selection-actions--empty {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.organizer-output-info {
+  border-block-end: 1px solid var(--border);
+  color: var(--muted);
+  padding: .55rem 1rem;
+}
+
+.organizer-output-info summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.organizer-output-info p {
+  line-height: 1.5;
+  margin: .55rem 0 .1rem;
+  max-width: 78rem;
+}
+
+/* Tools: a selected task becomes the workflow, not another navigation result. */
+.document-tools-hub--focused {
+  display: grid;
+  gap: 1rem;
+}
+
+.task-focus--workflow {
+  margin-bottom: 0;
+}
+
+.toolbox-page--focused .toolbox-header {
+  padding-top: 0;
+}
+
+.toolbox-page--focused .toolbox-card {
+  margin-top: 0;
+}
+
+/* Keep controls usable when responsive space is tight. */
+@media (max-width: 980px) {
+  .organizer-toolbar--r3 {
+    grid-template-columns: 1fr auto;
+  }
+
+  .organizer-toolbar--r3 .organizer-toolbar__history {
+    order: 3;
+  }
+
+  .organizer-selectionbar--r3 {
+    grid-template-columns: 1fr auto;
+  }
+
+  .organizer-selectionbar--r3 .selection-help,
+  .organizer-selectionbar--r3 > strong {
+    grid-column: 1 / -1;
+  }
+
+  .organizer-selection-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 680px) {
+  .viewer-commandbar__actions {
+    display: none;
+  }
+
+  .editor-contextbar .editor-grid-size {
+    display: none;
+  }
+
+  .editor-contextbar > strong {
+    max-width: 45vw;
+  }
+
+  .organizer-toolbar--r3 {
+    grid-template-columns: 1fr;
+  }
+
+  .organizer-toolbar--r3 .organizer-toolbar__history,
+  .organizer-toolbar--r3 .organizer-toolbar__export {
+    justify-content: flex-start;
+  }
+
+  .organizer-selectionbar--r3 {
+    grid-template-columns: 1fr;
+  }
+
+  .organizer-selectionbar__range,
+  .organizer-selectionbar__quick {
+    align-items: stretch;
+  }
+
+  .organizer-selectionbar--r3 .selection-help,
+  .organizer-selectionbar--r3 > strong {
+    grid-column: auto;
+  }
+}

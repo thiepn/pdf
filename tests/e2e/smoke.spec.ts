@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-test("Phase 27 release-qualified home, validation, recovery, professional workspace, editor, secure workflow, OCR, tools, sample project, and diagnostics load", async ({ page }: { page: Page }) => {
+test("release-qualified home, validation, recovery, reconstructed workspace, editor, task workflows, tools, sample project, and diagnostics load", async ({ page }: { page: Page }) => {
   await page.goto("./#/home");
-  await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
 
   await page.goto("./#/release");
   await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
@@ -27,7 +27,7 @@ test("Phase 27 release-qualified home, validation, recovery, professional worksp
   await expect(page.locator("body")).toContainText(/Professional|Project not found/i);
 
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Merge PDFs/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Scan to PDF/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Batch automation/i })).toBeVisible();
@@ -36,14 +36,20 @@ test("Phase 27 release-qualified home, validation, recovery, professional worksp
   await page.getByRole("button", { name: "Open sample" }).click();
   await expect(page.getByRole("heading", { name: "pdf-studio-welcome", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "PDF page 1" })).toContainText(/PDF Studio.*Generated validation fixture/s);
-  const viewerUrl = page.url();
-  await page.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByRole("button", { name: /Text/ })).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Document workspace" });
+  await navigation.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Text/ }).first()).toBeVisible();
   await expect(page.getByText(/Local edits autosaved|No pending editor changes/)).toBeVisible();
-  await page.goto(viewerUrl);
-  await expect(page.getByRole("button", { name: "OCR" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Optimize" })).toBeVisible();
-  await page.getByRole("button", { name: "Forms & Protect" }).click();
+
+  await navigation.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
+  await page.getByRole("link", { name: /OCR PDF/i }).click();
+  await expect(page).toHaveURL(/\/ocr\/ocr-pdf$/);
+  await expect(page.getByRole("combobox", { name: /Recognition quality/i })).toBeVisible();
+
+  await page.getByRole("navigation", { name: "Document workspace" }).getByRole("button", { name: "Tools", exact: true }).click();
+  await page.getByRole("link", { name: /Fill PDF forms/i }).click();
+  await expect(page).toHaveURL(/\/secure\/fill-forms$/);
   await expect(page.getByText(/Security inspector|Inspecting PDF security/)).toBeVisible();
 
   await page.goto("./#/diagnostics/system");

@@ -5,9 +5,9 @@ test("command palette traps focus and restores it on close", async ({ page }) =>
   const trigger = page.getByRole("button", { name: "Open command palette" });
   await trigger.focus();
   await trigger.click();
-  const dialog = page.getByRole("dialog", { name: "Commands" });
+  const dialog = page.getByRole("dialog", { name: "Find a PDF task" });
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Search commands" })).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "Search PDF tasks" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -15,16 +15,13 @@ test("command palette traps focus and restores it on close", async ({ page }) =>
 
 test("skip link moves keyboard focus into the workspace", async ({ page, browserName }) => {
   await page.goto("#/home");
-  await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
   await page.evaluate(() => {
     document.body.tabIndex = -1;
     document.body.focus();
     document.body.removeAttribute("tabindex");
   });
   const skip = page.getByRole("link", { name: "Skip to workspace" });
-  // Safari/WebKit can be configured for control-only Tab traversal by the
-  // host OS. Chromium and Firefox verify document-order traversal; WebKit
-  // still verifies keyboard activation and the destination focus contract.
   if (browserName === "webkit") await skip.focus();
   else await page.keyboard.press("Tab");
   await expect(skip).toBeFocused();

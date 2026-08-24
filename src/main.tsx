@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
+import "./interaction/r3.css";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { recordDiagnosticError } from "./diagnostics/errorRepository";
