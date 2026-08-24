@@ -61,6 +61,6 @@ test("R8 opens a representative sample from the pinned external corpus", async (
     await page.goto("./#/home");
     await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(path.resolve("tests/corpus/r8-external", item.filename));
     await expect(page.getByRole("navigation", { name: "Document workspace" })).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(".viewer-page, .viewer-page-container, canvas").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("region", { name: "PDF page 1" })).toBeVisible({ timeout: 20_000 });
   }
 });
