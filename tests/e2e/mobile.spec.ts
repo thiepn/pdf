@@ -73,10 +73,99 @@ test("phone editor controls remain reachable and touch sized at narrow widths", 
     await navigation.getByRole("button", { name: "Edit", exact: true }).click();
     const quickTools = page.getByRole("navigation", { name: "Editor quick tools" });
     for (const control of await quickTools.getByRole("button").all()) {
+      if (!await control.isVisible()) continue;
       const box = await control.boundingBox();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   }
+});
+
+test("R6 phone editor uses floating quick tools instead of a second reserved bottom row", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "R6 phone-specific layout");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("./#/home");
+  await page.getByRole("button", { name: "Open sample" }).click();
+  const workspaceNav = page.locator(".workspace-mobile-nav");
+  await workspaceNav.getByRole("button", { name: "Edit" }).click();
+
+  const quickTools = page.getByRole("navigation", { name: "Editor quick tools" });
+  await expect(quickTools).toBeVisible();
+  expect(await quickTools.evaluate((element) => getComputedStyle(element).position)).toBe("absolute");
+  expect(await quickTools.locator("button").count()).toBe(5);
+  expect(await quickTools.getByRole("button").count()).toBe(4);
+  await expect(quickTools.getByRole("button", { name: "Select", exact: true })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Pan", exact: true })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Text", exact: true })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: /^Tools/ })).toBeVisible();
+  expect(await quickTools.locator("button").nth(3).isVisible()).toBe(false);
+
+  const quickBox = await quickTools.boundingBox();
+  const navBox = await workspaceNav.boundingBox();
+  expect(quickBox).not.toBeNull();
+  expect(navBox).not.toBeNull();
+  if (quickBox && navBox) expect(quickBox.y + quickBox.height).toBeLessThanOrEqual(navBox.y + 1);
+
+  const editorRows = await page.locator(".editor-app").evaluate((element) => getComputedStyle(element).gridTemplateRows.split(" ").length);
+  expect(editorRows).toBe(4);
+});
+
+test("R6 phone sheets fit the live viewport and keyboard state removes competing chrome", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "R6 phone-specific layout");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("./#/home");
+  await page.getByRole("button", { name: "Open sample" }).click();
+  const workspaceNav = page.locator(".workspace-mobile-nav");
+  await workspaceNav.getByRole("button", { name: "Edit" }).click();
+  const quickTools = page.getByRole("navigation", { name: "Editor quick tools" });
+  await quickTools.getByRole("button", { name: /^Tools/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Editor tools" });
+  await expect(sheet).toBeVisible();
+  const sheetBox = await sheet.boundingBox();
+  const visualHeight = await page.evaluate(() => window.visualViewport?.height ?? window.innerHeight);
+  expect(sheetBox?.height ?? Infinity).toBeLessThanOrEqual(Math.ceil(visualHeight));
+  await sheet.getByRole("button", { name: "Close tools" }).click();
+
+  await page.evaluate(() => { document.documentElement.dataset.keyboardOpen = "true"; });
+  await expect(workspaceNav).toBeHidden();
+  await expect(quickTools).toBeHidden();
+  await page.evaluate(() => { delete document.documentElement.dataset.keyboardOpen; });
+  await expect(workspaceNav).toBeVisible();
+  await expect(quickTools).toBeVisible();
+});
+
+test("R6 phone landscape remains horizontally contained with reachable document navigation", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "R6 phone-specific landscape layout");
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("./#/home");
+  await page.getByRole("button", { name: "Open sample" }).click();
+  const nav = page.locator(".workspace-mobile-nav");
+  await expect(nav).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.dataset.orientation)).toBe("landscape");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  for (const control of await nav.getByRole("button").all()) {
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+});
+
+test("R6 tablet side panels overlay instead of shrinking the editor canvas", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet-webkit", "R6 tablet-specific layout");
+  await page.setViewportSize({ width: 834, height: 1112 });
+  await page.goto("./#/home");
+  await page.getByRole("button", { name: "Open sample" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
+
+  const stage = page.locator(".editor-stage");
+  await expect(stage).toBeVisible();
+  const before = await stage.boundingBox();
+  expect(before?.width ?? 0).toBeGreaterThan(500);
+
+  const properties = page.locator(".editor-properties");
+  if (!await properties.isVisible()) await page.getByRole("button", { name: "Properties", exact: true }).click();
+  await expect(properties).toBeVisible();
+  expect(await properties.evaluate((element) => getComputedStyle(element).position)).toBe("absolute");
+  const after = await stage.boundingBox();
+  expect(Math.abs((after?.width ?? 0) - (before?.width ?? 0))).toBeLessThanOrEqual(2);
+  expect(await page.evaluate(() => document.documentElement.dataset.viewportClass)).toBe("tablet");
 });
