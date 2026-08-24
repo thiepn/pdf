@@ -3,7 +3,7 @@ import { taskSearchText } from "./taskCatalog";
 
 const STOP_WORDS = new Set([
   "a", "an", "and", "as", "at", "be", "by", "can", "do", "for", "from", "get", "i", "in", "into", "is", "it",
-  "make", "my", "of", "on", "or", "pdf", "please", "the", "this", "to", "want", "with"
+  "make", "my", "of", "on", "or", "pdf", "please", "some", "the", "this", "through", "to", "turn", "want", "with"
 ]);
 
 const TASK_ALIASES: Record<string, string> = {
@@ -11,7 +11,7 @@ const TASK_ALIASES: Record<string, string> = {
   "annotate-pdf": "highlight text add comment note draw ink markup",
   "visual-signature": "sign visually sign document handwritten signature",
   "apply-redactions": "permanently hide account number permanent hide confidential private sensitive information",
-  "organize-pages": "remove pages delete pages reorder pages rotate pages extract pages move pages",
+  "organize-pages": "remove pages delete pages reorder pages rotate pages extract pages move pages new order",
   "merge-pdfs": "combine two pdfs combine documents join files",
   "split-pdf": "divide pdf separate pdf into parts",
   "crop-pages": "trim pages remove margins visible page area",
@@ -46,6 +46,7 @@ export function meaningfulQueryTokens(query: string): string[] {
   return normalize(query)
     .split(" ")
     .filter(Boolean)
+    .filter((token) => !/^\d+$/.test(token))
     .filter((token) => !STOP_WORDS.has(token))
     .map(stem);
 }
