@@ -237,6 +237,19 @@
     display: none;
   }
 
+  /* The legacy viewer/editor grids reserved 58px for their first row. Once
+   * embedded in UnifiedWorkspace that produces stacked chrome even when the
+   * command bars themselves are compact. R5 owns a 44px mode-control row. */
+  .unified-workspace .viewer-app {
+    height: 100%;
+    grid-template-rows: 44px auto minmax(0, 1fr);
+  }
+
+  .unified-workspace .editor-app {
+    height: 100%;
+    grid-template-rows: 44px 38px auto minmax(0, 1fr);
+  }
+
   /* Embedded Read/Edit command bars should contain only mode-specific controls.
    * The workspace header already owns the filename and document identity. Runtime
    * status remains visible at low emphasis for trust and long-running feedback. */
