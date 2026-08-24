@@ -1,0 +1,259 @@
+/* R5 — Desktop Visual/UI Reconstruction
+ *
+ * This layer deliberately changes presentation, not PDF behavior. The desktop
+ * workspace should read as one editor: documents -> primary modes -> canvas.
+ * Secondary history/preservation controls remain available but visually quiet.
+ * Mobile/tablet phone layouts below 901px keep the existing Phase 23 treatment.
+ */
+
+@media (min-width: 901px) {
+  /* Give document content more room and reduce the permanent global rail. */
+  .app-shell--viewer {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+
+  .app-shell--viewer .app-sidebar {
+    width: 60px;
+    padding: 10px 7px;
+    gap: 10px;
+  }
+
+  .app-shell--viewer .nav-item {
+    min-height: 38px;
+    padding: 8px 5px;
+    border-radius: 6px;
+  }
+
+  .app-shell--viewer .command-palette-trigger {
+    margin-inline: 0;
+    border-radius: 6px;
+  }
+
+  /* Tabs become a restrained document switcher instead of a second toolbar. */
+  .workspace-tabs {
+    min-height: 34px;
+    background: var(--surface-subtle);
+  }
+
+  .workspace-tabs__actions {
+    padding: 2px 5px;
+    background: var(--surface-subtle);
+  }
+
+  .workspace-tabs .icon-button {
+    min-width: 28px;
+    height: 28px;
+    border-color: transparent;
+    border-radius: 5px;
+    background: transparent;
+  }
+
+  .workspace-tabs .icon-button:hover,
+  .workspace-tabs .icon-button:focus-visible {
+    border-color: var(--line);
+    background: var(--surface-strong);
+  }
+
+  .workspace-tab {
+    min-width: 158px;
+    max-width: 224px;
+    border-right-color: var(--line);
+    background: transparent;
+  }
+
+  .workspace-tab--active {
+    background: var(--surface-strong);
+    box-shadow: inset 0 -2px var(--accent);
+  }
+
+  .workspace-tab__document {
+    display: none;
+  }
+
+  .workspace-tab__main {
+    min-height: 33px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px;
+    padding: 5px 5px 5px 9px;
+  }
+
+  .workspace-tab__main strong {
+    font-size: .72rem;
+    font-weight: 650;
+  }
+
+  .workspace-tab__main small {
+    display: none;
+  }
+
+  .workspace-tab__icon {
+    width: 25px;
+    height: 29px;
+  }
+
+  /* Compact document identity. The filename is primary; metadata is supporting. */
+  .workspace-commandbar {
+    min-height: 48px;
+    gap: 12px;
+    padding: 7px 14px 6px;
+    border-bottom: 0;
+    background: var(--surface-strong);
+  }
+
+  .workspace-commandbar__identity {
+    min-width: 0;
+    gap: 12px;
+  }
+
+  .workspace-commandbar__identity .eyebrow {
+    display: none;
+  }
+
+  .workspace-commandbar__identity h1 {
+    max-width: min(38vw, 520px);
+    margin: 0;
+    font-size: .91rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  .workspace-document-facts {
+    align-items: center;
+    gap: 0;
+    white-space: nowrap;
+  }
+
+  .workspace-document-facts > span:not(.warning-chip):not(.workspace-lease-chip) {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--muted);
+    background: transparent;
+    font-size: .65rem;
+    font-weight: 550;
+  }
+
+  .workspace-document-facts > span:not(.warning-chip):not(.workspace-lease-chip) + span:not(.warning-chip):not(.workspace-lease-chip)::before {
+    content: "·";
+    margin: 0 6px;
+    color: var(--line-strong);
+  }
+
+  .workspace-document-facts .warning-chip,
+  .workspace-document-facts .workspace-lease-chip {
+    margin-left: 7px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: .61rem;
+  }
+
+  /* History and change-contract controls are secondary, not peer tools. */
+  .workspace-commandbar__actions {
+    gap: 2px;
+  }
+
+  .workspace-commandbar__actions .button {
+    min-height: 30px;
+    padding: 5px 8px;
+    border-color: transparent;
+    border-radius: 5px;
+    color: var(--muted);
+    background: transparent;
+    box-shadow: none;
+    font-size: .67rem;
+    font-weight: 650;
+  }
+
+  .workspace-commandbar__actions .button:hover,
+  .workspace-commandbar__actions .button:focus-visible,
+  .workspace-commandbar__actions .button.active {
+    border-color: var(--line);
+    color: var(--ink);
+    background: var(--surface-subtle);
+  }
+
+  /* Read / Edit / Pages / Tools is the single dominant desktop navigation row. */
+  .workspace-modes--primary {
+    min-height: 40px;
+    gap: 0;
+    padding: 0 12px;
+    overflow: visible;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-strong);
+  }
+
+  .workspace-modes--primary .workspace-mode {
+    position: relative;
+    min-width: 84px;
+    min-height: 40px;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 13px 7px;
+    border: 0;
+    border-radius: 0;
+    color: var(--muted);
+    background: transparent;
+    box-shadow: none;
+    font-size: .72rem;
+    font-weight: 650;
+  }
+
+  .workspace-modes--primary .workspace-mode:hover,
+  .workspace-modes--primary .workspace-mode:focus-visible {
+    color: var(--ink);
+    background: var(--surface-subtle);
+  }
+
+  .workspace-modes--primary .workspace-mode--active {
+    color: var(--ink);
+    background: transparent;
+    box-shadow: inset 0 -2px var(--accent);
+    font-weight: 750;
+  }
+
+  .workspace-modes--primary .workspace-mode .studio-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Suggested shortcuts duplicated task discovery and competed with the mode rail.
+   * The underlying actions remain available through Tools / Ctrl+K. */
+  .workspace-contextbar {
+    display: none;
+  }
+
+  /* Let the document/canvas own the visual weight. */
+  .workspace-body {
+    background: var(--canvas);
+  }
+
+  .workspace-body--panel {
+    grid-template-columns: minmax(0, 1fr) 304px;
+  }
+
+  .workspace-mode-content {
+    border: 0;
+  }
+
+  .workspace-insight-panel {
+    padding: 14px;
+    border-left: 1px solid var(--line);
+    background: var(--surface-strong);
+    box-shadow: none;
+  }
+
+  .workspace-insight-panel__header {
+    margin-bottom: 10px;
+  }
+
+  .workspace-insight-panel__header h2 {
+    font-size: .9rem;
+  }
+
+  .contract-section,
+  .checkpoint-card {
+    border-radius: 6px;
+    box-shadow: none;
+  }
+}
