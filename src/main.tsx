@@ -5,6 +5,7 @@ import "./styles.css";
 import "./interaction/r3.css";
 import "./workspace/r5Desktop.css";
 import "./workspace/r5DesktopSurfaces.css";
+import "./workspace/r5DesktopHome.css";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { recordDiagnosticError } from "./diagnostics/errorRepository";
