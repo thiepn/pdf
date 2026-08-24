@@ -45,6 +45,7 @@ export interface BuildTaskCapabilityContextOptions {
 const AVAILABLE: TaskCapability = { state: "available", label: "Ready" };
 const DOCUMENT_PREFLIGHT_TASKS = new Set(["fill-forms", "apply-redactions", "split-pdf", "flatten-pdf"]);
 const SECURITY_WORKER_TASKS = new Set(["fill-forms", "apply-redactions", "sanitize-pdf", "password-protect", "flatten-pdf"]);
+const SECURITY_PREFLIGHT_TIMEOUT_MS = 5_000;
 
 export function detectTaskCapabilityRuntime(): TaskCapabilityContext["runtime"] {
   return {
@@ -76,9 +77,21 @@ export async function buildTaskCapabilityContext(
   };
 
   if (options.inspectSecurity && context.runtime.worker && context.runtime.webAssembly) {
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timeoutId = globalThis.setTimeout(() => {
+        controller.abort();
+        reject(new DOMException("Document capability preflight timed out.", "TimeoutError"));
+      }, SECURITY_PREFLIGHT_TIMEOUT_MS);
+    });
+
     try {
-      const bytes = await loadProjectBytes(project);
-      const report = await inspectSecurity(bytes, readProjectSessionPassword(project.id));
+      const bytes = await Promise.race([loadProjectBytes(project), deadline]);
+      const report = await Promise.race([
+        inspectSecurity(bytes, readProjectSessionPassword(project.id), controller.signal),
+        deadline
+      ]);
       const fillableFormFieldCount = report.formFields.filter((field) => !field.readOnly && field.type !== "signature" && field.type !== "button").length;
       const flattenableFormFieldCount = report.formFields.filter((field) => field.type !== "signature").length;
       context.securityEvidence = {
@@ -88,9 +101,11 @@ export async function buildTaskCapabilityContext(
       };
       context.securityEvidenceChecked = true;
     } catch {
-      // Protected or temporarily unreadable documents are re-checked in Protect.
-      // An inconclusive deep preflight must never become a false unsupported claim.
+      // Protected, temporarily unreadable, or slow documents are re-checked in Protect.
+      // An inconclusive deep preflight must never become a false unsupported claim or an endless loading state.
       context.securityEvidenceChecked = false;
+    } finally {
+      if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
     }
   }
 
