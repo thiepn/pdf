@@ -21,6 +21,10 @@ function selectionCount(properties: import("@playwright/test").Locator, label: "
   return properties.locator(`dt:has-text("${label}") + dd`);
 }
 
+function queuedEdits(page: import("@playwright/test").Page, count: number) {
+  return page.locator(".native-queued-count").filter({ hasText: `${count} existing-content edit${count === 1 ? "" : "s"} queued` });
+}
+
 test("P6 multi-selects existing image and vector, aligns and nudges them through their qualified writers", async ({ page }) => {
   await openEditor(page);
   const image = page.getByRole("button", { name: /Select existing image:/ }).first();
@@ -33,9 +37,9 @@ test("P6 multi-selects existing image and vector, aligns and nudges them through
   await expect(selectionCount(properties, "Existing PDF")).toHaveText("2");
   await expect(selectionCount(properties, "Added objects")).toHaveText("0");
   await properties.getByRole("button", { name: "Left", exact: true }).click();
-  await expect(page.getByText("2 existing-content edits queued")).toBeVisible();
+  await expect(queuedEdits(page, 2)).toHaveCount(1);
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByText("2 existing-content edits queued")).toBeVisible();
+  await expect(queuedEdits(page, 2)).toHaveCount(1);
 
   await exportValidated(page);
 });
@@ -51,7 +55,7 @@ test("P6 drags an existing image directly on canvas and exports the source-prese
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 34, box.y + box.height / 2 + 18, { steps: 5 });
   await page.mouse.up();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expect(queuedEdits(page, 1)).toHaveCount(1);
   await exportValidated(page);
 });
 
@@ -74,9 +78,9 @@ test("P6 aligns an added shape and existing PDF image as one mixed selection", a
   await expect(selectionCount(properties, "Existing PDF")).toHaveText("1");
   await expect(selectionCount(properties, "Added objects")).toHaveText("1");
   await properties.getByRole("button", { name: "Page center X", exact: true }).click();
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expect(queuedEdits(page, 1)).toHaveCount(1);
   await page.keyboard.press("Shift+ArrowDown");
-  await expect(page.getByText("1 existing-content edit queued")).toBeVisible();
+  await expect(queuedEdits(page, 1)).toHaveCount(1);
 
   await exportValidated(page);
 });
