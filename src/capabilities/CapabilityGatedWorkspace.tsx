@@ -8,7 +8,7 @@ import {
   buildTaskCapabilityContext,
   canStartTask,
   evaluateTaskCapability,
-  taskNeedsSourceRedactionInspection,
+  taskNeedsDeepSecurityInspection,
   type TaskCapability
 } from "./taskCapability";
 
@@ -42,7 +42,7 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
     }
 
     setCapability(null);
-    void buildTaskCapabilityContext(projectId, { inspectSourceRedactions: taskNeedsSourceRedactionInspection(task) })
+    void buildTaskCapabilityContext(projectId, { inspectSecurity: taskNeedsDeepSecurityInspection(task) })
       .then((context) => { if (!cancelled) setCapability(evaluateTaskCapability(task, context)); })
       .catch((reason) => {
         if (cancelled) return;
