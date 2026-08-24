@@ -3,6 +3,26 @@ import { expect, test } from "@playwright/test";
 test.describe("R5 desktop workspace hierarchy", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
+  test("home keeps Open PDF primary and supporting surfaces flat", async ({ page }) => {
+    await page.goto("./#/home");
+
+    const openPdf = page.getByRole("button", { name: "Open PDF", exact: true });
+    await expect(openPdf).toBeVisible();
+    await expect(page.getByRole("button", { name: "Restore project", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Browse PDF tools", exact: true })).toBeVisible();
+
+    const privacy = page.locator(".privacy-card");
+    await expect(privacy).toBeVisible();
+    expect(await privacy.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+
+    const toolsStrip = page.locator(".home-tools-strip");
+    await expect(toolsStrip).toBeVisible();
+    expect(await toolsStrip.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+
+    const heroRadius = await page.locator(".product-hero").evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
+    expect(heroRadius).toBeLessThanOrEqual(8);
+  });
+
   test("keeps one compact document header and one dominant primary mode rail", async ({ page }) => {
     await page.goto("./#/home");
     await page.getByRole("button", { name: "Open sample" }).click();
