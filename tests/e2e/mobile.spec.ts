@@ -95,9 +95,9 @@ test("R6 phone editor uses floating quick tools instead of a second reserved bot
   expect(await quickTools.evaluate((element) => getComputedStyle(element).position)).toBe("absolute");
   expect(await quickTools.locator("button").count()).toBe(5);
   expect(await quickTools.getByRole("button").count()).toBe(4);
-  await expect(quickTools.getByRole("button", { name: "Select" })).toBeVisible();
-  await expect(quickTools.getByRole("button", { name: "Pan" })).toBeVisible();
-  await expect(quickTools.getByRole("button", { name: "Text" })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Select", exact: true })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Pan", exact: true })).toBeVisible();
+  await expect(quickTools.getByRole("button", { name: "Text", exact: true })).toBeVisible();
   await expect(quickTools.getByRole("button", { name: /^Tools/ })).toBeVisible();
   expect(await quickTools.locator("button").nth(3).isVisible()).toBe(false);
 
