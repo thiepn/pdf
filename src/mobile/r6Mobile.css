@@ -1,0 +1,550 @@
+/* R6 — Mobile & Responsive Reconstruction
+ * Presentation-only responsive overrides loaded after the legacy Phase 23 and R5 layers.
+ * PDF processing, routing, persistence, and export semantics are intentionally untouched.
+ */
+
+:root {
+  --r6-phone-nav-height: calc(56px + env(safe-area-inset-bottom));
+  --r6-sheet-radius: 16px;
+  --r6-mobile-gap: 8px;
+}
+
+/* Phone: one persistent document navigation bar, canvas-first modes, live-viewport sheets. */
+@media (max-width: 760px) {
+  .app-shell--viewer,
+  .app-shell--viewer .main-content,
+  .workspace--full,
+  .unified-workspace {
+    height: var(--app-viewport-height, 100dvh);
+    min-height: 0;
+  }
+
+  .unified-workspace {
+    overflow: hidden;
+  }
+
+  /* Tabs stay available for multi-document work, but stop competing with the PDF. */
+  .workspace-tabs {
+    min-height: 42px;
+    max-height: 42px;
+    border-bottom-color: var(--chrome-border);
+  }
+
+  .workspace-tabs__scroll {
+    min-width: 0;
+    scroll-padding-inline: 6px;
+  }
+
+  .workspace-tab {
+    min-width: min(70vw, 220px);
+    min-height: 42px;
+  }
+
+  .workspace-tab__main {
+    min-height: 42px;
+    padding: 4px 6px;
+  }
+
+  .workspace-tab__main strong {
+    font-size: .76rem;
+  }
+
+  .workspace-tab__main small,
+  .workspace-tab__document {
+    display: none;
+  }
+
+  .workspace-tab__icon,
+  .workspace-tabs .icon-button {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    border-radius: 0;
+  }
+
+  .workspace-body,
+  .workspace-mode-content {
+    min-height: 0;
+  }
+
+  .workspace-mode-content {
+    overflow: hidden;
+  }
+
+  /* One persistent global document nav. Keep it flat and compact. */
+  .workspace-mobile-nav {
+    min-height: var(--r6-phone-nav-height);
+    padding: 3px max(6px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    border-top: 1px solid var(--chrome-border);
+    background: color-mix(in srgb, var(--chrome-bg) 96%, transparent);
+    box-shadow: 0 -5px 18px rgb(0 0 0 / 12%);
+    backdrop-filter: blur(12px);
+  }
+
+  .workspace-mobile-nav button {
+    min-height: 50px;
+    gap: 1px;
+    padding: 3px 1px;
+    border-radius: 6px;
+  }
+
+  .workspace-mobile-nav button > .studio-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .workspace-mobile-nav button > small {
+    font-size: .64rem;
+    line-height: 1.15;
+  }
+
+  .workspace-mobile-nav button.active {
+    background: transparent;
+    box-shadow: inset 0 2px var(--accent);
+  }
+
+  /* All phone sheets use the live visual viewport, so keyboards/orientation cannot trap controls. */
+  .workspace-mobile-sheet-backdrop,
+  .editor-tools-sheet-backdrop {
+    height: var(--app-viewport-height, 100dvh);
+    min-height: 0;
+    align-items: end;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
+  .workspace-mobile-sheet,
+  .editor-tools-sheet {
+    width: 100%;
+    max-height: calc(var(--app-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top)));
+    border-radius: var(--r6-sheet-radius) var(--r6-sheet-radius) 0 0;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .workspace-mobile-sheet header,
+  .editor-tools-sheet header {
+    position: sticky;
+    z-index: 2;
+    top: -7px;
+    padding-top: 7px;
+    background: inherit;
+  }
+
+  .workspace-mobile-sheet__grid,
+  .workspace-mobile-sheet__technical,
+  .editor-tools-sheet__groups section > div {
+    gap: 6px;
+  }
+
+  .workspace-mobile-sheet__grid button,
+  .workspace-mobile-sheet__technical button,
+  .editor-tools-sheet__groups button {
+    min-height: 60px;
+    border-radius: 8px;
+  }
+
+  .workspace-mobile-sheet__actions {
+    gap: 6px;
+  }
+
+  .workspace-mobile-sheet__actions button,
+  .workspace-mobile-sheet__actions a {
+    min-height: 48px;
+    border-radius: 8px;
+  }
+
+  /* Viewer: keep only the controls needed while reading; page/search lives in its sheet. */
+  .viewer-app {
+    min-height: 0;
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .viewer-commandbar {
+    min-height: 44px;
+    padding: 2px 6px;
+    border-bottom: 1px solid var(--chrome-border);
+  }
+
+  .viewer-commandbar__center {
+    min-height: 44px;
+    justify-content: flex-start;
+    gap: 4px;
+    padding-bottom: 1px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+
+  .viewer-commandbar__center > * {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .viewer-commandbar__center button,
+  .viewer-commandbar__center select,
+  .viewer-commandbar__center .page-input input,
+  .viewer-mobile-panel-toggle {
+    min-height: 42px;
+  }
+
+  .single-page-stage,
+  .continuous-page-stage {
+    padding: 10px 8px 40px;
+    scroll-padding: 10px;
+  }
+
+  .pdf-page-shell {
+    max-width: calc(100vw - 16px);
+  }
+
+  .viewer-sidebar {
+    max-height: min(68%, calc(var(--app-viewport-height, 100dvh) - 80px));
+    height: auto;
+    min-height: min(360px, 55%);
+    border-radius: var(--r6-sheet-radius) var(--r6-sheet-radius) 0 0;
+  }
+
+  /* Editor: remove the second reserved bottom row. Quick tools float above the canvas. */
+  .editor-app {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
+  .editor-commandbar {
+    min-height: 44px;
+    padding: 2px 6px;
+  }
+
+  .editor-commandbar__center {
+    min-height: 42px;
+    gap: 4px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .editor-commandbar__center > * {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .editor-contextbar {
+    min-height: 44px;
+    gap: 4px;
+    padding: 1px 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .editor-contextbar > button,
+  .editor-contextbar > .native-queued-count {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .editor-stage {
+    min-height: 0;
+    padding: 8px 8px 72px;
+    scroll-padding: 10px 8px 76px;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .editor-page-layers {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .editor-mobile-toolbar {
+    position: absolute;
+    z-index: 76;
+    left: 50%;
+    right: auto;
+    bottom: 8px;
+    width: min(360px, calc(100% - 16px));
+    min-height: 52px;
+    transform: translateX(-50%);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 3px;
+    border: 1px solid var(--chrome-border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--chrome-bg) 96%, transparent);
+    box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
+    backdrop-filter: blur(14px);
+  }
+
+  .editor-mobile-toolbar button {
+    min-height: 46px;
+    border-radius: 8px;
+  }
+
+  .editor-mobile-toolbar button:nth-child(4) {
+    display: none;
+  }
+
+  .editor-mobile-toolbar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .editor-mobile-toolbar button small {
+    font-size: .64rem;
+  }
+
+  .editor-mobile-toolbar button.active {
+    background: transparent;
+    box-shadow: inset 0 2px var(--accent);
+  }
+
+  .editor-left-panel,
+  .editor-properties,
+  .workspace-insight-panel {
+    max-height: min(70%, calc(var(--app-viewport-height, 100dvh) - 76px));
+    border-radius: var(--r6-sheet-radius) var(--r6-sheet-radius) 0 0;
+  }
+
+  .editor-left-panel,
+  .editor-properties {
+    width: 100%;
+  }
+
+  .editor-left-tabs,
+  .editor-properties > header,
+  .workspace-insight-panel__header {
+    position: sticky;
+    z-index: 3;
+    top: 0;
+    background: inherit;
+  }
+
+  .editor-properties__body,
+  .editor-left-body,
+  .workspace-insight-panel {
+    overscroll-behavior: contain;
+  }
+
+  .property-field input,
+  .property-field select,
+  .property-field textarea,
+  .checkpoint-create input {
+    font-size: 16px;
+  }
+
+  /* Pages: retain two-column scanning but give controls full touch affordance. */
+  .organizer-toolbar,
+  .organizer-selectionbar {
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .organizer-toolbar__actions button,
+  .organizer-toolbar__export .button,
+  .organizer-selectionbar button {
+    min-height: 44px;
+  }
+
+  .organizer-grid {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  /* Non-document phone navigation follows the same safe-area rules. */
+  .mobile-nav {
+    min-height: var(--r6-phone-nav-height);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Live software keyboard: remove floating chrome and keep active panels within visual viewport. */
+  :root[data-keyboard-open="true"] .editor-mobile-toolbar,
+  :root[data-keyboard-open="true"] .workspace-mobile-nav {
+    display: none;
+  }
+
+  :root[data-keyboard-open="true"] .editor-stage {
+    padding-bottom: 12px;
+    scroll-padding-bottom: calc(var(--keyboard-inset, 0px) + 16px);
+  }
+
+  :root[data-keyboard-open="true"] .editor-properties,
+  :root[data-keyboard-open="true"] .editor-left-panel,
+  :root[data-keyboard-open="true"] .workspace-insight-panel,
+  :root[data-keyboard-open="true"] .workspace-mobile-sheet,
+  :root[data-keyboard-open="true"] .editor-tools-sheet {
+    max-height: calc(var(--app-viewport-height, 100dvh) - 8px);
+  }
+}
+
+@media (max-width: 420px) {
+  .workspace-tab {
+    min-width: min(66vw, 190px);
+  }
+
+  .workspace-mobile-sheet__grid,
+  .workspace-mobile-sheet__technical,
+  .editor-tools-sheet__groups section > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-mobile-sheet__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .viewer-commandbar__center,
+  .editor-commandbar__center {
+    justify-content: flex-start;
+  }
+}
+
+/* Tablet: preserve canvas width and turn side properties into overlays instead of squeezing the document. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .app-shell--viewer .main-content,
+  .workspace--full,
+  .unified-workspace {
+    min-height: 0;
+    height: var(--app-viewport-height, 100dvh);
+  }
+
+  .workspace-tabs {
+    min-height: 44px;
+  }
+
+  .workspace-tab__main,
+  .workspace-tab__icon,
+  .workspace-tabs .icon-button {
+    min-height: 44px;
+  }
+
+  .workspace-commandbar {
+    min-height: 48px;
+    padding-block: 5px;
+  }
+
+  .workspace-modes--primary .workspace-mode {
+    min-height: 44px;
+  }
+
+  .viewer-layout,
+  .viewer-layout--collapsed {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 28vw);
+  }
+
+  .single-page-stage,
+  .continuous-page-stage {
+    padding-inline: 18px;
+  }
+
+  .editor-app {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .editor-layout,
+  .editor-layout--no-sidebar,
+  .editor-layout--no-properties,
+  .editor-layout--no-sidebar.editor-layout--no-properties {
+    position: relative;
+    grid-template-columns: 54px minmax(0, 1fr);
+  }
+
+  .editor-toolrail {
+    width: 54px;
+  }
+
+  .editor-stage {
+    grid-column: 2;
+    min-width: 0;
+    padding: 24px 24px 54px;
+  }
+
+  .editor-left-panel,
+  .editor-properties {
+    position: absolute;
+    z-index: 82;
+    top: 0;
+    bottom: 0;
+    width: min(340px, 42vw);
+    max-height: none;
+    box-shadow: 0 18px 48px rgb(0 0 0 / 30%);
+  }
+
+  .editor-left-panel {
+    left: 54px;
+    right: auto;
+  }
+
+  .editor-properties {
+    left: auto;
+    right: 0;
+  }
+
+  .editor-mobile-backdrop {
+    position: absolute;
+    z-index: 80;
+    inset: 0 0 0 54px;
+    display: block;
+    border: 0;
+    background: rgb(0 0 0 / 24%);
+  }
+
+  .editor-contextbar button,
+  .editor-commandbar__center button,
+  .editor-commandbar__center select,
+  .editor-commandbar__center input,
+  .editor-toolrail button,
+  .editor-left-tabs button,
+  .editor-properties button {
+    min-height: 44px;
+  }
+
+  .organizer-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .organizer-page__preview {
+    min-height: 150px;
+  }
+}
+
+/* Orientation changes must never create page-level horizontal scrolling. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 900px) {
+  .workspace-tabs {
+    min-height: 38px;
+    max-height: 38px;
+  }
+
+  .workspace-tab__main,
+  .workspace-tab__icon,
+  .workspace-tabs .icon-button {
+    min-height: 38px;
+    height: 38px;
+  }
+
+  .workspace-mobile-nav {
+    min-height: calc(50px + env(safe-area-inset-bottom));
+  }
+
+  .workspace-mobile-nav button {
+    min-height: 44px;
+  }
+
+  .editor-mobile-toolbar {
+    bottom: 4px;
+    min-height: 48px;
+  }
+
+  .editor-mobile-toolbar button {
+    min-height: 42px;
+  }
+
+  .workspace-mobile-sheet,
+  .editor-tools-sheet,
+  .editor-left-panel,
+  .editor-properties,
+  .workspace-insight-panel,
+  .viewer-sidebar {
+    max-height: calc(var(--app-viewport-height, 100dvh) - 6px);
+  }
+}
