@@ -71,6 +71,7 @@
   }
 
   .workspace-tab__main {
+    position: relative;
     min-height: 33px;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px;
@@ -82,8 +83,19 @@
     font-weight: 650;
   }
 
+  /* Keep the current workspace mode in the tab's accessible name while removing
+   * the duplicated visual subtitle from the compact desktop switcher. */
   .workspace-tab__main small {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
   }
 
   .workspace-tab__icon {
@@ -223,6 +235,80 @@
    * The underlying actions remain available through Tools / Ctrl+K. */
   .workspace-contextbar {
     display: none;
+  }
+
+  /* Embedded Read/Edit command bars should contain only mode-specific controls.
+   * The workspace header already owns the filename and document identity. Runtime
+   * status remains visible at low emphasis for trust and long-running feedback. */
+  .unified-workspace .viewer-commandbar,
+  .unified-workspace .editor-commandbar {
+    min-height: 40px;
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: none;
+  }
+
+  .unified-workspace .viewer-file-group,
+  .unified-workspace .editor-file-group {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .unified-workspace .viewer-file-title strong,
+  .unified-workspace .editor-file-group strong {
+    display: none;
+  }
+
+  .unified-workspace .viewer-file-title span,
+  .unified-workspace .editor-file-group span {
+    display: block;
+    max-width: 230px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: .62rem;
+    font-weight: 550;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .unified-workspace .viewer-commandbar__center,
+  .unified-workspace .editor-commandbar__center {
+    grid-column: 2;
+    justify-self: center;
+    min-width: 0;
+  }
+
+  .unified-workspace .viewer-commandbar__actions,
+  .unified-workspace .editor-commandbar__actions {
+    grid-column: 3;
+    justify-self: end;
+    min-width: 0;
+  }
+
+  .unified-workspace .viewer-commandbar__center .icon-button,
+  .unified-workspace .viewer-commandbar__center select,
+  .unified-workspace .viewer-commandbar__center .view-toggle,
+  .unified-workspace .editor-commandbar__center button,
+  .unified-workspace .editor-commandbar__center select,
+  .unified-workspace .editor-commandbar__center input {
+    min-height: 30px;
+    height: 30px;
+    border-radius: 5px;
+    font-size: .67rem;
+  }
+
+  .unified-workspace .viewer-commandbar__actions summary,
+  .unified-workspace .editor-commandbar__actions .button {
+    min-height: 30px;
+    padding-block: 4px;
+    border-radius: 5px;
+    font-size: .66rem;
   }
 
   /* Let the document/canvas own the visual weight. */
