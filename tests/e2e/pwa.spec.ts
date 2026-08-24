@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("production service worker reports a complete consumer-core offline cache", async ({ page }) => {
   await page.goto("./#/home");
-  await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
   const status = await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.ready;
     const worker = navigator.serviceWorker.controller ?? registration.active;
@@ -26,7 +26,7 @@ test("consumer app shell reopens with the browser network disabled", async ({ pa
   try {
     await page.evaluate(() => window.location.reload());
     await page.waitForLoadState("domcontentloaded");
-    await expect(page.getByRole("heading", { name: /Work with PDFs without uploading them/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Core tools ready offline" })).toBeVisible();
     await expect(page.getByText(/\d+\/\d+ core assets/)).toBeVisible();
   } finally {
