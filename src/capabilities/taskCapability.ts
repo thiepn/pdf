@@ -75,8 +75,8 @@ export async function buildTaskCapabilityContext(
       context.sourceRedactionMarkCount = report.redactionMarkCount;
       context.sourceRedactionsChecked = true;
     } catch {
-      // A protected document may need its password again inside the secure
-      // workspace. Do not turn an inconclusive preflight into a false block.
+      // Protected or temporarily unreadable documents are re-checked in Protect.
+      // An inconclusive preflight must never become a false unsupported claim.
       context.sourceRedactionsChecked = false;
     }
   }
@@ -119,7 +119,7 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
     const knownMarks = context.editorRedactionMarkCount + (context.sourceRedactionMarkCount ?? 0);
     if (context.sourceRedactionsChecked && knownMarks === 0) {
       return {
-        state: "temporarily-unavailable",
+        state: "unsupported-for-document",
         label: "Nothing to redact yet",
         reason: "No saved editor redaction marks or existing PDF redaction annotations were found.",
         recovery: "Mark the areas to redact in Edit, then return to Apply permanent redactions.",
