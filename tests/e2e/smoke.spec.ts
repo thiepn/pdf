@@ -48,8 +48,11 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.getByRole("combobox", { name: /Recognition quality/i })).toBeVisible();
 
   await page.getByRole("navigation", { name: "Document workspace" }).getByRole("button", { name: "Tools", exact: true }).click();
-  await page.getByRole("link", { name: /Fill PDF forms/i }).click();
-  await expect(page).toHaveURL(/\/secure\/fill-forms$/);
+  const fillForms = page.getByRole("button", { name: /Fill PDF forms/i });
+  await expect(fillForms).toBeDisabled();
+  await expect(fillForms).toContainText(/Not available for this PDF/i);
+  await page.getByRole("link", { name: /Sanitize PDF/i }).click();
+  await expect(page).toHaveURL(/\/secure\/sanitize-pdf$/);
   await expect(page.getByText(/Security inspector|Inspecting PDF security/)).toBeVisible();
 
   await page.goto("./#/diagnostics/system");
