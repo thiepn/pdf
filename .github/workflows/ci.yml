@@ -81,7 +81,7 @@ jobs:
         run: npm run audit:tree
       - name: R9 human evidence contract
         run: |
-          node --test scripts/reconstruction/r9_validate_evidence.test.mjs scripts/reconstruction/r9_prepare_session.test.mjs
+          node --test scripts/reconstruction/r9_validate_evidence.test.mjs scripts/reconstruction/r9_prepare_session.test.mjs scripts/reconstruction/r9_certify_evidence.test.mjs
           node scripts/reconstruction/r9_recorder_contract.mjs
           python scripts/reconstruction/r9_prepare_manual_corpus.py --output /tmp/r9-manual-corpus
           test -f /tmp/r9-manual-corpus/ocr-scan.pdf
@@ -89,6 +89,10 @@ jobs:
           test -f /tmp/r9-manual-corpus/photo-source-1.png
           test -f /tmp/r9-manual-corpus/photo-source-2.png
           node scripts/reconstruction/r9_validate_evidence.mjs
+          if node scripts/reconstruction/r9_certify_evidence.mjs; then
+            echo "R9 certifier must refuse empty human evidence"
+            exit 1
+          fi
       - name: R8 real-world corpus and structural qualification
         run: |
           python scripts/phase28/generate_adversarial_corpus.py
