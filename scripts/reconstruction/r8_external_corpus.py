@@ -64,12 +64,10 @@ def validate_pdf(path: Path) -> tuple[int, str]:
         page_count = document.page_count
         if page_count < 1 or page_count > MAX_PAGES:
             raise ValueError(f"page count outside R8 bounds: {page_count}")
-        # Force independent parsing of the page tree as a second-reader check.
         reader = PdfReader(str(path), strict=False)
         pypdf_pages = len(reader.pages)
         if pypdf_pages != page_count:
             raise ValueError(f"reader page-count disagreement: {page_count} vs {pypdf_pages}")
-        # Render the first page metadata path in MuPDF without committing content.
         document.load_page(0).rect
         return page_count, "PyMuPDF+pypdf"
     finally:
@@ -101,7 +99,9 @@ def main() -> None:
     for item in candidates:
         if len(accepted) >= TARGET_COUNT:
             break
-        safe_name = f"{len(accepted)+1:02d}-{item['name']}"
+        # The local filename is intentionally independent of the upstream name so
+        # Playwright can address a deterministic sample without Node filesystem APIs.
+        safe_name = f"{len(accepted)+1:02d}.pdf"
         path = OUTPUT / safe_name
         try:
             data = download(item["download_url"], path)
@@ -121,7 +121,7 @@ def main() -> None:
                     "validated_by": readers,
                 }
             )
-        except Exception as exc:  # qualification records rejection, never hides it
+        except Exception as exc:
             path.unlink(missing_ok=True)
             rejected.append({"upstream_name": item.get("name"), "reason": str(exc)})
 
@@ -142,6 +142,7 @@ def main() -> None:
             "max_bytes": MAX_BYTES,
             "max_pages": MAX_PAGES,
             "ordering": "sha256(filename)",
+            "local_filenames": "01.pdf through 25.pdf in acceptance order",
             "requirements": ["PDF header", "unencrypted", "PyMuPDF opens", "pypdf page tree agrees"],
         },
         "documents": accepted,
