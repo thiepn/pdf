@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-YYYYMMDD-NN",
+  "change_class": "documentation-tooling",
+  "base_commit": "",
+  "target_commit": "",
+  "product_behavior_changed": false,
+  "risk": {
+    "severity": "low",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "",
+  "rollback_commit": "",
+  "affected_workflows": [],
+  "required_gates": {
+    "engineering_requalification": false,
+    "human_requalification": false,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "planned",
+  "notes": ""
+}
