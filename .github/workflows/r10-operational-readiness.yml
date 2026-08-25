@@ -1,0 +1,27 @@
+name: R10 operational readiness policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  r10-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          package-manager-cache: false
+      - name: Test R10 maintenance and operational gates
+        run: |
+          node --test scripts/reconstruction/r10_change_policy.test.mjs scripts/reconstruction/r10_gate.test.mjs
+      - name: Require honest pre-human R10 state
+        run: |
+          node scripts/reconstruction/r10_gate.mjs --expect-status R10_BLOCKED_BY_R9
