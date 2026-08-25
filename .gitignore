@@ -12,5 +12,6 @@ test-results/
 *.tsbuildinfo
 
 .phase11-runtime/
+.r9-manual-corpus/
 public/tesseract/
 tests/corpus/r8-external/
