@@ -43,9 +43,23 @@
 }
 
 .task-focus > div {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.task-focus > div > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+}
+
+.task-focus > .button {
+  flex: none;
 }
 
 .task-focus h2,
@@ -62,6 +76,27 @@
   border-radius: var(--radius-sm);
   color: var(--accent);
   background: var(--surface-strong);
+}
+
+.task-focus .task-capability-chip,
+.task-focus .task-capability-reason,
+.task-focus .task-capability-recovery {
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-focus .task-capability-chip {
+  line-height: 1.25;
+}
+
+.task-focus .task-capability-reason,
+.task-focus .task-capability-recovery {
+  display: block;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .task-tile {
@@ -284,6 +319,10 @@
 
   .task-browser__search,
   .document-tools-hub__hero > label {
+    width: 100%;
+  }
+
+  .task-focus > div {
     width: 100%;
   }
 
