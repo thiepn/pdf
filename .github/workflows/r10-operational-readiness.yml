@@ -21,7 +21,14 @@ jobs:
           package-manager-cache: false
       - name: Test R10 maintenance and operational gates
         run: |
-          node --test scripts/reconstruction/r10_change_policy.test.mjs scripts/reconstruction/r10_gate.test.mjs
+          node --test \
+            scripts/reconstruction/r10_change_policy.test.mjs \
+            scripts/reconstruction/r10_gate.test.mjs \
+            scripts/reconstruction/r10_certify_operational.test.mjs
       - name: Require honest pre-human R10 state
         run: |
           node scripts/reconstruction/r10_gate.mjs --expect-status R10_BLOCKED_BY_R9
+          if node scripts/reconstruction/r10_certify_operational.mjs; then
+            echo "R10 certifier must refuse before R9 human certification exists"
+            exit 1
+          fi
