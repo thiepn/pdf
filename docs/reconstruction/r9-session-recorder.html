@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF Studio R9 Session Recorder</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#171717;background:#f5f5f5}*{box-sizing:border-box}body{margin:0}.wrap{max-width:920px;margin:auto;padding:20px}.card{background:#fff;border:1px solid #d4d4d4;border-radius:10px;padding:18px;margin-bottom:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{display:block;font-weight:650;margin:10px 0 5px}input,select,textarea,button{font:inherit}input,select,textarea{width:100%;padding:9px;border:1px solid #a3a3a3;border-radius:7px}textarea{min-height:80px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}button{padding:9px 13px;border:1px solid #737373;border-radius:7px;background:#fff;cursor:pointer}.primary{background:#171717;color:#fff}.muted{color:#525252}.prompt{padding:13px;background:#fafafa;border-left:4px solid #525252;font-size:1.08rem}.canonical{padding:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px}.completion{padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;margin-top:14px}.hidden{display:none}.error{color:#b91c1c}.ok{color:#166534}.defect{padding-top:8px;margin-top:8px;border-top:1px solid #e5e5e5}@media(max-width:680px){.grid{grid-template-columns:1fr}.wrap{padding:10px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>R9 Manual Session Recorder</h1>
+<p class="muted">Recorder-only offline utility. It does not score observations automatically. Keep this screen outside the tester's view because canonical destinations are visible.</p>
+<label for="sessionFile">Load generated session JSON</label>
+<input id="sessionFile" type="file" accept="application/json,.json">
+<p id="loadStatus" class="muted"></p>
+</div>
+
+<div id="workspace" class="hidden">
+<div class="card">
+<div class="row" style="justify-content:space-between"><div><strong id="sessionMeta"></strong><div id="testerMeta" class="muted"></div></div><strong id="progress"></strong></div>
+</div>
+
+<div class="card">
+<h2 id="itemTitle"></h2>
+<div id="prompt" class="prompt"></div>
+<p class="muted">Ask for the prediction before any click. Then record the first deliberate navigation choice.</p>
+<div class="canonical"><strong>Recorder-only canonical destination:</strong> <span id="canonical"></span></div>
+<div class="grid">
+<div><label for="predicted">Predicted location</label><input id="predicted" autocomplete="off"></div>
+<div><label for="predictionMatch">Prediction matches canonical/equivalent?</label><select id="predictionMatch"><option value="">Select…</option><option value="true">Yes</option><option value="false">No</option></select></div>
+<div><label for="firstLocation">First deliberate location/control</label><input id="firstLocation" autocomplete="off"></div>
+<div><label for="firstCorrect">First location correct?</label><select id="firstCorrect"><option value="">Select…</option><option value="true">Yes</option><option value="false">No</option></select></div>
+<div><label for="helpUsed">Help used before first choice?</label><select id="helpUsed"><option value="">Select…</option><option value="true">Yes</option><option value="false">No</option></select></div>
+<div><label for="interactions">Meaningful interactions</label><input id="interactions" type="number" min="0" step="1"></div>
+</div>
+<div id="completion" class="completion hidden">
+<h3 id="completionTitle"></h3><p id="completionRequirement"></p>
+<div class="grid">
+<div><label for="completed">Completed without Help?</label><select id="completed"><option value="">Select…</option><option value="true">Yes</option><option value="false">No</option></select></div>
+<div><label for="result">Manual result</label><select id="result"><option value="">Select…</option><option>PASS</option><option>PASS WITH EXPECTED LIMITATION</option><option>BLOCKED CORRECTLY</option><option>FAIL</option></select></div>
+</div>
+</div>
+<p id="itemStatus"></p>
+<div class="row"><button id="prev">Save & previous</button><button id="save">Save current</button><button id="next" class="primary">Save & next</button><button id="export">Save & export JSON</button></div>
+</div>
+
+<div class="card">
+<h2>Defects</h2><p class="muted">Use non-sensitive descriptions only.</p>
+<div class="grid">
+<div><label for="severity">Severity</label><select id="severity"><option>low</option><option>medium</option><option>high</option><option>critical</option></select></div>
+<div><label for="category">Category</label><select id="category"><option>usability</option><option>product-defect</option><option>data-loss</option><option>user-input</option><option>document-limitation</option><option>browser-platform</option><option>resource-storage</option></select></div>
+<div><label for="defectStatus">Status</label><select id="defectStatus"><option>open</option><option>resolved</option><option>accepted-limitation</option></select></div>
+<div><label for="defectDescription">Description</label><textarea id="defectDescription"></textarea></div>
+</div>
+<button id="addDefect">Add defect</button><div id="defectList"></div>
+</div>
+</div>
+</div>
+<script>
+"use strict";
+const D=["D01","D02","D03","D04","D05","D06","D07","D08","D09","D10","D11","D12","D13","D14","D15","D16","D17","D18","D19","D20"];
+const C=["C01","C02","C03","C04","C05","C06","C07","C08","C09","C10"];
+const prompts={D01:"Using plain-text.pdf, change words that are already in the PDF.",D02:"Add a new piece of text to a PDF.",D03:"Replace a picture that is already inside a PDF.",D04:"Using plain-text.pdf, highlight a sentence.",D05:"Using plain-text.pdf, place a visible handwritten-style signature on the PDF.",D06:"Using redaction-source.pdf, permanently remove SECRET_ALPHA_491 so it cannot be recovered from the exported PDF.",D07:"Combine plain-text.pdf and mixed-pages.pdf into one PDF.",D08:"Split a PDF into separate output files.",D09:"Take pages 1–2 from a multi-page PDF into a separate PDF.",D10:"Using mixed-pages.pdf, delete page 2 and move the last remaining page to the first position.",D11:"Change the order of pages in a PDF.",D12:"Rotate selected pages in a PDF.",D13:"Trim the visible margins of a PDF page.",D14:"Using compress-source.pdf, make the PDF file size smaller and export the result.",D15:"Using ocr-scan.pdf, make the scanned page searchable and export the result.",D16:"Remove author/title-style metadata from a PDF.",D17:"Make a PDF require a password when opened.",D18:"Using forms.pdf, fill the form fields with synthetic test values and export/save the result.",D19:"Turn photo-source-1.png and photo-source-2.png into one PDF.",D20:"Save PDF pages as image files."};
+const canonical={D01:"Edit PDF",D02:"Edit PDF",D03:"Edit PDF",D04:"Annotate & comment",D05:"Add visual signature",D06:"Apply permanent redactions",D07:"Merge PDFs",D08:"Split PDF",D09:"Organize pages",D10:"Organize pages",D11:"Organize pages",D12:"Organize pages",D13:"Crop pages",D14:"Compress PDF",D15:"OCR PDF",D16:"Edit or remove metadata",D17:"Password-protect PDF",D18:"Fill PDF forms",D19:"Scan to PDF",D20:"Export PDF content"};
+const completionByD={D01:{id:"C01",req:"Existing text is changed and a valid PDF is exported."},D04:{id:"C02",req:"Requested text is highlighted and the result is saved/exported."},D05:{id:"C03",req:"A visible signature is placed and the result is saved/exported."},D06:{id:"C04",req:"SECRET_ALPHA_491 is permanently redacted in the exported PDF."},D07:{id:"C05",req:"Both source PDFs are combined into one valid output."},D10:{id:"C06",req:"Page 2 is deleted, the last remaining page is moved first, and a valid output is exported."},D14:{id:"C07",req:"A valid output smaller than compress-source.pdf is produced."},D15:{id:"C08",req:"OCR completes and SEARCHABLE AFTER OCR 2026 can be found or selected in the result."},D18:{id:"C09",req:"Synthetic form values are changed and preserved in the result."},D19:{id:"C10",req:"Both generated PNGs become pages in one valid PDF."}};
+let data=null,index=0;
+const $=id=>document.getElementById(id),find=(arr,id)=>arr.find(x=>x.id===id),toBool=v=>v==="true"?true:v==="false"?false:null,toSelect=v=>v===true?"true":v===false?"false":"";
+function requireSession(x){if(!x||x.schema!==2)throw new Error("Session schema must be 2");if(!Array.isArray(x.measurement_order)||x.measurement_order.length!==20||new Set(x.measurement_order).size!==20||!D.every(id=>x.measurement_order.includes(id)))throw new Error("Invalid measurement_order");if(!C.every(id=>x.no_help_completion.some(v=>v.id===id)))throw new Error("Completion set is incomplete");return x}
+function id(){return data.measurement_order[index]}
+function show(){const k=id(),f=find(data.first_location,k),p=find(data.navigation_prediction,k),m=completionByD[k],c=m?find(data.no_help_completion,m.id):null;$("progress").textContent=`${index+1} / 20`;$("itemTitle").textContent=`${k} — ${f.intent}`;$("prompt").textContent=prompts[k];$("canonical").textContent=canonical[k];$("predicted").value=p.predicted_location||"";$("predictionMatch").value=toSelect(p.matches_canonical);$("firstLocation").value=f.first_location||"";$("firstCorrect").value=toSelect(f.correct_first_location);$("helpUsed").value=toSelect(f.help_used_before_choice);$("interactions").value=Number.isInteger(f.meaningful_interactions)?f.meaningful_interactions:"";$("completion").classList.toggle("hidden",!m);if(m){$("completionTitle").textContent=`${m.id} — no-Help completion`;$("completionRequirement").textContent=m.req;$("completed").value=toSelect(c.completed_without_help);$("result").value=c.result==="UNMEASURED"?"":c.result}$("prev").disabled=index===0;$("next").disabled=index===19;$("itemStatus").textContent=""}
+function saveCurrent(){const k=id(),f=find(data.first_location,k),p=find(data.navigation_prediction,k),m=completionByD[k];const values=[$("predicted").value.trim(),$("predictionMatch").value,$("firstLocation").value.trim(),$("firstCorrect").value,$("helpUsed").value,$("interactions").value];if(values.some(v=>v===""))throw new Error("Complete every observation field before saving.");const n=Number($("interactions").value);if(!Number.isInteger(n)||n<0)throw new Error("Meaningful interactions must be a non-negative integer.");p.predicted_location=$("predicted").value.trim();p.matches_canonical=toBool($("predictionMatch").value);f.first_location=$("firstLocation").value.trim();f.correct_first_location=toBool($("firstCorrect").value);f.help_used_before_choice=toBool($("helpUsed").value);f.meaningful_interactions=n;if(m){if(!$("completed").value||!$("result").value)throw new Error("Complete the mapped no-Help outcome before saving.");const c=find(data.no_help_completion,m.id);c.completed_without_help=toBool($("completed").value);c.result=$("result").value}return true}
+function withSave(action){try{saveCurrent();$("itemStatus").className="ok";$("itemStatus").textContent="Saved.";action()}catch(e){$("itemStatus").className="error";$("itemStatus").textContent=e.message||String(e)}}
+function exportJson(){saveCurrent();const blob=new Blob([JSON.stringify(data,null,2)+"\n"],{type:"application/json"}),objectUrl=URL.createObjectURL(blob),a=document.createElement("a");a.href=objectUrl;a.download=`${data.session_id}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),500)}
+function defects(){const root=$("defectList");root.innerHTML="";data.defects.forEach((d,i)=>{const row=document.createElement("div");row.className="defect";row.textContent=`${i+1}. ${d.severity} / ${d.category} / ${d.status}: ${d.description}`;root.appendChild(row)})}
+$("sessionFile").addEventListener("change",async e=>{try{const file=e.target.files&&e.target.files[0];if(!file)return;data=requireSession(JSON.parse(await file.text()));index=0;$("sessionMeta").textContent=`${data.session_id} — ${data.baseline_commit.slice(0,12)}…`;$("testerMeta").textContent=`${data.tester_id} · familiarity ${data.tester_profile.familiarity} · PDF experience ${data.tester_profile.pdf_experience}`;$("workspace").classList.remove("hidden");$("loadStatus").className="ok";$("loadStatus").textContent="Session loaded.";defects();show()}catch(e){$("loadStatus").className="error";$("loadStatus").textContent=e.message||String(e)}});
+$("save").addEventListener("click",()=>withSave(()=>{}));
+$("next").addEventListener("click",()=>withSave(()=>{if(index<19){index++;show()}}));
+$("prev").addEventListener("click",()=>withSave(()=>{if(index>0){index--;show()}}));
+$("export").addEventListener("click",()=>{try{exportJson();$("itemStatus").className="ok";$("itemStatus").textContent="Current item saved and JSON exported."}catch(e){$("itemStatus").className="error";$("itemStatus").textContent=e.message||String(e)}});
+$("addDefect").addEventListener("click",()=>{const description=$("defectDescription").value.trim();if(!description)return;data.defects.push({severity:$("severity").value,category:$("category").value,status:$("defectStatus").value,description});$("defectDescription").value="";defects()});
+</script>
+</body>
+</html>
