@@ -39,11 +39,13 @@ This creates `.r9-manual-corpus/` containing only synthetic/committed non-sensit
 - `mixed-pages.pdf`
 - `redaction-source.pdf`
 - `forms.pdf`
-- `large-200-pages.pdf`
+- `compress-source.pdf`
 - `ocr-scan.pdf`
 - `photo-source-1.png`
 - `photo-source-2.png`
 - `manifest.json`
+
+`ocr-scan.pdf` is deliberately image-only and contains large raster text. `compress-source.pdf` is deliberately saved with repetitive uncompressed content so the compression task is meaningful rather than testing an already-optimized file.
 
 Never substitute a confidential/personal PDF for the qualification corpus.
 
@@ -105,7 +107,7 @@ Use the wording below. Do not name the canonical destination.
 | D11 | Change the order of pages in a PDF. |
 | D12 | Rotate selected pages in a PDF. |
 | D13 | Trim the visible margins of a PDF page. |
-| D14 | Using `large-200-pages.pdf`, make the PDF file size smaller and export the result. |
+| D14 | Using `compress-source.pdf`, make the PDF file size smaller and export the result. |
 | D15 | Using `ocr-scan.pdf`, make the scanned page searchable and export the result. |
 | D16 | Remove author/title-style metadata from a PDF. |
 | D17 | Make a PDF require a password when opened. |
@@ -156,7 +158,7 @@ Record the C-item during the corresponding D-item's **first exposure**:
 | C04 | D06 | Target is permanently redacted in the exported PDF. |
 | C05 | D07 | Both source PDFs are combined into one valid output. |
 | C06 | D10 | Page 2 is deleted, the last remaining page is moved first, and a valid output is exported. |
-| C07 | D14 | A compressed valid output is produced. |
+| C07 | D14 | A valid output smaller than `compress-source.pdf` is produced. |
 | C08 | D15 | OCR completes and `SEARCHABLE AFTER OCR 2026` can be found/selected in the result. |
 | C09 | D18 | Form values are changed using synthetic data and preserved in the result. |
 | C10 | D19 | Both generated PNGs become pages in one valid PDF. |
