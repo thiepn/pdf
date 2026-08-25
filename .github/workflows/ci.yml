@@ -82,8 +82,10 @@ jobs:
       - name: R9 human evidence contract
         run: |
           node --test scripts/reconstruction/r9_validate_evidence.test.mjs scripts/reconstruction/r9_prepare_session.test.mjs
+          node scripts/reconstruction/r9_recorder_contract.mjs
           python scripts/reconstruction/r9_prepare_manual_corpus.py --output /tmp/r9-manual-corpus
           test -f /tmp/r9-manual-corpus/ocr-scan.pdf
+          test -f /tmp/r9-manual-corpus/compress-source.pdf
           test -f /tmp/r9-manual-corpus/photo-source-1.png
           test -f /tmp/r9-manual-corpus/photo-source-2.png
           node scripts/reconstruction/r9_validate_evidence.mjs
