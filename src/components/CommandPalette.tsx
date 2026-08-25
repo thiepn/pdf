@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
 import { readAppRoute, routeHref, type AppRoute } from "../core/appRouter";
 import { pdfTasks, taskCategories, taskRoute } from "../ia/taskCatalog";
-import { searchTextMatches, taskQuerySearchText } from "../ia/taskSearch";
+import { searchMatchScore, taskMatchScore, taskQuerySearchText } from "../ia/taskSearch";
 import { useModalFocus } from "../accessibility/modalFocus";
 
 interface CommandItem {
@@ -11,6 +11,7 @@ interface CommandItem {
   route: AppRoute;
   searchText: string;
   defaultVisible: boolean;
+  taskId?: string;
 }
 
 interface CommandPaletteProps {
@@ -56,6 +57,7 @@ export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
       const category = taskCategories.find((item) => item.id === task.category)?.label ?? "PDF task";
       return {
         id: `task:${task.id}`,
+        taskId: task.id,
         label: task.label,
         description: projectId || task.target.kind === "route" ? task.description : `${task.description} Choose a PDF to continue.`,
         route: target ?? { name: "tools", taskId: task.id },
@@ -69,7 +71,18 @@ export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
   const results = useMemo(() => {
     const needle = query.trim();
     if (!needle) return commands.filter((item) => item.defaultVisible).slice(0, 14);
-    return commands.filter((item) => searchTextMatches(`${item.label} ${item.description} ${item.searchText}`, needle)).slice(0, 24);
+    return commands
+      .map((item, index) => {
+        const task = item.taskId ? pdfTasks.find((candidate) => candidate.id === item.taskId) : undefined;
+        const score = task
+          ? taskMatchScore(task, needle)
+          : searchMatchScore(`${item.label} ${item.description} ${item.searchText}`, needle);
+        return { item, index, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .slice(0, 24)
+      .map((entry) => entry.item);
   }, [commands, query]);
 
   if (!open) {
