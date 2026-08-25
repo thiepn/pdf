@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260825-03",
+  "change_class": "product-hotfix",
+  "base_commit": "dbdd5d00dda72fc3281ec351924eaa147f154626",
+  "target_commit": "cc2978240a9eae871a90b64467385cb03176b9f1",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "high",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "A real Edit PDF attempt made the browser app unresponsive. The editor's existing-content inspection performed unbounded paragraph reconstruction and quadratic fallback table-grid connectivity work on the browser main thread after worker inspection returned. Dense text/vector PDFs could therefore monopolize the UI during editor opening.",
+  "rollback_commit": "dbdd5d00dda72fc3281ec351924eaa147f154626",
+  "affected_workflows": [
+    "Edit PDF / open existing PDF for editing",
+    "Edit existing text",
+    "Existing-content native object inspection"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Bounds UI-thread paragraph reconstruction and fallback table-recovery pair work, preserves the full vector inspection for editing, and adds a 30-second abortable native-inspection responsiveness budget that fails soft to overlay editing. The user's private PDF is not stored or committed; regression coverage uses synthetic in-memory inspection structures. Issue #31."
+}
