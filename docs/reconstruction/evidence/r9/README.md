@@ -4,13 +4,13 @@ This directory is reserved for privacy-safe evidence from real-human R9 usabilit
 
 ## Evidence creation
 
-Do not hand-clone the template. Create each session with:
+Create each session with:
 
 ```bash
 node scripts/reconstruction/r9_prepare_session.mjs ...
 ```
 
-Then follow `docs/reconstruction/r9-manual-session-runbook.md` using the generated randomized `measurement_order`.
+Then follow `docs/reconstruction/r9-manual-session-runbook.md` using the generated randomized `measurement_order`. The recommended offline recorder is `docs/reconstruction/r9-session-recorder.html`.
 
 Completed qualifying sessions belong in:
 
@@ -55,9 +55,12 @@ The filename must not contain a tester name or private document name.
 
 - 3 valid sessions;
 - 3 distinct anonymous tester IDs;
-- 2 testers with `none` or `light` prior PDF Studio familiarity.
+- 2 testers with `none` or `light` prior PDF Studio familiarity;
+- every individual session >=90% on all three metrics;
+- aggregate evidence >=90% on all three metrics;
+- no unresolved critical/data-loss defect.
 
-A valid passing session before that minimum is reached should report `HUMAN_UX_SAMPLE_INSUFFICIENT`.
+A valid passing session before that minimum is reached reports `HUMAN_UX_SAMPLE_INSUFFICIENT`.
 
 Repeated sessions from the same tester may be retained for research but do not increase the distinct-tester certification count.
 
@@ -75,8 +78,19 @@ Validate all committed sessions and calculate aggregate metrics:
 node scripts/reconstruction/r9_validate_evidence.mjs
 ```
 
+## Final certification freeze
+
+Only after aggregate validation reports `HUMAN_UX_TARGET_MET`, create the digest-backed certification record:
+
+```bash
+node scripts/reconstruction/r9_certify_evidence.mjs \
+  --out docs/reconstruction/evidence/r9/certification.json
+```
+
+The certifier refuses to write a certification when evidence is unmeasured, sample-insufficient, below target, or blocked by a critical/data-loss defect. The certification records the frozen product baseline, metrics, sample counts, per-session results, and SHA-256 digests of the human evidence files.
+
 ## Evidence status
 
 An empty sessions directory means `HUMAN_UX_UNMEASURED`. Do not create placeholder sessions, AI-generated observations, copied benchmark results, or browser-automation results merely to satisfy the validator.
 
-Automation may validate and summarize human evidence; it may never manufacture the observations being measured.
+Automation may validate, aggregate, and freeze human evidence; it may never manufacture the observations being measured.
