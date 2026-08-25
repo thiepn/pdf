@@ -80,7 +80,9 @@
 }
 
 .task-tile > div {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   display: grid;
   align-content: start;
   justify-items: start;
@@ -112,12 +114,23 @@
   background: var(--surface-subtle);
 }
 
+.task-tile small,
+.task-tile .task-capability-chip {
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .task-tile small {
   position: static;
   right: auto;
   bottom: auto;
-  white-space: normal;
-  overflow-wrap: anywhere;
+}
+
+.task-tile .task-capability-chip {
+  line-height: 1.25;
 }
 
 .document-tools-hub {
