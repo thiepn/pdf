@@ -28,28 +28,30 @@ function r8ExternalCorpusEnabled(): boolean {
   return runtime.process?.env?.R8_EXTERNAL_CORPUS === "1";
 }
 
-test("R8 structural top-20 task discovery resolves natural-language prompts", async ({ page }, testInfo) => {
+test("R8 structural top-20 task discovery ranks natural-language prompts correctly", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Search structure is browser-independent");
   await page.goto("./#/tools");
   const search = page.getByRole("searchbox", { name: "Search PDF tasks" });
   for (const item of top20) {
     await search.fill(item.prompt);
-    const result = page.locator(".task-tile").filter({ hasText: item.label }).first();
-    await expect(result, `Expected '${item.prompt}' to reveal '${item.label}'`).toBeVisible();
+    const firstResult = page.locator(".task-category--search-results .task-tile").first();
+    await expect(firstResult, `Expected '${item.prompt}' to rank '${item.label}' first`).toBeVisible();
+    await expect(firstResult).toContainText(item.label);
   }
 });
 
-test("R8 command palette accepts outcome phrases instead of exact menu labels", async ({ page }, testInfo) => {
+test("R8 command palette ranks outcome phrases instead of exact menu labels", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Command search structure is browser-independent");
   await page.goto("./#/home");
   await page.keyboard.press("Control+K");
   const dialog = page.getByRole("dialog", { name: /Find a PDF task/i });
   await expect(dialog).toBeVisible();
   const search = dialog.getByRole("textbox", { name: "Search PDF tasks" });
+  const firstResult = dialog.locator(".command-palette__results a").first();
   await search.fill("make this PDF smaller");
-  await expect(dialog.getByRole("link", { name: /Compress PDF/i })).toBeVisible();
+  await expect(firstResult).toContainText("Compress PDF");
   await search.fill("permanently hide this account number");
-  await expect(dialog.getByRole("link", { name: /Apply permanent redactions/i })).toBeVisible();
+  await expect(firstResult).toContainText("Apply permanent redactions");
 });
 
 test("R8 opens a representative sample from the pinned external corpus", async ({ page }, testInfo) => {
