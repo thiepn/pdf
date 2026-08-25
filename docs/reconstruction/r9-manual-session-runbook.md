@@ -69,6 +69,12 @@ node scripts/reconstruction/r9_prepare_session.mjs \
 
 The generator creates a shuffled `measurement_order`. Follow that exact order. It does not fill any human results.
 
+### Recommended recorder
+
+Open `docs/reconstruction/r9-session-recorder.html` locally in a recorder-only browser window or separate device. Load the generated session JSON. The recorder walks the exact shuffled order, records the observations, and exports updated JSON without network requests.
+
+Keep the recorder out of the tester's view because it displays canonical destinations for scoring. After export, replace/update the generated session file with the recorder's exported JSON, then run the validator.
+
 ## 4. Standard starting state for every intent
 
 For every D-item:
