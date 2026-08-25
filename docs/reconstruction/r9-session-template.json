@@ -1,16 +1,24 @@
 {
-  "schema": 1,
+  "schema": 2,
   "baseline_commit": "7c81f95815a3d8740fddef3d76e264ebb19c96f8",
   "session_id": "session-YYYYMMDD-NN",
   "tester_id": "anonymous-local-id",
+  "tester_profile": {
+    "familiarity": "none",
+    "pdf_experience": "basic"
+  },
   "environment": {
     "date": "YYYY-MM-DD",
     "browser": "",
     "os_device": "",
     "viewport": "",
-    "build_channel": "frozen-main"
+    "build_channel": "r8-frozen-baseline"
   },
-  "corpus_id": "",
+  "corpus_id": "r9-manual-v1",
+  "measurement_order": [
+    "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10",
+    "D11", "D12", "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D20"
+  ],
   "first_location": [
     { "id": "D01", "intent": "Edit text", "first_location": "", "correct_first_location": null, "help_used_before_choice": null, "meaningful_interactions": null },
     { "id": "D02", "intent": "Add text", "first_location": "", "correct_first_location": null, "help_used_before_choice": null, "meaningful_interactions": null },
@@ -34,16 +42,16 @@
     { "id": "D20", "intent": "PDF pages to images", "first_location": "", "correct_first_location": null, "help_used_before_choice": null, "meaningful_interactions": null }
   ],
   "no_help_completion": [
-    { "id": "C01", "workflow": "Edit existing text", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C02", "workflow": "Highlight text", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C03", "workflow": "Sign visually", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C04", "workflow": "Permanently redact", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C05", "workflow": "Merge PDFs", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C06", "workflow": "Delete/reorder pages", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C07", "workflow": "Compress PDF", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C08", "workflow": "OCR scan", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C09", "workflow": "Fill form", "completed_without_help": null, "result": "UNMEASURED" },
-    { "id": "C10", "workflow": "Images to PDF", "completed_without_help": null, "result": "UNMEASURED" }
+    { "id": "C01", "workflow": "Edit existing text", "measured_during": "D01", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C02", "workflow": "Highlight text", "measured_during": "D04", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C03", "workflow": "Sign visually", "measured_during": "D05", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C04", "workflow": "Permanently redact", "measured_during": "D06", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C05", "workflow": "Merge PDFs", "measured_during": "D07", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C06", "workflow": "Delete/reorder pages", "measured_during": "D10", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C07", "workflow": "Compress PDF", "measured_during": "D14", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C08", "workflow": "OCR scan", "measured_during": "D15", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C09", "workflow": "Fill form", "measured_during": "D18", "completed_without_help": null, "result": "UNMEASURED" },
+    { "id": "C10", "workflow": "Images to PDF", "measured_during": "D19", "completed_without_help": null, "result": "UNMEASURED" }
   ],
   "navigation_prediction": [
     { "id": "D01", "predicted_location": "", "matches_canonical": null },
