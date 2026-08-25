@@ -43,9 +43,12 @@ test("R8 structural top-20 task discovery ranks natural-language prompts correct
 test("R8 command palette ranks outcome phrases instead of exact menu labels", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Command search structure is browser-independent");
   await page.goto("./#/home");
+  const trigger = page.getByRole("button", { name: "Open command palette" });
+  await expect(trigger).toBeVisible();
+  await trigger.focus();
   await page.keyboard.press("Control+K");
   const dialog = page.getByRole("dialog", { name: /Find a PDF task/i });
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
   const search = dialog.getByRole("textbox", { name: "Search PDF tasks" });
   const firstResult = dialog.locator(".command-palette__results a").first();
   await search.fill("make this PDF smaller");
@@ -63,6 +66,6 @@ test("R8 opens a representative sample from the pinned external corpus", async (
     await page.goto("./#/home");
     await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`tests/corpus/r8-external/${filename}`);
     await expect(page.getByRole("navigation", { name: "Document workspace" })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("region", { name: "PDF page 1" })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("region", { name: "PDF page 1", exact: true })).toBeVisible({ timeout: 20_000 });
   }
 });
