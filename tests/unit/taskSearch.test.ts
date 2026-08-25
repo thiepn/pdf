@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pdfTasks } from "../../src/ia/taskCatalog";
-import { taskMatchesQuery } from "../../src/ia/taskSearch";
+import { rankTasksByQuery, taskMatchesQuery } from "../../src/ia/taskSearch";
 
 const cases: Array<[string, string]> = [
   ["change existing text", "edit-pdf"],
@@ -27,14 +27,14 @@ const cases: Array<[string, string]> = [
 
 describe("R8 natural-language task discovery", () => {
   it.each(cases)("ranks %s first as %s", (query, taskId) => {
-    const matches = pdfTasks.filter((candidate) => candidate.audience !== "recovery" && taskMatchesQuery(candidate, query));
+    const matches = rankTasksByQuery(pdfTasks.filter((candidate) => candidate.audience !== "recovery"), query);
     expect(matches.length).toBeGreaterThan(0);
     expect(matches[0]?.id).toBe(taskId);
   });
 
   it("meets the frozen top-20 first-result target", () => {
     const passing = cases.filter(([query, taskId]) => {
-      const first = pdfTasks.find((candidate) => candidate.audience !== "recovery" && taskMatchesQuery(candidate, query));
+      const first = rankTasksByQuery(pdfTasks.filter((candidate) => candidate.audience !== "recovery"), query)[0];
       return first?.id === taskId;
     }).length;
     expect(passing / cases.length).toBeGreaterThanOrEqual(0.9);
