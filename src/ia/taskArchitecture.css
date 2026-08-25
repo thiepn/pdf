@@ -66,12 +66,42 @@
 
 .task-tile {
   min-height: 132px;
+  align-items: flex-start;
+}
+
+/* The legacy .tool-tile rules treat direct spans as icon boxes and all small
+   elements as bottom-right labels. Keep that behavior out of the task catalog:
+   its icon and capability metadata have their own content-flow contract. */
+.task-tile > span:first-child {
+  flex: none;
+  color: var(--accent);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line-strong);
+}
+
+.task-tile > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+}
+
+.task-tile > div > strong,
+.task-tile > div > p {
+  margin: 0;
+}
+
+.task-tile > div > p {
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .task-tile small,
 .document-task-card em {
   display: inline-flex;
   width: max-content;
+  max-width: 100%;
   margin-top: 8px;
   padding: 3px 7px;
   border: 1px solid var(--line);
@@ -80,6 +110,14 @@
   font-size: 0.72rem;
   font-style: normal;
   background: var(--surface-subtle);
+}
+
+.task-tile small {
+  position: static;
+  right: auto;
+  bottom: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .document-tools-hub {
