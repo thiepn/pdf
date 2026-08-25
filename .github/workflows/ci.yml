@@ -85,7 +85,8 @@ jobs:
           python scripts/phase28/validate_adversarial_corpus.py
           python scripts/reconstruction/r8_external_corpus.py
           python scripts/reconstruction/r8_validate_corpus.py
-          node --experimental-strip-types scripts/reconstruction/r8_qualification.mjs
+          npx vitest run tests/unit/taskSearch.test.ts
+          node scripts/reconstruction/r8_qualification.mjs --discovery-qualified
         env:
           R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: P9 release-candidate freeze audit
