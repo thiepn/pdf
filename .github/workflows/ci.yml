@@ -180,6 +180,7 @@ jobs:
         run: npm run test:e2e
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
+          R8_EXTERNAL_CORPUS: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
           PLAYWRIGHT_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
           VITE_SOURCE_URL: https://github.com/${{ github.repository }}
