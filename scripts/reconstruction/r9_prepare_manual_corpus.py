@@ -9,7 +9,6 @@ import shutil
 from pathlib import Path
 
 import fitz
-from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = ROOT / ".r9-manual-corpus"
@@ -20,7 +19,6 @@ COPIED_FIXTURES = {
     "mixed-pages.pdf": ["D07", "D10"],
     "redaction-source.pdf": ["D06"],
     "forms.pdf": ["D18"],
-    "large-200-pages.pdf": ["D14"],
 }
 
 
@@ -32,32 +30,75 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def generate_photo(path: Path, label: str, accent: int) -> None:
-    image = Image.new("RGB", (1200, 800), (242, 242, 242))
-    draw = ImageDraw.Draw(image)
-    draw.rectangle((80, 80, 1120, 720), outline=(40 + accent, 60, 90), width=12)
-    draw.rectangle((150, 170, 1050, 630), fill=(220, 225 + accent // 8, 232))
-    draw.text((180, 220), "PDF Studio R9", fill=(20, 20, 20))
-    draw.text((180, 300), label, fill=(20, 20, 20))
-    draw.text((180, 380), "Purpose-built non-sensitive source image", fill=(20, 20, 20))
-    image.save(path, format="PNG", optimize=True)
+def render_source_image(path: Path, label: str, variant: int) -> None:
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=400)
+    page.draw_rect(fitz.Rect(30, 30, 570, 370), color=(0.1, 0.2, 0.35), width=4)
+    fill = (0.88 - variant * 0.04, 0.91, 0.95)
+    page.draw_rect(fitz.Rect(70, 90, 530, 320), color=(0.3, 0.4, 0.55), fill=fill, width=2)
+    page.insert_text((100, 150), "PDF Studio R9", fontsize=30)
+    page.insert_text((100, 205), label, fontsize=28)
+    page.insert_text((100, 260), "Purpose-built non-sensitive image", fontsize=18)
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+    pixmap.save(path)
+    doc.close()
 
 
 def generate_ocr_pdf(path: Path) -> None:
-    raster = Image.new("RGB", (1654, 2339), "white")
-    draw = ImageDraw.Draw(raster)
-    draw.text((150, 220), "R9 OCR SAMPLE", fill="black")
-    draw.text((150, 360), "Purpose-built image-only page", fill="black")
-    draw.text((150, 500), "SEARCHABLE AFTER OCR 2026", fill="black")
+    source = fitz.open()
+    page = source.new_page(width=595, height=842)
+    page.insert_text((72, 170), "R9 OCR SAMPLE", fontsize=34)
+    page.insert_text((72, 250), "Purpose-built image-only page", fontsize=24)
+    page.insert_text((72, 330), "SEARCHABLE AFTER OCR 2026", fontsize=28)
+    page.draw_rect(fitz.Rect(60, 110, 535, 390), color=(0, 0, 0), width=2)
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False)
     temp_png = path.with_suffix(".source.png")
-    raster.save(temp_png, format="PNG", optimize=True)
+    pixmap.save(temp_png)
+    source.close()
 
     doc = fitz.open()
-    page = doc.new_page(width=595, height=842)
-    page.insert_image(page.rect, filename=str(temp_png))
+    out_page = doc.new_page(width=595, height=842)
+    out_page.insert_image(out_page.rect, filename=str(temp_png))
     doc.save(path, garbage=4, deflate=True)
     doc.close()
     temp_png.unlink()
+
+    check = fitz.open(path)
+    if check[0].get_text().strip():
+        check.close()
+        raise RuntimeError("OCR fixture unexpectedly contains a text layer")
+    check.close()
+
+
+def generate_compress_source(path: Path) -> None:
+    """Create deliberately uncompressed, repetitive PDF content for a fair compression task."""
+    doc = fitz.open()
+    repeated = "R9 COMPRESSIBLE CONTENT " * 4
+    for page_index in range(60):
+        page = doc.new_page(width=595, height=842)
+        page.insert_text((48, 48), f"R9 COMPRESSION SOURCE PAGE {page_index + 1:02d}", fontsize=14)
+        for line in range(32):
+            y = 78 + line * 22
+            page.insert_text((48, y), f"{line + 1:02d} {repeated}", fontsize=8)
+        for box in range(12):
+            x0 = 48 + (box % 4) * 120
+            y0 = 760 + (box // 4) * 18
+            page.draw_rect(fitz.Rect(x0, y0, x0 + 90, y0 + 12), color=(0.2, 0.2, 0.2), fill=(0.95, 0.95, 0.95), width=0.5)
+    doc.save(path, garbage=0, deflate=False, clean=False)
+    doc.close()
+    if path.stat().st_size < 100_000:
+        raise RuntimeError("Compression fixture is unexpectedly small")
+
+
+def add_entry(entries: list[dict], path: Path, kind: str, task_ids: list[str], **extra: object) -> None:
+    entries.append({
+        "filename": path.name,
+        "kind": kind,
+        "task_ids": task_ids,
+        "sha256": sha256(path),
+        "bytes": path.stat().st_size,
+        **extra,
+    })
 
 
 def prepare(output: Path) -> dict:
@@ -70,40 +111,25 @@ def prepare(output: Path) -> dict:
             raise FileNotFoundError(f"Required committed fixture is missing: {source}")
         target = output / filename
         shutil.copyfile(source, target)
-        entries.append({
-            "filename": filename,
-            "kind": "committed-pdf-fixture",
-            "task_ids": task_ids,
-            "sha256": sha256(target),
-            "bytes": target.stat().st_size,
-        })
+        add_entry(entries, target, "committed-pdf-fixture", task_ids)
 
     photo1 = output / "photo-source-1.png"
     photo2 = output / "photo-source-2.png"
-    generate_photo(photo1, "PHOTO SOURCE ONE", 0)
-    generate_photo(photo2, "PHOTO SOURCE TWO", 40)
-    for photo in (photo1, photo2):
-        entries.append({
-            "filename": photo.name,
-            "kind": "generated-image-source",
-            "task_ids": ["D19"],
-            "sha256": sha256(photo),
-            "bytes": photo.stat().st_size,
-        })
+    render_source_image(photo1, "PHOTO SOURCE ONE", 0)
+    render_source_image(photo2, "PHOTO SOURCE TWO", 1)
+    add_entry(entries, photo1, "generated-image-source", ["D19"])
+    add_entry(entries, photo2, "generated-image-source", ["D19"])
 
     ocr_pdf = output / "ocr-scan.pdf"
     generate_ocr_pdf(ocr_pdf)
-    entries.append({
-        "filename": ocr_pdf.name,
-        "kind": "generated-image-only-pdf",
-        "task_ids": ["D15"],
-        "sha256": sha256(ocr_pdf),
-        "bytes": ocr_pdf.stat().st_size,
-        "expected_text_layer": False,
-    })
+    add_entry(entries, ocr_pdf, "generated-image-only-pdf", ["D15"], expected_text_layer=False)
+
+    compress_pdf = output / "compress-source.pdf"
+    generate_compress_source(compress_pdf)
+    add_entry(entries, compress_pdf, "generated-uncompressed-pdf", ["D14"], expected_compressible=True)
 
     manifest = {
-        "schema": 1,
+        "schema": 2,
         "corpus_id": "r9-manual-v1",
         "privacy": "Purpose-built or committed synthetic fixtures only; no personal/private document content.",
         "files": sorted(entries, key=lambda item: item["filename"]),
