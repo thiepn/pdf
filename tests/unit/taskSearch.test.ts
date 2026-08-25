@@ -26,10 +26,18 @@ const cases: Array<[string, string]> = [
 ];
 
 describe("R8 natural-language task discovery", () => {
-  it.each(cases)("matches %s to %s", (query, taskId) => {
-    const task = pdfTasks.find((candidate) => candidate.id === taskId);
-    expect(task).toBeDefined();
-    expect(taskMatchesQuery(task!, query)).toBe(true);
+  it.each(cases)("ranks %s first as %s", (query, taskId) => {
+    const matches = pdfTasks.filter((candidate) => candidate.audience !== "recovery" && taskMatchesQuery(candidate, query));
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches[0]?.id).toBe(taskId);
+  });
+
+  it("meets the frozen top-20 first-result target", () => {
+    const passing = cases.filter(([query, taskId]) => {
+      const first = pdfTasks.find((candidate) => candidate.audience !== "recovery" && taskMatchesQuery(candidate, query));
+      return first?.id === taskId;
+    }).length;
+    expect(passing / cases.length).toBeGreaterThanOrEqual(0.9);
   });
 
   it("does not turn unrelated phrases into universal matches", () => {
