@@ -79,6 +79,10 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate installed dependency tree
         run: npm run audit:tree
+      - name: R9 human evidence contract
+        run: |
+          node --test scripts/reconstruction/r9_validate_evidence.test.mjs
+          node scripts/reconstruction/r9_validate_evidence.mjs
       - name: R8 real-world corpus and structural qualification
         run: |
           python scripts/phase28/generate_adversarial_corpus.py
