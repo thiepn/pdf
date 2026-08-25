@@ -146,5 +146,8 @@ test("selected task warning stays contained at narrow width", async ({ page }) =
   });
 
   expect(layoutProblems).toEqual([]);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  // Use the layout viewport, not clientWidth: on long pages the latter can
+  // exclude a classic vertical scrollbar and report false horizontal overflow.
+  const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(pageOverflow).toBeLessThanOrEqual(1);
 });
