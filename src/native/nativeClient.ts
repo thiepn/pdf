@@ -1,4 +1,4 @@
-import { reconstructInspectionTextParagraphs } from "./nativeModel";
+import { reconstructPageTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
@@ -16,13 +16,13 @@ import type {
   NativeVectorObject
 } from "../types/nativeEditor";
 
-interface VectorInspection {
+export interface VectorInspection {
   pages: Array<{ pageNumber: number; vectors: NativeVectorObject[]; warnings: string[] }>;
   total: number;
   warnings: string[];
 }
 
-interface TableInspection {
+export interface TableInspection {
   pages: Array<{ pageNumber: number; tables: NativeTableObject[]; warnings: string[] }>;
   total: number;
   warnings: string[];
@@ -50,6 +50,12 @@ interface NativeExportReplay {
   password?: string;
 }
 
+const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_PAGE = 650;
+const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_DOCUMENT = 4_000;
+const MAX_TABLE_RECOVERY_VECTORS_PER_PAGE = 600;
+const MAX_TABLE_RECOVERY_PAIR_WORK_PER_DOCUMENT = 1_000_000;
+export const NATIVE_INSPECTION_TIMEOUT_MS = 30_000;
+
 let pendingExportReplay: NativeExportReplay | undefined;
 
 export function takeNativeExportReplay(bytes: Uint8Array): Omit<NativeExportReplay, "outputBytes"> | undefined {
@@ -57,6 +63,61 @@ export function takeNativeExportReplay(bytes: Uint8Array): Omit<NativeExportRepl
   if (!replay || replay.outputBytes !== bytes) return undefined;
   pendingExportReplay = undefined;
   return { sourceBytes: replay.sourceBytes, edits: replay.edits, password: replay.password };
+}
+
+/**
+ * Paragraph reconstruction runs on the UI thread after the native worker responds.
+ * Keep that work explicitly bounded so pathological text-heavy pages cannot lock the app.
+ */
+export function reconstructInspectionWithinResponsivenessBudget(inspection: NativeInspection): NativeInspection {
+  let remaining = MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_DOCUMENT;
+  let skippedPages = 0;
+  let before = 0;
+
+  const pages = inspection.pages.map((page) => {
+    const pageTextObjects = page.objects.reduce((count, object) => count + (object.type === "text" ? 1 : 0), 0);
+    before += pageTextObjects;
+    if (!pageTextObjects) return page;
+    if (pageTextObjects > MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_PAGE || pageTextObjects > remaining) {
+      skippedPages += 1;
+      return page;
+    }
+    remaining -= pageTextObjects;
+    return reconstructPageTextParagraphs(page);
+  });
+
+  const after = pages.reduce((sum, page) => sum + page.objects.reduce((count, object) => count + (object.type === "text" ? 1 : 0), 0), 0);
+  const collapsed = Math.max(0, before - after);
+  const warnings = [...inspection.warnings];
+  if (collapsed > 0) warnings.push(`P2 reconstructed ${before} preserve-spans text records as ${after} editable paragraph blocks, retained mixed font/style spans, and annotated conservative same-column text flows.`);
+  if (skippedPages > 0) warnings.push(`Responsiveness guard skipped layout-aware paragraph reconstruction on ${skippedPages} dense page${skippedPages === 1 ? "" : "s"}; raw detected text objects remain available instead of blocking the editor UI.`);
+
+  return { ...inspection, pages, totals: { ...inspection.totals, text: after }, warnings };
+}
+
+/**
+ * Fallback structured-table recovery performs pairwise connectivity checks on the
+ * UI thread. Preserve the full vector inspection for editing, but feed table
+ * recovery a bounded copy so dense artwork cannot trigger quadratic UI work.
+ */
+export function prepareVectorInspectionForTableRecovery(vector: VectorInspection, table: TableInspection): { vector: VectorInspection; skippedPages: number[] } {
+  let remainingPairWork = MAX_TABLE_RECOVERY_PAIR_WORK_PER_DOCUMENT;
+  const skippedPages: number[] = [];
+  const specialistPages = new Map(table.pages.map((page) => [page.pageNumber, page]));
+
+  const pages = vector.pages.map((page) => {
+    if ((specialistPages.get(page.pageNumber)?.tables.length ?? 0) > 0) return page;
+    const count = page.vectors.length;
+    const pairWork = count * count;
+    if (count > MAX_TABLE_RECOVERY_VECTORS_PER_PAGE || pairWork > remainingPairWork) {
+      skippedPages.push(page.pageNumber);
+      return { ...page, vectors: [] };
+    }
+    remainingPairWork -= pairWork;
+    return page;
+  });
+
+  return { vector: { ...vector, pages }, skippedPages };
 }
 
 function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint8Array, password?: string, signal?: AbortSignal, extra: Transferable[] = []): Promise<T> {
@@ -76,7 +137,7 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
       cleanup();
       if (event.data.type === "NATIVE_ERROR") reject(new Error(event.data.error.message));
       else if (event.data.type === "NATIVE_INSPECTION") {
-        const reconstructed = reconstructInspectionTextParagraphs(event.data.inspection);
+        const reconstructed = reconstructInspectionWithinResponsivenessBudget(event.data.inspection);
         resolve(registerNativeInspectionPages(reconstructed) as T);
       } else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
       else if (event.data.type === "TABLE_INSPECTION") resolve(event.data.inspection as T);
@@ -160,15 +221,44 @@ function mergeComplexInspection(base: NativeInspection, complex: ComplexInspecti
 }
 
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
-  const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, signal);
-  const [vector, table] = await Promise.all([
-    invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, signal),
-    invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, signal)
-  ]);
-  const recoveredTable = recoverStructuredTables(base, vector, table);
-  const established = mergeTableInspection(mergeVectorInspection(base, vector), recoveredTable);
-  const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, signal);
-  return mergeComplexInspection(established, complex);
+  const controller = new AbortController();
+  let timedOut = false;
+  const forwardAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", forwardAbort, { once: true });
+  const timeout = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, NATIVE_INSPECTION_TIMEOUT_MS);
+
+  try {
+    const activeSignal = controller.signal;
+    const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
+    const [vector, table] = await Promise.all([
+      invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal),
+      invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal)
+    ]);
+    const recoveryInput = prepareVectorInspectionForTableRecovery(vector, table);
+    const recoveredTable = recoverStructuredTables(base, recoveryInput.vector, table);
+    const boundedRecoveredTable = recoveryInput.skippedPages.length
+      ? {
+        ...recoveredTable,
+        warnings: [
+          ...recoveredTable.warnings,
+          `Responsiveness guard skipped fallback table-grid recovery on ${recoveryInput.skippedPages.length} dense page${recoveryInput.skippedPages.length === 1 ? "" : "s"} (${recoveryInput.skippedPages.join(", ")}); specialist table results and all vector objects remain available.`
+        ]
+      }
+      : recoveredTable;
+    const established = mergeTableInspection(mergeVectorInspection(base, vector), boundedRecoveredTable);
+    const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, activeSignal);
+    return mergeComplexInspection(established, complex);
+  } catch (reason) {
+    if (timedOut) throw new Error(`Existing-content inspection exceeded the ${Math.round(NATIVE_INSPECTION_TIMEOUT_MS / 1000)}-second responsiveness budget and was stopped. Overlay editing remains available.`);
+    throw reason;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    signal?.removeEventListener("abort", forwardAbort);
+  }
 }
 
 const FOLLOWER_RECONSTRUCTION_WIDTH_TOLERANCE = 4;
