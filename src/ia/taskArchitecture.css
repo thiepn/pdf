@@ -43,9 +43,23 @@
 }
 
 .task-focus > div {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.task-focus > div > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+}
+
+.task-focus > .button {
+  flex: none;
 }
 
 .task-focus h2,
@@ -64,7 +78,29 @@
   background: var(--surface-strong);
 }
 
+.task-focus .task-capability-chip,
+.task-focus .task-capability-reason,
+.task-focus .task-capability-recovery {
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-focus .task-capability-chip {
+  line-height: 1.25;
+}
+
+.task-focus .task-capability-reason,
+.task-focus .task-capability-recovery {
+  display: block;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .task-tile {
+  min-width: 0;
   min-height: 132px;
   align-items: flex-start;
 }
@@ -287,19 +323,24 @@
     width: 100%;
   }
 
+  .task-focus > div {
+    width: 100%;
+  }
+
   .document-task-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 620px) {
+  .task-grid,
+  .document-task-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .document-tools-hub {
     width: min(100% - 20px, 1180px);
     margin-top: 10px;
-  }
-
-  .document-task-grid {
-    grid-template-columns: 1fr;
   }
 
   .task-focus {

@@ -1,11 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("task catalog keeps icons visible and capability metadata in normal flow", async ({ page }) => {
-  await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: "What do you want to do?" })).toBeVisible();
-
-  // Reproduce a dark palette explicitly so this regression cannot hide behind
-  // the default CI appearance settings.
+async function applyDarkPalette(page: import("@playwright/test").Page): Promise<void> {
   await page.evaluate(() => {
     const root = document.documentElement;
     root.style.setProperty("--ink", "#f4f1ea");
@@ -16,6 +11,15 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
     root.style.setProperty("--line-strong", "#46515d");
     root.style.setProperty("--accent", "#ff9388");
   });
+}
+
+test("task catalog keeps icons visible and capability metadata in normal flow", async ({ page }) => {
+  await page.goto("./#/tools");
+  await expect(page.getByRole("heading", { name: "What do you want to do?" })).toBeVisible();
+
+  // Reproduce a dark palette explicitly so this regression cannot hide behind
+  // the default CI appearance settings.
+  await applyDarkPalette(page);
 
   const tiles = page.locator(".task-tile");
   expect(await tiles.count()).toBeGreaterThan(5);
@@ -90,4 +94,73 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
   });
 
   expect(layoutProblems).toEqual([]);
+});
+
+test("selected task warning and catalog stay contained at narrow width", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.goto("./#/tools/visual-signature");
+  await expect(page.getByRole("heading", { name: "Add visual signature" })).toBeVisible();
+  await applyDarkPalette(page);
+
+  const focus = page.locator(".task-focus");
+  await expect(focus).toBeVisible();
+
+  const layoutProblems = await focus.evaluate((banner) => {
+    const problems: string[] = [];
+    const bannerRect = banner.getBoundingClientRect();
+    const row = banner.querySelector(":scope > div");
+    const copy = row?.querySelector(":scope > div");
+    const title = copy?.querySelector("h2");
+    const purpose = Array.from(copy?.querySelectorAll("p") ?? []).find((item) => !item.classList.contains("eyebrow"));
+    const metadata = Array.from(copy?.querySelectorAll(".task-capability-chip, .task-capability-reason, .task-capability-recovery") ?? []);
+    const intersects = (a: DOMRect, b: DOMRect) =>
+      Math.min(a.right, b.right) > Math.max(a.left, b.left)
+      && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
+
+    for (const item of metadata) {
+      const rect = item.getBoundingClientRect();
+      const style = getComputedStyle(item);
+      if (style.position === "absolute" || style.position === "fixed") {
+        problems.push("selected task metadata escaped normal flow");
+      }
+      if (rect.left < bannerRect.left - 1 || rect.right > bannerRect.right + 1 || rect.top < bannerRect.top - 1 || rect.bottom > bannerRect.bottom + 1) {
+        problems.push("selected task metadata escaped banner bounds");
+      }
+      if (title && intersects(rect, title.getBoundingClientRect())) {
+        problems.push("selected task metadata overlaps title");
+      }
+      if (purpose && intersects(rect, purpose.getBoundingClientRect())) {
+        problems.push("selected task metadata overlaps purpose");
+      }
+    }
+
+    for (let i = 0; i < metadata.length; i += 1) {
+      for (let j = i + 1; j < metadata.length; j += 1) {
+        if (intersects(metadata[i].getBoundingClientRect(), metadata[j].getBoundingClientRect())) {
+          problems.push("selected task metadata items overlap each other");
+        }
+      }
+    }
+
+    return problems;
+  });
+
+  expect(layoutProblems).toEqual([]);
+
+  const taskGrids = page.locator(".task-grid");
+  expect(await taskGrids.count()).toBeGreaterThan(0);
+  const narrowGridColumns = await taskGrids.first().evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length);
+  expect(narrowGridColumns).toBe(1);
+
+  const cardProblems = await page.locator(".task-tile").evaluateAll((cards) => cards.flatMap((card, cardIndex) => {
+    const rect = card.getBoundingClientRect();
+    const problems: string[] = [];
+    if (rect.left < -1 || rect.right > window.innerWidth + 1) problems.push(`card ${cardIndex}: card escaped viewport (${rect.left.toFixed(1)}..${rect.right.toFixed(1)})`);
+    if (card.scrollWidth > card.clientWidth + 1) problems.push(`card ${cardIndex}: card content overflows by ${card.scrollWidth - card.clientWidth}px`);
+    return problems;
+  }));
+  expect(cardProblems).toEqual([]);
+
+  const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(pageOverflow).toBeLessThanOrEqual(1);
 });
