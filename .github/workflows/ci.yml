@@ -79,6 +79,16 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate installed dependency tree
         run: npm run audit:tree
+      - name: R8 real-world corpus and structural qualification
+        run: |
+          python scripts/phase28/generate_adversarial_corpus.py
+          python scripts/phase28/validate_adversarial_corpus.py
+          python scripts/reconstruction/r8_external_corpus.py
+          python scripts/reconstruction/r8_validate_corpus.py
+          npx vitest run tests/unit/taskSearch.test.ts
+          node scripts/reconstruction/r8_qualification.mjs --discovery-qualified
+        env:
+          R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: P9 release-candidate freeze audit
         run: npm run audit:p9:release-candidate
       - name: v7.0.0 non-browser release qualification
@@ -117,6 +127,9 @@ jobs:
             tests/corpus/p8/manifest.json
             docs/P9_RELEASE_CANDIDATE.md
             docs/p9/release-freeze.json
+            docs/reconstruction/evidence/r8-corpus-report.json
+            docs/reconstruction/evidence/r8-structural-qualification.json
+            tests/corpus/r8-external/manifest.json
 
   browser-regression:
     runs-on: ubuntu-latest
@@ -155,6 +168,10 @@ jobs:
           python scripts/phase28/validate_adversarial_corpus.py
           python scripts/p8/generate_compatibility_corpus.py
           python scripts/p8/validate_compatibility_corpus.py
+          python scripts/reconstruction/r8_external_corpus.py
+          python scripts/reconstruction/r8_validate_corpus.py
+        env:
+          R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Download exact verified distribution
         uses: actions/download-artifact@v8
         with:
@@ -164,6 +181,7 @@ jobs:
         run: npm run test:e2e
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
+          R8_EXTERNAL_CORPUS: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
           PLAYWRIGHT_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
           VITE_SOURCE_URL: https://github.com/${{ github.repository }}

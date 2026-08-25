@@ -27,6 +27,7 @@ const help = await read("src/help/helpContent.ts");
 const pwa = await read("src/components/PwaReadinessCard.tsx");
 const nativeRoute = await read("src/views/NativeEditorPage.tsx");
 const commandPalette = await read("src/components/CommandPalette.tsx");
+const taskSearch = await read("src/ia/taskSearch.ts");
 const r3Styles = await read("src/interaction/r3.css");
 const main = await read("src/main.tsx");
 const distAudit = await read("scripts/check-dist.mjs");
@@ -49,7 +50,7 @@ check(/taskCategories/.test(taskCatalog) && /Create & combine/.test(taskCatalog)
 check(/What do you want to do\?/.test(tools) && /Search PDF tasks/.test(tools) && /taskCategories/.test(tools) && !/Forms & Protect|Print & Advanced|Inspect PDF structure/.test(tools), "global tools page discovers outcomes rather than subsystem names");
 check(/Current PDF/.test(documentTools) && /initialTaskId=\{selectedUtility\.id\}/.test(documentTools) && /taskId:\s*task\.id/.test(documentTools), "current-document utility tasks preserve intent through to focused controls");
 check(/TASK_TAB/.test(toolbox) && /crop-pages/.test(toolbox) && /split-pdf/.test(toolbox) && /toolbox-page--focused/.test(toolbox) && /Create updated PDF/.test(toolbox), "document utilities open task-specific controls instead of requiring rediscovery");
-check(/Find a PDF task/.test(commandPalette) && /remove metadata/.test(commandPalette) && /taskSearchText/.test(commandPalette) && !/workspaceModes/.test(commandPalette), "command palette searches tasks and synonyms rather than workspace modes");
+check(/Find a PDF task/.test(commandPalette) && /taskMatchScore/.test(commandPalette) && /rankTasksByQuery|taskMatchScore/.test(taskSearch) && /TASK_INTENT_PHRASES/.test(taskSearch) && !/workspaceModes/.test(commandPalette), "command palette searches and ranks tasks by user intent rather than workspace modes");
 check(!/Experience level/.test(settings) && !/setExperienceMode/.test(unifiedWorkspace), "global Simple Advanced experience navigation has been retired from the consumer UI");
 check((help.match(/id:\s*"/g) ?? []).length >= 20 && /redaction/.test(help) && /print-advanced/.test(help) && /what-changes/.test(help) && /four stable destinations/.test(help), "offline help covers the reconstructed information architecture and advanced workflows");
 check(/Prevent browser cleanup/.test(pwa), "persistent-storage action is described by its user outcome");

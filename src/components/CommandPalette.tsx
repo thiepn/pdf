@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
 import { readAppRoute, routeHref, type AppRoute } from "../core/appRouter";
-import { pdfTasks, taskCategories, taskRoute, taskSearchText } from "../ia/taskCatalog";
+import { pdfTasks, taskCategories, taskRoute } from "../ia/taskCatalog";
+import { searchMatchScore, taskMatchScore, taskQuerySearchText } from "../ia/taskSearch";
 import { useModalFocus } from "../accessibility/modalFocus";
 
 interface CommandItem {
@@ -10,6 +11,7 @@ interface CommandItem {
   route: AppRoute;
   searchText: string;
   defaultVisible: boolean;
+  taskId?: string;
 }
 
 interface CommandPaletteProps {
@@ -55,10 +57,11 @@ export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
       const category = taskCategories.find((item) => item.id === task.category)?.label ?? "PDF task";
       return {
         id: `task:${task.id}`,
+        taskId: task.id,
         label: task.label,
         description: projectId || task.target.kind === "route" ? task.description : `${task.description} Choose a PDF to continue.`,
         route: target ?? { name: "tools", taskId: task.id },
-        searchText: `${taskSearchText(task)} ${category.toLowerCase()}`,
+        searchText: `${taskQuerySearchText(task)} ${category.toLowerCase()}`,
         defaultVisible: task.audience === "everyday"
       };
     });
@@ -66,9 +69,20 @@ export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
   }, [open]);
 
   const results = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = query.trim();
     if (!needle) return commands.filter((item) => item.defaultVisible).slice(0, 14);
-    return commands.filter((item) => `${item.label} ${item.description} ${item.searchText}`.toLowerCase().includes(needle)).slice(0, 24);
+    return commands
+      .map((item, index) => {
+        const task = item.taskId ? pdfTasks.find((candidate) => candidate.id === item.taskId) : undefined;
+        const score = task
+          ? taskMatchScore(task, needle)
+          : searchMatchScore(`${item.label} ${item.description} ${item.searchText}`, needle);
+        return { item, index, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .slice(0, 24)
+      .map((entry) => entry.item);
   }, [commands, query]);
 
   if (!open) {
@@ -80,7 +94,7 @@ export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
     <section aria-describedby="command-palette-help" aria-labelledby="command-palette-title" aria-modal="true" className="command-palette" ref={dialogRef} role="dialog">
       <header><div><strong id="command-palette-title">Find a PDF task</strong><span>Search by outcome, not menu name</span></div><button aria-label="Close command palette" onClick={closePalette} type="button">×</button></header>
       <p className="visually-hidden" id="command-palette-help">Type what you want to do. Press Escape to close this dialog.</p>
-      <input aria-controls="command-palette-results" aria-label="Search PDF tasks" onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)} placeholder="Try “crop”, “remove metadata”, “sign”, “OCR”, or “split”…" ref={inputRef} value={query}/>
+      <input aria-controls="command-palette-results" aria-label="Search PDF tasks" onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)} placeholder="Try “make this PDF smaller”, “remove pages 4 through 7”, “sign this”, or “make this scan searchable”…" ref={inputRef} value={query}/>
       <nav aria-label="Command results" className="command-palette__results" id="command-palette-results">{results.length ? results.map((item) => <a href={routeHref(item.route)} key={item.id} onClick={closePalette}><strong>{item.label}</strong><span>{item.description}</span></a>) : <p aria-live="polite">No matching task. Try a broader verb such as edit, pages, protect, convert, or compare.</p>}</nav>
     </section>
   </div>;
