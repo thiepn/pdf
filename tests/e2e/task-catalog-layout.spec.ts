@@ -96,7 +96,7 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
   expect(layoutProblems).toEqual([]);
 });
 
-test("selected task warning stays contained at narrow width", async ({ page }) => {
+test("selected task warning and catalog stay contained at narrow width", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
   await page.goto("./#/tools/visual-signature");
   await expect(page.getByRole("heading", { name: "Add visual signature" })).toBeVisible();
@@ -146,8 +146,21 @@ test("selected task warning stays contained at narrow width", async ({ page }) =
   });
 
   expect(layoutProblems).toEqual([]);
-  // Use the layout viewport, not clientWidth: on long pages the latter can
-  // exclude a classic vertical scrollbar and report false horizontal overflow.
+
+  const taskGrids = page.locator(".task-grid");
+  expect(await taskGrids.count()).toBeGreaterThan(0);
+  const narrowGridColumns = await taskGrids.first().evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length);
+  expect(narrowGridColumns).toBe(1);
+
+  const cardProblems = await page.locator(".task-tile").evaluateAll((cards) => cards.flatMap((card, cardIndex) => {
+    const rect = card.getBoundingClientRect();
+    const problems: string[] = [];
+    if (rect.left < -1 || rect.right > window.innerWidth + 1) problems.push(`card ${cardIndex}: card escaped viewport (${rect.left.toFixed(1)}..${rect.right.toFixed(1)})`);
+    if (card.scrollWidth > card.clientWidth + 1) problems.push(`card ${cardIndex}: card content overflows by ${card.scrollWidth - card.clientWidth}px`);
+    return problems;
+  }));
+  expect(cardProblems).toEqual([]);
+
   const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(pageOverflow).toBeLessThanOrEqual(1);
 });
