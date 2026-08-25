@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260825-02",
+  "change_class": "product-hotfix",
+  "base_commit": "f3876cf0d40ce2a6211ce9022a113dfb1c09cc18",
+  "target_commit": "6ba032336918be6621abd9536970e62268f74c3a",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "medium",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "The selected-task banner reused capability warning and recovery components without the task-card containment rules, allowing long guidance to overflow at narrow widths even after the task-card grid was repaired.",
+  "rollback_commit": "f3876cf0d40ce2a6211ce9022a113dfb1c09cc18",
+  "affected_workflows": [
+    "Selected task review before choosing a PDF",
+    "Task-discovery navigation and first-location selection"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Adds explicit selected-task flex shrink/wrap rules and a 360px browser regression check for warning containment, overlap, and page-level horizontal overflow."
+}
