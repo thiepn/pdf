@@ -3,18 +3,19 @@
   "change_id": "R10-MAINT-20260825-02",
   "change_class": "product-hotfix",
   "base_commit": "f3876cf0d40ce2a6211ce9022a113dfb1c09cc18",
-  "target_commit": "6ba032336918be6621abd9536970e62268f74c3a",
+  "target_commit": "5465bf6ca94803e8d56f669dca331e54e8e64d4f",
   "product_behavior_changed": true,
   "risk": {
     "severity": "medium",
     "data_loss_risk": false,
     "security_privacy_risk": false
   },
-  "reason": "The selected-task banner reused capability warning and recovery components without the task-card containment rules, allowing long guidance to overflow at narrow widths even after the task-card grid was repaired.",
+  "reason": "The selected-task tools route had two related narrow-width containment defects: long capability guidance in the selected-task banner could overflow its copy column, and the legacy two-column task catalog remained active at phone widths so task cards could force the page wider than the viewport.",
   "rollback_commit": "f3876cf0d40ce2a6211ce9022a113dfb1c09cc18",
   "affected_workflows": [
     "Selected task review before choosing a PDF",
-    "Task-discovery navigation and first-location selection"
+    "Task-discovery navigation and first-location selection",
+    "Phone-width task catalog browsing"
   ],
   "required_gates": {
     "engineering_requalification": true,
@@ -27,5 +28,5 @@
     "security_privacy_gate": null
   },
   "status": "in-progress",
-  "notes": "Adds explicit selected-task flex shrink/wrap rules and a 360px browser regression check for warning containment, overlap, and page-level horizontal overflow."
+  "notes": "Adds explicit selected-task flex shrink/wrap rules, prevents task tiles from imposing intrinsic minimum width, collapses the task catalog to one column at phone widths, and verifies banner, card, and page containment at 360px across the browser matrix."
 }
