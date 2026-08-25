@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260825-01",
+  "change_class": "product-hotfix",
+  "base_commit": "eced154585a1d3a00a1f86a98405c7cd92a610a6",
+  "target_commit": "5ee2dd55edee6443b43882c50d100ae2a3399222",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "medium",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "Task catalog icon contrast was insufficient in the reported dark appearance and legacy tool-tile absolute positioning caused capability/helper text to overlap or overflow inside task cards.",
+  "rollback_commit": "eced154585a1d3a00a1f86a98405c7cd92a610a6",
+  "affected_workflows": [
+    "Home/task catalog discovery",
+    "Task-card navigation prediction and first-location selection"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Regression coverage explicitly checks dark-palette icon visibility, normal-flow capability metadata, non-overlap, and containment within task cards. Human R9 sessions must use the corrected product baseline after engineering qualification and baseline promotion."
+}
