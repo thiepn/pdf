@@ -26,6 +26,8 @@ describe("Recovery P2 shared document session architecture", () => {
   it("reuses completed MuPDF inspection work when Edit is reopened", () => {
     expect(nativeClientSource).toContain("inspectionsByBytes");
     expect(nativeClientSource).toContain("mupdf.inspection.session.hit");
-    expect(nativeClientSource).toContain("if (signal) return base.inspectNativePdf");
+    expect(nativeClientSource).toContain("InspectionEntry");
+    expect(nativeClientSource).toContain("waitWithSignal");
+    expect(nativeClientSource).toContain("base.inspectNativePdf(bytes, password, controller.signal)");
   });
 });
