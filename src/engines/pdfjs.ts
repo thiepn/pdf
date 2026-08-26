@@ -1,5 +1,6 @@
 import * as pdfjs from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { measureRuntimeAsync } from "../performance/runtimeMetrics";
 import type { PdfDocumentSummary } from "../types/project";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -8,33 +9,37 @@ export type PdfJsDocument = Awaited<ReturnType<typeof openPdfWithPdfJs>>;
 export type PdfJsPage = Awaited<ReturnType<PdfJsDocument["getPage"]>>;
 
 export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string) {
-  const loadingTask = pdfjs.getDocument({
-    data: bytes.slice(),
-    password,
-    useWorkerFetch: true,
-    enableXfa: false
-  });
-  try {
-    return await loadingTask.promise;
-  } catch (reason) {
-    await loadingTask.destroy();
-    throw reason;
-  }
+  return measureRuntimeAsync("pdf", "pdfjs.open", async () => {
+    const loadingTask = pdfjs.getDocument({
+      data: bytes.slice(),
+      password,
+      useWorkerFetch: true,
+      enableXfa: false
+    });
+    try {
+      return await loadingTask.promise;
+    } catch (reason) {
+      await loadingTask.destroy();
+      throw reason;
+    }
+  }, { byteLength: bytes.byteLength, passwordProtected: Boolean(password) });
 }
 
 export async function extractPageText(document: PdfJsDocument, pageNumber: number): Promise<string> {
-  const page = await document.getPage(pageNumber);
-  try {
-    const text = await page.getTextContent({ includeMarkedContent: false });
-    return text.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-  } finally {
-    page.cleanup();
-  }
+  return measureRuntimeAsync("render", "pdfjs.extractPageText", async () => {
+    const page = await document.getPage(pageNumber);
+    try {
+      const text = await page.getTextContent({ includeMarkedContent: false });
+      return text.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    } finally {
+      page.cleanup();
+    }
+  }, { pageNumber });
 }
 
 function readString(info: Record<string, unknown>, key: string): string | undefined {
@@ -43,49 +48,51 @@ function readString(info: Record<string, unknown>, key: string): string | undefi
 }
 
 export async function inspectPdfBytes(bytes: Uint8Array, password?: string): Promise<PdfDocumentSummary> {
-  const document = await openPdfWithPdfJs(bytes, password);
-  try {
-    const [metadataResult, outlineResult, labelsResult, attachmentsResult, fieldsResult, actionsResult] = await Promise.allSettled([
-      document.getMetadata(),
-      document.getOutline(),
-      document.getPageLabels(),
-      document.getAttachments(),
-      document.getFieldObjects(),
-      document.getJSActions()
-    ]);
+  return measureRuntimeAsync("pdf", "pdfjs.inspectSummary", async () => {
+    const document = await openPdfWithPdfJs(bytes, password);
+    try {
+      const [metadataResult, outlineResult, labelsResult, attachmentsResult, fieldsResult, actionsResult] = await Promise.allSettled([
+        document.getMetadata(),
+        document.getOutline(),
+        document.getPageLabels(),
+        document.getAttachments(),
+        document.getFieldObjects(),
+        document.getJSActions()
+      ]);
 
-    const info = metadataResult.status === "fulfilled"
-      ? metadataResult.value.info as Record<string, unknown>
-      : {};
-    const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
-    const labels = labelsResult.status === "fulfilled" ? labelsResult.value : null;
-    const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
-    const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
-    const actions = actionsResult.status === "fulfilled" ? actionsResult.value : null;
+      const info = metadataResult.status === "fulfilled"
+        ? metadataResult.value.info as Record<string, unknown>
+        : {};
+      const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
+      const labels = labelsResult.status === "fulfilled" ? labelsResult.value : null;
+      const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
+      const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
+      const actions = actionsResult.status === "fulfilled" ? actionsResult.value : null;
 
-    let formFieldCount = 0;
-    if (fields) {
-      for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
+      let formFieldCount = 0;
+      if (fields) {
+        for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
+      }
+
+      return {
+        pageCount: document.numPages,
+        title: readString(info, "Title"),
+        author: readString(info, "Author"),
+        subject: readString(info, "Subject"),
+        creator: readString(info, "Creator"),
+        producer: readString(info, "Producer"),
+        pdfFormatVersion: readString(info, "PDFFormatVersion"),
+        encrypted: Boolean(password) || info.IsEncrypted === true,
+        hasOutline: Boolean(outline?.length),
+        formFieldCount,
+        attachmentCount: attachments ? Object.keys(attachments).length : 0,
+        hasJavaScript: Boolean(actions && Object.keys(actions).length),
+        pageLabels: labels ?? undefined
+      };
+    } finally {
+      await document.loadingTask.destroy();
     }
-
-    return {
-      pageCount: document.numPages,
-      title: readString(info, "Title"),
-      author: readString(info, "Author"),
-      subject: readString(info, "Subject"),
-      creator: readString(info, "Creator"),
-      producer: readString(info, "Producer"),
-      pdfFormatVersion: readString(info, "PDFFormatVersion"),
-      encrypted: Boolean(password) || info.IsEncrypted === true,
-      hasOutline: Boolean(outline?.length),
-      formFieldCount,
-      attachmentCount: attachments ? Object.keys(attachments).length : 0,
-      hasJavaScript: Boolean(actions && Object.keys(actions).length),
-      pageLabels: labels ?? undefined
-    };
-  } finally {
-    await document.loadingTask.destroy();
-  }
+  }, { byteLength: bytes.byteLength });
 }
 
 export interface PdfAnnotationInventory {

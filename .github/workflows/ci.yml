@@ -184,6 +184,8 @@ jobs:
           python scripts/p8/validate_compatibility_corpus.py
           python scripts/reconstruction/r8_external_corpus.py
           python scripts/reconstruction/r8_validate_corpus.py
+          python scripts/p0/generate_stress_corpus.py
+          python scripts/p0/validate_stress_corpus.py
         env:
           R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Download exact verified distribution

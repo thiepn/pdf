@@ -5,6 +5,7 @@ import { HomePage } from "./views/HomePage";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { getLastOpenedProjectId, getProject } from "./projects/projectRepository";
 import { isSafeMode } from "./maintenance/safeMode";
+import { initializeRuntimePerformanceMonitoring, noteNavigationPaint, noteNavigationStart } from "./performance/runtimeMetrics";
 import type { WorkspaceMode } from "./types/workspace";
 
 const ProjectsPage = lazy(() => import("./views/ProjectsPage").then(({ ProjectsPage }) => ({ default: ProjectsPage })));
@@ -74,6 +75,8 @@ export function App() {
   const [header, setHeader] = useState<HeaderState>(() => headerForRoute(readAppRoute()));
 
   useEffect(() => {
+    initializeRuntimePerformanceMonitoring();
+    noteNavigationStart(route.name);
     const settings = readSettings();
     applySettings(settings);
     try {
@@ -85,12 +88,24 @@ export function App() {
     } catch { /* Session storage may be unavailable. */ }
     const onHashChange = () => {
       const next = readAppRoute();
+      noteNavigationStart(next.name);
       setRoute(next);
       setHeader(headerForRoute(next));
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  useEffect(() => {
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => noteNavigationPaint(route.name));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [route]);
 
   const handleViewerTitle = useCallback((title: string, subtitle?: string) => setHeader({ title, subtitle }), []);
 
