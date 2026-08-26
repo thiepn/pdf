@@ -200,11 +200,35 @@ function observeInteractions(): void {
   }
 }
 
+function observeWorkerResources(): void {
+  if (typeof PerformanceObserver === "undefined" || !PerformanceObserver.supportedEntryTypes?.includes("resource")) return;
+  try {
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const resource = entry as PerformanceResourceTiming;
+        const url = resource.name.toLowerCase();
+        if (!url.includes("worker") && !url.includes(".wasm") && !url.includes("tesseract")) continue;
+        const clean = resource.name.split("?")[0]?.split("/").at(-1) || "worker-resource";
+        recordRuntimeMetric("worker", `resource:${clean}`, resource.duration, resource.startTime, {
+          initiatorType: resource.initiatorType || "unknown",
+          transferSize: resource.transferSize,
+          decodedBodySize: resource.decodedBodySize
+        });
+      }
+    });
+    observer.observe({ type: "resource", buffered: true });
+    observers.push(observer);
+  } catch {
+    // Resource timing is best effort; manual long-task/operation metrics still remain.
+  }
+}
+
 export function initializeRuntimePerformanceMonitoring(): RuntimePerformanceApi {
   if (!initialized) {
     initialized = true;
     observeLongTasks();
     observeInteractions();
+    observeWorkerResources();
   }
   const api: RuntimePerformanceApi = {
     snapshot: runtimePerformanceSnapshot,
