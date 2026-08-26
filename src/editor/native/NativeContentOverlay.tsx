@@ -1,5 +1,6 @@
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { NativePageObject, NativeRect } from "../../types/nativeEditor";
+import { nativeOverlayObjectsWithinBudget } from "./nativeOverlayBudget";
 import "../p6.css";
 
 export type NativeResizeHandle = "nw" | "ne" | "sw" | "se";
@@ -131,8 +132,10 @@ function resizeRect(source: NativeRect, dx: number, dy: number, handle: NativeRe
 export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, enabled, originX = 0, originY = 0, pageSize, effectiveBounds, transformableIds, snapEnabled = true, gridSize = 8, onSelect, onTransform }: Props) {
   const dragRef = useRef<DragState | null>(null);
   const [preview, setPreview] = useState<Map<string, NativeRect>>(() => new Map());
-  if (!enabled) return null;
   const selectedSet = selectedIds ?? new Set(selectedId ? [selectedId] : []);
+  const overlayBudget = useMemo(() => nativeOverlayObjectsWithinBudget(objects, selectedSet), [objects, selectedSet]);
+  const visibleObjects = overlayBudget.objects;
+  if (!enabled) return null;
 
   function beginDrag(event: ReactPointerEvent<HTMLButtonElement>, object: NativePageObject): void {
     event.stopPropagation();
@@ -162,7 +165,9 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     let next = drag.mode === "move"
       ? { ...drag.source, x: drag.source.x + dx, y: drag.source.y + dy }
       : resizeRect(drag.source, dx, dy, drag.handle ?? "se");
-    if (drag.mode === "move" && snapEnabled) next = snapMove(next, drag.object.id, objects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
+    // On dense pages snapping must use the same bounded direct-hitbox set; a
+    // pointermove must never scan thousands of low-level paths on every frame.
+    if (drag.mode === "move" && snapEnabled) next = snapMove(next, drag.object.id, visibleObjects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
     else next = clampRect(next, originX, originY, pageSize);
     setPreview(new Map([[drag.object.id, next]]));
   }
@@ -177,8 +182,12 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     if (Math.abs(next.x - drag.source.x) > .01 || Math.abs(next.y - drag.source.y) > .01 || Math.abs(next.w - drag.source.w) > .01 || Math.abs(next.h - drag.source.h) > .01) onTransform?.(drag.object, next, drag.mode);
   }
 
-  return <div className="native-content-overlay" aria-label="Existing PDF content">
-    {objects.map((object, index) => {
+  return <div
+    aria-label={overlayBudget.omitted ? `Existing PDF content · ${overlayBudget.omitted} dense-page selection targets omitted for responsiveness` : "Existing PDF content"}
+    className="native-content-overlay"
+    data-native-objects-omitted={overlayBudget.omitted || undefined}
+  >
+    {visibleObjects.map((object, index) => {
       const bounds = preview.get(object.id) ?? effectiveRect(object, effectiveBounds);
       const selected = selectedSet.has(object.id);
       const style: CSSProperties = {
@@ -186,7 +195,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
         top: (bounds.y - originY) * zoom,
         width: Math.max(3, bounds.w * zoom),
         height: Math.max(3, bounds.h * zoom),
-        zIndex: objectZIndex(object, index, objects.length, selected)
+        zIndex: objectZIndex(object, index, visibleObjects.length, selected)
       };
       const label = nativeObjectLabel(object);
       const typeLabel = object.type === "text" && object.paragraph && (object.lineCount ?? 1) > 1 ? "paragraph" : object.type === "complex" ? "nested group" : object.type;
