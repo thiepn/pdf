@@ -3,7 +3,7 @@
   "change_id": "R10-MAINT-20260826-06",
   "change_class": "product-hotfix",
   "base_commit": "897e971d02efcd20ff1bc1ee9eb90619b268fb29",
-  "target_commit": "28295c902519aadfdf12ef20c948d4211d2487c8",
+  "target_commit": "57c6871d30b613b1281ac9cc68a27c71fb23737d",
   "product_behavior_changed": true,
   "risk": {
     "severity": "medium",
