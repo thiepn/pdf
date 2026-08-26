@@ -31,7 +31,7 @@ test.describe("Recovery P3 progressive readiness", () => {
 
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".editor-app")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Text", exact: true })).toBeVisible();
+    await expect(page.locator(".editor-toolrail").getByRole("button", { name: "Text", exact: true })).toBeVisible();
     await expect.poll(async () => (await readinessNames(page)).includes("readiness.editor.interactive")).toBe(true);
     await expect.poll(async () => (await readinessNames(page)).includes("readiness.editor.nativeHydrated"), { timeout: 30_000 }).toBe(true);
 
