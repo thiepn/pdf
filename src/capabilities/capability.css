@@ -118,6 +118,20 @@
   min-width: 0;
 }
 
+.capability-gated-workspace--checking > .task-capability-loading--route {
+  width: min(1180px, calc(100% - 36px));
+  min-height: 0;
+  margin: 12px auto;
+  flex-wrap: wrap;
+}
+
+.capability-gated-workspace--checking > .task-capability-loading--route small {
+  flex-basis: 100%;
+  padding-left: 30px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 @media (max-width: 620px) {
   .task-capability-notice {
     width: min(100% - 20px, 1180px);
@@ -126,5 +140,10 @@
   .task-capability-blocker {
     margin: 22px auto;
     padding: 20px;
+  }
+
+  .capability-gated-workspace--checking > .task-capability-loading--route {
+    width: min(100% - 20px, 1180px);
+    margin: 10px auto;
   }
 }
