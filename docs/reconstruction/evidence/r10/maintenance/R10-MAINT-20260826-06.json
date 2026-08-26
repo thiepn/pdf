@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260826-06",
+  "change_class": "product-hotfix",
+  "base_commit": "897e971d02efcd20ff1bc1ee9eb90619b268fb29",
+  "target_commit": "57c6871d30b613b1281ac9cc68a27c71fb23737d",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "medium",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "The workspace still reread immutable project source bytes, rebuilt independent PDF.js parser/worker instances, repeated text/page geometry extraction, and reran native MuPDF inspection when moving between document modes. Recovery P2 introduces a bounded local shared document session so Read, Edit, and Pages reuse unchanged source and parsed state instead of paying repeated full-document initialization cost.",
+  "rollback_commit": "897e971d02efcd20ff1bc1ee9eb90619b268fb29",
+  "affected_workflows": [
+    "Read PDF and render pages",
+    "Switch from Read to Edit",
+    "Switch from Edit to Pages",
+    "Return from Pages to Read",
+    "Reopen Edit for the same local project",
+    "Search and repeated page text extraction"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Shared caches are browser-local and bounded: project source byte sessions retain at most six projects, PDF.js sessions use leases plus a 30-second zero-reference idle expiry, and native inspection reuse is keyed to the same immutable project byte identity. Password state remains memory-only. Cancellable native operations bypass the shared inspection cache so abort semantics stay exact. Genuine R9 human requalification remains pending."
+}

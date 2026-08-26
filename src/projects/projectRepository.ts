@@ -1,6 +1,7 @@
 import { sha256 } from "../core/checksum";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
+import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 import { idbDelete, idbDeleteAllByIndex, idbGet, idbGetAll, idbPut } from "../storage/database";
 import { deleteProjectFiles, readProjectSource, writeProjectSource } from "../storage/projectFiles";
 import { PROJECT_SCHEMA_VERSION, type ProjectManifest, type ViewerPreferences } from "../types/project";
@@ -21,8 +22,22 @@ interface SourceFileRecord {
   bytes: ArrayBuffer;
 }
 
+const MAX_SOURCE_SESSIONS = 6;
+const sourceSessions = new Map<string, { checksum: string; bytes: Uint8Array }>();
+
 function createId(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function rememberSource(project: ProjectManifest, bytes: Uint8Array): Uint8Array {
+  sourceSessions.delete(project.id);
+  sourceSessions.set(project.id, { checksum: project.checksum, bytes });
+  while (sourceSessions.size > MAX_SOURCE_SESSIONS) {
+    const oldest = sourceSessions.keys().next().value as string | undefined;
+    if (!oldest) break;
+    sourceSessions.delete(oldest);
+  }
+  return bytes;
 }
 
 export async function importPdfProject(file: File, password?: string): Promise<ProjectManifest> {
@@ -126,6 +141,7 @@ export async function createProjectFromBytes(
   try {
     await idbPut("projects", project);
     await recordProjectRevision(project);
+    rememberSource(project, bytes);
     return project;
   } catch (reason) {
     await deleteProject(id);
@@ -169,14 +185,29 @@ export async function touchProject(projectId: string): Promise<void> {
   await idbPut("projects", { ...project, lastOpenedAt: now, updatedAt: now });
 }
 
+/**
+ * Recovery P2 treats a project's source PDF as immutable session data. All
+ * document modes receive the same byte view so Read → Edit → Pages does not
+ * reread the complete local source file at every handoff.
+ */
 export async function loadProjectBytes(project: ProjectManifest): Promise<Uint8Array> {
-  if (project.storageKind === "opfs") return readProjectSource(project.id);
+  const cached = sourceSessions.get(project.id);
+  if (cached?.checksum === project.checksum) {
+    sourceSessions.delete(project.id);
+    sourceSessions.set(project.id, cached);
+    recordRuntimeMetric("storage", "projectBytes.session.hit", 0, undefined, { byteLength: cached.bytes.byteLength, storageKind: project.storageKind });
+    return cached.bytes;
+  }
+  if (cached) sourceSessions.delete(project.id);
+  recordRuntimeMetric("storage", "projectBytes.session.miss", 0, undefined, { byteLength: project.byteLength, storageKind: project.storageKind });
+  if (project.storageKind === "opfs") return rememberSource(project, await readProjectSource(project.id));
   const record = await idbGet<SourceFileRecord>("sourceFiles", project.id);
   if (!record) throw new Error("The local source file is missing. Restore the project from a backup or reopen the PDF.");
-  return new Uint8Array(record.bytes.slice(0));
+  return rememberSource(project, new Uint8Array(record.bytes.slice(0)));
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
+  sourceSessions.delete(projectId);
   const stored = await idbGet<ProjectManifest>("projects", projectId);
   if (stored) {
     // Delete the authoritative PDF source first. If that fails, keep the manifest
@@ -330,4 +361,3 @@ export async function createDerivedProjectFromBytes(
 export function getLastOpenedProjectId(): string | null {
   try { return localStorage.getItem("local-pdf-studio-last-project"); } catch { return null; }
 }
-
