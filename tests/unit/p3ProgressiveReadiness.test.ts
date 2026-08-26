@@ -41,7 +41,7 @@ describe("Recovery P3 progressive readiness", () => {
   it("cancels an unused shared native inspection without discarding completed reuse", () => {
     expect(nativeClientSource).toContain("maybeAbortUnused");
     expect(nativeClientSource).toContain("current.settled = true");
-    expect(nativeClientSource).toContain("current.controller.abort");
+    expect(nativeClientSource).toContain("entry.controller.abort()");
     expect(nativeClientSource).toContain("mupdf.inspection.session.hit");
   });
 });
