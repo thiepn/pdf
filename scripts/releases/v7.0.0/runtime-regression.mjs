@@ -12,6 +12,8 @@ const packageJson = JSON.parse(await read("package.json"));
 const release = await read("src/core/release.ts");
 const editor = await read("src/views/EditorPage.tsx");
 const nativeClient = await read("src/native/nativeClient.ts");
+const nativeClientBase = await read("src/native/nativeClientBase.ts");
+const nativeClientArchitecture = `${nativeClient}\n${nativeClientBase}`;
 const model = await read("src/native/nativeModel.ts");
 const layout = await read("src/editor/unifiedLayout.ts");
 const image = await read("src/workers/native-image.worker.ts");
@@ -30,7 +32,7 @@ check(/APPLY_TABLES/.test(table) && /table/i.test(table), "P5 structured table w
 check(/UnifiedLayoutItem/.test(layout) && /alignBounds/.test(layout) && /distributeBounds/.test(layout), "P6 unified mixed-object layout remains present");
 check(/APPLY_COMPLEX/.test(complex) && /resourceName/.test(complex), "P7 nested Form XObject editing remains qualified");
 check(/validatePdfFidelity/.test(fidelity) && fidelity.includes("const affectedSet = new Set(affected)") && fidelity.includes("semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber))"), "P8 fidelity certification remains bounded and active");
-check(/applyNativeEdits/.test(nativeClient) && /takeNativeExportReplay/.test(nativeClient), "mixed overlay/native export replay architecture remains present");
+check(/applyNativeEdits/.test(nativeClientArchitecture) && /takeNativeExportReplay/.test(nativeClientArchitecture), "mixed overlay/native export replay architecture remains present");
 check(/validatePdfFidelity/.test(editor) || /exportEditorPdf/.test(editor), "unified editor exports through qualified validation path");
 check(packageJson.scripts?.["release:web"]?.includes("audit:p9:release-candidate"), "P9 freeze audit is part of the full release gate");
 check(releaseWorkflow.includes('tags: ["v7.0.0"]') && releaseWorkflow.includes("Browser-qualify exact stable artifact"), "Stable publication is exact-tag and browser-qualified");
