@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260826-04",
+  "change_class": "product-hotfix",
+  "base_commit": "4da673bd6779ef7c783dd36ec8dca38484739630",
+  "target_commit": "1c629f2b901994ba3e63aa79f913396f95661e52",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "medium",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "After the high-severity Edit PDF freeze repair, the whole-app audit showed that the existing consumer performance gate measured bundle/precache size but did not measure the runtime conditions behind reported lag: main-thread long tasks, interaction latency, route transitions, PDF parse/inspection time, local storage latency, worker/WASM startup, page rendering, or event-loop responsiveness under pathological PDFs. Recovery P0 adds local-only runtime instrumentation and deterministic browser stress qualification so later performance fixes are based on measured user-visible behavior rather than bundle size alone.",
+  "rollback_commit": "4da673bd6779ef7c783dd36ec8dca38484739630",
+  "affected_workflows": [
+    "Open local PDF and render first page",
+    "Read PDF / page rendering",
+    "Edit PDF / dense existing-content inspection",
+    "Workspace route and mode navigation",
+    "IndexedDB-backed project state reads and writes",
+    "Troubleshooting diagnostics / local performance view"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Instrumentation is browser-local and held in an in-memory bounded ring buffer. It records operation names, durations, document byte/page counts where supplied, worker asset names, and storage store names; it does not record filenames, PDF text, form values, passwords, user input, or send telemetry over the network. P0 stress fixtures are fully synthetic and include dense text, dense vectors, 50 mixed pages, and 1000 simple pages. Browser qualification rejects multi-second event-loop freezes and catastrophic first-page/render behavior while later recovery phases address architectural latency that P0 intentionally measures rather than conceals. Genuine R9 human requalification remains pending."
+}
