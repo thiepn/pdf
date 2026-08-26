@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { multiplyTransforms } from "../engines/pdfjs";
+import { beginRuntimeMeasure } from "../performance/runtimeMetrics";
 import type { RenderScheduler } from "./renderScheduler";
 
 interface PageCanvasProps {
@@ -78,61 +79,63 @@ function PageCanvasComponent({ document, pageNumber, zoom, lazy = false, searchQ
       setError(null);
       setRendered(false);
       const execute = async () => {
-      if (controller.signal.aborted) throw new DOMException("Render was cancelled.", "AbortError");
-      const page = await document.getPage(pageNumber);
-      try {
-        const viewport = page.getViewport({ scale: zoom });
-        if (cancelled) return;
-        setDimensions({ width: viewport.width, height: viewport.height });
-        const canvas = canvasRef.current;
-        const textLayer = textLayerRef.current;
-        if (!canvas || !textLayer) return;
+        if (controller.signal.aborted) throw new DOMException("Render was cancelled.", "AbortError");
+        const finish = beginRuntimeMeasure("render", "viewer.page", { pageNumber, zoom });
+        const page = await document.getPage(pageNumber);
+        try {
+          const viewport = page.getViewport({ scale: zoom });
+          if (cancelled) return;
+          setDimensions({ width: viewport.width, height: viewport.height });
+          const canvas = canvasRef.current;
+          const textLayer = textLayerRef.current;
+          if (!canvas || !textLayer) return;
 
-        renderTaskRef.current?.cancel();
-        const pixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
-        canvas.width = Math.max(1, Math.floor(viewport.width * pixelRatio));
-        canvas.height = Math.max(1, Math.floor(viewport.height * pixelRatio));
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        const context = canvas.getContext("2d", { alpha: false });
-        if (!context) throw new Error("Canvas context unavailable.");
+          renderTaskRef.current?.cancel();
+          const pixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
+          canvas.width = Math.max(1, Math.floor(viewport.width * pixelRatio));
+          canvas.height = Math.max(1, Math.floor(viewport.height * pixelRatio));
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+          const context = canvas.getContext("2d", { alpha: false });
+          if (!context) throw new Error("Canvas context unavailable.");
 
-        const task = page.render({
-          canvas,
-          canvasContext: context,
-          viewport,
-          transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0]
-        });
-        renderTaskRef.current = task;
-        await task.promise;
-        if (cancelled) return;
+          const task = page.render({
+            canvas,
+            canvasContext: context,
+            viewport,
+            transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0]
+          });
+          renderTaskRef.current = task;
+          await task.promise;
+          if (cancelled) return;
 
-        const text = await page.getTextContent({ includeMarkedContent: false });
-        textLayer.replaceChildren();
-        textLayer.style.width = `${viewport.width}px`;
-        textLayer.style.height = `${viewport.height}px`;
-        const query = searchQuery.trim().toLocaleLowerCase();
+          const text = await page.getTextContent({ includeMarkedContent: false });
+          textLayer.replaceChildren();
+          textLayer.style.width = `${viewport.width}px`;
+          textLayer.style.height = `${viewport.height}px`;
+          const query = searchQuery.trim().toLocaleLowerCase();
 
-        for (const raw of text.items) {
-          if (!("str" in raw) || !raw.str) continue;
-          const item = raw as { str: string; transform: number[]; width: number; height: number };
-          const transform = multiplyTransforms(viewport.transform, item.transform);
-          const fontHeight = Math.hypot(transform[2], transform[3]);
-          const angle = Math.atan2(transform[1], transform[0]);
-          const span = documentGlobal().createElement("span");
-          span.textContent = item.str;
-          span.style.left = `${transform[4]}px`;
-          span.style.top = `${transform[5] - fontHeight}px`;
-          span.style.fontSize = `${fontHeight}px`;
-          span.style.transform = `rotate(${angle}rad)`;
-          span.style.transformOrigin = "0 0";
-          if (query && item.str.toLocaleLowerCase().includes(query)) span.className = "text-match";
-          textLayer.append(span);
+          for (const raw of text.items) {
+            if (!("str" in raw) || !raw.str) continue;
+            const item = raw as { str: string; transform: number[]; width: number; height: number };
+            const transform = multiplyTransforms(viewport.transform, item.transform);
+            const fontHeight = Math.hypot(transform[2], transform[3]);
+            const angle = Math.atan2(transform[1], transform[0]);
+            const span = documentGlobal().createElement("span");
+            span.textContent = item.str;
+            span.style.left = `${transform[4]}px`;
+            span.style.top = `${transform[5] - fontHeight}px`;
+            span.style.fontSize = `${fontHeight}px`;
+            span.style.transform = `rotate(${angle}rad)`;
+            span.style.transformOrigin = "0 0";
+            if (query && item.str.toLocaleLowerCase().includes(query)) span.className = "text-match";
+            textLayer.append(span);
+          }
+          setRendered(true);
+        } finally {
+          page.cleanup();
+          finish();
         }
-        setRendered(true);
-      } finally {
-        page.cleanup();
-      }
       };
       return scheduler ? scheduler.run(execute, controller.signal, "high") : execute();
     };
