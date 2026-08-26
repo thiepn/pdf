@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260826-05",
+  "change_class": "product-hotfix",
+  "base_commit": "c47249d36bbc17c10b94e606bde71a493b47b7fe",
+  "target_commit": "c2b5812107fb1b760c83f2a6c6308b33874ae7a8",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "high",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "The whole-app performance audit found that ordinary workspace mode switches were coupled to full project/session initialization. Read-to-Edit and similar navigation cleared the active project, re-read every open-tab manifest, eagerly loaded events/checkpoints/transactions/revision lineage, and statically bundled every document mode behind one workspace chunk. Lease acquisition also began as read-only, creating a false blocked state while ownership was still being negotiated. Recovery P1 keeps the workspace shell and current project mounted across mode changes, hydrates non-current tab manifests in the background, loads History only when opened, lazy-loads individual document modes, and separates acquiring ownership from confirmed read-only state.",
+  "rollback_commit": "c47249d36bbc17c10b94e606bde71a493b47b7fe",
+  "affected_workflows": [
+    "Read / Edit / Pages / Tools mode switching",
+    "Open document workspace",
+    "Workspace tab labels and tab switching",
+    "History and checkpoint panel loading",
+    "Cross-tab project edit ownership",
+    "Document-mode JavaScript loading"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "P1 intentionally does not redesign operation concurrency or remove capability gates; those remain assigned to later recovery phases. Regression coverage requires the same workspace DOM shell to survive Read-to-Edit navigation, forbids History/checkpoint/revision reads while History is closed, verifies History reads begin on demand, requires per-mode dynamic imports, and distinguishes lease acquisition from true read-only ownership conflict. Genuine R9 human requalification remains pending."
+}

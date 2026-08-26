@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { getProject } from "../projects/projectRepository";
 import { createProjectLease, type ProjectLease, type ProjectLeaseMode } from "../projects/projectLease";
@@ -8,19 +8,6 @@ import type { AppSettings } from "../types/settings";
 import type { WorkspaceCheckpoint, WorkspaceEvent, WorkspaceMode, WorkspaceSession } from "../types/workspace";
 import type { DocumentRevision, DocumentTransaction } from "../types/revision";
 import { listDocumentLineage, listDocumentTransactions, reconcileInterruptedTransactions } from "../revisions/revisionRepository";
-import { CompressionPage } from "../views/CompressionPage";
-import { DocumentToolsPage } from "../views/DocumentToolsPage";
-import { EditorPage } from "../views/EditorPage";
-import { InspectorPage } from "../views/InspectorPage";
-import { OcrPage } from "../views/OcrPage";
-import { OrganizerPage } from "../views/OrganizerPage";
-import { ProfessionalPage } from "../views/ProfessionalPage";
-import { PreservationPage } from "../views/PreservationPage";
-import { NativeEditorPage } from "../views/NativeEditorPage";
-import { CompliancePage } from "../views/CompliancePage";
-import { RepairPage } from "../views/RepairPage";
-import { SecurePage } from "../views/SecurePage";
-import { ViewerPage } from "../views/ViewerPage";
 import { Icon, type IconName } from "../components/Icon";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { getPreservationContract } from "./preservationContracts";
@@ -33,7 +20,6 @@ import {
   deleteWorkspaceCheckpoint,
   listWorkspaceCheckpoints,
   listWorkspaceEvents,
-  readWorkspaceSession,
   reorderWorkspaceTabs,
   restoreClosedWorkspaceTab,
   restoreWorkspaceCheckpoint,
@@ -42,6 +28,20 @@ import {
   updateWorkspaceMode,
   workspaceModeLabel
 } from "./workspaceRepository";
+
+const ViewerPage = lazy(() => import("../views/ViewerPage").then(({ ViewerPage }) => ({ default: ViewerPage })));
+const EditorPage = lazy(() => import("../views/EditorPage").then(({ EditorPage }) => ({ default: EditorPage })));
+const OrganizerPage = lazy(() => import("../views/OrganizerPage").then(({ OrganizerPage }) => ({ default: OrganizerPage })));
+const SecurePage = lazy(() => import("../views/SecurePage").then(({ SecurePage }) => ({ default: SecurePage })));
+const OcrPage = lazy(() => import("../views/OcrPage").then(({ OcrPage }) => ({ default: OcrPage })));
+const CompressionPage = lazy(() => import("../views/CompressionPage").then(({ CompressionPage }) => ({ default: CompressionPage })));
+const InspectorPage = lazy(() => import("../views/InspectorPage").then(({ InspectorPage }) => ({ default: InspectorPage })));
+const RepairPage = lazy(() => import("../views/RepairPage").then(({ RepairPage }) => ({ default: RepairPage })));
+const ProfessionalPage = lazy(() => import("../views/ProfessionalPage").then(({ ProfessionalPage }) => ({ default: ProfessionalPage })));
+const PreservationPage = lazy(() => import("../views/PreservationPage").then(({ PreservationPage }) => ({ default: PreservationPage })));
+const NativeEditorPage = lazy(() => import("../views/NativeEditorPage").then(({ NativeEditorPage }) => ({ default: NativeEditorPage })));
+const CompliancePage = lazy(() => import("../views/CompliancePage").then(({ CompliancePage }) => ({ default: CompliancePage })));
+const DocumentToolsPage = lazy(() => import("../views/DocumentToolsPage").then(({ DocumentToolsPage }) => ({ default: DocumentToolsPage })));
 
 interface UnifiedWorkspaceProps {
   projectId: string;
@@ -66,23 +66,39 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   const [checkpoints, setCheckpoints] = useState<WorkspaceCheckpoint[]>([]);
   const [transactions, setTransactions] = useState<DocumentTransaction[]>([]);
   const [revisions, setRevisions] = useState<DocumentRevision[]>([]);
+  const [timelineLoaded, setTimelineLoaded] = useState(false);
+  const [timelineLoading, setTimelineLoading] = useState(false);
   const [checkpointLabel, setCheckpointLabel] = useState("");
   const [checkpointBusy, setCheckpointBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childSubtitle, setChildSubtitle] = useState<string | undefined>();
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
-  const [leaseMode, setLeaseMode] = useState<ProjectLeaseMode>("read-only");
+  const [leaseMode, setLeaseMode] = useState<ProjectLeaseMode>("acquiring");
   const [leaseHandle, setLeaseHandle] = useState<ProjectLease | null>(null);
   const [interruptedSession, setInterruptedSession] = useState<InterruptedWorkspaceSession | null>(() => readInterruptedWorkspaceSession(projectId));
   const [activeOperation, setActiveOperation] = useState<ProjectOperationSnapshot | null>(null);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const mobileSheetRef = useRef<HTMLElement | null>(null);
+  const modeRef = useRef(mode);
+  const projectCacheRef = useRef<Record<string, ProjectManifest>>({});
+  modeRef.current = mode;
   const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
   useModalFocus(mobileToolsOpen, mobileSheetRef, closeMobileTools);
 
-  const refreshTimeline = useCallback(async () => {
-    const manifest = await getProject(projectId);
-    const rootProjectId = manifest?.lineage?.rootProjectId ?? projectId;
+  const hydrateTabProjects = useCallback(async (nextSession: WorkspaceSession) => {
+    const missingIds = nextSession.tabs.map((tab) => tab.projectId).filter((id) => !projectCacheRef.current[id]);
+    if (missingIds.length) {
+      const manifests = await Promise.all(missingIds.map((id) => getProject(id)));
+      for (const manifest of manifests) if (manifest) projectCacheRef.current[manifest.id] = manifest;
+    }
+    const visibleIds = new Set(nextSession.tabs.map((tab) => tab.projectId));
+    const visible: Record<string, ProjectManifest> = {};
+    for (const [id, manifest] of Object.entries(projectCacheRef.current)) if (visibleIds.has(id)) visible[id] = manifest;
+    setProjects(visible);
+  }, []);
+
+  const refreshTimeline = useCallback(async (manifest: ProjectManifest) => {
+    const rootProjectId = manifest.lineage?.rootProjectId ?? projectId;
     const [nextEvents, nextCheckpoints, nextTransactions, nextRevisions] = await Promise.all([
       listWorkspaceEvents(projectId),
       listWorkspaceCheckpoints(projectId),
@@ -93,37 +109,71 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     setCheckpoints(nextCheckpoints);
     setTransactions(nextTransactions);
     setRevisions(nextRevisions);
+    setTimelineLoaded(true);
   }, [projectId]);
 
-  const refreshSession = useCallback(async () => {
-    const next = await readWorkspaceSession();
-    setSession(next);
-    const manifests = await Promise.all(next.tabs.map((tab) => getProject(tab.projectId)));
-    const map: Record<string, ProjectManifest> = {};
-    for (const manifest of manifests) if (manifest) map[manifest.id] = manifest;
-    setProjects(map);
-  }, []);
+  const ensureTimeline = useCallback(async () => {
+    if (!project || project.id !== projectId || timelineLoading || timelineLoaded) return;
+    setTimelineLoading(true);
+    try {
+      await refreshTimeline(project);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setTimelineLoading(false);
+    }
+  }, [project, projectId, refreshTimeline, timelineLoaded, timelineLoading]);
 
   useEffect(() => {
     let cancelled = false;
-    setProject(null);
+    setProject((current) => current?.id === projectId ? current : null);
     setError(null);
     setChildSubtitle(undefined);
+    setTimelineLoaded(false);
+    setTimelineLoading(false);
+    setEvents([]);
+    setCheckpoints([]);
+    setTransactions([]);
+    setRevisions([]);
     void (async () => {
       try {
         const manifest = await getProject(projectId);
         if (!manifest) throw new Error("Project not found. It may have been deleted or browser storage may have been cleared.");
-        const nextSession = await activateWorkspaceProject(projectId, mode);
+        const nextSession = await activateWorkspaceProject(projectId, modeRef.current);
         if (cancelled) return;
+        projectCacheRef.current[manifest.id] = manifest;
         setProject(manifest);
         setSession(nextSession);
-        await Promise.all([refreshSession(), refreshTimeline()]);
+        setProjects((current) => ({ ...current, [manifest.id]: manifest }));
+        void hydrateTabProjects(nextSession);
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
       }
     })();
     return () => { cancelled = true; };
-  }, [mode, projectId, refreshSession, refreshTimeline]);
+  }, [hydrateTabProjects, projectId]);
+
+  useEffect(() => {
+    if (!project || project.id !== projectId || !session) return;
+    const tab = session.tabs.find((item) => item.projectId === projectId);
+    if (!tab || tab.lastMode === mode) return;
+    const now = Date.now();
+    setSession((current) => current ? {
+      ...current,
+      activeProjectId: projectId,
+      tabs: current.tabs.map((item) => item.projectId === projectId ? { ...item, lastMode: mode, lastActivatedAt: now } : item),
+      updatedAt: now
+    } : current);
+    void updateWorkspaceMode(projectId, mode).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
+  }, [mode, project, projectId, session]);
+
+  useEffect(() => {
+    setChildSubtitle(undefined);
+  }, [mode]);
+
+  useEffect(() => {
+    if (session?.timelineOpen && project?.id === projectId && !timelineLoaded && !timelineLoading) void ensureTimeline();
+  }, [ensureTimeline, project, projectId, session?.timelineOpen, timelineLoaded, timelineLoading]);
 
   useEffect(() => {
     setInterruptedSession(readInterruptedWorkspaceSession(projectId));
@@ -146,6 +196,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   }, []);
 
   useEffect(() => {
+    setLeaseMode("acquiring");
     const lease = createProjectLease(projectId);
     setLeaseHandle(lease);
     const unsubscribe = lease.subscribe(setLeaseMode);
@@ -164,30 +215,44 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     let cancelled = false;
     void (async () => {
       const recovered = await reconcileInterruptedTransactions(projectId);
-      if (!cancelled && recovered.length) await refreshTimeline();
+      if (!cancelled && recovered.length && timelineLoaded && project?.id === projectId) await refreshTimeline(project);
     })().catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)); });
     return () => { cancelled = true; };
-  }, [leaseMode, projectId, refreshTimeline]);
+  }, [leaseMode, project, projectId, refreshTimeline, timelineLoaded]);
 
   useEffect(() => {
-    if (!project) return;
+    if (!project || project.id !== projectId) return;
     onTitleChange?.(project.name, childSubtitle ?? `${project.summary.pageCount} pages · ${workspaceModeLabel(mode)}`);
-  }, [childSubtitle, mode, onTitleChange, project]);
+  }, [childSubtitle, mode, onTitleChange, project, projectId]);
 
   const contract = useMemo(() => getPreservationContract(mode), [mode]);
   const contextActions = useMemo(() => buildContextActions(project), [project]);
   const modeRequiresOwnership = !["viewer", "inspector"].includes(mode);
-  const workspaceLocked = leaseMode !== "owner" && modeRequiresOwnership;
+  const workspaceLocked = leaseMode === "read-only" && modeRequiresOwnership;
+  const workspaceAcquiring = leaseMode === "acquiring" && modeRequiresOwnership;
 
-  async function switchMode(nextMode: WorkspaceMode): Promise<void> {
+  function optimisticMode(nextMode: WorkspaceMode): void {
+    const now = Date.now();
+    setSession((current) => current ? {
+      ...current,
+      activeProjectId: projectId,
+      tabs: current.tabs.map((tab) => tab.projectId === projectId ? { ...tab, lastMode: nextMode, lastActivatedAt: now } : tab),
+      updatedAt: now
+    } : current);
+  }
+
+  function switchMode(nextMode: WorkspaceMode): void {
     closeMobileTools();
     if (nextMode === mode) return;
     if (activeOperation) { setError(`Finish or cancel “${activeOperation.label}” before switching tools.`); return; }
-    await updateWorkspaceMode(projectId, nextMode);
+    setError(null);
+    setChildSubtitle(undefined);
+    optimisticMode(nextMode);
     navigateTo({ name: "workspace", projectId, mode: nextMode });
+    void updateWorkspaceMode(projectId, nextMode).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
   }
 
-  async function activateTab(targetProjectId: string): Promise<void> {
+  function activateTab(targetProjectId: string): void {
     const tab = session?.tabs.find((item) => item.projectId === targetProjectId);
     navigateTo({ name: "workspace", projectId: targetProjectId, mode: tab?.lastMode ?? "viewer" });
   }
@@ -202,17 +267,20 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
         : event.key === "ArrowLeft" ? (index - 1 + session.tabs.length) % session.tabs.length
           : (index + 1) % session.tabs.length;
     const next = session.tabs[nextIndex];
-    if (next) void activateTab(next.projectId);
+    if (next) activateTab(next.projectId);
   }
 
   async function closeTab(targetProjectId: string): Promise<void> {
     if (targetProjectId === projectId && activeOperation) { setError(`Finish or cancel “${activeOperation.label}” before closing this document.`); return; }
     const next = await closeWorkspaceTab(targetProjectId);
     setSession(next);
-    if (targetProjectId !== projectId) {
-      await refreshSession();
-      return;
-    }
+    delete projectCacheRef.current[targetProjectId];
+    setProjects((current) => {
+      const updated = { ...current };
+      delete updated[targetProjectId];
+      return updated;
+    });
+    if (targetProjectId !== projectId) return;
     const nextId = next.activeProjectId ?? next.tabs.at(-1)?.projectId;
     if (!nextId) {
       navigateTo({ name: "projects" });
@@ -225,6 +293,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   async function restoreClosed(): Promise<void> {
     const next = await restoreClosedWorkspaceTab();
     setSession(next);
+    void hydrateTabProjects(next);
     const restoredId = next.activeProjectId;
     if (!restoredId) return;
     const tab = next.tabs.find((item) => item.projectId === restoredId);
@@ -260,7 +329,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
         update({ progress: 1 });
       });
       setCheckpointLabel("");
-      await refreshTimeline();
+      await refreshTimeline(project);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -283,8 +352,9 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   }
 
   async function removeCheckpoint(checkpointId: string): Promise<void> {
+    if (!project) return;
     await deleteWorkspaceCheckpoint(checkpointId);
-    await refreshTimeline();
+    await refreshTimeline(project);
   }
 
   async function togglePanel(panel: "timelineOpen" | "preservationOpen"): Promise<void> {
@@ -294,16 +364,18 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
       ? { timelineOpen: opening, preservationOpen: opening ? false : session.preservationOpen }
       : { preservationOpen: opening, timelineOpen: opening ? false : session.timelineOpen });
     setSession(next);
+    if (panel === "timelineOpen" && opening && !timelineLoaded) void ensureTimeline();
   }
 
   async function retryOwnership(): Promise<void> {
     if (!leaseHandle) return;
+    setLeaseMode("acquiring");
     const acquired = await leaseHandle.tryAcquire();
     if (!acquired) setError("This project is still open for editing in another tab. Close that tab or leave it on this read-only workspace.");
   }
 
-  if (error && !project) return <div className="workspace-fatal"><strong>Workspace unavailable</strong><p>{error}</p><a className="button" href={routeHref({ name: "projects" })}>Open projects</a></div>;
-  if (!project || !session) return <div className="viewer-loading"><span className="spinner" /><strong>Opening document…</strong></div>;
+  if (error && (!project || project.id !== projectId)) return <div className="workspace-fatal"><strong>Workspace unavailable</strong><p>{error}</p><a className="button" href={routeHref({ name: "projects" })}>Open projects</a></div>;
+  if (!project || project.id !== projectId || !session) return <div className="viewer-loading"><span className="spinner" /><strong>Opening document…</strong></div>;
 
   const activePrimaryMode = primaryModes.includes(mode) ? mode : "toolbox";
 
@@ -321,9 +393,9 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
             onDrop={() => void dropTab(tab.projectId)}
             role="presentation"
           >
-            <button aria-controls="workspace-document-panel" aria-selected={tab.projectId === projectId} className="workspace-tab__main" id={`workspace-tab-${tab.projectId}`} onClick={() => void activateTab(tab.projectId)} onKeyDown={(event) => handleTabKeyDown(event, tab.projectId)} role="tab" tabIndex={tab.projectId === projectId ? 0 : -1} type="button">
+            <button aria-controls="workspace-document-panel" aria-selected={tab.projectId === projectId} className="workspace-tab__main" id={`workspace-tab-${tab.projectId}`} onClick={() => activateTab(tab.projectId)} onKeyDown={(event) => handleTabKeyDown(event, tab.projectId)} role="tab" tabIndex={tab.projectId === projectId ? 0 : -1} type="button">
               <span className="workspace-tab__document" aria-hidden="true">PDF</span>
-              <span><strong>{manifest?.name ?? "Unavailable project"}</strong><small>{workspaceModeLabel(tab.lastMode)}</small></span>
+              <span><strong>{manifest?.name ?? "Loading project…"}</strong><small>{workspaceModeLabel(tab.lastMode)}</small></span>
               {manifest?.recovery.dirty ? <i title="Local edits">●</i> : null}
             </button>
             <button aria-label={tab.pinned ? "Unpin tab" : "Pin tab"} className={tab.pinned ? "workspace-tab__icon workspace-tab__icon--active" : "workspace-tab__icon"} onClick={() => void togglePin(tab.projectId)} title={tab.pinned ? "Unpin" : "Pin"} type="button">⌖</button>
@@ -344,7 +416,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
           <span>{project.summary.pageCount} pages</span>
           <span>{formatBytes(project.byteLength)}</span>
           {project.summary.encrypted ? <span className="warning-chip">Protected</span> : null}
-          {leaseMode === "owner" ? <span className="workspace-lease-chip">Editing</span> : <span className="warning-chip">Read only</span>}
+          {leaseMode === "owner" ? <span className="workspace-lease-chip">Editing</span> : leaseMode === "acquiring" ? <span className="workspace-lease-chip">Getting edit access…</span> : <span className="warning-chip">Read only</span>}
           {project.summary.formFieldCount ? <span>{project.summary.formFieldCount} form fields</span> : null}
         </div>
       </div>
@@ -356,18 +428,18 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     </header>
 
     <nav className="workspace-modes workspace-modes--primary" aria-label="Document workspace">
-      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "workspace-mode workspace-mode--active" : "workspace-mode"} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><Icon name={item.icon}/><span>{item.label}</span></button>)}
+      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "workspace-mode workspace-mode--active" : "workspace-mode"} key={item.mode} onClick={() => switchMode(item.mode)} type="button"><Icon name={item.icon}/><span>{item.label}</span></button>)}
     </nav>
 
-    {contextActions.length ? <div className="workspace-contextbar"><strong>Suggested</strong>{contextActions.map((action) => <button key={`${action.mode}-${action.label}`} onClick={() => void switchMode(action.mode)} type="button">{action.label}</button>)}</div> : null}
+    {contextActions.length ? <div className="workspace-contextbar"><strong>Suggested</strong>{contextActions.map((action) => <button key={`${action.mode}-${action.label}`} onClick={() => switchMode(action.mode)} type="button">{action.label}</button>)}</div> : null}
     {error ? <div aria-live="assertive" className="error-banner" role="alert"><strong>Workspace action failed</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
     {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
     {activeOperation ? <div className="workspace-operation-banner" role="status" aria-live="polite"><div><strong>{activeOperation.label}</strong><span>{activeOperation.detail ?? operationStageLabel(activeOperation.stage)}</span>{activeOperation.progress !== undefined ? <progress max="1" value={activeOperation.progress} /> : null}</div><div><small>{formatElapsed(Date.now() - activeOperation.startedAt)}</small>{activeOperation.cancellable ? <button className="button button--small button--secondary" onClick={() => cancelProjectOperation(projectId)} type="button">Cancel</button> : null}</div></div> : null}
-    {leaseMode !== "owner" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
+    {leaseMode === "read-only" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
 
     <div className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"}>
       <main aria-labelledby="workspace-document-title" className="workspace-mode-content" id="workspace-document-panel" role="tabpanel">
-        {workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
+        {workspaceAcquiring ? <AcquiringMode mode={mode} /> : workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
       </main>
       {session.preservationOpen && settings.showPreservationWarnings ? <aside className="workspace-insight-panel">
         <div className="workspace-insight-panel__header"><div><p className="eyebrow">What this tool changes</p><h2>{workspaceModeLabel(mode)}</h2></div><button aria-label="Close what-changes panel" onClick={() => void togglePanel("preservationOpen")} type="button">×</button></div>
@@ -379,22 +451,28 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
       </aside> : null}
       {session.timelineOpen ? <aside className="workspace-insight-panel workspace-timeline">
         <div className="workspace-insight-panel__header"><div><p className="eyebrow">Project history</p><h2>History & checkpoints</h2></div><button aria-label="Close history panel" onClick={() => void togglePanel("timelineOpen")} type="button">×</button></div>
-        <div className="checkpoint-create"><input aria-label="Checkpoint label" onChange={(event) => setCheckpointLabel(event.target.value)} placeholder="Checkpoint name" value={checkpointLabel} /><button disabled={checkpointBusy} onClick={() => void createCheckpoint()} type="button">{checkpointBusy ? "Saving…" : "Create"}</button></div>
-        <div className="timeline-section"><h3>Restorable checkpoints</h3>{checkpoints.length ? checkpoints.map((checkpoint) => <article className="checkpoint-card" key={checkpoint.id}><div><strong>{checkpoint.label}</strong><small>{formatTime(checkpoint.createdAt)} · {formatBytes(checkpoint.byteLength)}</small></div><div><button disabled={checkpointBusy} onClick={() => void restoreCheckpoint(checkpoint)} type="button">Restore copy</button><button aria-label={`Delete ${checkpoint.label}`} onClick={() => void removeCheckpoint(checkpoint.id)} type="button">×</button></div></article>) : <p className="muted">No checkpoints yet. A checkpoint stores a complete local project package.</p>}</div>
-        <details className="timeline-technical"><summary>Technical history</summary><div className="timeline-section"><h3>Revision lineage</h3>{revisions.length ? <ol className="timeline-list">{revisions.slice(0,20).map((revision) => <li key={revision.id}><span className="timeline-dot timeline-dot--committed" /><div><strong>{revision.operation}</strong><small>revision {revision.sequence} · {formatTime(revision.createdAt)} · {revision.projectId === projectId ? "current project" : "related output"}</small></div></li>)}</ol> : <p className="muted">No document revisions recorded yet.</p>}</div><div className="timeline-section"><h3>Document transactions</h3>{transactions.length ? <ol className="timeline-list">{transactions.slice(0,20).map((transaction) => <li key={transaction.id}><span className={`timeline-dot timeline-dot--${transaction.status}`} /><div><strong>{transaction.operation}</strong><small>{transaction.status} · {formatTime(transaction.completedAt ?? transaction.startedAt)}</small></div></li>)}</ol> : <p className="muted">No committed document transformations yet.</p>}</div><div className="timeline-section"><h3>Workspace events</h3>{events.length ? <ol className="timeline-list">{events.map((event) => <li key={event.id}><span className="timeline-dot" /><div><strong>{event.label}</strong><small>{formatTime(event.createdAt)}</small></div></li>)}</ol> : <p className="muted">No project events recorded yet.</p>}</div></details>
+        {timelineLoading && !timelineLoaded ? <div className="viewer-loading" role="status"><span className="spinner" /><strong>Loading history…</strong></div> : <>
+          <div className="checkpoint-create"><input aria-label="Checkpoint label" onChange={(event) => setCheckpointLabel(event.target.value)} placeholder="Checkpoint name" value={checkpointLabel} /><button disabled={checkpointBusy} onClick={() => void createCheckpoint()} type="button">{checkpointBusy ? "Saving…" : "Create"}</button></div>
+          <div className="timeline-section"><h3>Restorable checkpoints</h3>{checkpoints.length ? checkpoints.map((checkpoint) => <article className="checkpoint-card" key={checkpoint.id}><div><strong>{checkpoint.label}</strong><small>{formatTime(checkpoint.createdAt)} · {formatBytes(checkpoint.byteLength)}</small></div><div><button disabled={checkpointBusy} onClick={() => void restoreCheckpoint(checkpoint)} type="button">Restore copy</button><button aria-label={`Delete ${checkpoint.label}`} onClick={() => void removeCheckpoint(checkpoint.id)} type="button">×</button></div></article>) : <p className="muted">No checkpoints yet. A checkpoint stores a complete local project package.</p>}</div>
+          <details className="timeline-technical"><summary>Technical history</summary><div className="timeline-section"><h3>Revision lineage</h3>{revisions.length ? <ol className="timeline-list">{revisions.slice(0,20).map((revision) => <li key={revision.id}><span className="timeline-dot timeline-dot--committed" /><div><strong>{revision.operation}</strong><small>revision {revision.sequence} · {formatTime(revision.createdAt)} · {revision.projectId === projectId ? "current project" : "related output"}</small></div></li>)}</ol> : <p className="muted">No document revisions recorded yet.</p>}</div><div className="timeline-section"><h3>Document transactions</h3>{transactions.length ? <ol className="timeline-list">{transactions.slice(0,20).map((transaction) => <li key={transaction.id}><span className={`timeline-dot timeline-dot--${transaction.status}`} /><div><strong>{transaction.operation}</strong><small>{transaction.status} · {formatTime(transaction.completedAt ?? transaction.startedAt)}</small></div></li>)}</ol> : <p className="muted">No committed document transformations yet.</p>}</div><div className="timeline-section"><h3>Workspace events</h3>{events.length ? <ol className="timeline-list">{events.map((event) => <li key={event.id}><span className="timeline-dot" /><div><strong>{event.label}</strong><small>{formatTime(event.createdAt)}</small></div></li>)}</ol> : <p className="muted">No project events recorded yet.</p>}</div></details>
+        </>}
       </aside> : null}
     </div>
 
     <nav className="workspace-mobile-nav" aria-label="Document workspace">
-      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "active" : ""} key={item.mode} onClick={() => void switchMode(item.mode)} type="button"><Icon name={item.icon}/><small>{item.label}</small></button>)}
+      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "active" : ""} key={item.mode} onClick={() => switchMode(item.mode)} type="button"><Icon name={item.icon}/><small>{item.label}</small></button>)}
       <button aria-controls="workspace-mobile-tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className={mobileToolsOpen ? "active" : ""} onClick={() => setMobileToolsOpen((open) => !open)} type="button"><Icon name="more" /><small>More</small></button>
     </nav>
     {mobileToolsOpen ? <div className="workspace-mobile-sheet-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="More document tools" aria-modal="true" className="workspace-mobile-sheet" id="workspace-mobile-tools" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
       <div className="workspace-mobile-sheet__handle" aria-hidden="true" />
       <header><div><p className="eyebrow">Document</p><h2>More</h2></div><button aria-label="Close more actions" onClick={closeMobileTools} type="button">×</button></header>
-      <div className="workspace-mobile-sheet__actions"><button onClick={() => void switchMode("toolbox")} type="button">Find a PDF task</button><button onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes?</button> : null}<a href={routeHref({ name: "batch" })}>Batch automation</a><a href={routeHref({ name: "projects" })}>Documents</a><a href={routeHref({ name: "help" })}>Help</a></div>
+      <div className="workspace-mobile-sheet__actions"><button onClick={() => switchMode("toolbox")} type="button">Find a PDF task</button><button onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes?</button> : null}<a href={routeHref({ name: "batch" })}>Batch automation</a><a href={routeHref({ name: "projects" })}>Documents</a><a href={routeHref({ name: "help" })}>Help</a></div>
     </section></div> : null}
   </div>;
+}
+
+function AcquiringMode({ mode }: { mode: WorkspaceMode }) {
+  return <div className="workspace-locked-mode" role="status"><div><span className="spinner" /><p className="eyebrow">Preparing workspace</p><h2>Getting edit access…</h2><p>{workspaceModeLabel(mode)} will open as soon as this tab confirms safe local ownership. Nothing needs to be retried.</p></div></div>;
 }
 
 function LockedMode({ mode, onRetry }: { mode: WorkspaceMode; onRetry: () => void }) {
@@ -403,19 +481,25 @@ function LockedMode({ mode, onRetry }: { mode: WorkspaceMode; onRetry: () => voi
 
 function ModeContent({ mode, projectId, readOnly, onSubtitle }: { mode: WorkspaceMode; projectId: string; readOnly: boolean; onSubtitle: (value?: string) => void }) {
   const onTitleChange = (_title: string, subtitle?: string) => onSubtitle(subtitle);
-  if (mode === "viewer") return <ViewerPage onTitleChange={onTitleChange} projectId={projectId} readOnly={readOnly} />;
-  if (mode === "editor") return <EditorPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "organizer") return <OrganizerPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "secure") return <SecurePage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "ocr") return <OcrPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "compress") return <CompressionPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "inspector") return <InspectorPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "repair") return <RepairPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "preservation") return <PreservationPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "native") return <NativeEditorPage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "compliance") return <CompliancePage onTitleChange={onTitleChange} projectId={projectId} />;
-  if (mode === "toolbox") return <DocumentToolsPage onTitleChange={onTitleChange} projectId={projectId} />;
-  return <ProfessionalPage onTitleChange={onTitleChange} projectId={projectId} />;
+  let content;
+  if (mode === "viewer") content = <ViewerPage onTitleChange={onTitleChange} projectId={projectId} readOnly={readOnly} />;
+  else if (mode === "editor") content = <EditorPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "organizer") content = <OrganizerPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "secure") content = <SecurePage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "ocr") content = <OcrPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "compress") content = <CompressionPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "inspector") content = <InspectorPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "repair") content = <RepairPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "preservation") content = <PreservationPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "native") content = <NativeEditorPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "compliance") content = <CompliancePage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "toolbox") content = <DocumentToolsPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else content = <ProfessionalPage onTitleChange={onTitleChange} projectId={projectId} />;
+  return <Suspense fallback={<ModeLoading mode={mode} />}>{content}</Suspense>;
+}
+
+function ModeLoading({ mode }: { mode: WorkspaceMode }) {
+  return <div className="viewer-loading workspace-mode-loading" role="status" aria-live="polite"><span className="spinner" /><strong>Opening {workspaceModeLabel(mode)}…</strong></div>;
 }
 
 function ContractSection({ label, items, tone }: { label: string; items: string[]; tone: "safe" | "neutral" | "warning" }) {
