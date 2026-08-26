@@ -15,6 +15,8 @@ import { navigateTo, routeHref } from "../core/appRouter";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { readEditorState } from "../editor/editorRepository";
 import { readProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
+import { scheduleDeferredHydration, type DeferredHydrationHandle } from "../performance/deferredHydration";
+import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 
 interface OutlineNode {
   title: string;
@@ -32,6 +34,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   const bytesRef = useRef<Uint8Array | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const hydrationRef = useRef<DeferredHydrationHandle | null>(null);
   const passwordDialogRef = useRef<HTMLDivElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const readOnlyRef = useRef(readOnly);
@@ -63,24 +66,44 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   useEffect(() => () => renderScheduler.clear(), [renderScheduler]);
 
   const openDocument = useCallback(async (manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string) => {
+    hydrationRef.current?.cancel();
+    hydrationRef.current = null;
     setLoading(true); setError(null); setStatus("Opening PDF…");
     try {
       const previous = documentRef.current; documentRef.current = null; if (previous) await previous.loadingTask.destroy();
       const doc = await openPdfWithPdfJs(bytes, suppliedPassword);
       if (suppliedPassword) rememberProjectSessionPassword(manifest.id, suppliedPassword);
       documentRef.current = doc; setPdfDocument(doc); setPasswordRequired(false); setPassword("");
-      const [labelsResult, outlineResult, metadataResult, savedPreferences] = await Promise.all([
-        doc.getPageLabels().catch(() => null), doc.getOutline().catch(() => []), doc.getMetadata().catch(() => ({ info: {} })), readViewerPreferences(manifest.id)
-      ]);
-      setPageLabels(labelsResult); setOutline((outlineResult ?? []) as OutlineNode[]); setMetadata((metadataResult.info ?? {}) as DocumentMetadata);
-      if (savedPreferences) { const normalized = normalizePreferences(savedPreferences, doc.numPages); setPreferences(isPhoneViewport() ? { ...normalized, sidebarOpen: false } : normalized); }
       setStatus("Ready");
-      if (!readOnlyRef.current) await touchProject(manifest.id);
+      setLoading(false);
+      recordRuntimeMetric("custom", "readiness.viewer.interactive", 0, undefined, { projectId: manifest.id, pageCount: doc.numPages });
+
+      hydrationRef.current = scheduleDeferredHydration(async (signal) => {
+        const [labelsResult, outlineResult, metadataResult, savedPreferences, editorState] = await Promise.all([
+          doc.getPageLabels().catch(() => null),
+          doc.getOutline().catch(() => []),
+          doc.getMetadata().catch(() => ({ info: {} })),
+          readViewerPreferences(manifest.id).catch(() => undefined),
+          readEditorState(manifest.id).catch(() => null)
+        ]);
+        if (signal.aborted || documentRef.current !== doc) return;
+        setPageLabels(labelsResult);
+        setOutline((outlineResult ?? []) as OutlineNode[]);
+        setMetadata((metadataResult.info ?? {}) as DocumentMetadata);
+        if (editorState) setEditorObjectCount(editorState.objects.length);
+        if (savedPreferences) {
+          const normalized = normalizePreferences(savedPreferences, doc.numPages);
+          setPreferences(isPhoneViewport() ? { ...normalized, sidebarOpen: false } : normalized);
+        }
+        if (!readOnlyRef.current && !signal.aborted) await touchProject(manifest.id).catch(() => undefined);
+        if (!signal.aborted && documentRef.current === doc) recordRuntimeMetric("custom", "readiness.viewer.hydrated", 0, undefined, { projectId: manifest.id });
+      }, { label: "viewer", timeoutMs: 1_500 });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("This PDF is password protected. Enter the password to open it for this session."); }
       else setError(message);
-    } finally { setLoading(false); }
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -88,13 +111,20 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     void (async () => {
       try {
         const manifest = await getProject(projectId); if (!manifest) throw new Error("Project not found. It may have been deleted or browser storage may have been cleared.");
-        const [bytes, editorState] = await Promise.all([loadProjectBytes(manifest), readEditorState(manifest.id)]);
         if (cancelled) return;
-        setProject(manifest); setEditorObjectCount(editorState.objects.length); bytesRef.current = bytes;
+        setProject(manifest);
+        const bytes = await loadProjectBytes(manifest);
+        if (cancelled) return;
+        bytesRef.current = bytes;
         await openDocument(manifest, bytes, readProjectSessionPassword(manifest.id));
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); } }
     })();
-    return () => { cancelled = true; searchAbortRef.current?.abort(); const current = documentRef.current; documentRef.current = null; void current?.loadingTask.destroy(); };
+    return () => {
+      cancelled = true;
+      hydrationRef.current?.cancel(); hydrationRef.current = null;
+      searchAbortRef.current?.abort();
+      const current = documentRef.current; documentRef.current = null; void current?.loadingTask.destroy();
+    };
   }, [openDocument, projectId]);
 
   useEffect(() => { if (project) onTitleChange?.(project.name, `${project.summary.pageCount} pages · ${formatBytes(project.byteLength)}`); }, [onTitleChange, project]);
