@@ -41,6 +41,8 @@ import { readNativeState, writeNativeState } from "../native/nativeRepository";
 import { downloadBlob } from "../projects/download";
 import { createDerivedProjectFromBytes, getProject, loadProjectBytes, updateProject } from "../projects/projectRepository";
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
+import { scheduleDeferredHydration, type DeferredHydrationHandle } from "../performance/deferredHydration";
+import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorHistoryState, EditorObject, EditorTool, ImageEditorObject } from "../types/editor";
 import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
@@ -88,6 +90,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const sourceBytesRef = useRef<Uint8Array | null>(null);
   const passwordRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+  const hydrationRef = useRef<DeferredHydrationHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const internalClipboardRef = useRef<EditorObject[]>([]);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
@@ -153,19 +156,24 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       try {
         const manifest = await getProject(projectId);
         if (!manifest) throw new Error("Project not found.");
-        const [bytes, storedState, assets, storedNativeState] = await Promise.all([loadProjectBytes(manifest), readEditorState(projectId), listEditorAssets(projectId), readNativeState(projectId)]);
         if (cancelled) return;
         setProject(manifest);
+        const [bytes, storedState, storedNativeState] = await Promise.all([
+          loadProjectBytes(manifest),
+          readEditorState(projectId),
+          readNativeState(projectId)
+        ]);
+        if (cancelled) return;
         sourceBytesRef.current = bytes;
         setEditorState({ ...storedState, currentPage: Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage)) });
         setHistory(createHistory(storedState.objects));
         setNativeEdits(storedNativeState.queuedEdits);
-        createAssetUrls(assets);
         await openDocument(manifest, bytes);
-      } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
+      } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
     })();
     return () => {
       cancelled = true;
+      hydrationRef.current?.cancel(); hydrationRef.current = null;
       abortRef.current?.abort();
       passwordRef.current = undefined;
       sourceBytesRef.current = null;
@@ -218,6 +226,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }, [history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
+    hydrationRef.current?.cancel();
+    hydrationRef.current = null;
     setStatus("Opening PDF engine…"); setError(null);
     try {
       const previous = documentRef.current;
@@ -228,18 +238,37 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setDocument(pdf);
       passwordRef.current = suppliedPassword;
       setPasswordRequired(false); setPassword("");
-      setNativeInspecting(true);
-      setStatus("Inspecting existing PDF content…");
-      try {
-        const inspection = await inspectNativePdf(bytes, suppliedPassword);
-        setNativeInspection(inspection);
-        setStatus("Ready");
-        onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms} detected PDF objects · Unified editor`);
-      } catch (inspectionError) {
-        setNativeInspection(null);
-        setWarnings((current) => [...current, `Existing-content inspection unavailable: ${inspectionError instanceof Error ? inspectionError.message : String(inspectionError)}`]);
-        setStatus("Ready · overlay editing only");
-      } finally { setNativeInspecting(false); }
+      setNativeInspection(null);
+      setNativeInspecting(false);
+      setStatus("Ready · loading PDF content…");
+      onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · Unified editor ready`);
+      recordRuntimeMetric("custom", "readiness.editor.interactive", 0, undefined, { projectId: manifest.id, pageCount: pdf.numPages });
+
+      hydrationRef.current = scheduleDeferredHydration(async (signal) => {
+        if (signal.aborted || documentRef.current !== pdf) return;
+        setNativeInspecting(true);
+        const [inspectionResult, assetsResult] = await Promise.allSettled([
+          inspectNativePdf(bytes, suppliedPassword, signal),
+          listEditorAssets(projectId)
+        ]);
+        if (signal.aborted || documentRef.current !== pdf) return;
+        if (assetsResult.status === "fulfilled") createAssetUrls(assetsResult.value);
+        if (inspectionResult.status === "fulfilled") {
+          const inspection = inspectionResult.value;
+          setNativeInspection(inspection);
+          setStatus("Ready");
+          onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms} detected PDF objects · Unified editor`);
+          recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms });
+        } else {
+          const inspectionError = inspectionResult.reason;
+          if (!(inspectionError instanceof DOMException && inspectionError.name === "AbortError")) {
+            setWarnings((current) => [...current, `Existing-content inspection unavailable: ${inspectionError instanceof Error ? inspectionError.message : String(inspectionError)}`]);
+            setStatus("Ready · overlay editing only");
+            recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: 0 });
+          }
+        }
+        setNativeInspecting(false);
+      }, { label: "editor", timeoutMs: 1_500 });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password for this in-memory editing session."); }
@@ -248,6 +277,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function createAssetUrls(assets: EditorAssetRecord[]): void {
+    for (const url of objectUrlsRef.current.values()) URL.revokeObjectURL(url);
+    objectUrlsRef.current.clear();
     const map = new Map<string, string>();
     for (const asset of assets) {
       const url = URL.createObjectURL(new Blob([asset.bytes.slice(0)], { type: asset.mimeType }));

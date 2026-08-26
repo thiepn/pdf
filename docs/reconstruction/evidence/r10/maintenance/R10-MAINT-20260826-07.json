@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260826-07",
+  "change_class": "product-hotfix",
+  "base_commit": "a418163f6aab0d503f98f15701017b761959b07c",
+  "target_commit": "256822c9695cced7b0074ad075f5a37a6d5e8188",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "medium",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "Document modes still treated nonessential enrichment as part of initial readiness. Viewer startup waited for labels, outline, metadata, saved editor counts, preferences, and project-touch work; Edit startup waited for full native MuPDF inspection and asset hydration before presenting a ready editor. Recovery P3 makes the parsed document and core controls usable first, then hydrates secondary document intelligence after paint/idle with cancellation.",
+  "rollback_commit": "a418163f6aab0d503f98f15701017b761959b07c",
+  "affected_workflows": [
+    "Open a local PDF in Read mode",
+    "Render and navigate the first useful page",
+    "Open Edit mode and use overlay editing tools",
+    "Hydrate document labels, outline, metadata, and saved edit counts",
+    "Inspect existing PDF content for native editing",
+    "Load editor binary assets after initial readiness",
+    "Switch document modes while deferred enrichment is pending"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Deferred hydration waits for two animation frames and then prefers requestIdleCallback with a bounded fallback. Viewer deep metadata/editor-count work and editor native-inspection/asset work no longer block the interactive surface. Deferred tasks are cancelled on route/project changes. Shared MuPDF inspection now supports cancellable consumers while retaining completed inspection reuse. Runtime readiness markers and browser regressions verify interactive-before-hydrated ordering. Genuine R9 human requalification remains pending."
+}
