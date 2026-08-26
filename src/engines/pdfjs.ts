@@ -1,151 +1,195 @@
-import * as pdfjs from "pdfjs-dist";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { measureRuntimeAsync } from "../performance/runtimeMetrics";
-import type { PdfDocumentSummary } from "../types/project";
+import { recordRuntimeMetric } from "../performance/runtimeMetrics";
+import * as base from "./pdfjsBase";
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
-export type PdfJsDocument = Awaited<ReturnType<typeof openPdfWithPdfJs>>;
+export type PdfJsDocument = Awaited<ReturnType<typeof base.openPdfWithPdfJs>>;
 export type PdfJsPage = Awaited<ReturnType<PdfJsDocument["getPage"]>>;
+export type PdfAnnotationInventory = base.PdfAnnotationInventory;
+export type SearchOptions = base.SearchOptions;
+export type PdfSearchResult = base.PdfSearchResult;
+export type DetailedPageInspection = base.DetailedPageInspection;
+export type DetailedPdfInspection = base.DetailedPdfInspection;
 
-export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string) {
-  return measureRuntimeAsync("pdf", "pdfjs.open", async () => {
-    const loadingTask = pdfjs.getDocument({
-      data: bytes.slice(),
-      password,
-      useWorkerFetch: true,
-      enableXfa: false
-    });
-    try {
-      return await loadingTask.promise;
-    } catch (reason) {
-      await loadingTask.destroy();
-      throw reason;
-    }
-  }, { byteLength: bytes.byteLength, passwordProtected: Boolean(password) });
+export const inspectPdfBytes = base.inspectPdfBytes;
+export const inspectPdfAnnotationInventory = base.inspectPdfAnnotationInventory;
+export const inspectDetailedPdf = base.inspectDetailedPdf;
+export const multiplyTransforms = base.multiplyTransforms;
+
+const SESSION_IDLE_MS = 30_000;
+
+interface PdfPageGeometry {
+  width: number;
+  height: number;
+  rotation: number;
 }
 
-export async function extractPageText(document: PdfJsDocument, pageNumber: number): Promise<string> {
-  return measureRuntimeAsync("render", "pdfjs.extractPageText", async () => {
-    const page = await document.getPage(pageNumber);
-    try {
-      const text = await page.getTextContent({ includeMarkedContent: false });
-      return text.items
-        .map((item) => ("str" in item ? item.str : ""))
-        .filter(Boolean)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-    } finally {
-      page.cleanup();
-    }
-  }, { pageNumber });
+interface SharedPdfEntry {
+  owner: Map<string, SharedPdfEntry>;
+  key: string;
+  promise: Promise<PdfJsDocument>;
+  document?: PdfJsDocument;
+  references: number;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  textCache: Map<number, Promise<string>>;
+  geometryCache: Map<number, Promise<PdfPageGeometry>>;
 }
 
-function readString(info: Record<string, unknown>, key: string): string | undefined {
-  const value = info[key];
-  return typeof value === "string" && value.trim() ? value : undefined;
+const sessionsByBytes = new WeakMap<Uint8Array, Map<string, SharedPdfEntry>>();
+const entryByLease = new WeakMap<object, SharedPdfEntry>();
+
+function sessionKey(password?: string): string {
+  return password ? `protected:${password}` : "unprotected";
 }
 
-export async function inspectPdfBytes(bytes: Uint8Array, password?: string): Promise<PdfDocumentSummary> {
-  return measureRuntimeAsync("pdf", "pdfjs.inspectSummary", async () => {
-    const document = await openPdfWithPdfJs(bytes, password);
-    try {
-      const [metadataResult, outlineResult, labelsResult, attachmentsResult, fieldsResult, actionsResult] = await Promise.allSettled([
-        document.getMetadata(),
-        document.getOutline(),
-        document.getPageLabels(),
-        document.getAttachments(),
-        document.getFieldObjects(),
-        document.getJSActions()
-      ]);
+function clearIdleTimer(entry: SharedPdfEntry): void {
+  if (entry.idleTimer !== null) clearTimeout(entry.idleTimer);
+  entry.idleTimer = null;
+}
 
-      const info = metadataResult.status === "fulfilled"
-        ? metadataResult.value.info as Record<string, unknown>
-        : {};
-      const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
-      const labels = labelsResult.status === "fulfilled" ? labelsResult.value : null;
-      const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
-      const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
-      const actions = actionsResult.status === "fulfilled" ? actionsResult.value : null;
+function releaseLease(entry: SharedPdfEntry): void {
+  entry.references = Math.max(0, entry.references - 1);
+  if (entry.references || entry.idleTimer !== null) return;
+  entry.idleTimer = setTimeout(() => {
+    entry.idleTimer = null;
+    if (entry.references) return;
+    entry.owner.delete(entry.key);
+    entry.textCache.clear();
+    entry.geometryCache.clear();
+    const document = entry.document;
+    entry.document = undefined;
+    if (document) void document.loadingTask.destroy().catch(() => undefined);
+  }, SESSION_IDLE_MS);
+}
 
-      let formFieldCount = 0;
-      if (fields) {
-        for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
+function bindValue<T extends object>(target: T, property: PropertyKey): unknown {
+  const value = Reflect.get(target, property, target);
+  return typeof value === "function" ? value.bind(target) : value;
+}
+
+function createDocumentLease(entry: SharedPdfEntry): PdfJsDocument {
+  const document = entry.document;
+  if (!document) throw new Error("Shared PDF session is not ready.");
+  clearIdleTimer(entry);
+  entry.references += 1;
+  let released = false;
+  const loadingTask = new Proxy(document.loadingTask, {
+    get(target, property) {
+      if (property === "destroy") {
+        return async () => {
+          if (released) return;
+          released = true;
+          releaseLease(entry);
+        };
       }
-
-      return {
-        pageCount: document.numPages,
-        title: readString(info, "Title"),
-        author: readString(info, "Author"),
-        subject: readString(info, "Subject"),
-        creator: readString(info, "Creator"),
-        producer: readString(info, "Producer"),
-        pdfFormatVersion: readString(info, "PDFFormatVersion"),
-        encrypted: Boolean(password) || info.IsEncrypted === true,
-        hasOutline: Boolean(outline?.length),
-        formFieldCount,
-        attachmentCount: attachments ? Object.keys(attachments).length : 0,
-        hasJavaScript: Boolean(actions && Object.keys(actions).length),
-        pageLabels: labels ?? undefined
-      };
-    } finally {
-      await document.loadingTask.destroy();
+      return bindValue(target, property);
     }
-  }, { byteLength: bytes.byteLength });
+  });
+  const lease = new Proxy(document, {
+    get(target, property) {
+      if (property === "loadingTask") return loadingTask;
+      return bindValue(target, property);
+    }
+  }) as PdfJsDocument;
+  entryByLease.set(lease as object, entry);
+  return lease;
 }
 
-export interface PdfAnnotationInventory {
-  pageNumbers: number[];
-  annotationCount: number;
-  linkCount: number;
-  widgetCount: number;
-}
-
-export async function inspectPdfAnnotationInventory(
-  bytes: Uint8Array,
-  password?: string,
-  requestedPages?: Iterable<number>
-): Promise<PdfAnnotationInventory> {
-  const document = await openPdfWithPdfJs(bytes, password);
-  try {
-    const pageNumbers = requestedPages
-      ? [...new Set(requestedPages)].filter((pageNumber) => Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= document.numPages).sort((a, b) => a - b)
-      : Array.from({ length: document.numPages }, (_, index) => index + 1);
-    let annotationCount = 0;
-    let linkCount = 0;
-    let widgetCount = 0;
-    for (const pageNumber of pageNumbers) {
-      const page = await document.getPage(pageNumber);
-      try {
-        const annotations = await page.getAnnotations({ intent: "display" });
-        for (const annotation of annotations) {
-          const subtype = typeof annotation.subtype === "string" ? annotation.subtype : "";
-          if (subtype === "Link") linkCount += 1;
-          else if (subtype === "Widget") widgetCount += 1;
-          else annotationCount += 1;
-        }
-      } finally {
-        page.cleanup();
-      }
-    }
-    return { pageNumbers, annotationCount, linkCount, widgetCount };
-  } finally {
-    await document.loadingTask.destroy();
+/**
+ * Recovery P2 keeps one parsed PDF.js document alive while the user moves among
+ * document modes. Individual mode components receive lightweight leases; their
+ * existing cleanup calls release only that lease instead of destroying the
+ * underlying parser/worker between Read, Edit and Pages.
+ */
+export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string): Promise<PdfJsDocument> {
+  let sessions = sessionsByBytes.get(bytes);
+  if (!sessions) {
+    sessions = new Map();
+    sessionsByBytes.set(bytes, sessions);
   }
+  const key = sessionKey(password);
+  let entry = sessions.get(key);
+  if (entry) {
+    clearIdleTimer(entry);
+    recordRuntimeMetric("pdf", "pdfjs.session.hit", 0, undefined, {
+      byteLength: bytes.byteLength,
+      passwordProtected: Boolean(password)
+    });
+  } else {
+    const owner = sessions;
+    entry = {
+      owner,
+      key,
+      promise: Promise.resolve(undefined as unknown as PdfJsDocument),
+      references: 0,
+      idleTimer: null,
+      textCache: new Map(),
+      geometryCache: new Map()
+    };
+    entry.promise = base.openPdfWithPdfJs(bytes, password)
+      .then((document) => {
+        entry!.document = document;
+        return document;
+      })
+      .catch((reason) => {
+        owner.delete(key);
+        throw reason;
+      });
+    sessions.set(key, entry);
+    recordRuntimeMetric("pdf", "pdfjs.session.miss", 0, undefined, {
+      byteLength: bytes.byteLength,
+      passwordProtected: Boolean(password)
+    });
+  }
+  await entry.promise;
+  return createDocumentLease(entry);
 }
 
-export interface SearchOptions {
-  caseSensitive: boolean;
-  wholeWord: boolean;
+/** Cache extracted page text for the lifetime of the shared parsed document. */
+export async function extractPageText(document: PdfJsDocument, pageNumber: number): Promise<string> {
+  const entry = entryByLease.get(document as object);
+  if (!entry) return base.extractPageText(document, pageNumber);
+  const cached = entry.textCache.get(pageNumber);
+  if (cached) {
+    recordRuntimeMetric("render", "pdfjs.pageText.hit", 0, undefined, { pageNumber });
+    return cached;
+  }
+  const pending = base.extractPageText(document, pageNumber).catch((reason) => {
+    entry.textCache.delete(pageNumber);
+    throw reason;
+  });
+  entry.textCache.set(pageNumber, pending);
+  recordRuntimeMetric("render", "pdfjs.pageText.miss", 0, undefined, { pageNumber });
+  return pending;
 }
 
-export interface PdfSearchResult {
-  id: string;
-  pageNumber: number;
-  pageLabel?: string;
-  matchCount: number;
-  snippet: string;
+/**
+ * Page geometry is tiny but requested by several document tools. Keep it beside
+ * text in the same session instead of asking PDF.js to rebuild it per tool.
+ */
+export async function getPdfPageGeometry(document: PdfJsDocument, pageNumber: number): Promise<PdfPageGeometry> {
+  const entry = entryByLease.get(document as object);
+  if (!entry) return readPageGeometry(document, pageNumber);
+  const cached = entry.geometryCache.get(pageNumber);
+  if (cached) {
+    recordRuntimeMetric("render", "pdfjs.pageGeometry.hit", 0, undefined, { pageNumber });
+    return cached;
+  }
+  const pending = readPageGeometry(document, pageNumber).catch((reason) => {
+    entry.geometryCache.delete(pageNumber);
+    throw reason;
+  });
+  entry.geometryCache.set(pageNumber, pending);
+  recordRuntimeMetric("render", "pdfjs.pageGeometry.miss", 0, undefined, { pageNumber });
+  return pending;
+}
+
+async function readPageGeometry(document: PdfJsDocument, pageNumber: number): Promise<PdfPageGeometry> {
+  const page = await document.getPage(pageNumber);
+  try {
+    const viewport = page.getViewport({ scale: 1 });
+    return { width: viewport.width, height: viewport.height, rotation: viewport.rotation };
+  } finally {
+    page.cleanup();
+  }
 }
 
 function countMatches(text: string, query: string, options: SearchOptions): number {
@@ -166,7 +210,6 @@ export async function searchPdfDocument(
   if (!normalizedQuery) return [];
   const labels = await document.getPageLabels().catch(() => null);
   const results: PdfSearchResult[] = [];
-
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
     if (signal.aborted) throw new DOMException("Search cancelled.", "AbortError");
     const text = await extractPageText(document, pageNumber);
@@ -188,76 +231,5 @@ export async function searchPdfDocument(
     onProgress?.(pageNumber, document.numPages);
     if (pageNumber % 5 === 0) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
   }
-
   return results;
-}
-
-export function multiplyTransforms(left: number[], right: number[]): [number, number, number, number, number, number] {
-  return [
-    left[0] * right[0] + left[2] * right[1],
-    left[1] * right[0] + left[3] * right[1],
-    left[0] * right[2] + left[2] * right[3],
-    left[1] * right[2] + left[3] * right[3],
-    left[0] * right[4] + left[2] * right[5] + left[4],
-    left[1] * right[4] + left[3] * right[5] + left[5]
-  ];
-}
-
-export interface DetailedPageInspection {
-  pageNumber: number;
-  width: number;
-  height: number;
-  rotation: number;
-  textCharacters: number;
-  fontNames: string[];
-  imageOperations: number;
-  annotationCount: number;
-  linkCount: number;
-  widgetCount: number;
-}
-
-export interface DetailedPdfInspection {
-  pageCount: number;
-  metadata: Record<string, string>;
-  outlineEntries: number;
-  attachmentCount: number;
-  formFieldCount: number;
-  pages: DetailedPageInspection[];
-  totals: { textCharacters: number; uniqueFonts: number; imageOperations: number; annotations: number; links: number; widgets: number };
-}
-
-export async function inspectDetailedPdf(document: PdfJsDocument, signal?: AbortSignal, onProgress?: (completed: number, total: number) => void): Promise<DetailedPdfInspection> {
-  const [metadataResult, outlineResult, attachmentsResult, fieldsResult] = await Promise.allSettled([document.getMetadata(), document.getOutline(), document.getAttachments(), document.getFieldObjects()]);
-  const rawInfo = metadataResult.status === "fulfilled" ? metadataResult.value.info as Record<string, unknown> : {};
-  const metadata: Record<string, string> = {};
-  for (const [key, value] of Object.entries(rawInfo)) if (["string","number","boolean"].includes(typeof value)) metadata[key] = String(value);
-  const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
-  const countOutline = (items: any[] | null): number => items ? items.reduce((sum, item) => sum + 1 + countOutline(item.items ?? null), 0) : 0;
-  const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
-  const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
-  let formFieldCount = 0; if (fields) for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
-  const pages: DetailedPageInspection[] = [];
-  const uniqueFonts = new Set<string>();
-  const ops = (pdfjs as any).OPS ?? {};
-  const imageCodes = new Set([ops.paintImageXObject, ops.paintInlineImageXObject, ops.paintImageMaskXObject, ops.paintSolidColorImageMask].filter((value: unknown) => typeof value === "number"));
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    if (signal?.aborted) throw new DOMException("Inspection cancelled.", "AbortError");
-    const page = await document.getPage(pageNumber);
-    try {
-      const viewport = page.getViewport({ scale: 1 });
-      const [text, operatorList, annotations] = await Promise.all([page.getTextContent({ includeMarkedContent: false }), page.getOperatorList(), page.getAnnotations({ intent: "display" })]);
-      const fontNames = Object.keys(text.styles ?? {}); fontNames.forEach((font) => uniqueFonts.add(font));
-      let textCharacters = 0; for (const item of text.items) if ("str" in item) textCharacters += item.str.length;
-      let imageOperations = 0; for (const code of operatorList.fnArray) if (imageCodes.has(code)) imageOperations += 1;
-      let linkCount = 0, widgetCount = 0, annotationCount = 0;
-      for (const annotation of annotations) { if (annotation.subtype === "Link") linkCount += 1; else if (annotation.subtype === "Widget") widgetCount += 1; else annotationCount += 1; }
-      pages.push({ pageNumber, width: viewport.width, height: viewport.height, rotation: viewport.rotation, textCharacters, fontNames, imageOperations, annotationCount, linkCount, widgetCount });
-    } finally { page.cleanup(); }
-    onProgress?.(pageNumber, document.numPages);
-    if (pageNumber % 5 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
-  return {
-    pageCount: document.numPages, metadata, outlineEntries: countOutline(outline), attachmentCount: attachments ? Object.keys(attachments).length : 0, formFieldCount, pages,
-    totals: { textCharacters: pages.reduce((s,p)=>s+p.textCharacters,0), uniqueFonts: uniqueFonts.size, imageOperations: pages.reduce((s,p)=>s+p.imageOperations,0), annotations: pages.reduce((s,p)=>s+p.annotationCount,0), links: pages.reduce((s,p)=>s+p.linkCount,0), widgets: pages.reduce((s,p)=>s+p.widgetCount,0) }
-  };
 }
