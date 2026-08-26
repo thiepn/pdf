@@ -57,6 +57,11 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
           return;
         }
 
+        // Deep safety inspection remains a hard gate for the destructive/protect
+        // tasks that require document evidence. Recovery P4 keeps the surrounding
+        // workspace responsive while this runs; securityClient reuses the completed
+        // report when Protect mounts, so the gate no longer causes a second worker
+        // inspection of the same immutable project bytes.
         const deepContext = await buildTaskCapabilityContext(projectId, { inspectSecurity: true });
         if (!cancelled) setCapability(evaluateTaskCapability(task, deepContext));
       } catch (reason) {
@@ -81,7 +86,10 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
   }, [mode, projectId, task]);
 
   if (task && !capability) {
-    return <div className="task-capability-loading task-capability-loading--route" role="status"><span className="spinner"/><strong>Checking whether {task.label} is supported for this PDF…</strong></div>;
+    return <div className="capability-gated-workspace capability-gated-workspace--checking">
+      <div className="task-capability-loading task-capability-loading--route" role="status"><span className="spinner"/><strong>Checking whether {task.label} is supported for this PDF…</strong><small>You can keep reading or switch tools while this local check finishes.</small></div>
+      <UnifiedWorkspace mode="viewer" onTitleChange={onTitleChange} projectId={projectId} />
+    </div>;
   }
 
   if (task && capability && !canStartTask(capability)) {
