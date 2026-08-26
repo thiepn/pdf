@@ -1,4 +1,4 @@
-export type ProjectLeaseMode = "owner" | "read-only";
+export type ProjectLeaseMode = "acquiring" | "owner" | "read-only";
 
 export interface ProjectLease {
   readonly mode: ProjectLeaseMode;
@@ -47,7 +47,7 @@ export function createProjectLease(projectId: string): ProjectLease {
   const listeners = new Set<(mode: ProjectLeaseMode) => void>();
   const lockManager = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManagerLike }).locks : undefined;
 
-  let mode: ProjectLeaseMode = "read-only";
+  let mode: ProjectLeaseMode = "acquiring";
   let heartbeat: number | null = null;
   let released = false;
   let fallbackOwned = false;
@@ -172,6 +172,7 @@ export function createProjectLease(projectId: string): ProjectLease {
     if (released) return false;
     if (webLockOwned || fallbackOwned) return true;
     if (acquiring) return acquiring;
+    notify("acquiring");
     acquiring = (async () => {
       if (lockManager) {
         const acquired = await acquireWebLock();
