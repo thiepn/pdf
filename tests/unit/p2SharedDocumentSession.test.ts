@@ -17,7 +17,10 @@ describe("Recovery P2 shared document session architecture", () => {
     expect(projectRepositorySource).toContain("sourceSessions");
     expect(projectRepositorySource).toContain("projectBytes.session.hit");
     expect(projectRepositorySource).toContain("MAX_SOURCE_SESSIONS");
-    expect(projectRepositorySource).toContain("await base.loadProjectBytes(project)");
+    expect(projectRepositorySource).toContain('project.storageKind === "opfs"');
+    expect(projectRepositorySource).toContain("await readProjectSource(project.id)");
+    expect(projectRepositorySource).toContain('idbGet<SourceFileRecord>("sourceFiles", project.id)');
+    expect(projectRepositorySource).toContain("rememberSource(project");
   });
 
   it("reuses completed MuPDF inspection work when Edit is reopened", () => {
