@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260827-08",
+  "change_class": "product-hotfix",
+  "base_commit": "0b8b010c131bb35f3fcb7b2cc2d4ec415ec4d1f5",
+  "target_commit": "cbbf116097549fca9a58aaa71e011c9da8ad510c",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "medium",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "Recovery P4 decouples task capability preflight from the workspace shell and reuses completed security inspection for identical immutable project bytes. Previously protected task routes could replace the entire workspace with a capability spinner and then repeat the same worker/WASM security inspection again when Protect mounted.",
+  "rollback_commit": "0b8b010c131bb35f3fcb7b2cc2d4ec415ec4d1f5",
+  "affected_workflows": [
+    "Open Fill PDF forms from task discovery",
+    "Open Apply permanent redactions",
+    "Open Flatten supported PDF content",
+    "Direct and command-palette protected-task navigation",
+    "Read or switch tools while capability preflight is pending",
+    "Protect workspace security inspection"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": false
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "P4 preserves R4 fail-closed direct-link capability gating. The requested protected task still does not mount before preflight succeeds; a safe Read workspace remains usable while the local check runs. Security inspection reuse is keyed only by immutable byte identity plus in-memory session password state; performance metrics record no password values or document content. Completed inspection reuse avoids a second security worker pass when Protect mounts, while failed inspections are evicted and pending inspection is aborted after its final cancellable consumer leaves. Security transformations are never cached. Operation concurrency redesign remains outside P4. Genuine R9 human requalification remains pending."
+}
