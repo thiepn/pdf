@@ -1,6 +1,8 @@
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
+import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 
 const PROJECT_ROOT = "projects";
+const sourceByteCache = new Map<string, Uint8Array>();
 
 function hasOpfs(): boolean {
   return "storage" in navigator && "getDirectory" in navigator.storage;
@@ -20,7 +22,11 @@ export async function writeProjectSource(projectId: string, bytes: Uint8Array): 
   try {
     await writable.write(toOwnedArrayBuffer(bytes));
     await writable.close();
+    // Project source PDFs are immutable. Reusing the same byte view avoids a full
+    // OPFS read every time the persistent workspace changes document modes.
+    sourceByteCache.set(projectId, bytes);
   } catch (reason) {
+    sourceByteCache.delete(projectId);
     try { await writable.abort(reason); } catch { /* Best-effort cleanup; caller removes the project directory. */ }
     throw reason;
   }
@@ -28,13 +34,22 @@ export async function writeProjectSource(projectId: string, bytes: Uint8Array): 
 }
 
 export async function readProjectSource(projectId: string): Promise<Uint8Array> {
+  const cached = sourceByteCache.get(projectId);
+  if (cached) {
+    recordRuntimeMetric("storage", "projectSource.session.hit", 0, undefined, { storage: "opfs" });
+    return cached;
+  }
   if (!hasOpfs()) throw new Error("OPFS is unavailable.");
+  recordRuntimeMetric("storage", "projectSource.session.miss", 0, undefined, { storage: "opfs" });
   const directory = await getProjectDirectory(projectId, false);
   const handle = await directory.getFileHandle("original.pdf");
-  return new Uint8Array(await (await handle.getFile()).arrayBuffer());
+  const bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+  sourceByteCache.set(projectId, bytes);
+  return bytes;
 }
 
 export async function deleteProjectFiles(projectId: string): Promise<void> {
+  sourceByteCache.delete(projectId);
   if (!hasOpfs()) return;
   const root = await navigator.storage.getDirectory();
   try {
