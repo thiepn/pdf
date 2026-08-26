@@ -1,8 +1,6 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
-const workspaceSource = readFileSync(new URL("../../src/workspace/UnifiedWorkspace.tsx", import.meta.url), "utf8");
-const leaseSource = readFileSync(new URL("../../src/projects/projectLease.ts", import.meta.url), "utf8");
+import workspaceSource from "../../src/workspace/UnifiedWorkspace.tsx?raw";
+import leaseSource from "../../src/projects/projectLease.ts?raw";
 
 describe("Recovery P1 workspace lifecycle architecture", () => {
   it("loads document modes lazily inside the persistent workspace shell", () => {
