@@ -3,9 +3,10 @@ import gateSource from "../../src/capabilities/CapabilityGatedWorkspace.tsx?raw"
 import securityClientSource from "../../src/security/securityClient.ts?raw";
 
 describe("Recovery P4 capability gate decoupling", () => {
-  it("keeps a safe Read workspace mounted while task preflight is pending", () => {
-    expect(gateSource).toContain('capability-gated-workspace--checking');
-    expect(gateSource).toContain('<UnifiedWorkspace mode="viewer"');
+  it("keeps one safe workspace mounted while task preflight is pending", () => {
+    expect(gateSource).toContain("capability-gated-workspace--checking");
+    expect(gateSource).toContain('mode={checking ? "viewer" : mode}');
+    expect(gateSource).toContain('key={`workspace:${projectId}`}');
     expect(gateSource).toContain("You can keep reading or switch tools while this local check finishes.");
   });
 
@@ -13,11 +14,15 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(gateSource).toContain("buildTaskCapabilityContext(projectId, { inspectSecurity: true })");
     expect(gateSource).toContain("if (task && capability && !canStartTask(capability))");
     expect(gateSource).toContain("<TaskCapabilityBlocker");
-    expect(gateSource).toContain("<UnifiedWorkspace mode={mode}");
+    expect(gateSource).toContain("<TaskIntentRouteBridge");
   });
 
-  it("reuses completed security inspection and cancels unused pending inspection", () => {
-    expect(securityClientSource).toContain("WeakMap<Uint8Array, Map<string, InspectionEntry>>");
+  it("reuses equivalent immutable bytes and cancels unused pending inspection", () => {
+    expect(securityClientSource).toContain("WeakMap<Uint8Array, Promise<string>>");
+    expect(securityClientSource).toContain("Map<string, Map<string, InspectionEntry>>");
+    expect(securityClientSource).toContain('subtle.digest("SHA-256"');
+    expect(securityClientSource).toContain("MAX_INSPECTION_IDENTITIES");
+    expect(securityClientSource).toContain("evictSettledIdentities");
     expect(securityClientSource).toContain("security.inspection.session.hit");
     expect(securityClientSource).toContain("security.inspection.session.miss");
     expect(securityClientSource).toContain("maybeAbortUnused");
@@ -31,6 +36,6 @@ describe("Recovery P4 capability gate decoupling", () => {
     const applySource = securityClientSource.slice(applyStart);
     expect(applySource).toContain('type: "APPLY_SECURITY"');
     expect(applySource).toContain("return runWorker");
-    expect(applySource).not.toContain("inspectionsByBytes");
+    expect(applySource).not.toContain("inspectionsByIdentity");
   });
 });

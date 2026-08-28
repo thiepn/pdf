@@ -7,6 +7,7 @@ import { applyPreprocess, canvasToBlob, DEFAULT_OCR_PREPROCESS } from "../ocr/pr
 import { buildJpegPdf, imageBlobToJpegPage, type JpegPdfPage } from "../pdf/jpegPdf";
 import { downloadBlob } from "../projects/download";
 import { createProjectFromBytes } from "../projects/projectRepository";
+import { buildScanOutputFingerprint } from "../scan/scanOutputFingerprint";
 import { mergePdfSources } from "../tools/pageOperationsClient";
 import type { OcrPreprocessSettings } from "../types/ocr";
 import { routeHref } from "../core/appRouter";
@@ -47,34 +48,67 @@ export function ScanPage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [output, setOutput] = useState<Uint8Array | null>(null);
+  const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
+
+  const currentFingerprint = useMemo(
+    () => buildScanOutputFingerprint(items, searchable, languages, preprocess),
+    [items, languages, preprocess, searchable]
+  );
+  const outputCurrent = Boolean(output && outputFingerprint === currentFingerprint);
 
   useEffect(() => { itemsRef.current = items; }, [items]);
   useEffect(() => () => { itemsRef.current.forEach((item) => URL.revokeObjectURL(item.url)); void sessionRef.current?.terminate(); }, []);
+  useEffect(() => {
+    if (!output || !outputFingerprint || outputFingerprint === currentFingerprint) return;
+    setOutput(null);
+    setOutputFingerprint(null);
+    setError(null);
+    setStatus("Scan settings changed. Create the PDF again.");
+  }, [currentFingerprint, output, outputFingerprint]);
+
+  function invalidateOutput(): void {
+    setOutput(null);
+    setOutputFingerprint(null);
+  }
 
   function addFiles(files: FileList | File[]) {
     const accepted = [...files].filter((file) => file.type.startsWith("image/"));
     setItems((current) => [...current, ...accepted.map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0 }))]);
-    setOutput(null); setError(null);
+    invalidateOutput(); setError(null);
   }
 
   function move(index: number, delta: number) {
     setItems((current) => { const next = [...current]; const target = index + delta; if (target < 0 || target >= next.length) return current; [next[index], next[target]] = [next[target], next[index]]; return next; });
   }
 
+  function rotate(itemId: string): void {
+    setItems((current) => current.map((entry) => entry.id === itemId ? { ...entry, rotation: (entry.rotation + 90) % 360 } : entry));
+  }
+
+  function remove(item: ScanItem): void {
+    URL.revokeObjectURL(item.url);
+    setItems((current) => current.filter((entry) => entry.id !== item.id));
+  }
+
   async function build() {
     if (!items.length) return;
     if (searchable && !languages.length) { setError("Install and select at least one OCR language."); return; }
-    setProcessing(true); setError(null); setOutput(null); setProgress(0);
+    const requestedItems = items.map((item) => ({ ...item }));
+    const requestedLanguages = [...languages];
+    const requestedPreprocess = { ...preprocess };
+    const requestedSearchable = searchable;
+    const requestedFingerprint = buildScanOutputFingerprint(requestedItems, requestedSearchable, requestedLanguages, requestedPreprocess);
+    setProcessing(true); setError(null); invalidateOutput(); setProgress(0);
     try {
       const normalized: Blob[] = [];
-      for (let index = 0; index < items.length; index += 1) {
-        setStatus(`Preparing image ${index + 1} of ${items.length}…`);
-        normalized.push(await normalizedImage(items[index], preprocess));
-        setProgress((index + 0.25) / items.length);
+      for (let index = 0; index < requestedItems.length; index += 1) {
+        setStatus(`Preparing image ${index + 1} of ${requestedItems.length}…`);
+        normalized.push(await normalizedImage(requestedItems[index], requestedPreprocess));
+        setProgress((index + 0.25) / requestedItems.length);
       }
       let bytes: Uint8Array;
-      if (searchable) {
-        const session = await createOcrSession(languages, (message) => setStatus(`${message.status} · ${Math.round(message.progress * 100)}%`));
+      if (requestedSearchable) {
+        const session = await createOcrSession(requestedLanguages, (message) => setStatus(`${message.status} · ${Math.round(message.progress * 100)}%`));
         sessionRef.current = session;
         try {
           const pages = [] as Array<{ name: string; bytes: Uint8Array }>;
@@ -96,8 +130,8 @@ export function ScanPage() {
         bytes = buildJpegPdf(pages, { title: "Scanned document" });
       }
       const summary = await inspectPdfBytes(bytes);
-      if (summary.pageCount !== items.length) throw new Error("Scan output validation failed: page count mismatch.");
-      if (searchable) {
+      if (summary.pageCount !== requestedItems.length) throw new Error("Scan output validation failed: page count mismatch.");
+      if (requestedSearchable) {
         const pdf = await openPdfWithPdfJs(bytes);
         try {
           let foundSearchableText = false;
@@ -107,13 +141,18 @@ export function ScanPage() {
           if (!foundSearchableText) throw new Error("Searchable scan validation failed: no text was extracted from any page.");
         } finally { await pdf.loadingTask.destroy(); }
       }
-      setOutput(bytes); setStatus(searchable ? "Searchable scan ready" : "Image PDF ready");
+      setOutput(bytes);
+      setOutputFingerprint(requestedFingerprint);
+      setStatus(requestedSearchable ? "Searchable scan ready" : "Image PDF ready");
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
     finally { setProcessing(false); setProgress(0); }
   }
 
   async function save(asProject: boolean) {
-    if (!output) return;
+    if (!output || outputFingerprint !== currentFingerprint) {
+      setError("The scan changed after this output was created. Create the PDF again before saving or downloading it.");
+      return;
+    }
     if (asProject) {
       const project = await createProjectFromBytes(output, searchable ? "searchable-scan.pdf" : "scan.pdf");
       window.location.hash = routeHref({ name: "workspace", projectId: project.id, mode: "viewer" }).slice(1);
@@ -138,9 +177,9 @@ export function ScanPage() {
       </aside>
       <main className="scan-main">
         <header className="processing-header"><div><strong>{status}</strong><span>{items.length} pages · {totalMb.toFixed(1)} MB source</span></div>{processing ? <progress max="1" value={progress}/> : null}</header>
-        <div className="scan-grid">{items.map((item, index) => <article className="scan-card" key={item.id}><img alt={`Scan page ${index + 1}`} src={item.url}/><div><strong>Page {index + 1}</strong><span>{item.file.name}</span></div><div className="scan-card__actions"><button disabled={processing || index === 0} onClick={() => move(index, -1)} type="button">↑</button><button disabled={processing || index === items.length - 1} onClick={() => move(index, 1)} type="button">↓</button><button disabled={processing} onClick={() => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, rotation: (entry.rotation + 90) % 360 } : entry))} type="button">↻</button><button disabled={processing} onClick={() => { URL.revokeObjectURL(item.url); setItems((current) => current.filter((entry) => entry.id !== item.id)); }} type="button">×</button></div></article>)}</div>
+        <div className="scan-grid">{items.map((item, index) => <article className="scan-card" key={item.id}><img alt={`Scan page ${index + 1}`} src={item.url}/><div><strong>Page {index + 1}</strong><span>{item.file.name}</span></div><div className="scan-card__actions"><button aria-label={`Move page ${index + 1} up`} disabled={processing || index === 0} onClick={() => move(index, -1)} type="button">↑</button><button aria-label={`Move page ${index + 1} down`} disabled={processing || index === items.length - 1} onClick={() => move(index, 1)} type="button">↓</button><button aria-label={`Rotate page ${index + 1}`} disabled={processing} onClick={() => rotate(item.id)} type="button">↻</button><button aria-label={`Remove page ${index + 1}`} disabled={processing} onClick={() => remove(item)} type="button">×</button></div></article>)}</div>
         {!items.length ? <div className="empty-state"><strong>No scan pages</strong><p>Add images from storage or capture pages with the device camera.</p></div> : null}
-        {output ? <footer className="output-bar"><div><strong>Output validated</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button button--secondary" onClick={() => void save(false)} type="button">Download</button><button className="button" onClick={() => void save(true)} type="button">Save as project</button></footer> : null}
+        {outputCurrent && output ? <footer className="output-bar"><div><strong>Output validated</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button button--secondary" onClick={() => void save(false)} type="button">Download</button><button className="button" onClick={() => void save(true)} type="button">Save as project</button></footer> : null}
       </main>
     </div>
   </div>;
