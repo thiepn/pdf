@@ -40,12 +40,16 @@ export interface TaskCapabilityContext {
 
 export interface BuildTaskCapabilityContextOptions {
   inspectSecurity?: boolean;
+  signal?: AbortSignal;
 }
 
 const AVAILABLE: TaskCapability = { state: "available", label: "Ready" };
 const DOCUMENT_PREFLIGHT_TASKS = new Set(["fill-forms", "apply-redactions", "split-pdf", "flatten-pdf"]);
 const SECURITY_WORKER_TASKS = new Set(["fill-forms", "apply-redactions", "sanitize-pdf", "password-protect", "flatten-pdf"]);
-const SECURITY_PREFLIGHT_TIMEOUT_MS = 5_000;
+// Worker/WASM startup can exceed five seconds on cold CI/mobile-class devices.
+// The Read workspace remains usable while this bounded check runs, so allow a
+// realistic cold-start window without turning the gate into an indefinite wait.
+const SECURITY_PREFLIGHT_TIMEOUT_MS = 15_000;
 
 export function detectTaskCapabilityRuntime(): TaskCapabilityContext["runtime"] {
   return {
@@ -78,19 +82,33 @@ export async function buildTaskCapabilityContext(
 
   if (options.inspectSecurity && context.runtime.worker && context.runtime.webAssembly) {
     const controller = new AbortController();
+    const abortFromCaller = () => {
+      if (!controller.signal.aborted) controller.abort(options.signal?.reason ?? new DOMException("Capability preflight cancelled.", "AbortError"));
+    };
+    if (options.signal?.aborted) abortFromCaller();
+    else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+
     let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
     const deadline = new Promise<never>((_, reject) => {
       timeoutId = globalThis.setTimeout(() => {
-        controller.abort();
+        if (!controller.signal.aborted) controller.abort(new DOMException("Document capability preflight timed out.", "TimeoutError"));
         reject(new DOMException("Document capability preflight timed out.", "TimeoutError"));
       }, SECURITY_PREFLIGHT_TIMEOUT_MS);
     });
+    const cancellation = new Promise<never>((_, reject) => {
+      if (controller.signal.aborted) {
+        reject(controller.signal.reason ?? new DOMException("Capability preflight cancelled.", "AbortError"));
+        return;
+      }
+      controller.signal.addEventListener("abort", () => reject(controller.signal.reason ?? new DOMException("Capability preflight cancelled.", "AbortError")), { once: true });
+    });
 
     try {
-      const bytes = await Promise.race([loadProjectBytes(project), deadline]);
+      const bytes = await Promise.race([loadProjectBytes(project), deadline, cancellation]);
       const report = await Promise.race([
         inspectSecurity(bytes, readProjectSessionPassword(project.id), controller.signal),
-        deadline
+        deadline,
+        cancellation
       ]);
       const fillableFormFieldCount = report.formFields.filter((field) => !field.readOnly && field.type !== "signature" && field.type !== "button").length;
       const flattenableFormFieldCount = report.formFields.filter((field) => field.type !== "signature").length;
@@ -109,6 +127,7 @@ export async function buildTaskCapabilityContext(
       throw reason;
     } finally {
       if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
+      options.signal?.removeEventListener("abort", abortFromCaller);
     }
   }
 
