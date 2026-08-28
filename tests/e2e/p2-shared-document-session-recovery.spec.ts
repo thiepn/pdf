@@ -45,11 +45,13 @@ test.describe("Recovery P2 shared document session", () => {
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".editor-app")).toBeVisible();
     await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "mupdf.inspection.session.miss").length)).toBe(1);
+    await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "readiness.editor.nativeHydrated").length), { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
 
     await page.getByRole("button", { name: "Read", exact: true }).click();
     await expect(page.locator(".viewer-app")).toBeVisible();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".editor-app")).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "mupdf.inspection.session.hit").length), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
 
     const nativeMetrics = await page.evaluate(() => {
       const snapshot = window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? [];
