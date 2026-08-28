@@ -77,6 +77,7 @@ describe("R4 task capability preflight", () => {
     }));
     expect(blocked.state).toBe("unsupported-for-document");
     expect(blocked.alternativeTaskId).toBe("mark-redaction");
+    expect(blocked.reason).toBe("No saved editor redaction marks or existing PDF redaction annotations were found.");
 
     const marked = evaluateTaskCapability(task("apply-redactions"), context({
       securityEvidenceChecked: true,
