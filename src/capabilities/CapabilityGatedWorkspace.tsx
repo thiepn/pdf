@@ -29,9 +29,10 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
 
   useEffect(() => {
     let cancelled = false;
+    const preflight = new AbortController();
     if (!task) {
       setCapability(READY);
-      return () => { cancelled = true; };
+      return () => { cancelled = true; preflight.abort(); };
     }
     if (task.target.kind !== "workspace" || task.target.mode !== mode) {
       setCapability({
@@ -40,7 +41,7 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         reason: "This task link does not match the workspace it is trying to open.",
         recovery: "Return to Tools and choose the task again."
       });
-      return () => { cancelled = true; };
+      return () => { cancelled = true; preflight.abort(); };
     }
 
     setCapability(null);
@@ -63,10 +64,10 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         // workspace responsive while this runs; securityClient reuses the completed
         // report when Protect mounts, so the gate no longer causes a second worker
         // inspection of the same immutable project bytes.
-        const deepContext = await buildTaskCapabilityContext(projectId, { inspectSecurity: true });
+        const deepContext = await buildTaskCapabilityContext(projectId, { inspectSecurity: true, signal: preflight.signal });
         if (!cancelled) setCapability(evaluateTaskCapability(task, deepContext));
       } catch (reason) {
-        if (cancelled) return;
+        if (cancelled || (reason instanceof DOMException && reason.name === "AbortError")) return;
         void recordDiagnosticError(reason, {
           area: "capability",
           operation: `preflight:${task.id}`,
@@ -83,7 +84,7 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         });
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; preflight.abort(new DOMException("Capability preflight route changed.", "AbortError")); };
   }, [mode, projectId, task]);
 
   if (task && capability && !canStartTask(capability)) {
