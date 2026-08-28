@@ -5,6 +5,7 @@ import { getTask } from "../ia/taskCatalog";
 import type { WorkspaceMode } from "../types/workspace";
 import { UnifiedWorkspace } from "../workspace/UnifiedWorkspace";
 import { TaskCapabilityBlocker, TaskCapabilityNotice } from "./TaskCapabilityStatus";
+import { TaskIntentFocusBridge } from "./TaskIntentFocusBridge";
 import {
   buildTaskCapabilityContext,
   canStartTask,
@@ -105,6 +106,7 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
   // routes. This lets React update UnifiedWorkspace in place instead of tearing
   // down and reacquiring the same project lease during normal task navigation.
   return <div className="capability-gated-workspace">
+    {task ? <TaskIntentFocusBridge taskId={task.id} /> : null}
     {task && capability ? <TaskCapabilityNotice capability={capability} /> : null}
     <UnifiedWorkspace mode={mode} onTitleChange={onTitleChange} projectId={projectId} />
   </div>;
