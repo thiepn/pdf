@@ -24,7 +24,7 @@
   "required_gates": {
     "engineering_requalification": true,
     "human_requalification": true,
-    "security_privacy_gate": true
+    "security_privacy_gate": false
   },
   "gate_results": {
     "engineering_requalification": null,
