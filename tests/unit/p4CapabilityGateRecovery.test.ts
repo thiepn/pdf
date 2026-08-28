@@ -1,19 +1,22 @@
 import { describe, expect, it } from "vitest";
 import gateSource from "../../src/capabilities/CapabilityGatedWorkspace.tsx?raw";
+import taskCapabilitySource from "../../src/capabilities/taskCapability.ts?raw";
 import securityClientSource from "../../src/security/securityClient.ts?raw";
 
 describe("Recovery P4 capability gate decoupling", () => {
-  it("keeps a safe Read workspace mounted while task preflight is pending", () => {
+  it("keeps one safe workspace mounted while task preflight hands off from Read to the requested tool", () => {
     expect(gateSource).toContain('capability-gated-workspace--checking');
-    expect(gateSource).toContain('<UnifiedWorkspace mode="viewer"');
+    expect(gateSource).toContain('key="workspace" mode={checking ? "viewer" : mode}');
+    expect(gateSource).toContain('key="gate-status"');
     expect(gateSource).toContain("You can keep reading or switch tools while this local check finishes.");
   });
 
   it("preserves the deep fail-closed capability gate before protected tasks mount", () => {
-    expect(gateSource).toContain("buildTaskCapabilityContext(projectId, { inspectSecurity: true })");
+    expect(gateSource).toContain("buildTaskCapabilityContext(projectId, { inspectSecurity: true, signal: preflight.signal })");
     expect(gateSource).toContain("if (task && capability && !canStartTask(capability))");
     expect(gateSource).toContain("<TaskCapabilityBlocker");
-    expect(gateSource).toContain("<UnifiedWorkspace mode={mode}");
+    expect(taskCapabilitySource).toContain("SECURITY_PREFLIGHT_TIMEOUT_MS = 15_000");
+    expect(taskCapabilitySource).toContain("signal?: AbortSignal");
   });
 
   it("reuses completed security inspection and cancels unused pending inspection", () => {
@@ -23,6 +26,7 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityClientSource).toContain("maybeAbortUnused");
     expect(securityClientSource).toContain("entry.controller.abort()");
     expect(securityClientSource).toContain("current.settled = true");
+    expect(gateSource).toContain("preflight.abort(new DOMException");
   });
 
   it("does not cache security transformations", () => {
