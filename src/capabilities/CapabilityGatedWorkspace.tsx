@@ -5,6 +5,7 @@ import { getTask } from "../ia/taskCatalog";
 import type { WorkspaceMode } from "../types/workspace";
 import { UnifiedWorkspace } from "../workspace/UnifiedWorkspace";
 import { TaskCapabilityBlocker, TaskCapabilityNotice } from "./TaskCapabilityStatus";
+import { TaskIntentFocusBridge } from "./TaskIntentFocusBridge";
 import {
   buildTaskCapabilityContext,
   canStartTask,
@@ -28,9 +29,11 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
 
   useEffect(() => {
     let cancelled = false;
+    const preflight = new AbortController();
+
     if (!task) {
       setCapability(READY);
-      return () => { cancelled = true; };
+      return () => { cancelled = true; preflight.abort(); };
     }
     if (task.target.kind !== "workspace" || task.target.mode !== mode) {
       setCapability({
@@ -39,7 +42,7 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         reason: "This task link does not match the workspace it is trying to open.",
         recovery: "Return to Tools and choose the task again."
       });
-      return () => { cancelled = true; };
+      return () => { cancelled = true; preflight.abort(); };
     }
 
     setCapability(null);
@@ -50,22 +53,24 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         const cheapCapability = evaluateTaskCapability(task, cheapContext);
 
         // Cheap manifest/editor evidence is authoritative when it already proves
-        // the task cannot start. Do not spin up a security worker just to reach
-        // the same answer (for example a PDF with zero form widgets).
+        // the task cannot start. Only tasks whose safety depends on native PDF
+        // evidence pay the deeper security-inspection cost.
         if (!canStartTask(cheapCapability) || !taskNeedsDeepSecurityInspection(task)) {
           setCapability(cheapCapability);
           return;
         }
 
-        // Deep safety inspection remains a hard gate for the destructive/protect
-        // tasks that require document evidence. Recovery P4 keeps the surrounding
-        // workspace responsive while this runs; securityClient reuses the completed
-        // report when Protect mounts, so the gate no longer causes a second worker
-        // inspection of the same immutable project bytes.
-        const deepContext = await buildTaskCapabilityContext(projectId, { inspectSecurity: true });
+        // Destructive/protected task URLs must not bypass document capability
+        // preflight. The security worker now exposes an explicit READY handshake,
+        // and its completed inspection is reused when Protect mounts, so this gate
+        // remains fail-closed without repeating the heavyweight MuPDF inspection.
+        const deepContext = await buildTaskCapabilityContext(projectId, {
+          inspectSecurity: true,
+          signal: preflight.signal
+        });
         if (!cancelled) setCapability(evaluateTaskCapability(task, deepContext));
       } catch (reason) {
-        if (cancelled) return;
+        if (cancelled || (reason instanceof DOMException && reason.name === "AbortError")) return;
         void recordDiagnosticError(reason, {
           area: "capability",
           operation: `preflight:${task.id}`,
@@ -82,15 +87,12 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         });
       }
     })();
-    return () => { cancelled = true; };
-  }, [mode, projectId, task]);
 
-  if (task && !capability) {
-    return <div className="capability-gated-workspace capability-gated-workspace--checking">
-      <div className="task-capability-loading task-capability-loading--route" role="status"><span className="spinner"/><strong>Checking whether {task.label} is supported for this PDF…</strong><small>You can keep reading or switch tools while this local check finishes.</small></div>
-      <UnifiedWorkspace mode="viewer" onTitleChange={onTitleChange} projectId={projectId} />
-    </div>;
-  }
+    return () => {
+      cancelled = true;
+      preflight.abort(new DOMException("Capability preflight route changed.", "AbortError"));
+    };
+  }, [mode, projectId, task]);
 
   if (task && capability && !canStartTask(capability)) {
     return <TaskCapabilityBlocker
@@ -101,11 +103,18 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
     />;
   }
 
-  // Keep the same wrapper/component position for taskless and supported task
-  // routes. This lets React update UnifiedWorkspace in place instead of tearing
-  // down and reacquiring the same project lease during normal task navigation.
-  return <div className="capability-gated-workspace">
-    {task && capability ? <TaskCapabilityNotice capability={capability} /> : null}
-    <UnifiedWorkspace mode={mode} onTitleChange={onTitleChange} projectId={projectId} />
+  const checking = Boolean(task && !capability);
+
+  // Keep stable keyed positions through checking → supported so the safe Read
+  // workspace can hand off to the requested mode without reacquiring the project
+  // lease. Deep-security results are cached by immutable source-byte identity.
+  return <div className={checking ? "capability-gated-workspace capability-gated-workspace--checking" : "capability-gated-workspace"}>
+    {checking
+      ? <div className="task-capability-loading task-capability-loading--route" key="gate-status" role="status"><span className="spinner"/><strong>Checking whether {task?.label} is supported for this PDF…</strong><small>You can keep reading while this local check finishes.</small></div>
+      : task && capability
+        ? <TaskCapabilityNotice capability={capability} key="gate-status" />
+        : <span aria-hidden="true" hidden key="gate-status" />}
+    <UnifiedWorkspace key="workspace" mode={checking ? "viewer" : mode} onTitleChange={onTitleChange} projectId={projectId} />
+    {!checking && task ? <TaskIntentFocusBridge key="task-intent" taskId={task.id} /> : null}
   </div>;
 }

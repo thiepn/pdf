@@ -6,6 +6,10 @@ test.describe("Recovery P2 shared document session", () => {
     await page.goto("./#/home");
     await page.getByRole("button", { name: "Open sample" }).click();
     await expect(page.locator(".viewer-app")).toBeVisible();
+    // The viewer shell can paint before the shared parser reports interactive.
+    // Start counting handoff metrics only after the initial open has completed so
+    // a late first-open metric cannot be mistaken for a mode-switch miss.
+    await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "readiness.viewer.interactive").length)).toBeGreaterThanOrEqual(1);
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
 
     await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -40,16 +44,22 @@ test.describe("Recovery P2 shared document session", () => {
     await page.goto("./#/home");
     await page.getByRole("button", { name: "Open sample" }).click();
     await expect(page.locator(".viewer-app")).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "readiness.viewer.interactive").length)).toBeGreaterThanOrEqual(1);
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
 
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".editor-app")).toBeVisible();
     await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "mupdf.inspection.session.miss").length)).toBe(1);
+    // P3 intentionally cancels a pending inspection when its last consumer leaves.
+    // This qualification is specifically for completed-session reuse, so wait for
+    // the deferred native hydration to finish before navigating away.
+    await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "readiness.editor.nativeHydrated").length), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
 
     await page.getByRole("button", { name: "Read", exact: true }).click();
     await expect(page.locator(".viewer-app")).toBeVisible();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.locator(".editor-app")).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? []).filter((entry) => entry.name === "mupdf.inspection.session.hit").length)).toBeGreaterThanOrEqual(1);
 
     const nativeMetrics = await page.evaluate(() => {
       const snapshot = window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? [];
