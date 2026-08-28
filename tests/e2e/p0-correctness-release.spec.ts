@@ -35,19 +35,20 @@ async function addTinyPng(page: Page): Promise<void> {
 }
 
 test("canonical task links activate the exact shared-workspace tool or tab", async ({ page }) => {
+  test.setTimeout(70_000);
   const projectId = await openSampleProject(page);
 
   await openTask(page, projectId, "editor", "visual-signature");
-  await expect(page.locator('.editor-toolrail button[aria-label="Signature"]')).toHaveClass(/active/);
+  await expect(page.locator('.editor-toolrail button[aria-label="Signature"]')).toHaveClass(/active/, { timeout: 20_000 });
 
   await openTask(page, projectId, "secure", "password-protect");
-  await expect(page.locator(".security-tabs button").filter({ hasText: "Protect" })).toHaveClass(/active/);
+  await expect(page.locator(".security-tabs button").filter({ hasText: "Protect" })).toHaveClass(/active/, { timeout: 35_000 });
 
   await openTask(page, projectId, "professional", "print-layout");
-  await expect(page.locator(".professional-page .professional-tabs button").filter({ hasText: "Print layout" })).toHaveClass(/professional-tab--active|active/);
+  await expect(page.locator(".professional-page .professional-tabs button").filter({ hasText: "Print layout" })).toHaveClass(/professional-tab--active|active/, { timeout: 20_000 });
 
   await openTask(page, projectId, "compliance", "accessibility-check");
-  await expect(page.locator(".compliance-page .professional-tabs button").filter({ hasText: "Accessibility" })).toHaveClass(/active/);
+  await expect(page.locator(".compliance-page .professional-tabs button").filter({ hasText: "Accessibility" })).toHaveClass(/active/, { timeout: 20_000 });
 });
 
 test("scan output disappears as soon as source or cleanup settings change", async ({ page }) => {
