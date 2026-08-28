@@ -1,9 +1,28 @@
+import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 import type { SecurityExportOptions, SecurityExportReport, SecurityInspectionReport } from "../types/security";
 
 interface InspectionSuccess { type: "SECURITY_INSPECTION_RESULT"; requestId: string; report: SecurityInspectionReport }
 interface ExportSuccess { type: "SECURITY_EXPORT_RESULT"; requestId: string; output: ArrayBuffer; report: SecurityExportReport }
 interface Failure { type: "SECURITY_ERROR"; requestId: string; error: { name: string; message: string } }
 type Response = InspectionSuccess | ExportSuccess | Failure;
+
+interface InspectionEntry {
+  promise: Promise<SecurityInspectionReport>;
+  controller: AbortController;
+  settled: boolean;
+  cancellableWaiters: number;
+  uncancellableWaiters: number;
+}
+
+const inspectionsByBytes = new WeakMap<Uint8Array, Map<string, InspectionEntry>>();
+
+function inspectionKey(password?: string): string {
+  return password ? `protected:${password}` : "unprotected";
+}
+
+function abortError(): DOMException {
+  return new DOMException("Security inspection cancelled.", "AbortError");
+}
 
 function runWorker<T>(
   message: Record<string, unknown>,
@@ -29,14 +48,108 @@ function runWorker<T>(
   });
 }
 
+function maybeAbortUnused(entry: InspectionEntry, sessions: Map<string, InspectionEntry>, key: string): void {
+  if (entry.settled || entry.cancellableWaiters || entry.uncancellableWaiters) return;
+  entry.controller.abort();
+  sessions.delete(key);
+}
+
+function waitWithSignal(
+  entry: InspectionEntry,
+  sessions: Map<string, InspectionEntry>,
+  key: string,
+  signal: AbortSignal
+): Promise<SecurityInspectionReport> {
+  if (signal.aborted) {
+    maybeAbortUnused(entry, sessions, key);
+    return Promise.reject(abortError());
+  }
+  entry.cancellableWaiters += 1;
+  return new Promise<SecurityInspectionReport>((resolve, reject) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return false;
+      finished = true;
+      signal.removeEventListener("abort", onAbort);
+      entry.cancellableWaiters = Math.max(0, entry.cancellableWaiters - 1);
+      return true;
+    };
+    const onAbort = () => {
+      if (!finish()) return;
+      reject(abortError());
+      maybeAbortUnused(entry, sessions, key);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    entry.promise.then(
+      (inspection) => { if (finish()) resolve(inspection); },
+      (reason) => { if (finish()) reject(reason); }
+    );
+  });
+}
+
+/**
+ * Recovery P4 shares immutable-document security inspection between capability
+ * preflight and Protect. A completed report remains reusable for the same byte
+ * identity and in-memory password; a pending worker is cancelled when its last
+ * cancellable consumer leaves. Export/apply operations are never cached.
+ */
 export async function inspectSecurity(
   bytes: Uint8Array,
   password?: string,
   signal?: AbortSignal
 ): Promise<SecurityInspectionReport> {
-  const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const source = Uint8Array.from(bytes).buffer;
-  return runWorker({ type: "INSPECT_SECURITY", requestId, password }, source, signal, (response) => response.type === "SECURITY_INSPECTION_RESULT" ? response.report : undefined);
+  let sessions = inspectionsByBytes.get(bytes);
+  if (!sessions) {
+    sessions = new Map();
+    inspectionsByBytes.set(bytes, sessions);
+  }
+  const key = inspectionKey(password);
+  let entry = sessions.get(key);
+
+  if (entry) {
+    recordRuntimeMetric("worker", "security.inspection.session.hit", 0, undefined, {
+      byteLength: bytes.byteLength,
+      passwordProtected: Boolean(password)
+    });
+  } else {
+    const controller = new AbortController();
+    entry = {
+      promise: Promise.resolve(undefined as unknown as SecurityInspectionReport),
+      controller,
+      settled: false,
+      cancellableWaiters: 0,
+      uncancellableWaiters: 0
+    };
+    const current = entry;
+    const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const source = Uint8Array.from(bytes).buffer;
+    current.promise = runWorker(
+      { type: "INSPECT_SECURITY", requestId, password },
+      source,
+      controller.signal,
+      (response) => response.type === "SECURITY_INSPECTION_RESULT" ? response.report : undefined
+    ).then((inspection) => {
+      current.settled = true;
+      return inspection;
+    }).catch((reason) => {
+      current.settled = true;
+      sessions!.delete(key);
+      throw reason;
+    });
+    sessions.set(key, current);
+    recordRuntimeMetric("worker", "security.inspection.session.miss", 0, undefined, {
+      byteLength: bytes.byteLength,
+      passwordProtected: Boolean(password)
+    });
+  }
+
+  if (signal) return waitWithSignal(entry, sessions, key, signal);
+  entry.uncancellableWaiters += 1;
+  try {
+    return await entry.promise;
+  } finally {
+    entry.uncancellableWaiters = Math.max(0, entry.uncancellableWaiters - 1);
+  }
 }
 
 export async function applySecurity(
