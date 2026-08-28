@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const generatedCorpus = "tests/corpus/generated";
 
-test("protected task opens after cheap preflight and performs one security inspection", async ({ page }) => {
+test("protected-task preflight is reused when Protect mounts", async ({ page }) => {
   test.setTimeout(50_000);
   await page.goto("./#/home");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${generatedCorpus}/forms.pdf`);
@@ -24,8 +24,8 @@ test("protected task opens after cheap preflight and performs one security inspe
     };
   });
 
-  // Capability routing deliberately does not launch the heavyweight MuPDF
-  // security worker anymore. Protect owns the single required inspection.
+  // The route performs one fail-closed inspection, then Protect reuses that
+  // completed report rather than launching a second MuPDF worker pass.
   expect(inspectionMetrics.misses).toBe(1);
-  expect(inspectionMetrics.hits).toBe(0);
+  expect(inspectionMetrics.hits).toBeGreaterThanOrEqual(1);
 });
