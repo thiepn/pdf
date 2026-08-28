@@ -36,6 +36,10 @@ export function TaskIntentRouteBridge({ taskId }: Props) {
 
     let complete = false;
     let frame = 0;
+    const root = document.getElementById("main-workspace") ?? document.body;
+    const observer = new MutationObserver(() => {
+      if (activate()) observer.disconnect();
+    });
     const activate = (): boolean => {
       const button = findIntentButton(activation.selector, activation.label);
       if (!button) return false;
@@ -46,12 +50,10 @@ export function TaskIntentRouteBridge({ taskId }: Props) {
       return true;
     };
 
-    frame = window.requestAnimationFrame(() => { void activate(); });
-    const root = document.getElementById("main-workspace") ?? document.body;
-    const observer = new MutationObserver(() => {
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["disabled"] });
+    frame = window.requestAnimationFrame(() => {
       if (activate()) observer.disconnect();
     });
-    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["disabled"] });
 
     const timeout = window.setTimeout(() => {
       observer.disconnect();
