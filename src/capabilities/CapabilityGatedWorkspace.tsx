@@ -10,6 +10,7 @@ import {
   buildTaskCapabilityContext,
   canStartTask,
   evaluateTaskCapability,
+  taskNeedsDeepSecurityInspection,
   type TaskCapability
 } from "./taskCapability";
 
@@ -28,9 +29,11 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
 
   useEffect(() => {
     let cancelled = false;
+    const preflight = new AbortController();
+
     if (!task) {
       setCapability(READY);
-      return () => { cancelled = true; };
+      return () => { cancelled = true; preflight.abort(); };
     }
     if (task.target.kind !== "workspace" || task.target.mode !== mode) {
       setCapability({
@@ -39,16 +42,35 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
         reason: "This task link does not match the workspace it is trying to open.",
         recovery: "Return to Tools and choose the task again."
       });
-      return () => { cancelled = true; };
+      return () => { cancelled = true; preflight.abort(); };
     }
 
     setCapability(null);
-    void buildTaskCapabilityContext(projectId)
-      .then((context) => {
-        if (!cancelled) setCapability(evaluateTaskCapability(task, context));
-      })
-      .catch((reason) => {
+    void (async () => {
+      try {
+        const cheapContext = await buildTaskCapabilityContext(projectId);
         if (cancelled) return;
+        const cheapCapability = evaluateTaskCapability(task, cheapContext);
+
+        // Cheap manifest/editor evidence is authoritative when it already proves
+        // the task cannot start. Only tasks whose safety depends on native PDF
+        // evidence pay the deeper security-inspection cost.
+        if (!canStartTask(cheapCapability) || !taskNeedsDeepSecurityInspection(task)) {
+          setCapability(cheapCapability);
+          return;
+        }
+
+        // Destructive/protected task URLs must not bypass document capability
+        // preflight. The security worker now exposes an explicit READY handshake,
+        // and its completed inspection is reused when Protect mounts, so this gate
+        // remains fail-closed without repeating the heavyweight MuPDF inspection.
+        const deepContext = await buildTaskCapabilityContext(projectId, {
+          inspectSecurity: true,
+          signal: preflight.signal
+        });
+        if (!cancelled) setCapability(evaluateTaskCapability(task, deepContext));
+      } catch (reason) {
+        if (cancelled || (reason instanceof DOMException && reason.name === "AbortError")) return;
         void recordDiagnosticError(reason, {
           area: "capability",
           operation: `preflight:${task.id}`,
@@ -63,8 +85,13 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
           reason: "PDF Studio could not finish the document safety check, so this task was not allowed to start.",
           recovery: "Wait for the PDF to finish opening and retry. If the check keeps failing, open Troubleshooting & recovery."
         });
-      });
-    return () => { cancelled = true; };
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      preflight.abort(new DOMException("Capability preflight route changed.", "AbortError"));
+    };
   }, [mode, projectId, task]);
 
   if (task && capability && !canStartTask(capability)) {
@@ -78,10 +105,9 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
 
   const checking = Boolean(task && !capability);
 
-  // Capability routing stays cheap and deterministic. Heavy security inspection
-  // belongs to Protect itself, where it is required for the actual operation and
-  // can be reused on later Protect visits. This prevents a task link from paying
-  // the same cold Worker/WASM startup twice before the requested workspace opens.
+  // Keep stable keyed positions through checking → supported so the safe Read
+  // workspace can hand off to the requested mode without reacquiring the project
+  // lease. Deep-security results are cached by immutable source-byte identity.
   return <div className={checking ? "capability-gated-workspace capability-gated-workspace--checking" : "capability-gated-workspace"}>
     {checking
       ? <div className="task-capability-loading task-capability-loading--route" key="gate-status" role="status"><span className="spinner"/><strong>Checking whether {task?.label} is supported for this PDF…</strong><small>You can keep reading while this local check finishes.</small></div>
