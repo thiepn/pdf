@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import gateSource from "../../src/capabilities/CapabilityGatedWorkspace.tsx?raw";
 import securityClientSource from "../../src/security/securityClient.ts?raw";
+import securityWorkerEntrySource from "../../src/workers/security-entry.worker.ts?raw";
 
 describe("Recovery P4 capability gate decoupling", () => {
   it("keeps one safe workspace mounted while cheap task preflight hands off to the requested tool", () => {
@@ -25,6 +26,14 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityClientSource).toContain("maybeAbortUnused");
     expect(securityClientSource).toContain("entry.controller.abort()");
     expect(securityClientSource).toContain("current.settled = true");
+  });
+
+  it("waits for MuPDF worker initialization before transferring security input", () => {
+    expect(securityClientSource).toContain('event.data.type === "READY"');
+    expect(securityClientSource).toContain('security-entry.worker.ts');
+    expect(securityClientSource).toContain('worker.postMessage({ ...message, bytes: source }, [source])');
+    expect(securityWorkerEntrySource).toContain('import "./security.worker"');
+    expect(securityWorkerEntrySource).toContain('self.postMessage({ type: "READY" })');
   });
 
   it("does not cache security transformations", () => {
