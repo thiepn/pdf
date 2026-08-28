@@ -1,0 +1,12 @@
+/* Native existing-PDF inspectors render their property sections directly inside
+   .editor-properties instead of using the shared .editor-properties__body scroll
+   container. Keep the native inspector itself as the scroll container so long
+   property panels remain reachable on desktop, tablet, and mobile. */
+.editor-properties.native-unified-properties {
+  min-height: 0;
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
