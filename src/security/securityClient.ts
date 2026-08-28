@@ -14,7 +14,10 @@ interface InspectionEntry {
   uncancellableWaiters: number;
 }
 
-const inspectionsByBytes = new WeakMap<Uint8Array, Map<string, InspectionEntry>>();
+const MAX_INSPECTION_IDENTITIES = 8;
+const identityPromiseByBytes = new WeakMap<Uint8Array, Promise<string>>();
+const fallbackIdentityByBytes = new WeakMap<Uint8Array, string>();
+const inspectionsByIdentity = new Map<string, Map<string, InspectionEntry>>();
 
 function inspectionKey(password?: string): string {
   return password ? `protected:${password}` : "unprotected";
@@ -48,20 +51,64 @@ function runWorker<T>(
   });
 }
 
-function maybeAbortUnused(entry: InspectionEntry, sessions: Map<string, InspectionEntry>, key: string): void {
+async function byteIdentity(bytes: Uint8Array): Promise<string> {
+  let identity = identityPromiseByBytes.get(bytes);
+  if (identity) return identity;
+
+  if (!globalThis.crypto?.subtle) {
+    let fallback = fallbackIdentityByBytes.get(bytes);
+    if (!fallback) {
+      fallback = `object:${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+      fallbackIdentityByBytes.set(bytes, fallback);
+    }
+    identity = Promise.resolve(fallback);
+  } else {
+    const snapshot = Uint8Array.from(bytes);
+    identity = globalThis.crypto.subtle.digest("SHA-256", snapshot).then((digest) =>
+      Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("")
+    );
+  }
+
+  identityPromiseByBytes.set(bytes, identity);
+  return identity;
+}
+
+function touchIdentity(identity: string, sessions: Map<string, InspectionEntry>): void {
+  if (inspectionsByIdentity.get(identity) !== sessions) return;
+  inspectionsByIdentity.delete(identity);
+  inspectionsByIdentity.set(identity, sessions);
+}
+
+function evictSettledIdentities(): void {
+  if (inspectionsByIdentity.size <= MAX_INSPECTION_IDENTITIES) return;
+  for (const [identity, sessions] of inspectionsByIdentity) {
+    const evictable = [...sessions.values()].every((entry) => entry.settled && !entry.cancellableWaiters && !entry.uncancellableWaiters);
+    if (!evictable) continue;
+    inspectionsByIdentity.delete(identity);
+    if (inspectionsByIdentity.size <= MAX_INSPECTION_IDENTITIES) break;
+  }
+}
+
+function removeEntry(identity: string, sessions: Map<string, InspectionEntry>, key: string): void {
+  sessions.delete(key);
+  if (!sessions.size && inspectionsByIdentity.get(identity) === sessions) inspectionsByIdentity.delete(identity);
+}
+
+function maybeAbortUnused(entry: InspectionEntry, identity: string, sessions: Map<string, InspectionEntry>, key: string): void {
   if (entry.settled || entry.cancellableWaiters || entry.uncancellableWaiters) return;
   entry.controller.abort();
-  sessions.delete(key);
+  removeEntry(identity, sessions, key);
 }
 
 function waitWithSignal(
   entry: InspectionEntry,
+  identity: string,
   sessions: Map<string, InspectionEntry>,
   key: string,
   signal: AbortSignal
 ): Promise<SecurityInspectionReport> {
   if (signal.aborted) {
-    maybeAbortUnused(entry, sessions, key);
+    maybeAbortUnused(entry, identity, sessions, key);
     return Promise.reject(abortError());
   }
   entry.cancellableWaiters += 1;
@@ -77,7 +124,7 @@ function waitWithSignal(
     const onAbort = () => {
       if (!finish()) return;
       reject(abortError());
-      maybeAbortUnused(entry, sessions, key);
+      maybeAbortUnused(entry, identity, sessions, key);
     };
     signal.addEventListener("abort", onAbort, { once: true });
     entry.promise.then(
@@ -89,20 +136,27 @@ function waitWithSignal(
 
 /**
  * Recovery P4 shares immutable-document security inspection between capability
- * preflight and Protect. A completed report remains reusable for the same byte
- * identity and in-memory password; a pending worker is cancelled when its last
- * cancellable consumer leaves. Export/apply operations are never cached.
+ * preflight and Protect. Reuse is keyed by a local SHA-256 byte identity plus the
+ * in-memory password state, so independently loaded Uint8Array instances for the
+ * same project still share one completed report. The bounded cache stores no PDF
+ * bytes or password values in diagnostics, and export/apply operations are never
+ * cached.
  */
 export async function inspectSecurity(
   bytes: Uint8Array,
   password?: string,
   signal?: AbortSignal
 ): Promise<SecurityInspectionReport> {
-  let sessions = inspectionsByBytes.get(bytes);
+  const identity = await byteIdentity(bytes);
+  if (signal?.aborted) throw abortError();
+
+  let sessions = inspectionsByIdentity.get(identity);
   if (!sessions) {
     sessions = new Map();
-    inspectionsByBytes.set(bytes, sessions);
-  }
+    inspectionsByIdentity.set(identity, sessions);
+    evictSettledIdentities();
+  } else touchIdentity(identity, sessions);
+
   const key = inspectionKey(password);
   let entry = sessions.get(key);
 
@@ -130,10 +184,11 @@ export async function inspectSecurity(
       (response) => response.type === "SECURITY_INSPECTION_RESULT" ? response.report : undefined
     ).then((inspection) => {
       current.settled = true;
+      evictSettledIdentities();
       return inspection;
     }).catch((reason) => {
       current.settled = true;
-      sessions!.delete(key);
+      removeEntry(identity, sessions!, key);
       throw reason;
     });
     sessions.set(key, current);
@@ -143,12 +198,13 @@ export async function inspectSecurity(
     });
   }
 
-  if (signal) return waitWithSignal(entry, sessions, key, signal);
+  if (signal) return waitWithSignal(entry, identity, sessions, key, signal);
   entry.uncancellableWaiters += 1;
   try {
     return await entry.promise;
   } finally {
     entry.uncancellableWaiters = Math.max(0, entry.uncancellableWaiters - 1);
+    evictSettledIdentities();
   }
 }
 
