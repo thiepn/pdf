@@ -64,6 +64,10 @@ jobs:
         run: |
           python scripts/p8/generate_compatibility_corpus.py
           python scripts/p8/validate_compatibility_corpus.py
+      - name: Generate and validate P0 stress corpus
+        run: |
+          python scripts/p0/generate_stress_corpus.py
+          python scripts/p0/validate_stress_corpus.py
       - name: Dependency-independent stability and release regressions
         run: |
           npm run gate:phase11
