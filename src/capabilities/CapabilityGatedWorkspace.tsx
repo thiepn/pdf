@@ -86,13 +86,6 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
     return () => { cancelled = true; };
   }, [mode, projectId, task]);
 
-  if (task && !capability) {
-    return <div className="capability-gated-workspace capability-gated-workspace--checking">
-      <div className="task-capability-loading task-capability-loading--route" role="status"><span className="spinner"/><strong>Checking whether {task.label} is supported for this PDF…</strong><small>You can keep reading or switch tools while this local check finishes.</small></div>
-      <UnifiedWorkspace mode="viewer" onTitleChange={onTitleChange} projectId={projectId} />
-    </div>;
-  }
-
   if (task && capability && !canStartTask(capability)) {
     return <TaskCapabilityBlocker
       capability={capability}
@@ -102,12 +95,10 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
     />;
   }
 
-  // Keep the same wrapper/component position for taskless and supported task
-  // routes. This lets React update UnifiedWorkspace in place instead of tearing
-  // down and reacquiring the same project lease during normal task navigation.
-  return <div className="capability-gated-workspace">
-    <TaskIntentRouteBridge taskId={task?.id} />
-    {task && capability ? <TaskCapabilityNotice capability={capability} /> : null}
-    <UnifiedWorkspace mode={mode} onTitleChange={onTitleChange} projectId={projectId} />
+  const checking = Boolean(task && !capability);
+  return <div className={checking ? "capability-gated-workspace capability-gated-workspace--checking" : "capability-gated-workspace"}>
+    {checking ? <div className="task-capability-loading task-capability-loading--route" key="capability-status" role="status"><span className="spinner"/><strong>Checking whether {task?.label} is supported for this PDF…</strong><small>You can keep reading or switch tools while this local check finishes.</small></div> : task && capability ? <TaskCapabilityNotice capability={capability} key="capability-status" /> : null}
+    <TaskIntentRouteBridge key="task-intent" taskId={checking ? undefined : task?.id} />
+    <UnifiedWorkspace key={`workspace:${projectId}`} mode={checking ? "viewer" : mode} onTitleChange={onTitleChange} projectId={projectId} />
   </div>;
 }
