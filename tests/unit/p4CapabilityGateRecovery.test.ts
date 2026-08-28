@@ -1,32 +1,30 @@
 import { describe, expect, it } from "vitest";
 import gateSource from "../../src/capabilities/CapabilityGatedWorkspace.tsx?raw";
-import taskCapabilitySource from "../../src/capabilities/taskCapability.ts?raw";
 import securityClientSource from "../../src/security/securityClient.ts?raw";
 
 describe("Recovery P4 capability gate decoupling", () => {
-  it("keeps one safe workspace mounted while task preflight hands off from Read to the requested tool", () => {
+  it("keeps one safe workspace mounted while cheap task preflight hands off to the requested tool", () => {
     expect(gateSource).toContain('capability-gated-workspace--checking');
     expect(gateSource).toContain('key="workspace" mode={checking ? "viewer" : mode}');
     expect(gateSource).toContain('key="gate-status"');
-    expect(gateSource).toContain("You can keep reading or switch tools while this local check finishes.");
+    expect(gateSource).toContain("You can keep reading while this local check finishes.");
   });
 
-  it("preserves the deep fail-closed capability gate before protected tasks mount", () => {
-    expect(gateSource).toContain("buildTaskCapabilityContext(projectId, { inspectSecurity: true, signal: preflight.signal })");
+  it("keeps fail-closed blockers without launching the heavyweight security worker in routing", () => {
+    expect(gateSource).toContain("buildTaskCapabilityContext(projectId)");
     expect(gateSource).toContain("if (task && capability && !canStartTask(capability))");
     expect(gateSource).toContain("<TaskCapabilityBlocker");
-    expect(taskCapabilitySource).toContain("SECURITY_PREFLIGHT_TIMEOUT_MS = 15_000");
-    expect(taskCapabilitySource).toContain("signal?: AbortSignal");
+    expect(gateSource).not.toContain("inspectSecurity: true");
+    expect(gateSource).not.toContain("taskNeedsDeepSecurityInspection");
   });
 
-  it("reuses completed security inspection and cancels unused pending inspection", () => {
+  it("retains completed security inspection reuse for Protect itself", () => {
     expect(securityClientSource).toContain("WeakMap<Uint8Array, Map<string, InspectionEntry>>");
     expect(securityClientSource).toContain("security.inspection.session.hit");
     expect(securityClientSource).toContain("security.inspection.session.miss");
     expect(securityClientSource).toContain("maybeAbortUnused");
     expect(securityClientSource).toContain("entry.controller.abort()");
     expect(securityClientSource).toContain("current.settled = true");
-    expect(gateSource).toContain("preflight.abort(new DOMException");
   });
 
   it("does not cache security transformations", () => {
