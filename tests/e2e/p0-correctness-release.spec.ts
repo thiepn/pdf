@@ -15,15 +15,23 @@ async function openTask(page: Page, projectId: string, mode: string, taskId: str
 }
 
 async function addTinyPng(page: Page): Promise<void> {
-  const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6nAAAAABJRU5ErkJggg==";
-  await page.locator('input[type="file"][multiple]').evaluate((node, encoded) => {
+  await page.locator('input[type="file"][multiple]').evaluate(async (node) => {
     const input = node as HTMLInputElement;
-    const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas unavailable in scan regression.");
+    context.fillStyle = "white";
+    context.fillRect(0, 0, 32, 32);
+    context.fillStyle = "black";
+    context.fillRect(6, 6, 20, 20);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("PNG encoding failed.")), "image/png"));
     const transfer = new DataTransfer();
-    transfer.items.add(new File([bytes], "page.png", { type: "image/png" }));
+    transfer.items.add(new File([blob], "page.png", { type: "image/png", lastModified: 1 }));
     input.files = transfer.files;
     input.dispatchEvent(new Event("change", { bubbles: true }));
-  }, base64);
+  });
 }
 
 test("canonical task links activate the exact shared-workspace tool or tab", async ({ page }) => {
@@ -57,6 +65,8 @@ test("scan output disappears as soon as source or cleanup settings change", asyn
   await page.getByRole("button", { name: "Create PDF" }).click();
   await expect(page.locator(".output-bar")).toBeVisible({ timeout: 20_000 });
 
-  await page.getByLabel("Grayscale enhancement").check();
+  // Grayscale enhancement defaults on, so click rather than check to guarantee
+  // a real recipe change in every browser engine.
+  await page.getByLabel("Grayscale enhancement").click();
   await expect(page.locator(".output-bar")).toBeHidden();
 });
