@@ -7,6 +7,7 @@ import { applyPreprocess, canvasToBlob, DEFAULT_OCR_PREPROCESS } from "../ocr/pr
 import { buildJpegPdf, imageBlobToJpegPage, type JpegPdfPage } from "../pdf/jpegPdf";
 import { downloadBlob } from "../projects/download";
 import { createProjectFromBytes } from "../projects/projectRepository";
+import { buildScanOutputFingerprint } from "../scan/scanOutputFingerprint";
 import { mergePdfSources } from "../tools/pageOperationsClient";
 import type { OcrPreprocessSettings } from "../types/ocr";
 import { routeHref } from "../core/appRouter";
@@ -47,24 +48,80 @@ export function ScanPage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [output, setOutput] = useState<Uint8Array | null>(null);
+  const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
+
+  const scanFingerprint = useMemo(() => buildScanOutputFingerprint({
+    pages: items.map((item) => ({
+      id: item.id,
+      name: item.file.name,
+      size: item.file.size,
+      lastModified: item.file.lastModified,
+      type: item.file.type,
+      rotation: item.rotation
+    })),
+    searchable,
+    languages,
+    preprocess
+  }), [items, languages, preprocess, searchable]);
+  const validatedOutput = output && outputFingerprint === scanFingerprint ? output : null;
 
   useEffect(() => { itemsRef.current = items; }, [items]);
   useEffect(() => () => { itemsRef.current.forEach((item) => URL.revokeObjectURL(item.url)); void sessionRef.current?.terminate(); }, []);
 
+  function invalidateOutput(): void {
+    if (output) setStatus("Scan changed · create the PDF again.");
+    setOutput(null);
+    setOutputFingerprint(null);
+  }
+
   function addFiles(files: FileList | File[]) {
     const accepted = [...files].filter((file) => file.type.startsWith("image/"));
     setItems((current) => [...current, ...accepted.map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), rotation: 0 }))]);
-    setOutput(null); setError(null);
+    invalidateOutput();
+    setError(null);
   }
 
   function move(index: number, delta: number) {
-    setItems((current) => { const next = [...current]; const target = index + delta; if (target < 0 || target >= next.length) return current; [next[index], next[target]] = [next[target], next[index]]; return next; });
+    const target = index + delta;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    setItems(next);
+    invalidateOutput();
+  }
+
+  function rotate(id: string): void {
+    setItems((current) => current.map((entry) => entry.id === id ? { ...entry, rotation: (entry.rotation + 90) % 360 } : entry));
+    invalidateOutput();
+  }
+
+  function remove(id: string): void {
+    const item = items.find((entry) => entry.id === id);
+    if (item) URL.revokeObjectURL(item.url);
+    setItems((current) => current.filter((entry) => entry.id !== id));
+    invalidateOutput();
+  }
+
+  function changeSearchable(value: boolean): void {
+    setSearchable(value);
+    invalidateOutput();
+  }
+
+  function changePreprocess(patch: Partial<OcrPreprocessSettings>): void {
+    setPreprocess((current) => ({ ...current, ...patch }));
+    invalidateOutput();
+  }
+
+  function changeLanguages(value: string[]): void {
+    setLanguages(value);
+    invalidateOutput();
   }
 
   async function build() {
     if (!items.length) return;
     if (searchable && !languages.length) { setError("Install and select at least one OCR language."); return; }
-    setProcessing(true); setError(null); setOutput(null); setProgress(0);
+    const requestedFingerprint = scanFingerprint;
+    setProcessing(true); setError(null); setOutput(null); setOutputFingerprint(null); setProgress(0);
     try {
       const normalized: Blob[] = [];
       for (let index = 0; index < items.length; index += 1) {
@@ -107,17 +164,19 @@ export function ScanPage() {
           if (!foundSearchableText) throw new Error("Searchable scan validation failed: no text was extracted from any page.");
         } finally { await pdf.loadingTask.destroy(); }
       }
-      setOutput(bytes); setStatus(searchable ? "Searchable scan ready" : "Image PDF ready");
+      setOutput(bytes);
+      setOutputFingerprint(requestedFingerprint);
+      setStatus(searchable ? "Searchable scan ready" : "Image PDF ready");
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
     finally { setProcessing(false); setProgress(0); }
   }
 
   async function save(asProject: boolean) {
-    if (!output) return;
+    if (!validatedOutput) return;
     if (asProject) {
-      const project = await createProjectFromBytes(output, searchable ? "searchable-scan.pdf" : "scan.pdf");
+      const project = await createProjectFromBytes(validatedOutput, searchable ? "searchable-scan.pdf" : "scan.pdf");
       window.location.hash = routeHref({ name: "workspace", projectId: project.id, mode: "viewer" }).slice(1);
-    } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), searchable ? "searchable-scan.pdf" : "scan.pdf");
+    } else downloadBlob(new Blob([toOwnedArrayBuffer(validatedOutput)], { type: "application/pdf" }), searchable ? "searchable-scan.pdf" : "scan.pdf");
   }
 
   const totalMb = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0) / 1024 / 1024, [items]);
@@ -130,17 +189,17 @@ export function ScanPage() {
         <button className="button button--secondary" disabled={processing} onClick={() => cameraRef.current?.click()} type="button">Use camera</button>
         <input ref={inputRef} accept="image/*" hidden multiple onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} type="file"/>
         <input ref={cameraRef} accept="image/*" capture="environment" hidden onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} type="file"/>
-        <label><input checked={searchable} disabled={processing} onChange={(event) => setSearchable(event.target.checked)} type="checkbox"/> Make text searchable with OCR</label>
-        <label><input checked={preprocess.grayscale} disabled={processing} onChange={(event) => setPreprocess({ ...preprocess, grayscale: event.target.checked })} type="checkbox"/> Grayscale enhancement</label>
-        <label>Contrast<input disabled={processing} max="2" min="0.5" onChange={(event) => setPreprocess({ ...preprocess, contrast: Number(event.target.value) })} step="0.05" type="range" value={preprocess.contrast}/></label>
-        {searchable ? <OcrLanguagePanel disabled={processing} onChange={setLanguages} selected={languages}/> : null}
+        <label><input checked={searchable} disabled={processing} onChange={(event) => changeSearchable(event.target.checked)} type="checkbox"/> Make text searchable with OCR</label>
+        <label><input checked={preprocess.grayscale} disabled={processing} onChange={(event) => changePreprocess({ grayscale: event.target.checked })} type="checkbox"/> Grayscale enhancement</label>
+        <label>Contrast<input disabled={processing} max="2" min="0.5" onChange={(event) => changePreprocess({ contrast: Number(event.target.value) })} step="0.05" type="range" value={preprocess.contrast}/></label>
+        {searchable ? <OcrLanguagePanel disabled={processing} onChange={changeLanguages} selected={languages}/> : null}
         <button className="button button--wide" disabled={!items.length || processing} onClick={() => void build()} type="button">{processing ? "Processing…" : "Create PDF"}</button>
       </aside>
       <main className="scan-main">
         <header className="processing-header"><div><strong>{status}</strong><span>{items.length} pages · {totalMb.toFixed(1)} MB source</span></div>{processing ? <progress max="1" value={progress}/> : null}</header>
-        <div className="scan-grid">{items.map((item, index) => <article className="scan-card" key={item.id}><img alt={`Scan page ${index + 1}`} src={item.url}/><div><strong>Page {index + 1}</strong><span>{item.file.name}</span></div><div className="scan-card__actions"><button disabled={processing || index === 0} onClick={() => move(index, -1)} type="button">↑</button><button disabled={processing || index === items.length - 1} onClick={() => move(index, 1)} type="button">↓</button><button disabled={processing} onClick={() => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, rotation: (entry.rotation + 90) % 360 } : entry))} type="button">↻</button><button disabled={processing} onClick={() => { URL.revokeObjectURL(item.url); setItems((current) => current.filter((entry) => entry.id !== item.id)); }} type="button">×</button></div></article>)}</div>
+        <div className="scan-grid">{items.map((item, index) => <article className="scan-card" key={item.id}><img alt={`Scan page ${index + 1}`} src={item.url}/><div><strong>Page {index + 1}</strong><span>{item.file.name}</span></div><div className="scan-card__actions"><button disabled={processing || index === 0} onClick={() => move(index, -1)} type="button">↑</button><button disabled={processing || index === items.length - 1} onClick={() => move(index, 1)} type="button">↓</button><button aria-label={`Rotate scan page ${index + 1}`} disabled={processing} onClick={() => rotate(item.id)} type="button">↻</button><button aria-label={`Remove scan page ${index + 1}`} disabled={processing} onClick={() => remove(item.id)} type="button">×</button></div></article>)}</div>
         {!items.length ? <div className="empty-state"><strong>No scan pages</strong><p>Add images from storage or capture pages with the device camera.</p></div> : null}
-        {output ? <footer className="output-bar"><div><strong>Output validated</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button button--secondary" onClick={() => void save(false)} type="button">Download</button><button className="button" onClick={() => void save(true)} type="button">Save as project</button></footer> : null}
+        {validatedOutput ? <footer className="output-bar"><div><strong>Output validated</strong><span>{(validatedOutput.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button button--secondary" onClick={() => void save(false)} type="button">Download</button><button className="button" onClick={() => void save(true)} type="button">Save as project</button></footer> : null}
       </main>
     </div>
   </div>;
