@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "change_id": "R10-MAINT-20260828-09",
+  "change_class": "product-hotfix",
+  "base_commit": "626ff09420bed70f755de42ad100de7bc9c0ed00",
+  "target_commit": "fe9358a6ac84c56c51dd3711a7d146c1dbb941c3",
+  "product_behavior_changed": true,
+  "risk": {
+    "severity": "high",
+    "data_loss_risk": false,
+    "security_privacy_risk": false
+  },
+  "reason": "P0 correctness repair preserves the exact task selected in Tools or the command palette when a broad specialist workspace opens, prevents a validated Scan-to-PDF output from remaining downloadable after any output-affecting recipe change, and repairs Recovery P4 security-inspection reuse across equivalent immutable byte arrays.",
+  "rollback_commit": "626ff09420bed70f755de42ad100de7bc9c0ed00",
+  "affected_workflows": [
+    "Open visual signature, annotation, and redaction tasks in Edit",
+    "Open Forms, permanent redaction, sanitization, flattening, and password protection in Protect",
+    "Open print layout, Bates numbering, and archive readiness in Specialist tools",
+    "Open the Accessibility task in Accessibility & document standards",
+    "Reuse protected-task security preflight when Protect mounts",
+    "Create, modify, download, or save a Scan-to-PDF output",
+    "Return to Edit after completed native inspection"
+  ],
+  "required_gates": {
+    "engineering_requalification": true,
+    "human_requalification": true,
+    "security_privacy_gate": true
+  },
+  "gate_results": {
+    "engineering_requalification": null,
+    "human_requalification": null,
+    "security_privacy_gate": null
+  },
+  "status": "in-progress",
+  "notes": "Task focus is restored through the existing workspace controls after capability preflight, without bypassing the fail-closed gate. Security inspection reuse is bounded and keyed by a local SHA-256 byte identity plus in-memory password state; no byte identity, password, or document content enters diagnostics. Security transformations remain uncached. Scan output carries a deterministic recipe fingerprint and is removed immediately when page order, rotation, source file identity, OCR mode/languages, or preprocessing changes. Genuine R9 human requalification remains pending."
+}
