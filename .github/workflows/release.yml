@@ -1,8 +1,8 @@
-name: Publish qualified v7.0.0 stable release
+name: Promote qualified v7.0.0 stable release
 
 on:
   push:
-    tags: ["v7.0.0"]
+    branches: ["release/v7.0.0-promotion"]
 
 permissions:
   contents: write
@@ -12,6 +12,7 @@ permissions:
 env:
   NODE_VERSION: 22.16.0
   NPM_VERSION: 10.9.2
+  RELEASE_COMMIT: ff601f75ccac316929694bf6a1517864f5aa2e0b
   PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
   VITE_RELEASE_CHANNEL: stable
 
@@ -27,15 +28,19 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Verify exact stable tag
-        run: test "$GITHUB_REF_NAME" = "v7.0.0"
-      - name: Verify stable tag commit belongs to main history
+          ref: ${{ env.RELEASE_COMMIT }}
+      - name: Verify exact promotion commit and absent stable tag
         run: |
           set -euo pipefail
           git fetch origin main:refs/remotes/origin/main --no-tags
-          tag_sha="$(git rev-parse HEAD)"
-          if ! git merge-base --is-ancestor "$tag_sha" refs/remotes/origin/main; then
-            echo "::error::Stable tag commit $tag_sha is not reachable from main."
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$RELEASE_COMMIT"
+          if ! git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main; then
+            echo "::error::Promotion commit $RELEASE_COMMIT is not reachable from main."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v7.0.0" >/dev/null 2>&1; then
+            echo "::error::Stable tag v7.0.0 already exists; refusing to overwrite it."
             exit 1
           fi
       - name: Require committed dependency lock
@@ -67,6 +72,10 @@ jobs:
         run: |
           python scripts/p8/generate_compatibility_corpus.py
           python scripts/p8/validate_compatibility_corpus.py
+      - name: Generate and validate P0 stress corpus
+        run: |
+          python scripts/p0/generate_stress_corpus.py
+          python scripts/p0/validate_stress_corpus.py
       - name: Run P9 release-candidate freeze audit
         run: npm run audit:p9:release-candidate
       - name: Run frozen v7 web release gate
@@ -92,7 +101,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser-qualify exact stable artifact
-        run: npm run test:e2e
+        run: npm run test:e2e -- --workers=1
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
@@ -167,6 +176,9 @@ jobs:
           path: release-assets
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v7.0.0
+          target_commitish: ${{ env.RELEASE_COMMIT }}
+          name: PDF Studio v7.0.0
           draft: false
           prerelease: false
           generate_release_notes: true
