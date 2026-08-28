@@ -14,6 +14,18 @@ async function openTask(page: Page, projectId: string, mode: string, taskId: str
   await expect(page.locator(`[data-task-intent-focus="${taskId}"]`)).toHaveCount(1);
 }
 
+async function addTinyPng(page: Page): Promise<void> {
+  const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6nAAAAABJRU5ErkJggg==";
+  await page.locator('input[type="file"][multiple]').evaluate((node, encoded) => {
+    const input = node as HTMLInputElement;
+    const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], "page.png", { type: "image/png" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, base64);
+}
+
 test("canonical task links activate the exact shared-workspace tool or tab", async ({ page }) => {
   const projectId = await openSampleProject(page);
 
@@ -31,9 +43,8 @@ test("canonical task links activate the exact shared-workspace tool or tab", asy
 });
 
 test("scan output disappears as soon as source or cleanup settings change", async ({ page }) => {
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6nAAAAABJRU5ErkJggg==", "base64");
   await page.goto("./#/scan");
-  await page.locator('input[type="file"][multiple]').setInputFiles({ name: "page.png", mimeType: "image/png", buffer: png });
+  await addTinyPng(page);
   await expect(page.locator(".scan-card")).toHaveCount(1);
 
   await page.getByRole("button", { name: "Create PDF" }).click();
