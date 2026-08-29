@@ -11,9 +11,13 @@ export interface DeferredHydrationOptions {
   /**
    * When the user is actively manipulating the document, non-critical
    * enrichment waits for this quiet window before re-entering the idle queue.
-   * An idle user does not pay this delay.
    */
   quietPeriodMs?: number;
+  /**
+   * Short post-paint grace period that gives immediate user input a chance to
+   * preempt enrichment without imposing the full quiet-period cost on idle users.
+   */
+  initialGraceMs?: number;
 }
 
 type IdleDeadlineLike = { didTimeout: boolean; timeRemaining(): number };
@@ -24,9 +28,9 @@ const activityEvents = ["pointerdown", "pointermove", "pointerup", "wheel", "scr
 
 /**
  * Run non-critical document enrichment after the browser has painted the
- * interactive surface. Idle users enter the browser idle queue immediately;
- * active input preempts that work and postpones it until the configured quiet
- * period has elapsed.
+ * interactive surface. A short grace period lets immediate input win; after
+ * that, idle users enter the browser idle queue while active users keep
+ * postponing enrichment until the configured quiet period has elapsed.
  */
 export function scheduleDeferredHydration(
   task: (signal: AbortSignal) => void | Promise<void>,
@@ -35,12 +39,14 @@ export function scheduleDeferredHydration(
   const controller = new AbortController();
   const timeoutMs = Math.max(250, options.timeoutMs ?? 1_500);
   const quietPeriodMs = Math.max(0, options.quietPeriodMs ?? 700);
+  const initialGraceMs = Math.max(0, options.initialGraceMs ?? 250);
   const label = options.label ?? "document";
   let frameOne: number | null = null;
   let frameTwo: number | null = null;
   let idleHandle: number | null = null;
   let fallbackTimer: number | null = null;
   let quietTimer: number | null = null;
+  let graceTimer: number | null = null;
   let listeningForActivity = false;
   let started = false;
   let lastActivityAt: number | null = null;
@@ -71,6 +77,10 @@ export function scheduleDeferredHydration(
     if (quietTimer !== null) {
       clearTimeout(quietTimer);
       quietTimer = null;
+    }
+    if (graceTimer !== null) {
+      clearTimeout(graceTimer);
+      graceTimer = null;
     }
     detachActivityListeners();
   };
@@ -124,6 +134,18 @@ export function scheduleDeferredHydration(
     quietTimer = globalThis.setTimeout(scheduleWhenInputIsQuiet, quietPeriodMs);
   }
 
+  const enterGraceThenIdle = () => {
+    if (controller.signal.aborted || started) return;
+    if (initialGraceMs <= 0) {
+      scheduleWhenInputIsQuiet();
+      return;
+    }
+    graceTimer = globalThis.setTimeout(() => {
+      graceTimer = null;
+      scheduleWhenInputIsQuiet();
+    }, initialGraceMs);
+  };
+
   if (typeof window !== "undefined") {
     listeningForActivity = true;
     for (const type of activityEvents) window.addEventListener(type, onActivity, { capture: true, passive: true });
@@ -134,11 +156,11 @@ export function scheduleDeferredHydration(
       frameOne = null;
       frameTwo = requestAnimationFrame(() => {
         frameTwo = null;
-        scheduleWhenInputIsQuiet();
+        enterGraceThenIdle();
       });
     });
   } else {
-    fallbackTimer = globalThis.setTimeout(scheduleWhenInputIsQuiet, 0);
+    fallbackTimer = globalThis.setTimeout(enterGraceThenIdle, 0);
   }
 
   return {
