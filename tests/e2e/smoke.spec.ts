@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 
 test("release-qualified home, validation, recovery, reconstructed workspace, editor, task workflows, tools, sample project, and diagnostics load", async ({ page }: { page: Page }) => {
   await page.goto("./#/home");
-  await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What do you want to do with your PDF\?/i })).toBeVisible();
 
   await page.goto("./#/release");
   await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
@@ -27,7 +27,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.locator("body")).toContainText(/Professional|Project not found/i);
 
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Merge PDFs/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Scan to PDF/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Batch automation/i })).toBeVisible();

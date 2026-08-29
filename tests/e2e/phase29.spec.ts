@@ -15,7 +15,7 @@ test("command palette traps focus and restores it on close", async ({ page }) =>
 
 test("skip link moves keyboard focus into the workspace", async ({ page, browserName }) => {
   await page.goto("#/home");
-  await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What do you want to do with your PDF\?/i })).toBeVisible();
   await page.evaluate(() => {
     document.body.tabIndex = -1;
     document.body.focus();

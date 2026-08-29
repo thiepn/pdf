@@ -3,24 +3,22 @@ import { expect, test } from "@playwright/test";
 test.describe("R5 desktop workspace hierarchy", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test("home keeps Open PDF primary and supporting surfaces flat", async ({ page }) => {
+  test("home is task-first with workspace recovery secondary", async ({ page }) => {
     await page.goto("./#/home");
 
-    const openPdf = page.getByRole("button", { name: "Open PDF", exact: true });
-    await expect(openPdf).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What do you want to do with your PDF?" })).toBeVisible();
+    await expect(page.locator(".home-task-card")).toHaveCount(8);
+    await expect(page.getByRole("link", { name: /Edit PDF/ }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Merge PDFs/ }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "All PDF tools", exact: true })).toBeVisible();
+
+    await expect(page.getByRole("button", { name: "Open PDF", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Restore project", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Browse PDF tools", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open sample", exact: true })).toBeVisible();
 
-    const privacy = page.locator(".privacy-card");
-    await expect(privacy).toBeVisible();
-    expect(await privacy.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
-
-    const toolsStrip = page.locator(".home-tools-strip");
-    await expect(toolsStrip).toBeVisible();
-    expect(await toolsStrip.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
-
-    const heroRadius = await page.locator(".product-hero").evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
-    expect(heroRadius).toBeLessThanOrEqual(8);
+    const heroRadius = await page.locator(".consumer-home-hero").evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
+    expect(heroRadius).toBeLessThanOrEqual(10);
+    await expect(page.getByText(/Local autosave\. Browser storage can still be cleared/)).toBeVisible();
   });
 
   test("keeps one compact document header and one dominant primary mode rail", async ({ page }) => {
@@ -79,6 +77,15 @@ test.describe("R5 desktop workspace hierarchy", () => {
     const editorProperties = page.locator(".editor-properties").first();
     await expect(editorProperties).toBeVisible();
     expect(await editorProperties.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+
+    const editorToolrail = page.locator(".editor-toolrail");
+    await expect(editorToolrail.getByRole("button")).toHaveCount(18);
+    for (const tool of ["Select", "Text", "Image", "Signature", "Highlight", "Comment", "Mark redaction", "Rectangle"]) {
+      await expect(editorToolrail.getByRole("button", { name: tool, exact: true })).toBeVisible();
+    }
+    const primaryToolHeight = await editorToolrail.getByRole("button", { name: "Select", exact: true }).evaluate((element) => element.getBoundingClientRect().height);
+    const secondaryToolHeight = await editorToolrail.getByRole("button", { name: "Rectangle", exact: true }).evaluate((element) => element.getBoundingClientRect().height);
+    expect(primaryToolHeight).toBeGreaterThan(secondaryToolHeight);
 
     await navigation.getByRole("button", { name: "Tools", exact: true }).click();
     await expect(page).toHaveURL(/\/toolbox$/);

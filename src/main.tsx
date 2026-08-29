@@ -9,6 +9,7 @@ import "./workspace/r5DesktopHome.css";
 import "./mobile/r6Mobile.css";
 import "./mobile/r6Landscape.css";
 import "./editor/sidebarScrollFix.css";
+import "./editor/p32ConsumerIa.css";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { recordDiagnosticError } from "./diagnostics/errorRepository";

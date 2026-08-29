@@ -15,7 +15,7 @@ async function applyDarkPalette(page: import("@playwright/test").Page): Promise<
 
 test("task catalog keeps icons visible and capability metadata in normal flow", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: "What do you want to do?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose what you want to do" })).toBeVisible();
 
   // Reproduce a dark palette explicitly so this regression cannot hide behind
   // the default CI appearance settings.

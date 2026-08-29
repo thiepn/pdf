@@ -39,8 +39,8 @@ test("professional shell uses vector icons and quiet route focus", async ({ page
 
 test("core journeys remain composed across theme and density modes", async ({ page }) => {
   await page.goto("./#/home");
-  await expect(page.locator(".product-hero")).toBeVisible();
-  await expect(page.locator(".privacy-card")).toBeVisible();
+  await expect(page.locator(".consumer-home-hero")).toBeVisible();
+  await expect(page.locator(".home-trust-note")).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {
     for (const density of ["comfortable", "compact"] as const) {
@@ -75,7 +75,7 @@ test("top chrome keeps paired accessible colors in every theme", async ({ page }
 
 test("task browser uses visible typed SVG icons", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
   const tiles = page.locator(".task-tile");
   await expect(tiles.first()).toBeVisible();
   const count = await tiles.count();

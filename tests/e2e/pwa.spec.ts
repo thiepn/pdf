@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("production service worker reports a complete consumer-core offline cache", async ({ page }) => {
   await page.goto("./#/home");
-  await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What do you want to do with your PDF\?/i })).toBeVisible();
   const status = await readOfflineStatus(page);
   expect(status.ready).toBe(true);
   expect(status.cachedAssets).toBe(status.expectedAssets);
@@ -16,7 +16,7 @@ test("consumer app shell reopens with the browser network disabled", async ({ pa
   try {
     await page.evaluate(() => window.location.reload());
     await page.waitForLoadState("domcontentloaded");
-    await expect(page.getByRole("heading", { name: /Open a PDF and get to the task/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /What do you want to do with your PDF\?/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Open PDF" })).toBeVisible();
     const status = await readOfflineStatus(page);
     expect(status.ready).toBe(true);
