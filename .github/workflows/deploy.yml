@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-      - name: Decide whether this main commit may replace Pages
+      - name: Refuse same-version candidate overwrite of Stable Pages without failing qualification
         id: policy
         run: |
           set -euo pipefail
