@@ -1,0 +1,62 @@
+/* P32 — consumer editor hierarchy
+ *
+ * Keep every editor command reachable while making the everyday editing path
+ * visually dominant. This is presentation-only: tool IDs, shortcuts, native
+ * editing, history, and P31 interaction behavior are unchanged.
+ */
+
+@media (min-width: 901px) {
+  .editor-toolrail {
+    gap: 1px;
+  }
+
+  .editor-tool-group {
+    display: grid;
+    gap: 1px;
+    padding-top: 4px;
+    margin-top: 3px;
+    border-top: 1px solid color-mix(in srgb, var(--chrome-border) 72%, transparent);
+  }
+
+  .editor-tool-group:first-of-type {
+    padding-top: 0;
+    margin-top: 0;
+    border-top: 0;
+  }
+
+  /* Group names remain in the accessibility tree through the section labels;
+   * the narrow rail does not need another permanent visual label. */
+  .editor-tool-group > strong {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
+  }
+
+  /* Less-common commands stay one click away but stop competing visually with
+   * the consumer core. Their accessible names and title tooltips remain intact. */
+  .editor-toolrail button:not([aria-label="Select"]):not([aria-label="Text"]):not([aria-label="Image"]):not([aria-label="Signature"]):not([aria-label="Highlight"]):not([aria-label="Comment"]):not([aria-label="Mark redaction"]) {
+    min-height: 34px;
+    opacity: .62;
+  }
+
+  .editor-toolrail button:not([aria-label="Select"]):not([aria-label="Text"]):not([aria-label="Image"]):not([aria-label="Signature"]):not([aria-label="Highlight"]):not([aria-label="Comment"]):not([aria-label="Mark redaction"]) small {
+    display: none;
+  }
+
+  .editor-toolrail button:hover,
+  .editor-toolrail button:focus-visible,
+  .editor-toolrail button.active {
+    opacity: 1;
+  }
+
+  .editor-toolrail button.active small {
+    display: block;
+  }
+}
