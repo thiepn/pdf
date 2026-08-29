@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import type { RenderScheduler } from "./renderScheduler";
+import { RenderScheduler } from "./renderScheduler";
 
 interface ThumbnailProps {
   document: PDFDocumentProxy;
@@ -10,6 +10,17 @@ interface ThumbnailProps {
   onSelect: (pageNumber: number) => void;
   scheduler?: RenderScheduler;
 }
+
+function fallbackThumbnailConcurrency(): number {
+  if (typeof navigator === "undefined") return 2;
+  const logicalProcessors = Math.max(1, navigator.hardwareConcurrency || 2);
+  return Math.max(1, Math.min(2, Math.floor(logicalProcessors / 2)));
+}
+
+// Editor thumbnails previously rendered independently whenever they entered the
+// observer margin. A shared low-priority queue prevents thumbnail bursts from
+// competing with the visible PDF page and pointer interactions.
+const fallbackThumbnailScheduler = new RenderScheduler(fallbackThumbnailConcurrency());
 
 function ThumbnailComponent({ document, pageNumber, label, selected, onSelect, scheduler }: ThumbnailProps) {
   const hostRef = useRef<HTMLButtonElement | null>(null);
@@ -49,7 +60,8 @@ function ThumbnailComponent({ document, pageNumber, label, selected, onSelect, s
         page.cleanup();
       }
     };
-    void (scheduler ? scheduler.run(render, controller.signal, "low") : render()).catch(() => undefined);
+    const activeScheduler = scheduler ?? fallbackThumbnailScheduler;
+    void activeScheduler.run(render, controller.signal, "low").catch(() => undefined);
     return () => {
       cancelled = true;
       controller.abort();

@@ -47,6 +47,8 @@ interface DragState {
   startViewport: Point;
   startPdf: Point;
   object?: EditorObject;
+  preview?: EditorObject;
+  element?: HTMLElement;
   handle?: ResizeHandle;
   points?: InkPoint[];
   stage?: HTMLElement;
@@ -54,26 +56,37 @@ interface DragState {
   startScrollTop?: number;
 }
 
+interface PendingDomPreview {
+  element: HTMLElement;
+  bounds: Rect;
+}
+
 export function EditorCanvasPage(props: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const taskRef = useRef<RenderTask | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const previewFrameRef = useRef<number | null>(null);
+  const pendingPreviewRef = useRef<PendingDomPreview | null>(null);
   const previousPageRef = useRef(props.pageNumber);
   const [pageState, setPageState] = useState<PageState>({ width: 612 * props.zoom, height: 792 * props.zoom, service: null, pdfBounds: { x0: 0, y0: 0, x1: 612, y1: 792 } });
   const [draftRect, setDraftRect] = useState<Rect | null>(null);
   const [guides, setGuides] = useState<Array<{ axis: "x" | "y"; value: number }>>([]);
   const pageObjects = useMemo(() => props.objects.filter((object) => object.pageNumber === props.pageNumber && !object.hidden), [props.objects, props.pageNumber]);
+  const nativePageSize = useMemo(() => ({ width: pageState.width / Math.max(.05, props.zoom), height: pageState.height / Math.max(.05, props.zoom) }), [pageState.height, pageState.width, props.zoom]);
 
   useEffect(() => {
     if (previousPageRef.current === props.pageNumber) return;
     previousPageRef.current = props.pageNumber;
     dragRef.current = null;
+    cancelPendingDomPreview();
     setDraftRect(null);
     setGuides([]);
     props.onPreview(null);
     props.onSelect(null, false);
   }, [props.pageNumber]);
+
+  useEffect(() => () => cancelPendingDomPreview(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +121,48 @@ export function EditorCanvasPage(props: Props) {
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   }
 
+  function applyDomPreview(element: HTMLElement, bounds: Rect): void {
+    element.style.left = `${bounds.x0}px`;
+    element.style.top = `${bounds.y0}px`;
+    element.style.width = `${Math.max(1, rectWidth(bounds))}px`;
+    element.style.height = `${Math.max(1, rectHeight(bounds))}px`;
+    element.dataset.interactionPreview = "true";
+  }
+
+  function publishPendingDomPreview(): void {
+    previewFrameRef.current = null;
+    const pending = pendingPreviewRef.current;
+    pendingPreviewRef.current = null;
+    if (pending) applyDomPreview(pending.element, pending.bounds);
+  }
+
+  function scheduleObjectDomPreview(element: HTMLElement, object: EditorObject, service: CoordinateService): void {
+    pendingPreviewRef.current = { element, bounds: service.pdfRectToViewport(object.bounds) };
+    if (previewFrameRef.current !== null) return;
+    if (typeof requestAnimationFrame === "function") previewFrameRef.current = requestAnimationFrame(publishPendingDomPreview);
+    else publishPendingDomPreview();
+  }
+
+  function cancelPendingDomPreview(): void {
+    if (previewFrameRef.current !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = null;
+    pendingPreviewRef.current = null;
+  }
+
+  function restoreObjectDomPreview(drag: DragState): void {
+    cancelPendingDomPreview();
+    if (!drag.element || !drag.object || !pageState.service) return;
+    applyDomPreview(drag.element, pageState.service.pdfRectToViewport(drag.object.bounds));
+    delete drag.element.dataset.interactionPreview;
+  }
+
+  function setGuidesIfChanged(next: Array<{ axis: "x" | "y"; value: number }>): void {
+    setGuides((current) => {
+      if (current.length === next.length && current.every((guide, index) => guide.axis === next[index]?.axis && Math.abs(guide.value - (next[index]?.value ?? guide.value)) < .001)) return current;
+      return next;
+    });
+  }
+
   function beginCanvasPointer(event: ReactPointerEvent<HTMLDivElement>): void {
     if (event.button !== 0 || !pageState.service) return;
     if (props.activeTool === "select") { props.onSelect(null, false); return; }
@@ -135,7 +190,8 @@ export function EditorCanvasPage(props: Props) {
     if (props.activeTool !== "select" || object.locked || !pageState.service) { props.onSelect(object.id, event.ctrlKey || event.metaKey || event.shiftKey); return; }
     props.onSelect(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
     const viewportPoint = localViewportPoint(event);
-    dragRef.current = { mode: "move", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object) };
+    cancelPendingDomPreview();
+    dragRef.current = { mode: "move", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -143,7 +199,8 @@ export function EditorCanvasPage(props: Props) {
     event.stopPropagation();
     if (!pageState.service) return;
     const viewportPoint = localViewportPoint(event);
-    dragRef.current = { mode: "resize", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), handle };
+    cancelPendingDomPreview();
+    dragRef.current = { mode: "resize", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget.parentElement ?? undefined, handle };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -195,8 +252,11 @@ export function EditorCanvasPage(props: Props) {
       const dy = pdfPoint.y - drag.startPdf.y;
       const raw = { x0: drag.object.bounds.x0 + dx, y0: drag.object.bounds.y0 + dy, x1: drag.object.bounds.x1 + dx, y1: drag.object.bounds.y1 + dy };
       const snapped = snapRect(raw, pageState.pdfBounds, props.gridSize, props.snapEnabled);
-      setGuides(snapped.guides);
-      props.onPreview({ ...drag.object, bounds: snapped.rect });
+      const preview = { ...drag.object, bounds: snapped.rect };
+      drag.preview = preview;
+      setGuidesIfChanged(snapped.guides);
+      if (drag.element) scheduleObjectDomPreview(drag.element, preview, service);
+      else props.onPreview(preview);
       return;
     }
     const bounds = { ...drag.object.bounds };
@@ -213,7 +273,11 @@ export function EditorCanvasPage(props: Props) {
       if (drag.handle?.includes("w")) normalized.x0 = normalized.x1 - width; else normalized.x1 = normalized.x0 + width;
       if (drag.handle?.includes("s")) normalized.y0 = normalized.y1 - height; else normalized.y1 = normalized.y0 + height;
     }
-    props.onPreview({ ...drag.object, bounds: clampRect(normalized, pageState.pdfBounds) });
+    const preview = { ...drag.object, bounds: clampRect(normalized, pageState.pdfBounds) };
+    drag.preview = preview;
+    setGuidesIfChanged([]);
+    if (drag.element) scheduleObjectDomPreview(drag.element, preview, service);
+    else props.onPreview(preview);
   }
 
   function endPointer(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -222,7 +286,7 @@ export function EditorCanvasPage(props: Props) {
     if (!drag || !service) return;
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
     dragRef.current = null;
-    setGuides([]);
+    setGuidesIfChanged([]);
     if (drag.mode === "pan") return;
     if (drag.mode === "create") {
       const viewportPoint = localViewportPoint(event);
@@ -243,27 +307,35 @@ export function EditorCanvasPage(props: Props) {
       props.onCreate({ id: crypto.randomUUID(), type: "ink", pageNumber: props.pageNumber, bounds: boundsForPoints(points), rotation: 0, opacity: 1, zIndex: Math.max(0, ...props.objects.map((item) => item.zIndex)) + 1, locked: false, hidden: false, createdAt: now, modifiedAt: now, strokes: [points], color: "#174d91", strokeWidth: 2.2, highlighter: false });
       return;
     }
-    if (drag.object) {
-      const preview = props.objects.find((object) => object.id === drag.object?.id);
-      void preview;
-    }
+    // Move/resize pointer-up is handled by the object wrapper before this event
+    // bubbles to the canvas. If capture was lost, restore the source visual.
+    if (drag.object && drag.element) restoreObjectDomPreview(drag);
+  }
+
+  function cancelPointer(): void {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (drag?.object && drag.element) restoreObjectDomPreview(drag);
+    else cancelPendingDomPreview();
+    setDraftRect(null);
+    setGuidesIfChanged([]);
+    props.onPreview(null);
   }
 
   function objectPointerUp(event: ReactPointerEvent, object: EditorObject): void {
     const drag = dragRef.current;
     if (!drag || !drag.object || drag.object.id !== object.id) return;
-    const target = document.querySelector(`[data-object-id="${CSS.escape(object.id)}"]`) as HTMLElement | null;
-    void target;
-    const preview = props.objects.find((item) => item.id === object.id) ?? object;
+    cancelPendingDomPreview();
+    const preview = drag.preview ?? object;
     dragRef.current = null;
-    setGuides([]);
+    setGuidesIfChanged([]);
     props.onPreview(null);
+    if (drag.element) delete drag.element.dataset.interactionPreview;
     props.onCommit(drag.mode === "move" ? "Move object" : "Resize object", preview);
     try { (event.currentTarget as Element).releasePointerCapture(event.pointerId); } catch { /* no capture */ }
   }
 
   const draftStyle = draftRect ? { left: draftRect.x0, top: draftRect.y0, width: rectWidth(draftRect), height: rectHeight(draftRect) } : undefined;
-  const nativePageSize = { width: pageState.width / Math.max(.05, props.zoom), height: pageState.height / Math.max(.05, props.zoom) };
   return (
     <section className="editor-page-shell" style={{ width: pageState.width, height: pageState.height }}>
       <div
@@ -271,6 +343,7 @@ export function EditorCanvasPage(props: Props) {
         onPointerDown={beginCanvasPointer}
         onPointerMove={movePointer}
         onPointerUp={endPointer}
+        onPointerCancel={cancelPointer}
         ref={hostRef}
         style={{ width: pageState.width, height: pageState.height }}
       >
@@ -280,7 +353,7 @@ export function EditorCanvasPage(props: Props) {
           enabled={Boolean(props.showNativeContent && props.activeTool === "select")}
           gridSize={props.gridSize}
           objects={props.nativeObjects ?? []}
-          onSelect={(object, additive) => props.onSelectNative?.(object, additive)}
+          onSelect={props.onSelectNative ?? ignoreNativeSelection}
           onTransform={props.onTransformNative}
           originX={props.nativeOrigin?.x}
           originY={props.nativeOrigin?.y}
@@ -319,6 +392,10 @@ export function EditorCanvasPage(props: Props) {
       <span className="editor-page-label">Page {props.pageNumber}</span>
     </section>
   );
+}
+
+function ignoreNativeSelection(_object: NativePageObject, _additive: boolean): void {
+  // Native selection is optional for overlay-only editor contexts.
 }
 
 function defaultViewportSize(tool: EditorTool): { width: number; height: number } {
