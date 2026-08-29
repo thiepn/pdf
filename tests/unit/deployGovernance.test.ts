@@ -1,7 +1,5 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
-const workflow = readFileSync(".github/workflows/deploy.yml", "utf8");
+import workflow from "../../.github/workflows/deploy.yml?raw";
 
 describe("Pages deployment governance", () => {
   it("decides whether Pages may deploy before the expensive qualification job", () => {
