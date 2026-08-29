@@ -12,7 +12,7 @@ permissions:
 env:
   NODE_VERSION: 22.16.0
   NPM_VERSION: 10.9.2
-  RELEASE_COMMIT: ff601f75ccac316929694bf6a1517864f5aa2e0b
+  RELEASE_COMMIT: cc630810c290e4b081fbec01e7e21b04893d9dba
   PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
   VITE_RELEASE_CHANNEL: stable
 
