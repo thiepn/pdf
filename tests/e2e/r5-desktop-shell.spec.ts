@@ -78,6 +78,15 @@ test.describe("R5 desktop workspace hierarchy", () => {
     await expect(editorProperties).toBeVisible();
     expect(await editorProperties.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
 
+    const editorToolrail = page.locator(".editor-toolrail");
+    await expect(editorToolrail.getByRole("button")).toHaveCount(18);
+    for (const tool of ["Select", "Text", "Image", "Signature", "Highlight", "Comment", "Mark redaction", "Rectangle"]) {
+      await expect(editorToolrail.getByRole("button", { name: tool, exact: true })).toBeVisible();
+    }
+    const primaryToolHeight = await editorToolrail.getByRole("button", { name: "Select", exact: true }).evaluate((element) => element.getBoundingClientRect().height);
+    const secondaryToolHeight = await editorToolrail.getByRole("button", { name: "Rectangle", exact: true }).evaluate((element) => element.getBoundingClientRect().height);
+    expect(primaryToolHeight).toBeGreaterThan(secondaryToolHeight);
+
     await navigation.getByRole("button", { name: "Tools", exact: true }).click();
     await expect(page).toHaveURL(/\/toolbox$/);
     const toolHero = page.locator(".document-tools-hub__hero");
