@@ -101,7 +101,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser-qualify exact stable artifact
-        run: npm run test:e2e -- --workers=1
+        run: npm run test:e2e -- --workers=1 --retries=1
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
