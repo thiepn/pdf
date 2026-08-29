@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-async function openEditor(page: Parameters<typeof test>[0] extends never ? never : any): Promise<void> {
+async function openEditor(page: Page): Promise<void> {
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
