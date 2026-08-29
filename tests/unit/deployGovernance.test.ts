@@ -11,10 +11,11 @@ describe("Pages deployment governance", () => {
     expect(workflow).toContain("Stable Pages preserved");
   });
 
-  it("skips same-version deployment instead of failing the main workflow", () => {
+  it("refuses same-version Stable overwrite without failing the main workflow", () => {
+    expect(workflow).toContain("Refuse same-version candidate overwrite of Stable Pages");
     expect(workflow).toContain('echo "should_deploy=false" >> "$GITHUB_OUTPUT"');
-    expect(workflow).not.toContain("Refuse same-version candidate overwrite of Stable Pages");
-    expect(workflow).not.toContain("Bump package.json before deploying another main-branch release-candidate build.\"\n            exit 1");
+    expect(workflow).not.toContain("Bump package.json before deploying another main-branch release-candidate build.");
+    expect(workflow).not.toMatch(/Stable tag v\$\{version\} already exists[\s\S]{0,300}exit 1/);
   });
 
   it("gates qualification, deployment, and smoke on the policy decision", () => {
