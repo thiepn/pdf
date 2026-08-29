@@ -28,16 +28,13 @@ interface DragState {
   source: NativeRect;
   startX: number;
   startY: number;
+  lastX: number;
+  lastY: number;
   pointerId: number;
   mode: NativeTransformMode;
   element: HTMLButtonElement;
   handle?: NativeResizeHandle;
   preview?: NativeRect;
-}
-
-interface PendingDomPreview {
-  element: HTMLButtonElement;
-  bounds: NativeRect;
 }
 
 function objectZIndex(object: NativePageObject, index: number, count: number, selected: boolean): number {
@@ -139,16 +136,11 @@ function resizeRect(source: NativeRect, dx: number, dy: number, handle: NativeRe
 function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds, enabled, originX = 0, originY = 0, pageSize, effectiveBounds, transformableIds, snapEnabled = true, gridSize = 8, onSelect, onTransform }: Props) {
   const dragRef = useRef<DragState | null>(null);
   const previewFrameRef = useRef<number | null>(null);
-  const pendingPreviewRef = useRef<PendingDomPreview | null>(null);
   const selectedSet = selectedIds ?? new Set(selectedId ? [selectedId] : []);
   const overlayBudget = useMemo(() => nativeOverlayObjectsWithinBudget(objects, selectedSet), [objects, selectedSet]);
   const visibleObjects = overlayBudget.objects;
 
-  useEffect(() => () => {
-    if (previewFrameRef.current !== null) cancelAnimationFrame(previewFrameRef.current);
-    previewFrameRef.current = null;
-    pendingPreviewRef.current = null;
-  }, []);
+  useEffect(() => () => cancelScheduledPreview(), []);
 
   if (!enabled) return null;
 
@@ -160,35 +152,37 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     element.dataset.interactionPreview = "true";
   }
 
-  function publishPendingPreview(): void {
-    previewFrameRef.current = null;
-    const pending = pendingPreviewRef.current;
-    pendingPreviewRef.current = null;
-    if (pending) applyDomPreview(pending.element, pending.bounds);
+  function computeDragPreview(drag: DragState, clientX = drag.lastX, clientY = drag.lastY): NativeRect {
+    const dx = (clientX - drag.startX) / Math.max(.05, zoom);
+    const dy = (clientY - drag.startY) / Math.max(.05, zoom);
+    let next = drag.mode === "move"
+      ? { ...drag.source, x: drag.source.x + dx, y: drag.source.y + dy }
+      : resizeRect(drag.source, dx, dy, drag.handle ?? "se");
+    // On dense pages snapping must use the same bounded direct-hitbox set; a
+    // pointermove must never scan thousands of low-level paths on every frame.
+    if (drag.mode === "move" && snapEnabled) next = snapMove(next, drag.object.id, visibleObjects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
+    else next = clampRect(next, originX, originY, pageSize);
+    return next;
   }
 
-  function scheduleDomPreview(element: HTMLButtonElement, bounds: NativeRect): void {
-    pendingPreviewRef.current = { element, bounds };
+  function publishDragPreview(): void {
+    previewFrameRef.current = null;
+    const drag = dragRef.current;
+    if (!drag) return;
+    const next = computeDragPreview(drag);
+    drag.preview = next;
+    applyDomPreview(drag.element, next);
+  }
+
+  function scheduleDragPreview(): void {
     if (previewFrameRef.current !== null) return;
-    previewFrameRef.current = requestAnimationFrame(publishPendingPreview);
+    if (typeof requestAnimationFrame === "function") previewFrameRef.current = requestAnimationFrame(publishDragPreview);
+    else publishDragPreview();
   }
 
-  function flushDomPreview(): void {
-    if (previewFrameRef.current !== null) {
-      cancelAnimationFrame(previewFrameRef.current);
-      previewFrameRef.current = null;
-    }
-    publishPendingPreview();
-  }
-
-  function cancelDomPreview(drag?: DragState): void {
-    if (previewFrameRef.current !== null) cancelAnimationFrame(previewFrameRef.current);
+  function cancelScheduledPreview(): void {
+    if (previewFrameRef.current !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(previewFrameRef.current);
     previewFrameRef.current = null;
-    pendingPreviewRef.current = null;
-    if (drag) {
-      applyDomPreview(drag.element, drag.source);
-      delete drag.element.dataset.interactionPreview;
-    }
   }
 
   function beginDrag(event: ReactPointerEvent<HTMLButtonElement>, object: NativePageObject): void {
@@ -198,7 +192,7 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     onSelect(object, additive);
     if (!onTransform || !transformableIds?.has(object.id)) return;
     const source = effectiveRect(object, effectiveBounds);
-    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId, mode: "move", element: event.currentTarget };
+    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, pointerId: event.pointerId, mode: "move", element: event.currentTarget };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -209,31 +203,27 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     const element = event.currentTarget.parentElement as HTMLButtonElement | null;
     if (!element) return;
     const source = effectiveRect(object, effectiveBounds);
-    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId, mode: "resize", handle, element };
+    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, pointerId: event.pointerId, mode: "resize", handle, element };
     element.setPointerCapture?.(event.pointerId);
   }
 
   function moveDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = (event.clientX - drag.startX) / Math.max(.05, zoom);
-    const dy = (event.clientY - drag.startY) / Math.max(.05, zoom);
-    let next = drag.mode === "move"
-      ? { ...drag.source, x: drag.source.x + dx, y: drag.source.y + dy }
-      : resizeRect(drag.source, dx, dy, drag.handle ?? "se");
-    // On dense pages snapping must use the same bounded direct-hitbox set; a
-    // pointermove must never scan thousands of low-level paths on every frame.
-    if (drag.mode === "move" && snapEnabled) next = snapMove(next, drag.object.id, visibleObjects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
-    else next = clampRect(next, originX, originY, pageSize);
-    drag.preview = next;
-    scheduleDomPreview(drag.element, next);
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
+    scheduleDragPreview();
   }
 
   function endDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    flushDomPreview();
-    const next = drag.preview ?? drag.source;
+    cancelScheduledPreview();
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
+    const next = computeDragPreview(drag, event.clientX, event.clientY);
+    drag.preview = next;
+    applyDomPreview(drag.element, next);
     dragRef.current = null;
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
     delete drag.element.dataset.interactionPreview;
@@ -245,7 +235,11 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
   function cancelDrag(): void {
     const drag = dragRef.current;
     dragRef.current = null;
-    cancelDomPreview(drag ?? undefined);
+    cancelScheduledPreview();
+    if (drag) {
+      applyDomPreview(drag.element, drag.source);
+      delete drag.element.dataset.interactionPreview;
+    }
   }
 
   return <div
