@@ -39,7 +39,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   const navigation = page.getByRole("navigation", { name: "Document workspace" });
   await navigation.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("button", { name: /Text/ }).first()).toBeVisible();
-  await expect(page.getByText(/Local edits autosaved|No pending editor changes/)).toBeVisible();
+  await expect(page.locator(".editor-contextbar > strong")).toHaveText(/Local changes (waiting to save|saved)|Saving local changes…|No pending editor changes/);
 
   await navigation.getByRole("button", { name: "Tools", exact: true }).click();
   await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
@@ -53,7 +53,8 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(fillForms).toContainText(/Not available for this PDF/i);
   await page.getByRole("link", { name: /Sanitize PDF/i }).click();
   await expect(page).toHaveURL(/\/secure\/sanitize-pdf$/);
-  await expect(page.getByText(/Security inspector|Inspecting PDF security/)).toBeVisible();
+  await expect(page.locator(".security-app")).toBeVisible();
+  await expect(page.getByText(/security-critical changes create a new output/i)).toBeVisible();
 
   await page.goto("./#/diagnostics/system");
   await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
