@@ -3,7 +3,7 @@
   gap: 22px;
   padding: clamp(22px, 4vw, 42px);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--surface-strong);
   box-shadow: var(--shadow-sm);
 }
