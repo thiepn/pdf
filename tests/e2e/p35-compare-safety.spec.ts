@@ -4,10 +4,11 @@ const corpus = "tests/corpus/phase28";
 
 async function loadPair(page: import("@playwright/test").Page, left: string, right: string): Promise<void> {
   const inputs = page.locator('.compare-inputs input[type="file"]');
+  const slots = page.locator(".compare-inputs .file-slot");
   await inputs.nth(0).setInputFiles(`${corpus}/${left}`);
-  await expect(page.getByText(left, { exact: true })).toBeVisible();
+  await expect(slots.nth(0)).toContainText(left);
   await inputs.nth(1).setInputFiles(`${corpus}/${right}`);
-  await expect(page.getByText(right, { exact: true })).toBeVisible();
+  await expect(slots.nth(1)).toContainText(right);
 }
 
 test("P35 visual comparison runs through the bounded worker path", async ({ page }) => {
