@@ -21,11 +21,25 @@ test.describe("P31 interaction critical path", () => {
       await page.waitForTimeout(150);
     }
 
-    await expect(page.locator(".native-content-hitbox")).toHaveCount(0);
+    // This is an instantaneous checkpoint. A retrying locator assertion would
+    // itself wait into the subsequent quiet period and make the test flaky.
+    expect(await page.locator(".native-content-hitbox").count()).toBe(0);
 
     // Once input stops, the same enrichment remains automatic and the existing
     // PDF content becomes selectable without an explicit user action.
     await expect(page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first()).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("selecting existing PDF content never creates a transform edit", async ({ page }) => {
+    test.setTimeout(40_000);
+    await openEditor(page);
+    const image = page.getByRole("button", { name: /Select existing image:/ }).first();
+    await expect(image).toBeVisible({ timeout: 20_000 });
+    await image.click();
+
+    await expect(page.locator(".native-unified-properties").getByText("Image editing")).toBeVisible();
+    await expect(page.locator(".native-unified-properties").getByRole("button", { name: "Apply source image transform" })).toBeVisible();
+    await expect(page.locator(".native-queued-count")).toHaveCount(0);
   });
 
   test("added-object drag previews stay on the DOM interaction path", async ({ page, browserName }) => {
