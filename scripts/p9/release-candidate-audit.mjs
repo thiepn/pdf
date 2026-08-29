@@ -47,7 +47,9 @@ check(stable.includes("smoke-stable") && stable.includes("action-gh-release"), "
 
 check(deploy.includes("VITE_RELEASE_CHANNEL: release-candidate") && deploy.includes("npm run audit:p9:release-candidate") && deploy.includes("npm run test:runtime:v7.0.0"), "candidate deployment is P9-gated and cannot masquerade as Stable");
 check(deploy.includes("Reproducible deployment build") && deploy.includes("Browser-qualify exact distribution before deployment"), "candidate Pages deployment retains exact-artifact reproducibility/browser qualification");
-check(deploy.includes("grep -F '7.0.0'") && deploy.includes('"channel": "release-candidate"'), "deployed candidate smoke test verifies v7 identity/channel");
+const dynamicCandidateSmoke = deploy.includes("EXPECTED_VERSION: ${{ needs.deployment-policy.outputs.version }}") && deploy.includes('grep -F "${EXPECTED_VERSION}"');
+const frozenCandidateSmoke = deploy.includes("grep -F '7.0.0'");
+check((dynamicCandidateSmoke || frozenCandidateSmoke) && deploy.includes('"channel": "release-candidate"'), "deployed candidate smoke test verifies v7 identity/channel");
 check(ci.includes("P9 release-candidate freeze audit") && ci.includes("Generate and validate P8 compatibility corpus") && ci.includes("Browser regression and privacy checks against verified dist"), "PR CI chains P8 compatibility, P9 freeze, and exact-dist browser regression");
 
 for (const path of [

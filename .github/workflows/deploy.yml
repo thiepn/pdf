@@ -20,21 +20,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment-policy:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.policy.outputs.should_deploy }}
+      version: ${{ steps.policy.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - name: Refuse same-version candidate overwrite of Stable Pages without failing qualification
+        id: policy
+        run: |
+          set -euo pipefail
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null 2>&1; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Stable Pages preserved::Stable tag v${version} already exists. This main commit remains qualified by CI, but Pages is intentionally left on the published Stable release until package.json advances to a new version."
+          else
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Release-candidate deployment enabled::No Stable tag exists for v${version}; this main commit may qualify and deploy the v${version} release candidate."
+          fi
+
   qualify-build:
+    if: needs.deployment-policy.outputs.should_deploy == 'true'
+    needs: deployment-policy
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-      - name: Refuse same-version candidate overwrite of Stable Pages
-        run: |
-          set -euo pipefail
-          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
-          if git ls-remote --exit-code --tags origin "refs/tags/v${version}" >/dev/null 2>&1; then
-            echo "::error::Stable tag v${version} already exists. Bump package.json before deploying another main-branch release-candidate build."
-            exit 1
-          fi
       - name: Require committed dependency lock
         run: test -f package-lock.json
       - uses: actions/setup-node@v7
@@ -137,11 +154,12 @@ jobs:
           path: dist
 
   deploy:
+    if: needs.deployment-policy.outputs.should_deploy == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: qualify-build
+    needs: [deployment-policy, qualify-build]
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
@@ -150,21 +168,23 @@ jobs:
         uses: actions/deploy-pages@v4
 
   smoke:
+    if: needs.deployment-policy.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: [deployment-policy, deploy]
     timeout-minutes: 10
     steps:
       - name: Verify deployed application shell and PWA files
         env:
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          EXPECTED_VERSION: ${{ needs.deployment-policy.outputs.version }}
         run: |
           set -euo pipefail
           base="${PAGE_URL%/}/"
           curl --fail --location --retry 8 --retry-delay 5 "${base}"
           curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '7.0.0' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F "${EXPECTED_VERSION}" > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "7.0.0"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F "\"version\": \"${EXPECTED_VERSION}\"" > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "release-candidate"' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'assets' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${base}icons/icon-192.png" --output /dev/null
