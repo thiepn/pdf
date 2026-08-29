@@ -279,7 +279,6 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
 }
 
 export const NativeContentOverlay = memo(NativeContentOverlayComponent);
-NativeContentOverlay.displayName = "NativeContentOverlay";
 
 export function nativeObjectLabel(object: NativePageObject): string {
   if (object.type === "text") {
