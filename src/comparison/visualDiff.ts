@@ -11,7 +11,7 @@ export interface RgbaPlane {
 export interface VisualDiffPixels {
   width: number;
   height: number;
-  pixels: Uint8ClampedArray;
+  pixels: Uint8ClampedArray<ArrayBuffer>;
   changedRatio: number;
 }
 
