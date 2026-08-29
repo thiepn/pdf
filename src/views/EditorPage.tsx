@@ -43,6 +43,7 @@ import { createDerivedProjectFromBytes, getProject, loadProjectBytes, updateProj
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import { scheduleDeferredHydration, type DeferredHydrationHandle } from "../performance/deferredHydration";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
+import { describeLocalSaveError, localSaveNeedsUnloadGuard, localSaveStatusLabel, type LocalSaveState } from "../persistence/localSaveTrust";
 import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorHistoryState, EditorObject, EditorTool, ImageEditorObject } from "../types/editor";
 import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
@@ -50,6 +51,7 @@ import { Thumbnail } from "../viewer/Thumbnail";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
+type LocalSaveSnapshot = { editor: EditorDocumentState; native: Parameters<typeof writeNativeState>[0]; project: ProjectManifest };
 
 const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: string; key?: string; icon: IconName }> }> = [
   { label: "Navigate", tools: [
@@ -94,6 +96,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const internalClipboardRef = useRef<EditorObject[]>([]);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
+  const localSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const localSaveRevisionRef = useRef(0);
+  const localSaveQueuedRevisionRef = useRef(0);
+  const localSaveCompletedRevisionRef = useRef(0);
+  const latestLocalSaveRef = useRef<{ revision: number; snapshot: LocalSaveSnapshot } | null>(null);
+  const editorMountedRef = useRef(true);
   const [project, setProject] = useState<ProjectManifest | null>(null);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [editorState, setEditorState] = useState<EditorDocumentState>(() => createEditorState(projectId));
@@ -109,6 +117,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [localSave, setLocalSave] = useState<LocalSaveState>({ phase: "idle", revision: 0 });
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
   const [lastReport, setLastReport] = useState<string | null>(null);
@@ -123,6 +132,31 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const mobileToolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
   useModalFocus(mobileToolsOpen, mobileToolsRef, closeMobileTools, undefined, mobileToolsTriggerRef);
+
+  const enqueueLocalSave = useCallback((revision: number, snapshot: LocalSaveSnapshot) => {
+    localSaveQueuedRevisionRef.current = Math.max(localSaveQueuedRevisionRef.current, revision);
+    localSaveQueueRef.current = localSaveQueueRef.current.catch(() => undefined).then(async () => {
+      if (editorMountedRef.current && revision === localSaveRevisionRef.current) setLocalSave({ phase: "saving", revision });
+      try {
+        await persistLocalSaveSnapshot(snapshot);
+        localSaveCompletedRevisionRef.current = Math.max(localSaveCompletedRevisionRef.current, revision);
+        if (editorMountedRef.current && revision === localSaveRevisionRef.current) setLocalSave({ phase: "saved", revision, savedAt: Date.now() });
+      } catch (reason) {
+        if (editorMountedRef.current && revision === localSaveRevisionRef.current) setLocalSave({ phase: "error", revision, message: describeLocalSaveError(reason) });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    editorMountedRef.current = true;
+    return () => {
+      editorMountedRef.current = false;
+      const latest = latestLocalSaveRef.current;
+      if (!latest || localSaveCompletedRevisionRef.current >= latest.revision || localSaveQueuedRevisionRef.current >= latest.revision) return;
+      localSaveQueuedRevisionRef.current = latest.revision;
+      void persistLocalSaveSnapshot(latest.snapshot).catch(() => undefined);
+    };
+  }, []);
 
   const displayObjects = useMemo(() => {
     const base = history.present.objects;
@@ -187,16 +221,29 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   useEffect(() => {
     if (!project || !document) return;
-    const timer = window.setTimeout(() => {
-      const state: EditorDocumentState = { ...editorState, objects: cloneObjects(history.present.objects), updatedAt: Date.now() };
-      void Promise.all([
-        writeEditorState(state),
-        writeNativeState({ projectId, schemaVersion: NATIVE_EDITOR_SCHEMA_VERSION, pageNumber: editorState.currentPage, queuedEdits: nativeEdits, updatedAt: Date.now() }),
-        updateProject({ ...project, recovery: { ...project.recovery, dirty: state.dirty || nativeEdits.length > 0 } })
-      ]).catch(() => undefined);
-    }, 500);
+    const revision = ++localSaveRevisionRef.current;
+    const now = Date.now();
+    const state: EditorDocumentState = { ...editorState, objects: cloneObjects(history.present.objects), updatedAt: now };
+    const snapshot: LocalSaveSnapshot = {
+      editor: state,
+      native: { projectId, schemaVersion: NATIVE_EDITOR_SCHEMA_VERSION, pageNumber: editorState.currentPage, queuedEdits: nativeEdits, updatedAt: now },
+      project: { ...project, recovery: { ...project.recovery, dirty: state.dirty || nativeEdits.length > 0 } }
+    };
+    latestLocalSaveRef.current = { revision, snapshot };
+    setLocalSave({ phase: "pending", revision });
+    const timer = window.setTimeout(() => enqueueLocalSave(revision, snapshot), 500);
     return () => clearTimeout(timer);
-  }, [document, editorState, history.present.objects, nativeEdits, project, projectId]);
+  }, [document, editorState, enqueueLocalSave, history.present.objects, nativeEdits, project, projectId]);
+
+  useEffect(() => {
+    if (!localSaveNeedsUnloadGuard(localSave)) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [localSave]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -653,6 +700,21 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     } finally { setProcessing(false); abortRef.current = null; }
   }
 
+  function retryLocalSave(): void {
+    const latest = latestLocalSaveRef.current;
+    if (!latest) return;
+    const revision = ++localSaveRevisionRef.current;
+    const now = Date.now();
+    const snapshot: LocalSaveSnapshot = {
+      editor: { ...latest.snapshot.editor, updatedAt: now },
+      native: { ...latest.snapshot.native, updatedAt: now },
+      project: latest.snapshot.project
+    };
+    latestLocalSaveRef.current = { revision, snapshot };
+    setLocalSave({ phase: "pending", revision });
+    enqueueLocalSave(revision, snapshot);
+  }
+
   async function retryPassword(): Promise<void> {
     if (!project || !sourceBytesRef.current || !password) return;
     try { await openDocument(project, sourceBytesRef.current, password); }
@@ -660,6 +722,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
+  const localSaveLabel = localSaveStatusLabel(localSave, lastReport, Boolean(editorState.dirty || nativeEdits.length));
   const chooseMobileTool = (tool: EditorTool) => {
     activateTool(tool);
     setMobileToolsOpen(false);
@@ -689,10 +752,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection || nativeInspecting} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />PDF content</label>
         {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} existing-content edit{nativeEdits.length === 1 ? "" : "s"} queued</span> : null}
         {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">P6 · {unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button onClick={groupSelection} type="button">Group added</button><button onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button onClick={() => alignUnified("left")} type="button">Align left</button><button onClick={() => alignUnified("center")} type="button">Center</button><button onClick={() => alignUnified("right")} type="button">Align right</button><button onClick={() => alignUnified("top")} type="button">Top</button><button onClick={() => alignUnified("middle")} type="button">Middle</button><button onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
-        <strong>{lastReport ?? (editorState.dirty || nativeEdits.length ? "Local edits autosaved" : "No pending editor changes")}</strong>
+        <strong aria-live="polite">{localSaveLabel}</strong>
       </div>
 
       <div className="editor-notices">
+        {localSave.phase === "error" ? <div className="editor-banner error-banner" role="alert"><strong>Local autosave failed</strong><span>{localSave.message}</span><button onClick={retryLocalSave} type="button">Retry save</button></div> : null}
         {error ? <div className="editor-banner error-banner"><strong>Editor error</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
         {warnings.length ? <div className="editor-banner warning-banner"><strong>Editor report</strong><span>{warnings.join(" ")}</span><button onClick={() => setWarnings([])} type="button">Dismiss</button></div> : null}
         {redactionCount ? <div className="editor-banner warning-banner" role="status"><strong>Redaction marks are not permanent yet</strong><span>{redactionCount} marked region{redactionCount === 1 ? "" : "s"}. Open Forms & Protect and choose Apply redactions to permanently remove the covered content.</span></div> : null}
@@ -723,6 +787,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div> : null}
     </div>
   );
+}
+
+async function persistLocalSaveSnapshot(snapshot: LocalSaveSnapshot): Promise<void> {
+  await writeEditorState(snapshot.editor);
+  await writeNativeState(snapshot.native);
+  await updateProject(snapshot.project);
 }
 
 function LayerList({ objects, nativeObjects, nativeQueued, selectedIds, selectedNativeIds, onSelect, onSelectNative, onToggleHidden }: { objects: EditorObject[]; nativeObjects: NativePageObject[]; nativeQueued: NativeEdit[]; selectedIds: Set<string>; selectedNativeIds: Set<string>; onSelect: (id: string, additive: boolean) => void; onSelectNative: (object: NativePageObject, additive?: boolean) => void; onToggleHidden: (object: EditorObject) => void }) {
