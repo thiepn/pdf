@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useMemo, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { NativePageObject, NativeRect } from "../../types/nativeEditor";
 import { nativeOverlayObjectsWithinBudget } from "./nativeOverlayBudget";
 import "../p6.css";
@@ -30,7 +30,14 @@ interface DragState {
   startY: number;
   pointerId: number;
   mode: NativeTransformMode;
+  element: HTMLButtonElement;
   handle?: NativeResizeHandle;
+  preview?: NativeRect;
+}
+
+interface PendingDomPreview {
+  element: HTMLButtonElement;
+  bounds: NativeRect;
 }
 
 function objectZIndex(object: NativePageObject, index: number, count: number, selected: boolean): number {
@@ -129,13 +136,60 @@ function resizeRect(source: NativeRect, dx: number, dy: number, handle: NativeRe
   return { x: left, y: top, w: right - left, h: bottom - top };
 }
 
-export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, enabled, originX = 0, originY = 0, pageSize, effectiveBounds, transformableIds, snapEnabled = true, gridSize = 8, onSelect, onTransform }: Props) {
+function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds, enabled, originX = 0, originY = 0, pageSize, effectiveBounds, transformableIds, snapEnabled = true, gridSize = 8, onSelect, onTransform }: Props) {
   const dragRef = useRef<DragState | null>(null);
-  const [preview, setPreview] = useState<Map<string, NativeRect>>(() => new Map());
+  const previewFrameRef = useRef<number | null>(null);
+  const pendingPreviewRef = useRef<PendingDomPreview | null>(null);
   const selectedSet = selectedIds ?? new Set(selectedId ? [selectedId] : []);
   const overlayBudget = useMemo(() => nativeOverlayObjectsWithinBudget(objects, selectedSet), [objects, selectedSet]);
   const visibleObjects = overlayBudget.objects;
+
+  useEffect(() => () => {
+    if (previewFrameRef.current !== null) cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = null;
+    pendingPreviewRef.current = null;
+  }, []);
+
   if (!enabled) return null;
+
+  function applyDomPreview(element: HTMLButtonElement, bounds: NativeRect): void {
+    element.style.left = `${(bounds.x - originX) * zoom}px`;
+    element.style.top = `${(bounds.y - originY) * zoom}px`;
+    element.style.width = `${Math.max(3, bounds.w * zoom)}px`;
+    element.style.height = `${Math.max(3, bounds.h * zoom)}px`;
+    element.dataset.interactionPreview = "true";
+  }
+
+  function publishPendingPreview(): void {
+    previewFrameRef.current = null;
+    const pending = pendingPreviewRef.current;
+    pendingPreviewRef.current = null;
+    if (pending) applyDomPreview(pending.element, pending.bounds);
+  }
+
+  function scheduleDomPreview(element: HTMLButtonElement, bounds: NativeRect): void {
+    pendingPreviewRef.current = { element, bounds };
+    if (previewFrameRef.current !== null) return;
+    previewFrameRef.current = requestAnimationFrame(publishPendingPreview);
+  }
+
+  function flushDomPreview(): void {
+    if (previewFrameRef.current !== null) {
+      cancelAnimationFrame(previewFrameRef.current);
+      previewFrameRef.current = null;
+    }
+    publishPendingPreview();
+  }
+
+  function cancelDomPreview(drag?: DragState): void {
+    if (previewFrameRef.current !== null) cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = null;
+    pendingPreviewRef.current = null;
+    if (drag) {
+      applyDomPreview(drag.element, drag.source);
+      delete drag.element.dataset.interactionPreview;
+    }
+  }
 
   function beginDrag(event: ReactPointerEvent<HTMLButtonElement>, object: NativePageObject): void {
     event.stopPropagation();
@@ -144,7 +198,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     onSelect(object, additive);
     if (!onTransform || !transformableIds?.has(object.id)) return;
     const source = effectiveRect(object, effectiveBounds);
-    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId, mode: "move" };
+    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId, mode: "move", element: event.currentTarget };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -152,9 +206,11 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     event.preventDefault();
     event.stopPropagation();
     if (!onTransform || !transformableIds?.has(object.id)) return;
+    const element = event.currentTarget.parentElement as HTMLButtonElement | null;
+    if (!element) return;
     const source = effectiveRect(object, effectiveBounds);
-    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId, mode: "resize", handle };
-    (event.currentTarget.parentElement as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, pointerId: event.pointerId, mode: "resize", handle, element };
+    element.setPointerCapture?.(event.pointerId);
   }
 
   function moveDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
@@ -169,17 +225,27 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     // pointermove must never scan thousands of low-level paths on every frame.
     if (drag.mode === "move" && snapEnabled) next = snapMove(next, drag.object.id, visibleObjects, effectiveBounds, selectedSet, originX, originY, pageSize, gridSize);
     else next = clampRect(next, originX, originY, pageSize);
-    setPreview(new Map([[drag.object.id, next]]));
+    drag.preview = next;
+    scheduleDomPreview(drag.element, next);
   }
 
   function endDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const next = preview.get(drag.object.id) ?? drag.source;
+    flushDomPreview();
+    const next = drag.preview ?? drag.source;
     dragRef.current = null;
-    setPreview(new Map());
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
-    if (Math.abs(next.x - drag.source.x) > .01 || Math.abs(next.y - drag.source.y) > .01 || Math.abs(next.w - drag.source.w) > .01 || Math.abs(next.h - drag.source.h) > .01) onTransform?.(drag.object, next, drag.mode);
+    delete drag.element.dataset.interactionPreview;
+    const changed = Math.abs(next.x - drag.source.x) > .01 || Math.abs(next.y - drag.source.y) > .01 || Math.abs(next.w - drag.source.w) > .01 || Math.abs(next.h - drag.source.h) > .01;
+    if (changed) onTransform?.(drag.object, next, drag.mode);
+    else applyDomPreview(drag.element, drag.source);
+  }
+
+  function cancelDrag(): void {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    cancelDomPreview(drag ?? undefined);
   }
 
   return <div
@@ -188,7 +254,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     data-native-objects-omitted={overlayBudget.omitted || undefined}
   >
     {visibleObjects.map((object, index) => {
-      const bounds = preview.get(object.id) ?? effectiveRect(object, effectiveBounds);
+      const bounds = effectiveRect(object, effectiveBounds);
       const selected = selectedSet.has(object.id);
       const style: CSSProperties = {
         left: (bounds.x - originX) * zoom,
@@ -209,7 +275,7 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
         onPointerDown={(event) => beginDrag(event, object)}
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
-        onPointerCancel={() => { dragRef.current = null; setPreview(new Map()); }}
+        onPointerCancel={cancelDrag}
         style={style}
         title={`${object.capability.label} · ${Math.round(object.capability.confidence * 100)}% confidence${transformable ? " · drag to move" : ""}`}
         type="button"
@@ -217,6 +283,9 @@ export function NativeContentOverlay({ objects, zoom, selectedId, selectedIds, e
     })}
   </div>;
 }
+
+export const NativeContentOverlay = memo(NativeContentOverlayComponent);
+NativeContentOverlay.displayName = "NativeContentOverlay";
 
 export function nativeObjectLabel(object: NativePageObject): string {
   if (object.type === "text") {
