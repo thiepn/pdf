@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ProjectCard } from "../components/ProjectCard";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { createMinimalPdf } from "../fixtures/minimalPdf";
+import { getTask, taskRoute } from "../ia/taskCatalog";
 import { createProjectFromBytes, importPdfProject, importProjectPackage, listProjects } from "../projects/projectRepository";
 import { acknowledgeSharedInboxFiles, listSharedInboxFiles, removeSharedInboxFiles } from "../pwa/shareInbox";
 import { acknowledgePendingPwaLaunchFiles, peekPendingPwaLaunchFiles, PWA_LAUNCH_FILES_EVENT } from "../pwa/launchFiles";
@@ -9,6 +10,7 @@ import { classifyIncomingFile } from "../pwa/fileIngress";
 import type { ProjectManifest } from "../types/project";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { Icon } from "../components/Icon";
+import "./homeConsumer.css";
 
 interface PendingPassword {
   file: File;
@@ -16,6 +18,17 @@ interface PendingPassword {
   inboxId?: string;
   launchId?: string;
 }
+
+const homeTasks = [
+  { id: "edit-pdf", copy: "Change supported text, images, and added content." },
+  { id: "merge-pdfs", copy: "Combine multiple PDFs into one document." },
+  { id: "organize-pages", copy: "Reorder, rotate, duplicate, or remove pages." },
+  { id: "split-pdf", copy: "Separate a PDF into smaller documents." },
+  { id: "compress-pdf", copy: "Reduce PDF file size with clear quality choices." },
+  { id: "ocr-pdf", copy: "Make scanned pages searchable with OCR." },
+  { id: "fill-forms", copy: "Open a form and fill supported fields." },
+  { id: "visual-signature", copy: "Place a visual signature on a PDF." }
+] as const;
 
 export function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -124,29 +137,35 @@ export function HomePage() {
 
   return (
     <div className="home-stack">
-      <section className="product-hero">
-        <div>
-          <p className="eyebrow">Private PDF workspace</p>
-          <h2>Open a PDF and get to the task.</h2>
-          <p>Edit, organize, convert, OCR, compress, fill, protect, or review PDFs without uploading them.</p>
-          <div className="hero-actions">
-            <button className="button button--large" disabled={busy} onClick={() => fileInputRef.current?.click()} type="button"><Icon name="documents" size={17} />Open PDF</button>
-            <button className="button button--secondary button--large" disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore project</button>
-            <button className="button button--ghost-on-dark button--large" disabled={busy} onClick={() => void createFixture()} type="button">Open sample</button>
-          </div>
-          <input ref={fileInputRef} hidden accept="application/pdf,.pdf" type="file" onChange={(event: { target: HTMLInputElement }) => { const file = event.target.files?.[0]; if (file) void processFile(file, "pdf"); event.target.value = ""; }} />
-          <input ref={projectInputRef} hidden accept=".lpsproject,application/x-local-pdf-studio-project" type="file" onChange={(event: { target: HTMLInputElement }) => { const file = event.target.files?.[0]; if (file) void processFile(file, "package"); event.target.value = ""; }} />
+      <section className="consumer-home-hero">
+        <div className="consumer-home-hero__intro">
+          <p className="eyebrow">PDF Studio</p>
+          <h2>What do you want to do with your PDF?</h2>
+          <p>Choose the task first. PDF Studio asks for a file only when the task needs one, and supported processing stays on this device.</p>
         </div>
-        <div className="privacy-card">
-          <span className="privacy-card__icon"><Icon name="shield" size={22} /></span>
-          <strong>Local processing</strong>
-          <p>Your PDFs, extracted text, passwords, and project state stay in this browser.</p>
-          <dl>
-            <div><dt>Upload</dt><dd>None</dd></div>
-            <div><dt>Storage</dt><dd>Local browser storage</dd></div>
-            <div><dt>Recovery</dt><dd>Automatic</dd></div>
-          </dl>
+
+        <div aria-label="Popular PDF tasks" className="home-task-grid">
+          {homeTasks.map((item) => {
+            const task = getTask(item.id);
+            if (!task) return null;
+            const route = taskRoute(task);
+            if (!route) return null;
+            return <a className="home-task-card" href={routeHref(route)} key={task.id}>
+              <span className="home-task-card__icon"><Icon name={task.icon} size={19} /></span>
+              <strong>{task.label}</strong>
+              <span>{item.copy}</span>
+            </a>;
+          })}
         </div>
+
+        <div className="consumer-home-actions">
+          <a className="button" href={routeHref({ name: "tools" })}>All PDF tools</a>
+          <button className="button button--secondary" disabled={busy} onClick={() => fileInputRef.current?.click()} type="button"><Icon name="documents" size={17} />Open PDF</button>
+          <span className="button button--ghost" aria-hidden="true">No upload required</span>
+        </div>
+
+        <input ref={fileInputRef} hidden accept="application/pdf,.pdf" type="file" onChange={(event: { target: HTMLInputElement }) => { const file = event.target.files?.[0]; if (file) void processFile(file, "pdf"); event.target.value = ""; }} />
+        <input ref={projectInputRef} hidden accept=".lpsproject,application/x-local-pdf-studio-project" type="file" onChange={(event: { target: HTMLInputElement }) => { const file = event.target.files?.[0]; if (file) void processFile(file, "package"); event.target.value = ""; }} />
       </section>
 
       {status ? <div aria-live="polite" className="notice-banner" role="status">{status}</div> : null}
@@ -161,20 +180,29 @@ export function HomePage() {
         </section>
       ) : null}
 
-      <section className="home-tools-strip">
-        <div><p className="eyebrow">Common tasks</p><strong>Choose the job, not the PDF technology</strong><span>Open the tool list for merge, scan, OCR, compression, conversion, comparison, and other document tasks.</span></div>
-        <a className="button button--secondary" href={routeHref({ name: "tools" })}>Browse PDF tools</a>
+      <section className="home-continuation-strip">
+        <div><strong>Open or continue a workspace</strong><p>Restore an exported project backup, open a sample, or return to a recent local document below.</p></div>
+        <div className="home-continuation-strip__actions">
+          <button className="button button--secondary" disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore project</button>
+          <button className="button button--ghost" disabled={busy} onClick={() => void createFixture()} type="button">Open sample</button>
+        </div>
+      </section>
+
+      <section aria-label="Privacy and recovery" className="home-trust-note">
+        <div><strong>Processing</strong><span>Supported PDF work runs locally in your browser.</span></div>
+        <div><strong>Upload</strong><span>None unless you explicitly export or share something yourself.</span></div>
+        <div><strong>Recovery</strong><span>Local autosave. Browser storage can still be cleared, so project backups remain useful.</span></div>
       </section>
 
       <section className="section-block">
         <div className="section-heading">
-          <div><p className="eyebrow">Local workspace</p><h2>Recent projects</h2></div>
+          <div><p className="eyebrow">Your documents</p><h2>Recent projects</h2></div>
           <a href={routeHref({ name: "projects" })}>View all</a>
         </div>
         {projects.length ? (
           <div className="project-grid">{projects.map((project) => <ProjectCard key={project.id} project={project} />)}</div>
         ) : (
-          <div className="empty-state"><strong>No local projects yet</strong><p>Open a PDF to create a recoverable local project.</p></div>
+          <div className="empty-state"><strong>No local projects yet</strong><p>Choose a PDF task above or open a PDF to create your first local project.</p></div>
         )}
       </section>
     </div>
