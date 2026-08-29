@@ -33,6 +33,7 @@ interface DragState {
   pointerId: number;
   mode: NativeTransformMode;
   element: HTMLButtonElement;
+  moved: boolean;
   handle?: NativeResizeHandle;
   preview?: NativeRect;
 }
@@ -168,7 +169,7 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
   function publishDragPreview(): void {
     previewFrameRef.current = null;
     const drag = dragRef.current;
-    if (!drag) return;
+    if (!drag || !drag.moved) return;
     const next = computeDragPreview(drag);
     drag.preview = next;
     applyDomPreview(drag.element, next);
@@ -192,7 +193,7 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     onSelect(object, additive);
     if (!onTransform || !transformableIds?.has(object.id)) return;
     const source = effectiveRect(object, effectiveBounds);
-    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, pointerId: event.pointerId, mode: "move", element: event.currentTarget };
+    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, pointerId: event.pointerId, mode: "move", element: event.currentTarget, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -203,7 +204,7 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     const element = event.currentTarget.parentElement as HTMLButtonElement | null;
     if (!element) return;
     const source = effectiveRect(object, effectiveBounds);
-    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, pointerId: event.pointerId, mode: "resize", handle, element };
+    dragRef.current = { object, source: { ...source }, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, pointerId: event.pointerId, mode: "resize", handle, element, moved: false };
     element.setPointerCapture?.(event.pointerId);
   }
 
@@ -212,6 +213,8 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     if (!drag || drag.pointerId !== event.pointerId) return;
     drag.lastX = event.clientX;
     drag.lastY = event.clientY;
+    if (!drag.moved && Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) < 1) return;
+    drag.moved = true;
     scheduleDragPreview();
   }
 
@@ -221,11 +224,17 @@ function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds,
     cancelScheduledPreview();
     drag.lastX = event.clientX;
     drag.lastY = event.clientY;
+    const moved = drag.moved || Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) >= 1;
+    dragRef.current = null;
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+    if (!moved) {
+      applyDomPreview(drag.element, drag.source);
+      delete drag.element.dataset.interactionPreview;
+      return;
+    }
     const next = computeDragPreview(drag, event.clientX, event.clientY);
     drag.preview = next;
     applyDomPreview(drag.element, next);
-    dragRef.current = null;
-    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
     delete drag.element.dataset.interactionPreview;
     const changed = Math.abs(next.x - drag.source.x) > .01 || Math.abs(next.y - drag.source.y) > .01 || Math.abs(next.w - drag.source.w) > .01 || Math.abs(next.h - drag.source.h) > .01;
     if (changed) onTransform?.(drag.object, next, drag.mode);
