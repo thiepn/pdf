@@ -4,7 +4,7 @@ const generatedCorpus = "tests/corpus/generated";
 
 test("global task discovery exposes material capability boundaries before file selection", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
 
   const archive = page.getByRole("button", { name: /Check archive readiness/i });
   await expect(archive).toContainText("Experimental");
