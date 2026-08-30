@@ -14,10 +14,12 @@ test("advanced workspace exposes one unified editor and source content is direct
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
   await expect(sourceText).toBeVisible({ timeout: 20_000 });
   await sourceText.click();
-  await expect(page.getByText("Existing PDF content · P2", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Directly editable|Editable with reconstruction|Limited editing/).first()).toBeVisible();
-  await expect(page.locator(".native-unified-properties").locator("textarea").first()).toBeVisible();
+  const properties = page.locator(".native-unified-properties");
+  await expect(properties.getByText("Existing PDF content", { exact: true })).toBeVisible();
+  await expect(properties.getByText(/Directly editable|Editable with reconstruction|Limited editing/).first()).toBeVisible();
+  await expect(properties.locator("textarea").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change|Update (?:text|paragraph|layout-aware text) change/ })).toBeVisible();
+  await expect(properties).not.toContainText(/\bP[1-8]\b/);
 });
 
 test("legacy native workspace route redirects to the unified editor", async ({ page }) => {
