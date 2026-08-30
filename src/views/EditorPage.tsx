@@ -545,7 +545,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function duplicateSelection(): void {
-    if (selectedNativeIds.size) setWarnings((current) => [...current, "P6 does not duplicate source PDF objects because copied source identities would not be independent. Only added editor objects are duplicated."]);
+    if (selectedNativeIds.size) setWarnings((current) => [...current, "Existing PDF objects cannot be duplicated safely. Only objects added in PDF Studio are duplicated."]);
     if (!selectedIds.size) return;
     const next = duplicateObjects(history.present.objects, selectedIds);
     const existing = new Set(history.present.objects.map((object) => object.id));
@@ -557,7 +557,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function arrange(direction: "front" | "back"): void {
-    if (selectedNativeIds.size) setWarnings((current) => [...current, "Existing PDF painting order is not rewritten by P6. Bring/front and send/back affect added editor objects only."]);
+    if (selectedNativeIds.size) setWarnings((current) => [...current, "Bring to front and Send to back only reorder objects added in PDF Studio. Existing PDF content keeps its original painting order."]);
     if (!selectedIds.size) return;
     const ordered = history.present.objects.slice().sort((a, b) => a.zIndex - b.zIndex);
     const unselected = ordered.filter((object) => !selectedIds.has(object.id));
@@ -578,7 +578,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   async function copySelection(): Promise<void> {
-    if (selectedNativeIds.size) setWarnings((current) => [...current, "Source PDF objects are not placed on the P6 clipboard because P1–P5 source identities cannot be safely cloned. Added objects are copied normally."]);
+    if (selectedNativeIds.size) setWarnings((current) => [...current, "Existing PDF objects cannot be copied as independent objects. Objects added in PDF Studio are copied normally."]);
     const copied = history.present.objects.filter((object) => selectedIds.has(object.id));
     if (!copied.length) return;
     internalClipboardRef.current = cloneObjects(copied);
@@ -751,7 +751,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
         <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection || nativeInspecting} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />PDF content</label>
         {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} existing-content edit{nativeEdits.length === 1 ? "" : "s"} queued</span> : null}
-        {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">P6 · {unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button onClick={groupSelection} type="button">Group added</button><button onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button onClick={() => alignUnified("left")} type="button">Align left</button><button onClick={() => alignUnified("center")} type="button">Center</button><button onClick={() => alignUnified("right")} type="button">Align right</button><button onClick={() => alignUnified("top")} type="button">Top</button><button onClick={() => alignUnified("middle")} type="button">Middle</button><button onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
+        {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button onClick={groupSelection} type="button">Group added</button><button onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button onClick={() => alignUnified("left")} type="button">Align left</button><button onClick={() => alignUnified("center")} type="button">Center</button><button onClick={() => alignUnified("right")} type="button">Align right</button><button onClick={() => alignUnified("top")} type="button">Top</button><button onClick={() => alignUnified("middle")} type="button">Middle</button><button onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
         <strong aria-live="polite">{localSaveLabel}</strong>
       </div>
 
