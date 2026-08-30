@@ -177,9 +177,8 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     rotation,
     opacity: Math.max(0, Math.min(1, opacity))
   });
-
   return <section className="property-section property-stack">
-    <p className="eyebrow">Existing image · P3</p><h3>Image editing</h3>
+    <p className="eyebrow">Existing image</p><h3>Image editing</h3>
     <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => setAction(event.target.value as NonNullable<NativeImageEdit["action"]>)}><option value="transform">Edit source image</option><option value="replace">Replace image</option><option value="delete">Delete image</option></select></label>
     {action === "replace" ? <label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label> : null}
     {action !== "delete" ? <>
@@ -274,7 +273,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
   }
 
   return <section className="property-section property-stack">
-    <p className="eyebrow">Existing vector · P4</p><h3>Vector editing</h3>
+    <p className="eyebrow">Existing vector</p><h3>Vector editing</h3>
     <dl className="native-object-facts">
       <dt>Geometry</dt><dd>{object.commands.length} path commands</dd>
       <dt>Paint</dt><dd>{object.paint}</dd>

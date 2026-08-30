@@ -162,7 +162,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
 
   return <aside className="editor-properties native-unified-properties p2-text-properties">
     <section className="property-section native-capability-card">
-      <div className="native-capability-card__heading"><div><p className="eyebrow">Existing PDF content · P2</p><h2>{paragraph ? "Layout-aware paragraph" : "Text"}</h2></div><span className={`capability-chip capability-chip--${object.capability.level}`}>{support}</span></div>
+      <div className="native-capability-card__heading"><div><p className="eyebrow">Existing PDF content</p><h2>{paragraph ? "Layout-aware paragraph" : "Text"}</h2></div><span className={`capability-chip capability-chip--${object.capability.level}`}>{support}</span></div>
       <p>{object.reason}</p>
       <dl className="native-object-facts">
         <dt>Visual lines</dt><dd>{object.lineCount ?? 1}</dd>
@@ -180,7 +180,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
       <label className="property-field"><span>Content</span><textarea disabled={unsupported || selectedMovedByOtherReflow} rows={Math.min(16, Math.max(7, (object.lineCount ?? 1) + 3))} value={text} onChange={(event) => setText(event.target.value)} /></label>
 
       <label className="property-toggle"><input checked={layoutAware} disabled={!object.flow || complex || unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setLayoutAware(event.target.checked)} />Layout-aware reflow</label>
-      {object.flow ? <p className="property-note">When enabled, this paragraph may grow or shrink and later safe text blocks in the same detected column move by the exact height delta. Other columns and page graphics are never moved automatically.</p> : <p className="property-note">This block is not in a safe same-column flow, so P2 keeps it inside its original region.</p>}
+      {object.flow ? <p className="property-note">When enabled, this paragraph may grow or shrink and later safe text blocks in the same detected column move by the exact height delta. Other columns and page graphics are never moved automatically.</p> : <p className="property-note">This block is not in a safe same-column flow, so PDF Studio keeps it inside its original region.</p>}
 
       {selectedMovedByOtherReflow ? <div className="warning-banner"><strong>Paragraph already belongs to another queued reflow</strong><span>This block is being repositioned by an earlier layout-aware edit. Apply or discard that upstream edit before editing this paragraph so both changes are not planned from conflicting geometry.</span></div> : layoutAware && !complex ? flowBlocked ? <div className="warning-banner"><strong>Layout reflow blocked</strong><span>{!wrap ? "Enable wrapping before expanding a paragraph flow." : fit.widthOverflow ? "The replacement is too wide and vertical expansion cannot solve the overflow." : queuedFlowConflict ? "A paragraph affected by this flow already has another queued edit. Apply or discard that change before planning a second reflow." : plan.blockers[0] ?? "This paragraph cannot be propagated safely."}</span></div> : <div className="result-card"><strong>{Math.abs(plan.deltaY) < 0.5 ? "Layout remains stable" : plan.deltaY > 0 ? `Paragraph expands ${Number(plan.deltaY.toFixed(1))} pt` : `Paragraph contracts ${Number(Math.abs(plan.deltaY).toFixed(1))} pt`}</strong><span>{movedCount ? `${movedCount} following paragraph${movedCount === 1 ? "" : "s"} will move with the detected column flow.` : "No following text block needs to move."}</span></div> : null}
 
@@ -198,7 +198,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
       <div className="property-grid-two"><label className="property-field"><span>Text</span><input disabled={preserveStyle || selectedMovedByOtherReflow} type="color" value={color} onChange={(event) => setColor(event.target.value)} /></label><label className="property-field"><span>Background</span><input disabled={selectedMovedByOtherReflow} type="color" value={background} onChange={(event) => setBackground(event.target.value)} /></label></div>
       <label className="property-field"><span>Alignment</span><select disabled={unsupported || selectedMovedByOtherReflow} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
       <label className="property-toggle"><input checked={wrap} disabled={unsupported || selectedMovedByOtherReflow} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />Reflow text into measured lines</label>
-      {complex ? <div className="warning-banner"><strong>Appearance-only edit</strong><span>Complex shaping and bidirectional layout are still not reconstructed statically. P2 does not pretend otherwise; this replacement remains a visual text layer.</span></div> : null}
+      {complex ? <div className="warning-banner"><strong>Appearance-only edit</strong><span>Complex shaping and bidirectional layout are still not reconstructed statically. PDF Studio does not pretend otherwise; this replacement remains a visual text layer.</span></div> : null}
     </section>
 
     <section className="property-section property-stack">
