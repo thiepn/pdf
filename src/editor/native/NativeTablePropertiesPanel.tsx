@@ -214,13 +214,12 @@ export function NativeTablePropertiesPanel({ object, queued, onQueue }: Props) {
   }
 
   return <section className="property-section property-stack">
-    <p className="eyebrow">Existing table · P5</p>
+    <p className="eyebrow">Existing table</p>
     <h3>Table editing</h3>
     <dl className="native-object-facts">
       <dt>Detected grid</dt><dd>{object.rows} rows × {object.columns} columns</dd>
       <dt>Detection</dt><dd>{object.detectionSource ?? "aligned-text"}</dd>
       <dt>Merged cells</dt><dd>{object.mergedCells ?? 0}</dd>
-      <dt>Confidence</dt><dd>{Math.round(object.confidence * 100)}%</dd>
     </dl>
 
     {unsupported ? <div className="warning-banner"><strong>Structured editing blocked</strong><span>This table contains images or non-grid artwork inside its detected boundary. PDF Studio leaves it unchanged rather than removing embedded content during reconstruction.</span></div> : <>
@@ -263,7 +262,7 @@ export function NativeTablePropertiesPanel({ object, queued, onQueue }: Props) {
           </label>)}
         </div>
 
-        {error ? <div className="warning-banner"><strong>Table cannot be queued yet</strong><span>{error}</span></div> : <p className="property-note">P5 will remove only the detected table text/grid region, preserve images, rebuild the structured cells locally, then reopen the output and verify edited cell text.</p>}
+        {error ? <div className="warning-banner"><strong>Table cannot be queued yet</strong><span>{error}</span></div> : <p className="property-note">On export, PDF Studio removes only the detected table text and grid region, preserves images, rebuilds the structured cells locally, then reopens the output and verifies the edited cell text.</p>}
       </>}
 
       <button className={edit.action === "delete" ? "button button--danger" : "button"} disabled={Boolean(error)} onClick={queue} type="button">{queued ? "Update table change" : edit.action === "delete" ? "Delete existing table" : "Apply structured table edit"}</button>
