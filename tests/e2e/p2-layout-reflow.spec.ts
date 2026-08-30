@@ -12,7 +12,8 @@ test("P2 exposes font-fidelity evidence and exports through the layout-aware tex
   await sourceText.click();
 
   const properties = page.locator(".native-unified-properties");
-  await expect(properties.getByText("Existing PDF content · P2")).toBeVisible();
+  await expect(properties.getByText("Existing PDF content", { exact: true })).toBeVisible();
+  await expect(properties).not.toContainText("Existing PDF content · P2");
   await expect(properties.getByText("Source spans")).toBeVisible();
   await expect(properties.getByText("Detected font")).toBeVisible();
   await expect(properties.getByText(/PDF Studio does not claim byte-for-byte reuse/)).toBeVisible();
