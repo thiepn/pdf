@@ -8,6 +8,10 @@ Make mixed-object layout editing understandable without requiring knowledge of P
 
 P37 updates the unified multi-selection properties panel only. The P6 engineering test name and internal CSS class remain valid internal identifiers.
 
+## Qualification base
+
+P36 is merged. Final P37 qualification runs directly against `main` so the merge gate covers the exact native-property language baseline that will ship with this change.
+
 ## User-facing changes
 
 - `P6 · Unified layout` becomes `Unified layout`.
