@@ -22,8 +22,8 @@ export function UnifiedLayoutPropertiesPanel({ items, primaryKey, overlayCount, 
   const blocked = items.filter((item) => !item.movable && !item.resizable);
   return <aside className="editor-properties native-unified-properties p6-layout-properties">
     <section className="property-section native-capability-card">
-      <div className="native-capability-card__heading"><div><p className="eyebrow">P6 · Unified layout</p><h2>{items.length} selected objects</h2></div><span className="capability-chip capability-chip--safe-reconstruction">Mixed selection</span></div>
-      <p>Existing PDF content and added editor objects share one page-layout selection. Geometry changes are routed back through the qualified P1–P5 writer for each source type.</p>
+      <div className="native-capability-card__heading"><div><p className="eyebrow">Unified layout</p><h2>{items.length} selected objects</h2></div><span className="capability-chip capability-chip--safe-reconstruction">Mixed selection</span></div>
+      <p>Existing PDF content and added objects share one page-layout selection. Each geometry change uses the editing method that is safe for that selected source object.</p>
       <dl className="native-object-facts"><dt>Existing PDF</dt><dd>{nativeCount}</dd><dt>Added objects</dt><dd>{overlayCount}</dd><dt>Movable</dt><dd>{movable}/{items.length}</dd><dt>Resizable</dt><dd>{resizable}/{items.length}</dd></dl>
       {blocked.length ? <div className="warning-banner"><strong>{blocked.length} protected object{blocked.length === 1 ? "" : "s"}</strong><span>{blocked.map((item) => `${item.type}: ${item.reason ?? "geometry is protected"}`).join(" ")}</span></div> : null}
     </section>
@@ -58,13 +58,13 @@ export function UnifiedLayoutPropertiesPanel({ items, primaryKey, overlayCount, 
       <p className="property-note">Same-size operations use the most recently selected object as the reference{primaryKey ? "." : " when available."}</p>
       <div className="property-grid-two"><button disabled={resizable < 2} type="button" onClick={() => onMatchSize("width")}>Same width</button><button disabled={resizable < 2} type="button" onClick={() => onMatchSize("height")}>Same height</button><button disabled={resizable < 2} type="button" onClick={() => onMatchSize("both")}>Same size</button><span /></div>
       <div className="property-grid-two"><button disabled={!rotatable} type="button" onClick={() => onRotate(-90)}>Rotate −90°</button><button disabled={!rotatable} type="button" onClick={() => onRotate(90)}>Rotate +90°</button></div>
-      <p className="property-note">Existing images rotate in 90° source-preserving steps. Existing vectors keep P4's arbitrary rotation model. Text, tables, and interactive form geometry are not falsely rotated.</p>
+      <p className="property-note">Existing images rotate in 90° source-preserving steps. Existing vectors keep their supported source rotation behavior. Text, tables, and interactive form geometry are not rotated when that would be unsafe.</p>
     </section>
 
     <section className="property-section property-stack">
       <h3>Selection actions</h3>
       <div className="property-grid-two"><button disabled={!overlayCount} type="button" onClick={onDuplicateOverlays}>Duplicate added objects</button><button disabled={overlayCount < 2} type="button" onClick={onGroupOverlays}>Group added objects</button><button disabled={!overlayCount} type="button" onClick={onUngroupOverlays}>Ungroup added objects</button><button className="danger" type="button" onClick={onDelete}>Delete supported</button></div>
-      {nativeCount ? <p className="property-note">Source-object duplication and PDF painting-order mutation are intentionally not synthesized in P6. Existing objects remain tied to their P1–P5 source identities; P7 handles deeper nested/content-order cases.</p> : null}
+      {nativeCount ? <p className="property-note">Existing PDF objects are not duplicated or reordered in the source painting sequence. They stay tied to their original PDF content, while nested reusable groups are edited only through their safe page instances.</p> : null}
     </section>
   </aside>;
 }
