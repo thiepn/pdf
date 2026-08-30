@@ -33,7 +33,11 @@ test("P6 multi-selects existing image and vector, aligns and nudges them through
   await vector.click({ modifiers: ["Shift"] });
 
   const properties = page.locator(".p6-layout-properties");
+  await expect(properties.getByText("Unified layout", { exact: true })).toBeVisible();
   await expect(properties.getByText("2 selected objects", { exact: true })).toBeVisible();
+  await expect(properties).not.toContainText("P6 · Unified layout");
+  await expect(properties).not.toContainText("P1–P5");
+  await expect(properties).not.toContainText("P4's arbitrary rotation model");
   await expect(selectionCount(properties, "Existing PDF")).toHaveText("2");
   await expect(selectionCount(properties, "Added objects")).toHaveText("0");
   await properties.getByRole("button", { name: "Left", exact: true }).click();
