@@ -22,11 +22,11 @@ export function describeLocalSaveError(reason: unknown): string {
 }
 
 export function localSaveStatusLabel(state: LocalSaveState, report: string | null, hasExportChanges: boolean): string {
-  if (state.phase === "pending") return "Local changes waiting to save";
-  if (state.phase === "saving") return "Saving local changes…";
+  if (state.phase === "pending") return "Changes waiting to save locally";
+  if (state.phase === "saving") return "Saving changes locally…";
   if (state.phase === "error") return "Local autosave failed";
-  if (state.phase === "saved") return report ?? "Local changes saved";
-  return report ?? (hasExportChanges ? "Local changes not yet saved" : "No pending editor changes");
+  if (state.phase === "saved") return report ?? "Changes saved locally";
+  return report ?? (hasExportChanges ? "Changes not yet saved locally" : "No unsaved local changes");
 }
 
 export function localSaveNeedsUnloadGuard(state: LocalSaveState): boolean {

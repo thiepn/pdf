@@ -19,11 +19,11 @@ test("P1 edits existing PDF text as one fitted replacement and exports a validat
   await expect(properties.getByText(/Complete text fits:|Layout remains stable|Paragraph (?:expands|contracts)/).first()).toBeVisible();
 
   await properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ }).click();
-  await expect(page.locator(".native-queued-count").filter({ hasText: /\d+ existing-content edit(?:s)? queued/ })).toHaveCount(1);
+  await expect(page.locator(".native-queued-count").filter({ hasText: /\d+ PDF edit(?:s)? ready/ })).toHaveCount(1);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 });

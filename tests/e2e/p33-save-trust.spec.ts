@@ -18,7 +18,7 @@ test("editor never reports a failed local write as saved and can retry it", asyn
   await navigation.getByRole("button", { name: "Edit", exact: true }).click();
 
   const contextStatus = page.locator(".editor-contextbar > strong");
-  await expect(contextStatus).toHaveText("Local changes saved", { timeout: 15_000 });
+  await expect(contextStatus).toHaveText("Changes saved locally", { timeout: 15_000 });
 
   await page.evaluate(() => { (window as Window & { __pdfStudioFailEditorSave?: boolean }).__pdfStudioFailEditorSave = true; });
   await page.getByRole("checkbox", { name: "Snap" }).click();
@@ -33,5 +33,5 @@ test("editor never reports a failed local write as saved and can retry it", asyn
   await saveFailure.getByRole("button", { name: "Retry save" }).click();
 
   await expect(saveFailure).toBeHidden({ timeout: 10_000 });
-  await expect(contextStatus).toHaveText("Local changes saved", { timeout: 10_000 });
+  await expect(contextStatus).toHaveText("Changes saved locally", { timeout: 10_000 });
 });

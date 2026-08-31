@@ -15,7 +15,7 @@ async function openTableEditor(page: import("@playwright/test").Page): Promise<i
 }
 
 async function expectQueuedEdit(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator(".native-queued-count").filter({ hasText: "1 existing-content edit queued" })).toHaveCount(1);
+  await expect(page.locator(".native-queued-count").filter({ hasText: "1 PDF edit ready" })).toHaveCount(1);
 }
 
 test("P5 edits structured table cells, merges cells, changes geometry and rows, then exports a validated PDF", async ({ page }) => {
@@ -37,7 +37,7 @@ test("P5 edits structured table cells, merges cells, changes geometry and rows, 
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 });
 
 test("P5 deletes the detected table while preserving the rest of the PDF", async ({ page }) => {
@@ -49,5 +49,5 @@ test("P5 deletes the detected table while preserving the rest of the PDF", async
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   await downloadPromise;
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 });

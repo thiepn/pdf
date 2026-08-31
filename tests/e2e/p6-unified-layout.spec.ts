@@ -14,7 +14,7 @@ async function exportValidated(page: import("@playwright/test").Page): Promise<v
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 }
 
 function selectionCount(properties: import("@playwright/test").Locator, label: "Existing PDF" | "Added objects") {
@@ -22,7 +22,7 @@ function selectionCount(properties: import("@playwright/test").Locator, label: "
 }
 
 function queuedEdits(page: import("@playwright/test").Page, count: number) {
-  return page.locator(".native-queued-count").filter({ hasText: `${count} existing-content edit${count === 1 ? "" : "s"} queued` });
+  return page.locator(".native-queued-count").filter({ hasText: `${count} PDF edit${count === 1 ? "" : "s"} ready` });
 }
 
 test("P6 multi-selects existing image and vector, aligns and nudges them through their qualified writers", async ({ page }) => {
