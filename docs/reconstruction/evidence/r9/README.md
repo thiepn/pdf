@@ -1,18 +1,24 @@
-# R9 Human Qualification Evidence
+# R9/P43 Human + Real-Device Qualification Evidence
 
-This directory is reserved for privacy-safe evidence from real-human R9 usability sessions against the frozen R8 product baseline documented in `r9-human-usability-qualification.md`.
+This directory stores privacy-safe evidence used to qualify the frozen post-P42 consumer product:
 
-## Evidence creation
+`be223e37d3ecafe6695aa6fe4fe7f901f95f478c`
 
-Create each session with:
+Automation may validate, aggregate, hash, and certify real observations. It may never manufacture them.
+
+## Evidence layers
+
+### Full human sessions
+
+Create with:
 
 ```bash
-node scripts/reconstruction/r9_prepare_session.mjs ...
+node scripts/reconstruction/r9_prepare_session.mjs ... --attest-physical-device yes
 ```
 
-Then follow `docs/reconstruction/r9-manual-session-runbook.md` using the generated randomized `measurement_order`. The recommended offline recorder is `docs/reconstruction/r9-session-recorder.html`.
+Follow `docs/reconstruction/r9-manual-session-runbook.md` and use the offline `r9-session-recorder.html`.
 
-Completed qualifying sessions belong in:
+Completed files belong in:
 
 `docs/reconstruction/evidence/r9/sessions/`
 
@@ -20,77 +26,125 @@ Recommended filename:
 
 `session-YYYYMMDD-NN.json`
 
-The filename must not contain a tester name or private document name.
+### Real-device journey runs
+
+Create with:
+
+```bash
+node scripts/reconstruction/r9_prepare_device_run.mjs ... --attest-physical-device yes
+```
+
+Complete J01–J10 using `p43-real-device-run-template.json` and the P43 run contract.
+
+Completed files belong in:
+
+`docs/reconstruction/evidence/r9/device-runs/`
+
+Recommended filename:
+
+`device-YYYYMMDD-platform-NN.json`
+
+## Physical-device requirement
+
+Both evidence types must represent direct human observations on physical hardware. Qualifying evidence requires:
+
+- `evidence_source = human-physical-device`;
+- physical device true;
+- simulator/emulator false;
+- automation observation false;
+- explicit human attestation true;
+- exact OS/browser versions;
+- structured device/browser/input/app metadata.
+
+Do not set the physical-device attestation flag for browser emulation, simulators, remote CI, Playwright, Selenium, Puppeteer, AI agents, or synthetic sessions.
 
 ## What may be committed
 
-- anonymous/non-sensitive session and tester IDs;
-- exact frozen baseline commit;
-- generic tester familiarity/PDF-experience categories;
-- date and generic browser/device/environment metadata;
-- corpus IDs and non-sensitive synthetic document IDs;
-- randomized measurement order;
-- first navigation location chosen;
-- boolean first-location correctness;
-- Help usage;
-- interaction counts;
-- boolean completion outcomes;
-- navigation predictions and boolean matches;
-- concise defect descriptions that do not quote or expose private document contents.
+- anonymous session/run/tester IDs;
+- exact frozen qualification baseline;
+- generic familiarity/PDF-experience categories;
+- date;
+- non-sensitive device class/model and exact OS/browser versions;
+- input mode, viewport, and browser/PWA mode;
+- corpus identifiers;
+- randomized human measurement order;
+- first-location, Help, interaction, completion, and prediction outcomes;
+- J01–J10 result labels;
+- concise non-sensitive defect descriptions.
 
 ## What must not be committed
 
 - PDF/document bytes;
-- copied document contents or extracted text;
-- OCR output;
+- private document contents, copied/extracted/OCR text;
 - passwords or encryption secrets;
 - personal names, emails, account identifiers, or other tester PII;
+- device serial numbers or identifying hardware IDs;
 - private/confidential filenames;
 - screenshots containing confidential documents;
 - base64/data-URL document or screenshot payloads.
 
-## Sample-size rule
+## Human sample rule
 
-`HUMAN_UX_TARGET_MET` requires at least:
+`HUMAN_UX_TARGET_MET` requires:
 
-- 3 valid sessions;
-- 3 distinct anonymous tester IDs;
-- 2 testers with `none` or `light` prior PDF Studio familiarity;
-- every individual session >=90% on all three metrics;
-- aggregate evidence >=90% on all three metrics;
+- at least 3 valid physical-device sessions;
+- at least 3 distinct anonymous tester IDs;
+- at least 2 none/light-familiarity testers;
+- each session >=90% on all three human metrics;
+- aggregate >=90% on all three metrics;
 - no unresolved critical/data-loss defect.
 
-A valid passing session before that minimum is reached reports `HUMAN_UX_SAMPLE_INSUFFICIENT`.
+## Real-device matrix rule
 
-Repeated sessions from the same tester may be retained for research but do not increase the distinct-tester certification count.
+`REAL_DEVICE_TARGET_MET` requires physical coverage for:
+
+1. Windows desktop/laptop + Chromium;
+2. macOS desktop/laptop + Safari;
+3. Android phone + Chromium;
+4. iPhone/iOS + Safari;
+5. iPadOS tablet + Safari;
+
+It also requires qualifying coverage for every J01–J10 journey and at least one installed-PWA run qualifying J10. Any measured `FAIL` prevents the target from being met.
 
 ## Validation
 
-Validate one completed session immediately:
-
-```bash
-node scripts/reconstruction/r9_validate_evidence.mjs docs/reconstruction/evidence/r9/sessions/session-YYYYMMDD-NN.json
-```
-
-Validate all committed sessions and calculate aggregate metrics:
+Human evidence:
 
 ```bash
 node scripts/reconstruction/r9_validate_evidence.mjs
 ```
 
-## Final certification freeze
+Real-device evidence:
 
-Only after aggregate validation reports `HUMAN_UX_TARGET_MET`, create the digest-backed certification record:
+```bash
+node scripts/reconstruction/r9_validate_real_device.mjs
+```
+
+Committed state ledger:
+
+```bash
+node scripts/reconstruction/r9_status_contract.mjs
+```
+
+## Certification
+
+Only after both validators report target-met states:
 
 ```bash
 node scripts/reconstruction/r9_certify_evidence.mjs \
   --out docs/reconstruction/evidence/r9/certification.json
 ```
 
-The certifier refuses to write a certification when evidence is unmeasured, sample-insufficient, below target, or blocked by a critical/data-loss defect. The certification records the frozen product baseline, metrics, sample counts, per-session results, and SHA-256 digests of the human evidence files.
+The combined certificate records human metrics, real-device matrix/journey status, and SHA-256 digests for every human session and device run.
 
-## Evidence status
+R10 independently requires the underlying files and verifies those digests. A hand-authored certificate without matching committed evidence cannot open operational readiness.
 
-An empty sessions directory means `HUMAN_UX_UNMEASURED`. Do not create placeholder sessions, AI-generated observations, copied benchmark results, or browser-automation results merely to satisfy the validator.
+## Current state
 
-Automation may validate, aggregate, and freeze human evidence; it may never manufacture the observations being measured.
+At P43 framework merge time, there are no committed human session or real-device run files. Therefore the required honest state is:
+
+- `HUMAN_UX_UNMEASURED`;
+- `REAL_DEVICE_UNMEASURED`;
+- `NOT_CERTIFIED`.
+
+Do not create placeholders, AI-generated observations, browser-automation results, copied benchmark results, or fabricated physical-device metadata merely to change those states.
