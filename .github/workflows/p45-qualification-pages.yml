@@ -1,0 +1,215 @@
+name: P45 Qualification Field Host
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/p45-qualification-pages.yml
+      - docs/reconstruction/evidence/p45/field-host.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  NODE_VERSION: 22.16.0
+  NPM_VERSION: 10.9.2
+  PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
+
+concurrency:
+  group: p45-qualification-pages
+  cancel-in-progress: true
+
+jobs:
+  field-host-config:
+    runs-on: ubuntu-latest
+    outputs:
+      active: ${{ steps.config.outputs.active }}
+      stable_page_url: ${{ steps.config.outputs.stable_page_url }}
+      stable_version: ${{ steps.config.outputs.stable_version }}
+      stable_commit: ${{ steps.config.outputs.stable_commit }}
+      baseline_commit: ${{ steps.config.outputs.baseline_commit }}
+      qualification_path: ${{ steps.config.outputs.qualification_path }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate and expose P45 field-host configuration
+        id: config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/reconstruction/p45_field_host_contract.mjs
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs');
+          const cfg = JSON.parse(fs.readFileSync('docs/reconstruction/evidence/p45/field-host.json', 'utf8'));
+          console.log(`active=${cfg.active}`);
+          console.log(`stable_page_url=${cfg.stable_page_url}`);
+          console.log(`stable_version=${cfg.stable_version}`);
+          console.log(`stable_commit=${cfg.stable_tag_commit}`);
+          console.log(`baseline_commit=${cfg.product_baseline_commit}`);
+          console.log(`qualification_path=${cfg.qualification_path}`);
+          NODE
+
+  qualify-field-host:
+    if: needs.field-host-config.outputs.active == 'true'
+    needs: field-host-config
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      stable_integrity_sha256: ${{ steps.compose.outputs.stable_integrity_sha256 }}
+      qualification_integrity_sha256: ${{ steps.compose.outputs.qualification_integrity_sha256 }}
+    env:
+      STABLE_PAGE_URL: ${{ needs.field-host-config.outputs.stable_page_url }}
+      STABLE_VERSION: ${{ needs.field-host-config.outputs.stable_version }}
+      STABLE_COMMIT: ${{ needs.field-host-config.outputs.stable_commit }}
+      BASELINE_COMMIT: ${{ needs.field-host-config.outputs.baseline_commit }}
+      QUALIFICATION_PATH: ${{ needs.field-host-config.outputs.qualification_path }}
+    steps:
+      - name: Checkout P45 control plane
+        uses: actions/checkout@v7
+        with:
+          path: control
+      - name: Checkout published Stable source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.STABLE_COMMIT }}
+          path: stable
+          fetch-depth: 1
+      - name: Checkout frozen P42 qualification source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BASELINE_COMMIT }}
+          path: qualification
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Pin npm toolchain
+        run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
+      - name: Verify exact source commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C stable rev-parse HEAD)" = "$STABLE_COMMIT"
+          test "$(git -C qualification rev-parse HEAD)" = "$BASELINE_COMMIT"
+          test "$(node -p "JSON.parse(require('fs').readFileSync('stable/package.json','utf8')).version")" = "$STABLE_VERSION"
+      - name: Rebuild the published Stable root deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          stable_timestamp="$(git -C stable show -s --format=%cI HEAD)"
+          cd stable
+          npm ci --no-audit --no-fund
+          VITE_BASE_PATH="$PAGES_BASE_PATH" \
+          VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" \
+          VITE_BUILD_TIMESTAMP="$stable_timestamp" \
+          VITE_RELEASE_CHANNEL="release-candidate" \
+            npm run build:verified
+      - name: Prove rebuilt Stable root equals the live Pages root
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 8 --retry-delay 5 \
+            "${STABLE_PAGE_URL}release-integrity.json" \
+            --output /tmp/live-release-integrity.json
+          if ! cmp --silent /tmp/live-release-integrity.json stable/dist/release-integrity.json; then
+            echo "::error title=Stable root mismatch::Rebuilt v${STABLE_VERSION} release-integrity.json does not match the live Pages root. Qualification overlay deployment is refused."
+            diff -u /tmp/live-release-integrity.json stable/dist/release-integrity.json || true
+            exit 1
+          fi
+      - name: Build frozen P42 qualification distribution reproducibly
+        shell: bash
+        run: |
+          set -euo pipefail
+          qualification_timestamp="$(git -C qualification show -s --format=%cI HEAD)"
+          qualification_base="${PAGES_BASE_PATH}${QUALIFICATION_PATH}/"
+          cd qualification
+          npm ci --no-audit --no-fund
+          VITE_BASE_PATH="$qualification_base" \
+          VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" \
+          VITE_BUILD_TIMESTAMP="$qualification_timestamp" \
+          VITE_RELEASE_CHANNEL="release-candidate" \
+            npm run build:verified
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/p45-qualification-first.sha256
+          rm -rf dist
+          VITE_BASE_PATH="$qualification_base" \
+          VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" \
+          VITE_BUILD_TIMESTAMP="$qualification_timestamp" \
+          VITE_RELEASE_CHANNEL="release-candidate" \
+            npm run build:verified
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/p45-qualification-second.sha256
+          diff -u /tmp/p45-qualification-first.sha256 /tmp/p45-qualification-second.sha256
+      - name: Compose Stable root plus isolated qualification subtree
+        id: compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="stable/dist/${QUALIFICATION_PATH}"
+          rm -rf "$destination"
+          mkdir -p "$destination"
+          cp -a qualification/dist/. "$destination/"
+          cp control/docs/reconstruction/evidence/p45/field-host.json "$destination/field-host.json"
+          stable_hash="$(sha256sum stable/dist/release-integrity.json | awk '{print $1}')"
+          qualification_hash="$(sha256sum qualification/dist/release-integrity.json | awk '{print $1}')"
+          echo "stable_integrity_sha256=${stable_hash}" >> "$GITHUB_OUTPUT"
+          echo "qualification_integrity_sha256=${qualification_hash}" >> "$GITHUB_OUTPUT"
+          test -f "$destination/index.html"
+          test -f "$destination/sw.js"
+          test -f "$destination/manifest.webmanifest"
+          test -f "$destination/offline-assets.json"
+          test -f "$destination/release-integrity.json"
+          test -f "$destination/field-host.json"
+      - uses: actions/configure-pages@v6
+      - name: Upload Stable-preserving qualification Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: stable/dist
+
+  deploy-field-host:
+    if: needs.field-host-config.outputs.active == 'true'
+    needs: [field-host-config, qualify-field-host]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Stable-preserving qualification artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke-field-host:
+    if: needs.field-host-config.outputs.active == 'true'
+    needs: [field-host-config, qualify-field-host, deploy-field-host]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify Stable root unchanged and qualification PWA reachable
+        shell: bash
+        env:
+          PAGE_URL: ${{ needs.deploy-field-host.outputs.page_url }}
+          QUALIFICATION_PATH: ${{ needs.field-host-config.outputs.qualification_path }}
+          BASELINE_COMMIT: ${{ needs.field-host-config.outputs.baseline_commit }}
+          EXPECTED_STABLE_INTEGRITY: ${{ needs.qualify-field-host.outputs.stable_integrity_sha256 }}
+          EXPECTED_QUALIFICATION_INTEGRITY: ${{ needs.qualify-field-host.outputs.qualification_integrity_sha256 }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/"
+          qualification="${base}${QUALIFICATION_PATH}/"
+
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" --output /tmp/stable-release-integrity.json
+          actual_stable="$(sha256sum /tmp/stable-release-integrity.json | awk '{print $1}')"
+          test "$actual_stable" = "$EXPECTED_STABLE_INTEGRITY"
+
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}"
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}sw.js" | grep -F 'const RELEASE_VERSION = "7.0.0";' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}offline-assets.json" | grep -F 'assets' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}release-metadata.json" | grep -F '"version": "7.0.0"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}field-host.json" | grep -F "$BASELINE_COMMIT" > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}release-integrity.json" --output /tmp/qualification-release-integrity.json
+          actual_qualification="$(sha256sum /tmp/qualification-release-integrity.json | awk '{print $1}')"
+          test "$actual_qualification" = "$EXPECTED_QUALIFICATION_INTEGRITY"
