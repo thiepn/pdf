@@ -19,12 +19,26 @@ describe("P45 field qualification host", () => {
     expect(workflow).toContain("ref: ${{ env.STABLE_COMMIT }}");
   });
 
+  it("reconstructs the published root with the historical stable release channel", () => {
+    const stableStep = workflow.slice(
+      workflow.indexOf("Rebuild the published Stable root deterministically"),
+      workflow.indexOf("Prove rebuilt Stable root equals the live Pages root")
+    );
+    expect(stableStep).toContain('VITE_RELEASE_CHANNEL="stable"');
+    expect(stableStep).not.toContain('VITE_RELEASE_CHANNEL="release-candidate"');
+  });
+
   it("builds the qualification baseline independently and reproducibly", () => {
     expect(workflow).toContain("ref: ${{ env.BASELINE_COMMIT }}");
     expect(workflow).toContain('qualification_base="${PAGES_BASE_PATH}${QUALIFICATION_PATH}/"');
     expect(workflow).toContain("p45-qualification-first.sha256");
     expect(workflow).toContain("p45-qualification-second.sha256");
     expect(workflow).toContain("diff -u /tmp/p45-qualification-first.sha256 /tmp/p45-qualification-second.sha256");
+    const qualificationStep = workflow.slice(
+      workflow.indexOf("Build frozen P42 qualification distribution reproducibly"),
+      workflow.indexOf("Compose Stable root plus isolated qualification subtree")
+    );
+    expect(qualificationStep.match(/VITE_RELEASE_CHANNEL="release-candidate"/g)).toHaveLength(2);
   });
 
   it("proves the Stable root remains unchanged after deployment", () => {
