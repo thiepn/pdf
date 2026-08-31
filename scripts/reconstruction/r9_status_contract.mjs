@@ -14,6 +14,7 @@ import {
 } from "./r9_validate_real_device.mjs";
 
 const PREVIOUS_OPERATIONAL_BASELINE = "7c81f95815a3d8740fddef3d76e264ebb19c96f8";
+const QUALIFICATION_BASELINE_STATUS = "FROZEN_FOR_HUMAN_REAL_DEVICE_QUALIFICATION";
 
 function assertion(condition, message) {
   if (!condition) throw new Error(message);
@@ -61,7 +62,7 @@ function runCli() {
     assertion(qualificationBaseline.schema === 1, "qualification baseline schema must equal 1");
     assertion(qualificationBaseline.product_baseline_commit === R9_BASELINE_SHA, "qualification baseline must equal the frozen P43 product baseline");
     assertion(qualificationBaseline.previous_operational_baseline_commit === PREVIOUS_OPERATIONAL_BASELINE, "qualification baseline previous operational commit is invalid");
-    assertion(qualificationBaseline.status === "AWAITING_HUMAN_REAL_DEVICE_EVIDENCE", "qualification baseline status must remain awaiting evidence until promotion");
+    assertion(qualificationBaseline.status === QUALIFICATION_BASELINE_STATUS, `qualification baseline status must equal ${QUALIFICATION_BASELINE_STATUS}`);
 
     const humanSummary = summarizeSessions(loadJsonFiles(defaultEvidenceFiles(repoRoot)));
     const deviceSummary = summarizeRealDeviceRuns(loadJsonFiles(defaultRealDeviceFiles(repoRoot)));
@@ -73,6 +74,7 @@ function runCli() {
 
     console.log(JSON.stringify({
       status: "P43_QUALIFICATION_STATUS_VALID",
+      qualification_baseline_status: qualificationBaseline.status,
       qualification: expected,
       human_sessions: humanSummary.sessions,
       real_device_runs: deviceSummary.runs
