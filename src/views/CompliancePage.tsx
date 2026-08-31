@@ -42,7 +42,7 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
   const [project, setProject] = useState<ProjectManifest | null>(null);
   const [source, setSource] = useState<Uint8Array | null>(null);
   const [inspection, setInspection] = useState<ComplianceInspection | null>(null);
-  const [tab, setTab] = useState<Tab>("preflight");
+  const [tab, setTab] = useState<Tab>("accessibility");
   const [fields, setFields] = useState<ComplianceFieldDraft[]>([]);
   const [draft, setDraft] = useState<Omit<ComplianceFieldDraft, "id">>(fieldDefault);
   const [options, setOptions] = useState<ComplianceOptions>({ ...defaultComplianceOptions });
@@ -71,7 +71,7 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
           acceptInspection(report, manifest);
         } catch (reason) {
           const message = reason instanceof Error ? reason.message : String(reason);
-          if (/password|encrypted|authenticate/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password. It remains in memory only and is never persisted."); }
+          if (/password|encrypted|authenticate/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password. It is used only in this tab and is not saved."); }
           else throw reason;
         }
       } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -118,7 +118,7 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
       await runProjectOperation(project.id, { label: "Preparing standards-compliant copy" }, async ({ signal, update }) => {
         update({ detail: "Applying archival and accessibility changes…", progress: 0.08 });
         const next = await applyCompliance(source, { ...options, fields }, password || undefined, signal);
-        update({ stage: "validating", detail: "Reopening and verifying compliance structures…", progress: 0.9 });
+        update({ stage: "validating", detail: "Checking the standards-ready PDF…", progress: 0.9 });
         setResult(next);
         update({ progress: 1 });
       });
@@ -134,8 +134,8 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
   async function saveProject(): Promise<void> {
     if (!result || !project) return;
     try {
-      await runProjectOperation(project.id, { label: "Saving compliance revision", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => {
-        update({ stage: "committing", detail: "Validating storage and saving a new revision…", progress: 0.4 });
+      await runProjectOperation(project.id, { label: "Saving standards-ready PDF", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => {
+        update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });
         await createDerivedProjectFromBytes(project.id, result.bytes, `${project.name}-compliance.pdf`, "compliance-export", "application/pdf", options.prepareArchival ? undefined : (password || undefined));
         update({ progress: 1 });
       });
@@ -158,14 +158,14 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
   }
 
   return <div className="compliance-page">
-    <header className="compliance-header"><div><p className="eyebrow">Accessibility & document standards</p><h2>{project?.name ?? "Opening…"}</h2><p>Check accessibility, archive readiness, signatures, print preparation, and security. Technical PDF terms are kept in expandable details where possible.</p></div><button className="button" disabled={busy || !source} onClick={() => void exportPdf()} type="button">Create standards-ready copy</button></header>
-    {error ? <div className="error-banner"><strong>Standards operation failed</strong><span>{error}</span></div> : null}
-    {passwordRequired ? <div className="password-panel phase19-password"><input autoComplete="off" onChange={event => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={busy || !password} onClick={() => void unlockDocument()} type="button">Unlock locally</button><span>The password stays in memory for this workspace session only.</span></div> : null}
+    <header className="compliance-header"><div><p className="eyebrow">Accessibility & document standards</p><h2>{project?.name ?? "Opening…"}</h2><p>Start with accessibility and supported fixes. Archive, signature, print, security, and technical standards details remain available when you need them.</p></div><button className="button" disabled={busy || !source} onClick={() => void exportPdf()} type="button">Create standards-ready copy</button></header>
+    {error ? <div className="error-banner"><strong>Could not create standards-ready copy</strong><span>{error}</span></div> : null}
+    {passwordRequired ? <div className="password-panel phase19-password"><input autoComplete="off" onChange={event => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={busy || !password} onClick={() => void unlockDocument()} type="button">Unlock locally</button><span>The password is used only in this tab and is not saved.</span></div> : null}
     <nav className="professional-tabs">{(["preflight", "archive", "accessibility", "signatures", "forms"] as Tab[]).map(item => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)} type="button">{tabLabels[item]}</button>)}</nav>
 
     {tab === "preflight" ? <section className="phase19-preflight">
       <div className="archival-summary">
-        <Summary value={inspection?.pdfVersion ?? "—"} label="Format"/><Summary value={String(inspection?.fontEmbedded ?? 0) + "/" + String(inspection?.fontTotal ?? 0)} label="Embedded fonts"/><Summary value={inspection?.accessibility.structureQuality ?? "—"} label="Tag quality"/><Summary value={String(inspection?.outputIntents.length ?? 0)} label="Color profiles"/><Summary value={String(inspection?.signatures.length ?? 0)} label="Signatures"/><Summary value={String(inspection?.versionCount ?? 0)} label="PDF revisions"/>
+        <Summary value={inspection?.pdfVersion ?? "—"} label="Format"/><Summary value={String(inspection?.fontEmbedded ?? 0) + "/" + String(inspection?.fontTotal ?? 0)} label="Embedded fonts"/><Summary value={inspection?.accessibility.structureQuality ?? "—"} label="Tag quality"/><Summary value={String(inspection?.outputIntents.length ?? 0)} label="Color profiles"/><Summary value={String(inspection?.signatures.length ?? 0)} label="Signatures"/><Summary value={String(inspection?.versionCount ?? 0)} label="Saved PDF versions"/>
       </div>
       <div className="preflight-columns">{(["archival", "accessibility", "print", "security", "signatures"] as PreflightProfile[]).map(profile => <FindingPanel findings={grouped[profile]} key={profile} title={profileLabels[profile]}/>)}</div>
       <article className="professional-panel"><p className="eyebrow">Print preparation details</p><h3>Page boxes and graphics</h3><div className="phase19-page-table"><div className="phase19-page-row phase19-page-row--head"><span>Page</span><span>Trim</span><span>Bleed</span><span>Transparency</span><span>Overprint</span><span>Annotations</span></div>{inspection?.pages.slice(0, 100).map(page => <div className="phase19-page-row" key={page.pageNumber}><span>{page.pageNumber}</span><span>{page.trimBox ? "Yes" : "Missing"}</span><span>{page.bleedBox ? "Yes" : "Missing"}</span><span>{page.transparency ? "Detected" : "No"}</span><span>{page.overprint ? "Detected" : "No"}</span><span>{page.annotationCount}</span></div>)}</div>{(inspection?.pages.length ?? 0) > 100 ? <p className="scope-note">Showing the first 100 pages. The findings above cover the full document.</p> : null}</article>

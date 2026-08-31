@@ -64,10 +64,10 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       documentRef.current = pdf; activePasswordRef.current = suppliedPassword; setDocument(pdf); setPageExpression(`1-${pdf.numPages}`); setPasswordRequired(false); setStatus("Ready");
       onTitleChange?.(`OCR · ${manifest.name}`, `${pdf.numPages} pages · Searchable output is generated locally.`);
       const existing = (await listOcrJobs(manifest.id)).find((candidate) => candidate.status !== "complete" && candidate.status !== "cancelled");
-      if (existing) { setJob(existing); setLanguages(existing.languages); setPreprocess(existing.preprocess); setPageExpression(existing.pageNumbers.join(",")); setResults(await listOcrPages(existing.id)); setStatus("Recovered an unfinished OCR job."); }
+      if (existing) { setJob(existing); setLanguages(existing.languages); setPreprocess(existing.preprocess); setPageExpression(existing.pageNumbers.join(",")); setResults(await listOcrPages(existing.id)); setStatus("Resumed an unfinished OCR session."); }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
-      if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password. It is held only in memory."); }
+      if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password. It is used only in this tab and is not saved."); }
       else throw reason;
     }
   }
@@ -92,9 +92,9 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       if (activeJob && activeJob.status !== "complete") await deleteOcrJob(activeJob.id);
       activeJob = newJob(project, parsedPages.pageArray, languages, preprocess);
       setJob(activeJob); setResults([]); await writeOcrJob(activeJob);
-      if (recipeChanged) setStatus("OCR settings changed · previous cached pages were invalidated.");
+      if (recipeChanged) setStatus("OCR settings changed · previous saved page results were cleared.");
     }
-    if (!activeJob) throw new Error("OCR job could not be initialized.");
+    if (!activeJob) throw new Error("OCR could not start.");
     let runningJob: OcrJob = { ...activeJob, schemaVersion: OCR_SCHEMA_VERSION, languages, preprocess, recipeFingerprint, pageNumbers: parsedPages.pageArray, totalPages: parsedPages.pageArray.length, status: "running", error: undefined, updatedAt: Date.now() };
     setJob(runningJob); await writeOcrJob(runningJob);
     const previous = new Map((await listOcrPages(runningJob.id)).map((item) => [item.pageNumber, item]));
@@ -109,8 +109,8 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         if (abortRef.current) throw new DOMException("OCR paused.", "AbortError");
         const existing = previous.get(pageNumber);
         if (existing?.status === "complete" && existing.searchablePdf) continue;
-        update({ detail: `Rendering page ${pageNumber}…`, progress: Math.min(0.78, (pageIndex / parsedPages.pageArray.length) * 0.78) });
-        setStatus(`Rendering page ${pageNumber}…`);
+        update({ detail: `Preparing page ${pageNumber}…`, progress: Math.min(0.78, (pageIndex / parsedPages.pageArray.length) * 0.78) });
+        setStatus(`Preparing page ${pageNumber}…`);
         const rendered = await renderPdfPageForOcr(document, pageNumber, preprocess);
         const pending: OcrPageResult = { id: `${runningJob.id}:${pageNumber}`, jobId: runningJob.id, projectId: project.id, pageNumber, status: "recognizing", text: "", confidence: 0, words: [], width: rendered.width, height: rendered.height, updatedAt: Date.now() };
         await writeOcrPage(pending);
@@ -118,7 +118,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         update({ detail: `Recognizing page ${pageNumber}…`, progress: Math.min(0.82, ((pageIndex + 0.5) / parsedPages.pageArray.length) * 0.82) });
         try {
           const recognized = await session.recognize(rendered.blob, `${runningJob.id}-${pageNumber}`);
-          if (!recognized.searchablePdf) throw new Error("This Tesseract build did not return searchable PDF output.");
+          if (!recognized.searchablePdf) throw new Error("OCR could not create searchable output for this page.");
           const pageResult: OcrPageResult = { ...pending, status: "complete", text: recognized.text, confidence: recognized.confidence, words: recognized.words, hocr: recognized.hocr, tsv: recognized.tsv, searchablePdf: toOwnedArrayBuffer(recognized.searchablePdf), updatedAt: Date.now() };
           await writeOcrPage(pageResult);
           previous.set(pageNumber, pageResult);
@@ -135,23 +135,23 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       }
       const finalPages = parsedPages.pageArray.map((number) => previous.get(number)).filter((item): item is OcrPageResult => Boolean(item?.searchablePdf));
       if (finalPages.length !== parsedPages.pageArray.length) throw new Error(`${parsedPages.pageArray.length - finalPages.length} page(s) failed. Retry them before exporting.`);
-      setStatus("Merging searchable pages…");
-      update({ detail: "Merging searchable OCR pages…", progress: 0.86 });
+      setStatus("Combining searchable pages…");
+      update({ detail: "Combining searchable pages…", progress: 0.86 });
       // A one-page Tesseract PDF is already the exact desired output. Passing
       // it through MuPDF's page grafting worker can stall on Tesseract's image
       // object layout and needlessly recompresses the page.
       const merged = finalPages.length === 1
         ? { bytes: new Uint8Array(finalPages[0].searchablePdf!) }
         : await mergePdfSources(finalPages.map((item) => ({ name: `page-${item.pageNumber}.pdf`, bytes: new Uint8Array(item.searchablePdf!) })));
-      update({ stage: "validating", detail: "Validating searchable PDF…", progress: 0.93 });
+      update({ stage: "validating", detail: "Checking searchable PDF…", progress: 0.93 });
       const summary = await inspectPdfBytes(merged.bytes);
-      if (summary.pageCount !== finalPages.length) throw new Error("OCR output validation failed: page count mismatch.");
+      if (summary.pageCount !== finalPages.length) throw new Error("The searchable PDF could not be verified because its page count changed.");
       const searchableIndex = finalPages.findIndex((item) => item.text.trim().length >= 4);
       if (searchableIndex >= 0) {
         const check = await openPdfWithPdfJs(merged.bytes);
         try {
           const extracted = await extractPageText(check, searchableIndex + 1);
-          if (!extracted.trim()) throw new Error("OCR output validation failed: no searchable text was extracted from a recognized page.");
+          if (!extracted.trim()) throw new Error("The searchable PDF could not be verified because recognized text was missing from the saved page.");
         } finally { await check.loadingTask.destroy(); }
       }
       setOutput(merged.bytes);
@@ -171,7 +171,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     if (asProject) {
       try {
         await runProjectOperation(project.id, { label: "Saving searchable PDF", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => {
-          update({ stage: "committing", detail: "Validating storage and saving OCR revision…", progress: 0.4 });
+          update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });
           const created = await createDerivedProjectFromBytes(project.id, output, `${project.name}-searchable.pdf`, "ocr-searchable");
           if (job) { const updated = { ...job, outputProjectId: created.id, updatedAt: Date.now() }; setJob(updated); await writeOcrJob(updated); }
           update({ progress: 1 });
@@ -183,7 +183,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
 
   return <div className="ocr-workspace">
     <aside className="ocr-controls">
-      <section><p className="eyebrow">Local OCR</p><h2>Make scans searchable</h2><p>Pages are rendered and recognized locally. Completed page results are stored so interrupted jobs can resume.</p></section>
+      <section><p className="eyebrow">Local OCR</p><h2>Make scans searchable</h2><p>Recognition happens on this device. Completed pages are saved locally so you can resume after an interruption.</p></section>
       {error ? <div className="error-banner"><strong>OCR issue</strong><span>{error}</span></div> : null}
       {passwordRequired ? <section className="password-panel"><input autoFocus autoComplete="off" onChange={(event) => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={!password || !project} onClick={() => project && void loadProjectBytes(project).then((bytes) => openDocument(project, bytes, password))} type="button">Open PDF</button></section> : null}
       <label className="field-label">Pages<input disabled={running} onChange={(event) => setPageExpression(event.target.value)} placeholder="all, 1-5, odd" value={pageExpression}/><small>{parsedPages.errors[0] ?? `${parsedPages.pageArray.length} page(s) selected · Examples: all · 1-5 · odd`}</small></label>
@@ -196,12 +196,12 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         <label><input checked={preprocess.invert} disabled={running} onChange={(event) => setPreprocess({ ...preprocess, invert: event.target.checked })} type="checkbox"/> Invert light/dark colors before recognition</label>
       </div></details>
       <OcrLanguagePanel disabled={running} onChange={setLanguages} selected={languages}/>
-      <div className="ocr-actions"><button className="button" disabled={!document || running || !languages.length} onClick={() => void run()} type="button">{job?.status === "paused" || completed ? "Resume OCR" : "Start OCR"}</button>{running ? <button className="button button--secondary" onClick={() => { abortRef.current = true; void sessionRef.current?.terminate(); }} type="button">Pause</button> : null}{job ? <button className="button button--ghost" disabled={running} onClick={() => void deleteOcrJob(job.id).then(() => { setJob(null); setResults([]); setOutput(null); setStatus("Ready"); })} type="button">Discard job</button> : null}</div>
+      <div className="ocr-actions"><button className="button" disabled={!document || running || !languages.length} onClick={() => void run()} type="button">{job?.status === "paused" || completed ? "Resume OCR" : "Start OCR"}</button>{running ? <button className="button button--secondary" onClick={() => { abortRef.current = true; void sessionRef.current?.terminate(); }} type="button">Pause</button> : null}{job ? <button className="button button--ghost" disabled={running} onClick={() => void deleteOcrJob(job.id).then(() => { setJob(null); setResults([]); setOutput(null); setStatus("Ready"); })} type="button">Discard progress</button> : null}</div>
     </aside>
     <main className="ocr-results">
       <header className="processing-header"><div><strong>{status}</strong><span>{completed}/{job?.totalPages ?? parsedPages.pageArray.length} pages complete</span></div>{running ? <progress max="1" value={progress}/> : null}</header>
-      <div className="ocr-page-list">{results.length ? results.map((result) => <article className={`ocr-page-result ocr-page-result--${result.status}`} key={result.id}><div><strong>Page {result.pageNumber}</strong><span>{result.status}</span></div><div><span>Confidence {Math.round(result.confidence)}%</span><span>{result.words.length} words</span></div><p>{result.error ?? (result.text.slice(0, 240) || "No text recognized.")}</p></article>) : <div className="empty-state"><strong>No OCR results yet</strong><p>Select pages and installed languages, then start recognition.</p></div>}</div>
-      {output ? <footer className="output-bar"><div><strong>Searchable output validated</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button button--secondary" onClick={() => void saveOutput(false)} type="button">Download</button><button className="button" onClick={() => void saveOutput(true)} type="button">Save as project</button></footer> : null}
+      <div className="ocr-page-list">{results.length ? results.map((result) => <article className={`ocr-page-result ocr-page-result--${result.status}`} key={result.id}><div><strong>Page {result.pageNumber}</strong><span>{result.status}</span></div><div><span>{result.words.length} words</span></div><details><summary>Recognition details</summary><small>Confidence {Math.round(result.confidence)}%</small></details><p>{result.error ?? (result.text.slice(0, 240) || "No text recognized.")}</p></article>) : <div className="empty-state"><strong>No OCR results yet</strong><p>Select pages and installed languages, then start recognition.</p></div>}</div>
+      {output ? <footer className="output-bar"><div><strong>Searchable PDF checked and ready</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button button--secondary" onClick={() => void saveOutput(false)} type="button">Download</button><button className="button" onClick={() => void saveOutput(true)} type="button">Save as project</button></footer> : null}
     </main>
   </div>;
 }

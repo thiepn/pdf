@@ -15,13 +15,13 @@ function formatMs(value: number): string {
 
 function metricRows(summary: RuntimePerformanceSummary) {
   return [
-    ["Main-thread long tasks", summary.longTasks],
+    ["Long interface tasks", summary.longTasks],
     ["Interactions", summary.interactions],
     ["Navigation", summary.navigation],
-    ["PDF parsing / inspection", summary.pdf],
+    ["PDF work", summary.pdf],
     ["Local storage", summary.storage],
-    ["Workers", summary.worker],
-    ["Page/text rendering", summary.render],
+    ["Background processing", summary.worker],
+    ["Page and text rendering", summary.render],
     ["Other measured work", summary.custom]
   ] as const;
 }
@@ -45,18 +45,18 @@ export function PerformanceDiagnostics() {
 
   return <div className="stack performance-diagnostics">
     <section className="card">
-      <p className="eyebrow">P0 local instrumentation</p>
-      <h2>Runtime performance</h2>
-      <p>These measurements stay in this browser tab. PDF Studio does not upload performance events, filenames, document text, or user input.</p>
+      <p className="eyebrow">Local measurements</p>
+      <h2>Performance</h2>
+      <p>Performance measurements stay in this browser tab. PDF Studio does not upload them, filenames, document text, or your input.</p>
       <div className="button-row">
         <button className="button button--secondary" onClick={refresh} type="button">Refresh</button>
         <button className="button button--ghost" onClick={() => { clearRuntimePerformanceMetrics(); refresh(); }} type="button">Clear measurements</button>
       </div>
     </section>
 
-    <section className="card">
+    <details className="card"><summary>Technical performance measurements</summary><section>
       <h3>Current session summary</h3>
-      <p>{summary.total} measurements retained in the in-memory ring buffer.</p>
+      <p>{summary.total} measurements kept temporarily for this tab.</p>
       <div className="table-wrap">
         <table>
           <thead><tr><th>Area</th><th>Count</th><th>P95</th><th>Slowest</th><th>Total</th></tr></thead>
@@ -73,6 +73,6 @@ export function PerformanceDiagnostics() {
           <tbody>{slowest.map((metric) => <tr key={metric.id}><td>{metric.category}</td><td>{metric.name}</td><td>{formatMs(metric.durationMs)}</td><td>{metric.detail ? Object.entries(metric.detail).filter(([, value]) => value !== undefined).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") : "—"}</td></tr>)}</tbody>
         </table>
       </div>}
-    </section>
+    </section></details>
   </div>;
 }

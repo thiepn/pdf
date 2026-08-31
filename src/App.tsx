@@ -37,7 +37,7 @@ function headerForRoute(route: AppRoute): HeaderState {
     case "validation": return { title: "App self-check", subtitle: "Advanced release and browser checks for troubleshooting." };
     case "settings": return { title: "Settings", subtitle: "Viewer, appearance, privacy, and performance defaults." };
     case "storage": return { title: "Local storage", subtitle: "See how much browser storage your PDF projects use and whether the browser may clean it automatically." };
-    case "diagnostics": return { title: "Troubleshooting diagnostics", subtitle: "Advanced browser capability checks and local technical error records." };
+    case "diagnostics": return { title: "Troubleshooting", subtitle: "Check browser readiness, performance, and local error records. Technical labs are available in details." };
     case "release": return { title: "About this release", subtitle: "Capabilities, limitations, privacy, and recovery information." };
     case "activity": return { title: "Download history", subtitle: "Review local output records. Technical checksums are available in details." };
     case "maintenance": return { title: "Troubleshooting & recovery", subtitle: "Safe mode, project checks, offline-cache repair, and privacy-safe support information." };
@@ -45,7 +45,7 @@ function headerForRoute(route: AppRoute): HeaderState {
     case "workspace": return { title: "PDF workspace", subtitle: "Read, edit, manage pages, or find a PDF task without reopening the document." };
     case "viewer": return { title: "Read PDF" };
     case "editor": return { title: "Edit PDF", subtitle: "Change supported content and add text, images, markup, comments, links, signatures, and redaction marks." };
-    case "secure": return { title: "Protect PDF", subtitle: "Fill forms, permanently apply redactions, sanitize active content, flatten supported structures, or add password protection." };
+    case "secure": return { title: "Protect PDF", subtitle: "Fill forms, permanently apply redactions, remove risky content, make supported content permanent, or add password protection." };
     case "ocr": return { title: "OCR PDF", subtitle: "Recognize scanned pages locally and create searchable output." };
     case "compress": return { title: "Compress PDF", subtitle: "Reduce file size with lossless cleanup or stronger image-based compression." };
     case "inspector": return { title: "Document details", subtitle: "Technical PDF structure, resources, forms, actions, revisions, and security information." };
@@ -53,7 +53,7 @@ function headerForRoute(route: AppRoute): HeaderState {
     case "professional": return { title: "Specialist tools", subtitle: "Document numbering, print layout, layers, archive checks, and specialist document workflows." };
     case "preservation": return { title: "Structure check", subtitle: "Technical view of document structures preserved or rebuilt by an operation." };
     case "native": return { title: "Edit PDF", subtitle: "Legacy compatibility link; existing-content editing now lives in Edit." };
-    case "compliance": return { title: "Accessibility", subtitle: "Check accessibility findings and supported standards-related document details." };
+    case "compliance": return { title: "Accessibility", subtitle: "Check accessibility, apply supported fixes, and open standards details when needed." };
     case "organizer": return { title: "Pages", subtitle: "Reorder, rotate, duplicate, delete, reverse, and extract pages locally." };
     case "toolbox": return { title: "PDF tasks", subtitle: "Find document actions by outcome, with utilities grouped under one disclosure." };
     case "tools": return { title: "PDF tasks", subtitle: "Search by what you want to accomplish instead of by internal tool or engine name." };
