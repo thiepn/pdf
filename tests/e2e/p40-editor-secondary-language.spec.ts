@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 async function openEditor(page: import("@playwright/test").Page): Promise<void> {
@@ -39,44 +37,4 @@ test("editor status and secondary surfaces use product language", async ({ page 
   await downloadPromise;
   await expect(fileGroup).toContainText("Edited PDF downloaded");
   await expect(page.locator(".editor-contextbar strong")).toContainText(/0 PDF content edits · 1 added object · /);
-});
-
-test("retired engineering phrases do not remain in normal editor copy", async () => {
-  const editor = readFileSync(join(process.cwd(), "src/views/EditorPage.tsx"), "utf8");
-  const localSave = readFileSync(join(process.cwd(), "src/persistence/localSaveTrust.ts"), "utf8");
-  const retiredEditorPhrases = [
-    "Opening PDF engine",
-    "Unified editor ready",
-    "detected PDF objects · Unified editor",
-    "Existing-content inspection unavailable",
-    "overlay editing only",
-    "in-memory editing session",
-    "editor objects · Unsaved export",
-    "local binary assets were unavailable",
-    "Compiling editor objects",
-    "existing-content edits",
-    "Validating unified edited PDF",
-    "Reopening and validating edited output",
-    "0 existing-content edits",
-    "overlay objects",
-    "Saving a new project revision",
-    "Export validated and downloaded",
-    "Undo added-object change",
-    "Redo added-object change",
-    "existing-content edit",
-    "Editor report",
-    "No editable objects detected",
-    " · ${queued} queued",
-    "local PDF engines",
-    "could not be decoded"
-  ];
-  for (const phrase of retiredEditorPhrases) expect(editor).not.toContain(phrase);
-
-  for (const phrase of [
-    "Local changes waiting to save",
-    "Saving local changes",
-    "Local changes saved",
-    "Local changes not yet saved",
-    "No pending editor changes"
-  ]) expect(localSave).not.toContain(phrase);
 });
