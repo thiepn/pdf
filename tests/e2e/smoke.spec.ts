@@ -30,6 +30,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Merge PDFs/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Scan to PDF/i })).toBeVisible();
+  await page.getByText("Advanced & specialist tools", { exact: true }).click();
   await expect(page.getByRole("link", { name: /Batch automation/i })).toBeVisible();
 
   await page.goto("./#/home");
