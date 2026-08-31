@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "baseline_commit": "be223e37d3ecafe6695aa6fe4fe7f901f95f478c",
+  "run_id": "device-YYYYMMDD-platform-NN",
+  "tester_id": "anonymous-local-id",
+  "environment": {
+    "date": "YYYY-MM-DD",
+    "evidence_source": "human-physical-device",
+    "physical_device": true,
+    "simulator_or_emulator": false,
+    "automation_used_for_observation": false,
+    "human_attestation": true,
+    "device_class": "phone",
+    "device_model": "",
+    "os_family": "android",
+    "os_version": "",
+    "browser_family": "chromium",
+    "browser_name": "",
+    "browser_version": "",
+    "input_mode": "touch",
+    "viewport": "",
+    "app_mode": "browser",
+    "build_channel": "p42-frozen-consumer-baseline"
+  },
+  "corpus_id": "p43-real-device-v1",
+  "journey_results": [
+    { "id": "J01", "journey": "Open a PDF, read, search text, and navigate pages", "result": "NOT_RUN" },
+    { "id": "J02", "journey": "Edit existing text, save locally, leave the editor, and reopen the document", "result": "NOT_RUN" },
+    { "id": "J03", "journey": "Add an annotation or object, then use undo and redo", "result": "NOT_RUN" },
+    { "id": "J04", "journey": "Delete or reorder pages and export the resulting PDF", "result": "NOT_RUN" },
+    { "id": "J05", "journey": "Merge or split PDFs and open the resulting output", "result": "NOT_RUN" },
+    { "id": "J06", "journey": "Compress a PDF and reopen the compressed output", "result": "NOT_RUN" },
+    { "id": "J07", "journey": "Run OCR on a scan and search the recognized result", "result": "NOT_RUN" },
+    { "id": "J08", "journey": "Exercise a protected or permanent-change workflow and verify the original remains safe", "result": "NOT_RUN" },
+    { "id": "J09", "journey": "Find an advanced or specialist tool through disclosure or search and enter the correct workflow", "result": "NOT_RUN" },
+    { "id": "J10", "journey": "Recover local work after reload and verify installed-PWA or offline reopening where supported", "result": "NOT_RUN" }
+  ],
+  "defects": []
+}
