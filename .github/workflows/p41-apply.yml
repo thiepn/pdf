@@ -1,0 +1,469 @@
+name: P41 branch patch
+
+on:
+  push:
+    branches:
+      - ux/p41-product-wide-consumer-language
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[p41-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Apply P41 consumer language and progressive disclosure
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Route-level language.
+          replace_once('src/App.tsx',
+              'case "diagnostics": return { title: "Troubleshooting diagnostics", subtitle: "Advanced browser capability checks and local technical error records." };',
+              'case "diagnostics": return { title: "Troubleshooting", subtitle: "Check browser readiness, performance, and local error records. Technical labs are available in details." };')
+          replace_once('src/App.tsx',
+              'case "secure": return { title: "Protect PDF", subtitle: "Fill forms, permanently apply redactions, sanitize active content, flatten supported structures, or add password protection." };',
+              'case "secure": return { title: "Protect PDF", subtitle: "Fill forms, permanently apply redactions, remove risky content, make supported content permanent, or add password protection." };')
+          replace_once('src/App.tsx',
+              'case "compliance": return { title: "Accessibility", subtitle: "Check accessibility findings and supported standards-related document details." };',
+              'case "compliance": return { title: "Accessibility", subtitle: "Check accessibility, apply supported fixes, and open standards details when needed." };')
+
+          # Task catalog: user outcomes first; keep technical keywords internally searchable.
+          replace_once('src/ia/taskCatalog.ts',
+              '{ id: "protect", label: "Protect & sign", description: "Fill forms, redact permanently, sanitize, or password-protect a PDF." },',
+              '{ id: "protect", label: "Protect & sign", description: "Fill forms, redact permanently, remove risky content, or password-protect a PDF." },')
+          replace_once('src/ia/taskCatalog.ts',
+              '{ id: "sanitize-pdf", label: "Sanitize PDF", description: "Remove risky active content and create a safer derived copy.", keywords: "sanitize javascript actions attachments active content security clean", category: "protect", audience: "everyday", icon: "secure", target: { kind: "workspace", mode: "secure" } },',
+              '{ id: "sanitize-pdf", label: "Clean up PDF", description: "Remove risky scripts, automatic actions, embedded files, and other active content.", keywords: "sanitize javascript actions attachments active content security clean", category: "protect", audience: "everyday", icon: "secure", target: { kind: "workspace", mode: "secure" } },')
+          replace_once('src/ia/taskCatalog.ts',
+              '{ id: "compress-pdf", label: "Compress PDF", description: "Use lossless optimization or stronger image-based compression.", keywords: "compress optimize reduce file size smaller lossless raster", category: "convert", audience: "everyday", icon: "compress", target: { kind: "workspace", mode: "compress" } },',
+              '{ id: "compress-pdf", label: "Compress PDF", description: "Reduce file size while choosing whether to preserve text and forms or use stronger image-based compression.", keywords: "compress optimize reduce file size smaller lossless raster", category: "convert", audience: "everyday", icon: "compress", target: { kind: "workspace", mode: "compress" } },')
+          replace_once('src/ia/taskCatalog.ts',
+              '{ id: "grayscale-pdf", label: "Create grayscale PDF", description: "Create a grayscale raster copy when appearance matters more than interactive PDF structure.", keywords: "black white monochrome grayscale raster", category: "convert", audience: "advanced", icon: "toolbox", target: { kind: "workspace", mode: "toolbox" } },',
+              '{ id: "grayscale-pdf", label: "Create grayscale PDF", description: "Create a grayscale image-based copy when appearance matters more than searchable or interactive content.", keywords: "black white monochrome grayscale raster", category: "convert", audience: "advanced", icon: "toolbox", target: { kind: "workspace", mode: "toolbox" } },')
+          replace_once('src/ia/taskCatalog.ts',
+              '{ id: "accessibility-check", label: "Check accessibility", description: "Review accessibility findings and supported remediation tools.", keywords: "accessibility tags reading order alt text wcag pdf ua", category: "review", audience: "advanced", icon: "compliance", target: { kind: "workspace", mode: "compliance" } },',
+              '{ id: "accessibility-check", label: "Check accessibility", description: "Review accessibility findings and supported fixes.", keywords: "accessibility tags reading order alt text wcag pdf ua", category: "review", audience: "advanced", icon: "compliance", target: { kind: "workspace", mode: "compliance" } },')
+
+          # Compression: describe outcomes and trade-offs without pipeline vocabulary.
+          replacements = [
+              ('onTitleChange?.(`Compress · ${manifest.name}`, `${pdf.numPages} pages · Local structural or raster compression.`);', 'onTitleChange?.(`Compress · ${manifest.name}`, `${pdf.numPages} pages · Choose structure-preserving or stronger image-based compression.`);'),
+              ('setError("Enter the PDF password. It remains in memory only.");', 'setError("Enter the PDF password. It is used only in this tab and is not saved.");'),
+              ('update({ detail: profile === "lossless" ? "Optimizing PDF structure…" : "Rasterizing pages…", progress: 0.02 });', 'update({ detail: profile === "lossless" ? "Reducing file size without converting pages to images…" : "Converting pages to images for stronger compression…", progress: 0.02 });'),
+              ('setStatus(`Rasterizing page ${completed} of ${total}…`); update({ detail: `Rasterizing page ${completed} of ${total}…`, progress: Math.min(0.85, value * 0.85) });', 'setStatus(`Compressing page ${completed} of ${total}…`); update({ detail: `Compressing page ${completed} of ${total}…`, progress: Math.min(0.85, value * 0.85) });'),
+              ('"Raster compression converts pages to images. Searchable text, forms, links, annotations, signatures, and vector quality are not preserved."', '"Strong compression converts each page to an image. Search, forms, links, annotations, signatures, and sharp vector graphics are no longer preserved as interactive PDF content."'),
+              ('"Raster output contains only new basic metadata."', '"Image-based output contains only new basic document information."'),
+              ('update({ stage: "validating", detail: "Reopening compressed output…", progress: 0.9 });', 'update({ stage: "validating", detail: "Checking compressed PDF…", progress: 0.9 });'),
+              ('throw new Error("Compression validation failed: page count changed.");', 'throw new Error("The compressed PDF could not be verified because its page count changed.");'),
+              ('setStatus("Compressed output validated")', 'setStatus("Compressed PDF checked and ready")'),
+              ('{ label: "Saving compressed revision", cancellable: false, reserveBytes: project.byteLength }', '{ label: "Saving compressed PDF", cancellable: false, reserveBytes: project.byteLength }'),
+              ('update({ stage: "committing", detail: "Validating storage and writing a new revision…", progress: 0.4 });', 'update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });'),
+              ('<p className="eyebrow">Compression</p><h2>Optimize or raster-compress</h2><p>Lossless mode cleans PDF structure. Raster profiles trade editability and searchability for stronger size reduction.</p>', '<p className="eyebrow">Compression</p><h2>Choose how much to shrink the PDF</h2><p>Keep text and forms for a safer reduction, or use image-based compression for a smaller file with fewer interactive features.</p>'),
+              ('<strong>Lossless optimization</strong><small>Clean revisions and compress streams without rasterizing pages.</small>', '<strong>Keep text and forms</strong><small>Reduce file size without turning pages into images.</small>'),
+              ('{processing ? "Processing…" : "Optimize PDF"}', '{processing ? "Processing…" : "Compress PDF"}'),
+              ('<strong>Output reopened and validated</strong>', '<strong>Compressed PDF checked and ready</strong>')
+          ]
+          for old, new in replacements:
+              replace_once('src/views/CompressionPage.tsx', old, new)
+
+          # OCR: plain progress language and confidence behind explicit disclosure.
+          replacements = [
+              ('setStatus("Recovered an unfinished OCR job.");', 'setStatus("Resumed an unfinished OCR session.");'),
+              ('setError("Enter the PDF password. It is held only in memory.");', 'setError("Enter the PDF password. It is used only in this tab and is not saved.");'),
+              ('setStatus("OCR settings changed · previous cached pages were invalidated.");', 'setStatus("OCR settings changed · previous saved page results were cleared.");'),
+              ('throw new Error("OCR job could not be initialized.");', 'throw new Error("OCR could not start.");'),
+              ('update({ detail: `Rendering page ${pageNumber}…`, progress: Math.min(0.78, (pageIndex / parsedPages.pageArray.length) * 0.78) });\n        setStatus(`Rendering page ${pageNumber}…`);', 'update({ detail: `Preparing page ${pageNumber}…`, progress: Math.min(0.78, (pageIndex / parsedPages.pageArray.length) * 0.78) });\n        setStatus(`Preparing page ${pageNumber}…`);'),
+              ('throw new Error("This Tesseract build did not return searchable PDF output.");', 'throw new Error("OCR could not create searchable output for this page.");'),
+              ('setStatus("Merging searchable pages…");', 'setStatus("Combining searchable pages…");'),
+              ('update({ detail: "Merging searchable OCR pages…", progress: 0.86 });', 'update({ detail: "Combining searchable pages…", progress: 0.86 });'),
+              ('update({ stage: "validating", detail: "Validating searchable PDF…", progress: 0.93 });', 'update({ stage: "validating", detail: "Checking searchable PDF…", progress: 0.93 });'),
+              ('throw new Error("OCR output validation failed: page count mismatch.");', 'throw new Error("The searchable PDF could not be verified because its page count changed.");'),
+              ('throw new Error("OCR output validation failed: no searchable text was extracted from a recognized page.");', 'throw new Error("The searchable PDF could not be verified because recognized text was missing from the saved page.");'),
+              ('update({ stage: "committing", detail: "Validating storage and saving OCR revision…", progress: 0.4 });', 'update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });'),
+              ('<section><p className="eyebrow">Local OCR</p><h2>Make scans searchable</h2><p>Pages are rendered and recognized locally. Completed page results are stored so interrupted jobs can resume.</p></section>', '<section><p className="eyebrow">Local OCR</p><h2>Make scans searchable</h2><p>Recognition happens on this device. Completed pages are saved locally so you can resume after an interruption.</p></section>'),
+              ('>Discard job</button>', '>Discard progress</button>'),
+              ('<div><span>Confidence {Math.round(result.confidence)}%</span><span>{result.words.length} words</span></div><p>{result.error ?? (result.text.slice(0, 240) || "No text recognized.")}</p>', '<div><span>{result.words.length} words</span></div><details><summary>Recognition details</summary><small>Confidence {Math.round(result.confidence)}%</small></details><p>{result.error ?? (result.text.slice(0, 240) || "No text recognized.")}</p>'),
+              ('<strong>Searchable output validated</strong>', '<strong>Searchable PDF checked and ready</strong>')
+          ]
+          for old, new in replacements:
+              replace_once('src/views/OcrPage.tsx', old, new)
+
+          # Protect: keep security meaning, retire implementation and validation-pipeline wording.
+          replacements = [
+              ('{ id: "overview", label: "Inspector", icon: "◇" },', '{ id: "overview", label: "Overview", icon: "◇" },'),
+              ('{ id: "sanitize", label: "Sanitize", icon: "⌁" },', '{ id: "sanitize", label: "Clean up", icon: "⌁" },'),
+              ('useState("Opening secure workspace…")', 'useState("Opening protection tools…")'),
+              ('setStatus("Inspecting PDF security…");', 'setStatus("Checking PDF protection…");'),
+              ('`${report.pageCount} pages · ${report.formFields.length} fields · ${report.signatures.length} signature fields · local processing`', '`${report.pageCount} pages · ${report.formFields.length} form fields · ${report.signatures.length} digital signature fields`'),
+              ('setError("Enter the PDF password. It remains only in memory for this local session.");', 'setError("Enter the PDF password. It is used only in this tab and is not saved.");'),
+              ('setStatus("Compiling editor and security changes…");', 'setStatus("Preparing protected PDF…");'),
+              ('update({ detail: "Compiling editor and security changes…", progress: 0.05 });', 'update({ detail: "Preparing protected PDF…", progress: 0.05 });'),
+              ('setStatus("Applying forms, redactions, sanitization, and protection…");', 'setStatus("Applying forms, redactions, cleanup, and password settings…");'),
+              ('update({ detail: "Applying forms, redactions, sanitization, and protection…", progress: 0.45 });', 'update({ detail: "Applying forms, redactions, cleanup, and password settings…", progress: 0.45 });'),
+              ('setStatus("Running security-critical validation…");', 'setStatus("Checking protected PDF…");'),
+              ('update({ stage: "validating", detail: "Running security-critical validation…", progress: 0.82 });', 'update({ stage: "validating", detail: "Checking protected PDF before saving…", progress: 0.82 });'),
+              ('throw new Error(`Security validation failed: ${result.checks.filter((check) => !check.passed).map((check) => check.name).join(", ")}. The output was not released.`);', 'throw new Error(`The protected PDF did not pass the final safety check: ${result.checks.filter((check) => !check.passed).map((check) => check.name).join(", ")}. No output was created.`);'),
+              ('update({ stage: "committing", detail: "Saving a new protected revision…", progress: 0.94 });', 'update({ stage: "committing", detail: "Saving protected PDF as a new project…", progress: 0.94 });'),
+              ('setStatus(`Validated and downloaded · ${formatBytes(secured.report.outputBytes)}`);', 'setStatus(`Protected PDF downloaded · ${formatBytes(secured.report.outputBytes)}`);'),
+              ('<span>{status} · security-critical changes create a new output</span>', '<span>{status} · your original PDF is kept unchanged</span>'),
+              ('>Download secured PDF</button>', '>Download protected PDF</button>'),
+              ('<strong>Forms & Protect blocked</strong>', '<strong>Protection action blocked</strong>'),
+              ('PanelTitle title="Security inspector" subtitle="Current document state before export"', 'PanelTitle title="Protection overview" subtitle="Current document state before you create a protected copy"'),
+              ('<Fact label="Revisions" value={String(inspection.versionCount)} />', '<Fact label="Saved PDF versions" value={String(inspection.versionCount)} />'),
+              ('Only Apply redactions removes the underlying text, images, and vector content. The output is then rewritten with garbage collection.', 'Only Apply redactions removes the underlying text, images, and shapes. PDF Studio then rewrites the output so removed content is not retained.'),
+              ('<span>Vector line art</span>', '<span>Lines and shapes</span>'),
+              ('<PanelTitle title="Forms" subtitle="Fill existing AcroForm fields" /><div className="security-empty"><strong>No AcroForm fields detected</strong><p>The current MuPDF browser API reliably edits existing widgets but does not yet provide production-ready creation of arbitrary new field types. Form creation remains deferred rather than simulated.</p>', '<PanelTitle title="Forms" subtitle="Fill existing PDF form fields" /><div className="security-empty"><strong>No fillable form fields detected</strong><p>PDF Studio can edit supported fields that already exist in a PDF. Creating new form fields is not supported yet.</p>'),
+              ('subtitle={`${fields.length} existing fields · JavaScript execution disabled`}', 'subtitle={`${fields.length} existing fields · PDF scripts are not run`}'),
+              ('Read-only and cryptographic signature fields are displayed but cannot be changed here.', 'Read-only and digital signature fields are displayed but cannot be changed here.'),
+              ('PanelTitle title="Signatures" subtitle="Visual marks and existing cryptographic fields"', 'PanelTitle title="Signatures" subtitle="Visual signature marks and existing digital signature fields"'),
+              ('<h3>Cryptographic fields ({context.inspection.signatures.length})</h3>', '<h3>Digital signature fields ({context.inspection.signatures.length})</h3>'),
+              ('No cryptographic signature fields were detected.', 'No digital signature fields were detected.'),
+              ('Certificate-based signing is not enabled because the browser MuPDF API does not expose the required signer workflow reliably. The application does not substitute an image and call it a digital signature.', 'Certificate-based signing is not available in the browser build yet. PDF Studio does not substitute an image and call it a digital signature.'),
+              ('{ key: "removeJavaScript", label: "Remove JavaScript name trees", detail: inspection.hasJavaScript ? "Active content detected" : "No JavaScript detected" },', '{ key: "removeJavaScript", label: "Remove embedded scripts", detail: inspection.hasJavaScript ? "Active scripts detected" : "No scripts detected" },'),
+              ('{ key: "removeAttachments", label: "Remove embedded attachments", detail: `${inspection.attachmentCount} catalog attachments detected` },', '{ key: "removeAttachments", label: "Remove embedded files", detail: `${inspection.attachmentCount} embedded file${inspection.attachmentCount === 1 ? "" : "s"} detected` },'),
+              ('{ key: "collapseRevisionHistory", label: "Collapse incremental history", detail: `${inspection.versionCount} stored version${inspection.versionCount === 1 ? "" : "s"}` }', '{ key: "collapseRevisionHistory", label: "Remove previous saved PDF versions", detail: `${inspection.versionCount} stored version${inspection.versionCount === 1 ? "" : "s"}` }'),
+              ('PanelTitle title="Sanitize document" subtitle="Remove private, active, or collaborative content"', 'PanelTitle title="Clean up document" subtitle="Remove private, active, or collaborative content"'),
+              ('PanelTitle title="Encryption and permissions" subtitle="Passwords are never written to local project storage"', 'PanelTitle title="Passwords and permissions" subtitle="Passwords are used for this operation and are not saved"'),
+              ('<span>Output security</span>', '<span>Password protection</span>'),
+              ('<option value="keep">Keep source encryption state</option><option value="remove">Remove encryption</option><option value="aes-256">Protect with AES-256</option>', '<option value="keep">Keep current password protection</option><option value="remove">Remove password protection</option><option value="aes-256">Protect with a password (AES-256)</option>'),
+              ('<strong>Permission flags are not DRM.</strong><p>They communicate intended restrictions to compatible PDF readers. The open password provides the actual encryption barrier.</p>', '<strong>PDF permissions depend on the reader.</strong><p>They tell compatible PDF readers which actions should be allowed. The open password is the actual encryption barrier.</p>'),
+              ('<p id="secure-password-description">The password remains in memory and is passed only to local PDF engines.</p>', '<p id="secure-password-description">Your password is used only in this tab to open and protect the PDF. It is not saved.</p>'),
+              ('>Open secure workspace</button>', '>Open protection tools</button>')
+          ]
+          for old, new in replacements:
+              replace_once('src/views/SecurePage.tsx', old, new)
+
+          old_validation = '''function ValidationPanel({ validation, inspection }: { validation: SecurityValidationReport | null; inspection: SecurityInspectionReport }) {
+  return <div className="security-validation-body"><PanelTitle title="Validation" subtitle="Output is withheld when a required check fails" />{validation ? <><div className={`security-validation-summary ${validation.valid ? "passed" : "failed"}`}><strong>{validation.valid ? "Passed" : "Failed"}</strong><span>{validation.checks.filter((check) => check.passed).length}/{validation.checks.length} checks</span></div><div className="security-check-list">{validation.checks.map((check) => <div className={check.passed ? "passed" : "failed"} key={check.name}><span>{check.passed ? "✓" : "×"}</span><div><strong>{check.name}</strong><small>{check.detail}</small></div></div>)}</div></> : <div className="security-empty"><strong>No output validated yet</strong><p>Export runs PDF.js and MuPDF reopening, structure checks, sanitization inspection, encryption checks, and text-extraction checks for marked redactions.</p></div>}<section className="security-section"><h3>Source risk summary</h3><ul className="security-risk-list"><li className={inspection.encrypted ? "warn" : "ok"}>{inspection.encrypted ? "Encrypted source" : "Unencrypted source"}</li><li className={inspection.hasJavaScript || inspection.hasOpenAction ? "warn" : "ok"}>{inspection.hasJavaScript || inspection.hasOpenAction ? "Active content detected" : "No active content detected"}</li><li className={inspection.signatures.some((signature) => signature.signed) ? "warn" : "ok"}>{inspection.signatures.some((signature) => signature.signed) ? "Signed document; changes may invalidate signatures" : "No signed fields detected"}</li><li className={inspection.repaired ? "warn" : "ok"}>{inspection.repaired ? "Document required repair" : "No repair reported"}</li></ul></section></div>;
+}'''
+          new_validation = '''function ValidationPanel({ validation, inspection }: { validation: SecurityValidationReport | null; inspection: SecurityInspectionReport }) {
+  return <div className="security-validation-body"><PanelTitle title="Final check" subtitle="PDF Studio does not release output when a required safety check fails" />{validation ? <><div className={`security-validation-summary ${validation.valid ? "passed" : "failed"}`}><strong>{validation.valid ? "Passed" : "Failed"}</strong><span>{validation.checks.filter((check) => check.passed).length}/{validation.checks.length} checks</span></div><details><summary>Check details</summary><div className="security-check-list">{validation.checks.map((check) => <div className={check.passed ? "passed" : "failed"} key={check.name}><span>{check.passed ? "✓" : "×"}</span><div><strong>{check.name}</strong><small>{check.detail}</small></div></div>)}</div></details></> : <div className="security-empty"><strong>No protected output checked yet</strong><p>When you export, PDF Studio reopens the result and checks its structure, protection settings, removed content, and redactions before download.</p></div>}<section className="security-section"><h3>Source risk summary</h3><ul className="security-risk-list"><li className={inspection.encrypted ? "warn" : "ok"}>{inspection.encrypted ? "Encrypted source" : "Unencrypted source"}</li><li className={inspection.hasJavaScript || inspection.hasOpenAction ? "warn" : "ok"}>{inspection.hasJavaScript || inspection.hasOpenAction ? "Active content detected" : "No active content detected"}</li><li className={inspection.signatures.some((signature) => signature.signed) ? "warn" : "ok"}>{inspection.signatures.some((signature) => signature.signed) ? "Signed document; changes may invalidate signatures" : "No signed fields detected"}</li><li className={inspection.repaired ? "warn" : "ok"}>{inspection.repaired ? "Document required repair" : "No repair reported"}</li></ul></section></div>;
+}'''
+          replace_once('src/views/SecurePage.tsx', old_validation, new_validation)
+
+          # Accessibility/standards: Accessibility is the default; deeper standards vocabulary stays in opt-in tabs.
+          replacements = [
+              ('const [tab, setTab] = useState<Tab>("preflight");', 'const [tab, setTab] = useState<Tab>("accessibility");'),
+              ('setError("Enter the PDF password. It remains in memory only and is never persisted.");', 'setError("Enter the PDF password. It is used only in this tab and is not saved.");'),
+              ('update({ stage: "validating", detail: "Reopening and verifying compliance structures…", progress: 0.9 });', 'update({ stage: "validating", detail: "Checking the standards-ready PDF…", progress: 0.9 });'),
+              ('{ label: "Saving compliance revision", cancellable: false, reserveBytes: project.byteLength }', '{ label: "Saving standards-ready PDF", cancellable: false, reserveBytes: project.byteLength }'),
+              ('update({ stage: "committing", detail: "Validating storage and saving a new revision…", progress: 0.4 });', 'update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });'),
+              ('<p>Check accessibility, archive readiness, signatures, print preparation, and security. Technical PDF terms are kept in expandable details where possible.</p>', '<p>Start with accessibility and supported fixes. Archive, signature, print, security, and technical standards details remain available when you need them.</p>'),
+              ('<strong>Standards operation failed</strong>', '<strong>Could not create standards-ready copy</strong>'),
+              ('<span>The password stays in memory for this workspace session only.</span>', '<span>The password is used only in this tab and is not saved.</span>'),
+              ('label="PDF revisions"', 'label="Saved PDF versions"')
+          ]
+          for old, new in replacements:
+              replace_once('src/views/CompliancePage.tsx', old, new)
+
+          # Batch: keep recipe schema internal; present the concept as a workflow.
+          replacements = [
+              ('{type:"optimize",label:"Lossless optimize"}', '{type:"optimize",label:"Compress without page images"}'),
+              ('{type:"raster-compress",label:"Raster compress"}', '{type:"raster-compress",label:"Stronger image compression"}'),
+              ('<p>Choose actions in order, add several PDFs, and run the same workflow on all of them. Split and Page images can produce ZIP output and must remain last.</p>', '<p>Choose actions in order, add several PDFs, and run the same workflow on all of them. If you split PDFs or export page images, that action must be last because it creates multiple files.</p>'),
+              ('<aside className="batch-recipe"><h3>Recipe</h3>', '<aside className="batch-recipe"><h3>Workflow</h3>'),
+              ('>Save recipe</button>', '>Save workflow</button>'),
+              ('>Export JSON</button>', '>Export workflow</button>'),
+              ('>Import JSON</button>', '>Import workflow</button>'),
+              ('>Saved recipes<select', '>Saved workflows<select'),
+              ('<strong>No queued PDFs</strong><p>Add files, build a recipe, then run the queue.</p>', '<strong>No PDFs added yet</strong><p>Add files, choose your workflow, then start processing.</p>'),
+              ('{paused?"Resume queue":"Run queue"}', '{paused?"Resume":"Run workflow"}'),
+              ('>End paused run</button>', '>Stop</button>'),
+              ('<small>Rasterizes pages and removes interactive PDF structure.</small>', '<small>Converts pages to images, so searchable and interactive PDF features are removed.</small>')
+          ]
+          for old, new in replacements:
+              replace_once('src/views/BatchPage.tsx', old, new)
+
+          # Diagnostics: primary troubleshooting stays visible; implementation labs are opt-in.
+          Path('src/views/DiagnosticsPage.tsx').write_text('''import { CoordinatesLab } from "../prototypes/coordinates/CoordinatesLab";
+import { DeploymentLab } from "../prototypes/deployment/DeploymentLab";
+import { EngineLab } from "../prototypes/engine/EngineLab";
+import { StorageLab } from "../prototypes/storage/StorageLab";
+import { PdfViewerLab } from "../prototypes/viewer/PdfViewerLab";
+import { Overview } from "../lab/Overview";
+import { routeHref } from "../core/appRouter";
+import { PerformanceDiagnostics } from "../diagnostics/PerformanceDiagnostics";
+import { SystemDiagnostics } from "../diagnostics/SystemDiagnostics";
+
+const primaryLabs = [
+  { id: "system", label: "System" },
+  { id: "performance", label: "Performance" }
+] as const;
+const technicalLabs = [
+  { id: "overview", label: "Technical overview" },
+  { id: "deployment", label: "Deployment" },
+  { id: "viewer", label: "PDF.js" },
+  { id: "engine", label: "MuPDF" },
+  { id: "coordinates", label: "Coordinates" },
+  { id: "storage", label: "Storage probe" }
+] as const;
+const labs = [...primaryLabs, ...technicalLabs];
+
+export function DiagnosticsPage({ lab = "system" }: { lab?: string }) {
+  const activeLab = labs.some((item) => item.id === lab) ? lab : "system";
+  const technicalActive = technicalLabs.some((item) => item.id === activeLab);
+  return <div className="stack">
+    <nav className="diagnostic-tabs" aria-label="Troubleshooting diagnostics">{primaryLabs.map((item) => <a className={activeLab === item.id ? "active" : ""} href={routeHref({ name: "diagnostics", lab: item.id })} key={item.id}>{item.label}</a>)}</nav>
+    <details className="card diagnostic-technical-disclosure" open={technicalActive}><summary>Technical diagnostics</summary><p>Implementation-specific checks for deeper troubleshooting. Most users do not need these.</p><nav className="diagnostic-tabs" aria-label="Technical diagnostic laboratories">{technicalLabs.map((item) => <a className={activeLab === item.id ? "active" : ""} href={routeHref({ name: "diagnostics", lab: item.id })} key={item.id}>{item.label}</a>)}</nav></details>
+    {activeLab === "system" ? <SystemDiagnostics /> : null}
+    {activeLab === "performance" ? <PerformanceDiagnostics /> : null}
+    {activeLab === "deployment" ? <DeploymentLab /> : null}
+    {activeLab === "viewer" ? <PdfViewerLab /> : null}
+    {activeLab === "engine" ? <EngineLab /> : null}
+    {activeLab === "coordinates" ? <CoordinatesLab /> : null}
+    {activeLab === "storage" ? <StorageLab /> : null}
+    {activeLab === "overview" ? <Overview /> : null}
+  </div>;
+}
+''', encoding='utf-8')
+
+          Path('src/diagnostics/SystemDiagnostics.tsx').write_text('''import { useEffect, useMemo, useState } from "react";
+import { clearDiagnosticErrors, diagnosticReportBlob, listDiagnosticErrors, type DiagnosticErrorRecord } from "./errorRepository";
+import { getReleaseInformation } from "../core/release";
+import { downloadBlob } from "../projects/download";
+import { collectRuntimeHealth, type RuntimeHealthSnapshot } from "../runtime/runtimeHealth";
+
+interface Capability { name: string; supported: boolean; detail: string }
+
+function capabilities(): Capability[] {
+  return [
+    { name: "WebAssembly", supported: typeof WebAssembly !== "undefined", detail: "Required for local PDF and OCR processing." },
+    { name: "Web Workers", supported: typeof Worker !== "undefined", detail: "Keeps intensive document processing away from the interface." },
+    { name: "IndexedDB", supported: typeof indexedDB !== "undefined", detail: "Structured project and recovery storage." },
+    { name: "OPFS", supported: Boolean(navigator.storage?.getDirectory), detail: "Preferred storage for large source files." },
+    { name: "Service Worker", supported: "serviceWorker" in navigator, detail: "Offline app files and controlled updates." },
+    { name: "File System Access", supported: "showOpenFilePicker" in window, detail: "Optional direct file access; downloads remain the fallback." },
+    { name: "Camera", supported: Boolean(navigator.mediaDevices?.getUserMedia), detail: "Optional scan capture." },
+    { name: "Storage persistence", supported: Boolean(navigator.storage?.persist), detail: "Reduces the chance that the browser automatically clears local projects." },
+    { name: "Web Locks", supported: Boolean(navigator.locks?.request), detail: "Helps prevent two browser contexts from changing the same document at once." }
+  ];
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let current = value; let index = 0;
+  while (current >= 1000 && index < units.length - 1) { current /= 1000; index += 1; }
+  return `${current.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+export function SystemDiagnostics() {
+  const [records, setRecords] = useState<DiagnosticErrorRecord[]>([]);
+  const [runtime, setRuntime] = useState<RuntimeHealthSnapshot | null>(null);
+  const release = getReleaseInformation();
+  const detected = useMemo(capabilities, []);
+  useEffect(() => { void refresh(); }, []);
+  async function refresh() { const [nextRecords, nextRuntime] = await Promise.all([listDiagnosticErrors(), collectRuntimeHealth()]); setRecords(nextRecords); setRuntime(nextRuntime); }
+  async function clear() { await clearDiagnosticErrors(); await refresh(); }
+  function exportReport() { downloadBlob(diagnosticReportBlob(records), `pdf-studio-diagnostics-${Date.now()}.json`); }
+
+  return <div className="stack">
+    <section className="system-summary">
+      <div><p className="eyebrow">App status</p><h2>{release.name} {release.version}</h2><p>{navigator.onLine ? "Online" : "Offline"} · {records.length ? `${records.length} local error record${records.length === 1 ? "" : "s"}` : "No recorded errors"}</p></div>
+      <div><span>Browser</span><strong>{navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Safari") && !navigator.userAgent.includes("Chrome") ? "Safari" : "Chromium-compatible"}</strong><span>Release channel</span><strong>{release.channel}</strong></div>
+    </section>
+    <section className="release-section"><header><div><p className="eyebrow">Local error log</p><h2>Recent application errors</h2></div><div className="button-row"><button className="button button--secondary button--small" disabled={!records.length} onClick={exportReport} type="button">Export report</button><button className="button button--danger-ghost button--small" disabled={!records.length} onClick={() => void clear()} type="button">Clear records</button></div></header>
+      {records.length ? <div className="error-records">{records.map((record) => <details key={record.id}><summary><span>{new Date(record.timestamp).toLocaleString()}</span><strong>{record.context.area}: {record.message}</strong></summary><pre>{record.stack ?? record.message}</pre><small>Diagnostic ID: {record.id} · No PDF bytes or passwords are stored with this record.</small></details>)}</div> : <div className="empty-state"><strong>No recorded application errors</strong><p>If PDF Studio encounters a recoverable technical failure, its local diagnostic record will appear here.</p></div>}
+    </section>
+    <details className="card"><summary>Technical browser details</summary><p>Browser APIs, device signals, storage limits, and desktop-bridge information used for deeper troubleshooting.</p><section className="capability-grid">{detected.map((item) => <article key={item.name}><span className={item.supported ? "health-dot health-dot--pass" : "health-dot health-dot--warning"} /><div><strong>{item.name}</strong><p>{item.detail}</p></div><b>{item.supported ? "Available" : "Fallback"}</b></article>)}</section>{runtime ? <section className="runtime-health-grid"><article><span>Logical processors</span><strong>{runtime.logicalProcessors}</strong><small>Used to limit concurrent page rendering.</small></article><article><span>Device memory signal</span><strong>{runtime.deviceMemoryGb ? `${runtime.deviceMemoryGb} GB` : "Not exposed"}</strong><small>Rendering becomes more conservative when memory is constrained.</small></article><article><span>Local storage</span><strong>{runtime.storage ? `${formatBytes(runtime.storage.usage)} / ${formatBytes(runtime.storage.quota)}` : "Unavailable"}</strong><small>{runtime.storage ? `${runtime.storage.percent.toFixed(1)}% used · ${runtime.storage.persisted ? "persistent" : "best effort"}` : "Storage estimate is unavailable."}</small></article><article><span>Write safety reserve</span><strong>{runtime.storage ? formatBytes(Math.max(25_000_000, runtime.storage.quota * 0.05)) : "Unavailable"}</strong><small>New local writes stop before this reserve would be consumed.</small></article><article><span>Desktop companion</span><strong>{runtime.desktop ? `${runtime.desktop.host} ${runtime.desktop.hostVersion}` : "Browser mode"}</strong><small>{runtime.desktop ? `${runtime.desktop.platform} · bridge v${runtime.desktop.bridgeVersion}` : "No desktop bridge is attached."}</small></article></section> : null}</details>
+  </div>;
+}
+''', encoding='utf-8')
+
+          Path('src/diagnostics/PerformanceDiagnostics.tsx').write_text('''import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  clearRuntimePerformanceMetrics,
+  runtimePerformanceSnapshot,
+  runtimePerformanceSummary,
+  type RuntimeMetric,
+  type RuntimePerformanceSummary
+} from "../performance/runtimeMetrics";
+
+function formatMs(value: number): string {
+  if (value < 1) return `${value.toFixed(2)} ms`;
+  if (value < 100) return `${value.toFixed(1)} ms`;
+  return `${Math.round(value)} ms`;
+}
+
+function metricRows(summary: RuntimePerformanceSummary) {
+  return [
+    ["Long interface tasks", summary.longTasks],
+    ["Interactions", summary.interactions],
+    ["Navigation", summary.navigation],
+    ["PDF work", summary.pdf],
+    ["Local storage", summary.storage],
+    ["Background processing", summary.worker],
+    ["Page and text rendering", summary.render],
+    ["Other measured work", summary.custom]
+  ] as const;
+}
+
+export function PerformanceDiagnostics() {
+  const [metrics, setMetrics] = useState<RuntimeMetric[]>(() => runtimePerformanceSnapshot());
+  const [summary, setSummary] = useState<RuntimePerformanceSummary>(() => runtimePerformanceSummary());
+
+  const refresh = useCallback(() => {
+    setMetrics(runtimePerformanceSnapshot());
+    setSummary(runtimePerformanceSummary());
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const timer = window.setInterval(refresh, 1_000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const slowest = useMemo(() => metrics.slice().sort((left, right) => right.durationMs - left.durationMs).slice(0, 50), [metrics]);
+
+  return <div className="stack performance-diagnostics">
+    <section className="card">
+      <p className="eyebrow">Local measurements</p>
+      <h2>Performance</h2>
+      <p>Performance measurements stay in this browser tab. PDF Studio does not upload them, filenames, document text, or your input.</p>
+      <div className="button-row"><button className="button button--secondary" onClick={refresh} type="button">Refresh</button><button className="button button--ghost" onClick={() => { clearRuntimePerformanceMetrics(); refresh(); }} type="button">Clear measurements</button></div>
+    </section>
+    <details className="card"><summary>Technical performance measurements</summary><div className="stack"><section><h3>Current session summary</h3><p>{summary.total} measurements kept temporarily for this tab.</p><div className="table-wrap"><table><thead><tr><th>Area</th><th>Count</th><th>P95</th><th>Slowest</th><th>Total</th></tr></thead><tbody>{metricRows(summary).map(([label, bucket]) => <tr key={label}><td>{label}</td><td>{bucket.count}</td><td>{formatMs(bucket.p95Ms)}</td><td>{formatMs(bucket.maxMs)}</td><td>{formatMs(bucket.totalMs)}</td></tr>)}</tbody></table></div></section><section><h3>Slowest measured work</h3>{!slowest.length ? <p className="muted">No measurements yet. Open a PDF, switch tools, search, or edit a document, then return here.</p> : <div className="table-wrap"><table><thead><tr><th>Category</th><th>Operation</th><th>Duration</th><th>Details</th></tr></thead><tbody>{slowest.map((metric) => <tr key={metric.id}><td>{metric.category}</td><td>{metric.name}</td><td>{formatMs(metric.durationMs)}</td><td>{metric.detail ? Object.entries(metric.detail).filter(([, value]) => value !== undefined).map(([key, value]) => `${key}: ${String(value)}`).join(" · ") : "—"}</td></tr>)}</tbody></table></div>}</section></div></details>
+  </div>;
+}
+''', encoding='utf-8')
+
+          Path('docs/reconstruction/p41-product-wide-consumer-language.md').write_text('''# P41 — Product-Wide Consumer Language & Progressive Disclosure Audit
+
+## Goal
+
+Extend the P36–P40 editor-language cleanup across the rest of PDF Studio. Everyday surfaces should describe user outcomes and consequences first. Implementation names, raw diagnostic measurements, confidence scores, storage/browser primitives, and validation-pipeline vocabulary remain available only when they materially help troubleshooting or specialist work.
+
+## Audited surfaces
+
+- Global and current-document Tools
+- Compress
+- OCR
+- Protect / Forms
+- Accessibility and standards
+- Batch automation
+- Troubleshooting diagnostics and performance
+- Route subtitles and operation status/error copy
+
+## Decisions
+
+- Tools already follows outcome-first navigation; P41 only cleans the remaining task labels/descriptions.
+- Compression says whether text/forms are preserved versus pages converted to images rather than leading with raster/stream terminology.
+- OCR keeps recognition confidence behind `Recognition details` instead of showing a raw percentage on every result row.
+- Protect uses Overview/Clean up/Final check language; detailed validation checks remain available on demand.
+- Accessibility becomes the default standards tab; PDF/A, print, signature, and preflight concepts stay in their specialist tabs.
+- Batch presents recipes as workflows; JSON remains an internal interchange format rather than the button label.
+- Diagnostics shows System and Performance first. PDF.js, MuPDF, coordinates, deployment, and storage probes move under `Technical diagnostics`.
+- System browser primitives and raw performance measurements move behind dedicated technical disclosures.
+
+## Product boundary
+
+No PDF bytes, OCR recognition logic, compression profiles, security rules, accessibility repair semantics, batch recipe schema, diagnostic collection, persistence behavior, worker routing, or release qualification behavior changes.
+''', encoding='utf-8')
+
+          Path('docs/reconstruction/p41-acceptance-matrix.md').write_text('''# P41 Acceptance Matrix
+
+| ID | Requirement | Evidence |
+| --- | --- | --- |
+| P41-UX-01 | Tools uses outcome-first labels; everyday cleanup is `Clean up PDF`, not `Sanitize PDF`. | unit/browser regression |
+| P41-UX-02 | Compression default copy explains preserved-content vs image-based trade-offs without raster/stream pipeline language. | unit regression |
+| P41-UX-03 | OCR raw confidence is hidden behind `Recognition details`. | unit regression |
+| P41-UX-04 | Protect defaults use Overview, Clean up and Final check language, with detailed checks disclosed on demand. | unit regression |
+| P41-UX-05 | Accessibility is the default standards surface; specialist PDF/A/print details remain available. | unit regression |
+| P41-UX-06 | Batch presents recipes as workflows and does not label interchange buttons as JSON. | unit regression |
+| P41-UX-07 | Diagnostics exposes System/Performance first and hides engine-specific laboratories behind `Technical diagnostics`. | browser regression |
+| P41-UX-08 | Browser primitives and raw performance tables are behind technical disclosures. | browser/unit regression |
+| P41-SAFE-01 | No document-processing, persistence, security-validation, schema, or output behavior changes. | diff review + full CI |
+| P41-PERF-01 | Consumer performance budget remains green. | performance workflow |
+| P41-OPS-01 | R10 operational-readiness policy remains green. | R10 workflow |
+
+## Merge gate
+
+Merge only after PDF Studio CI (including browser regression), Consumer performance budget, and R10 operational readiness all pass on the final head.
+''', encoding='utf-8')
+
+          Path('tests/unit/p41ConsumerLanguage.test.ts').write_text('''import { describe, expect, it } from "vitest";
+import appSource from "../../src/App.tsx?raw";
+import taskCatalogSource from "../../src/ia/taskCatalog.ts?raw";
+import compressionSource from "../../src/views/CompressionPage.tsx?raw";
+import ocrSource from "../../src/views/OcrPage.tsx?raw";
+import secureSource from "../../src/views/SecurePage.tsx?raw";
+import complianceSource from "../../src/views/CompliancePage.tsx?raw";
+import batchSource from "../../src/views/BatchPage.tsx?raw";
+import diagnosticsSource from "../../src/views/DiagnosticsPage.tsx?raw";
+import systemDiagnosticsSource from "../../src/diagnostics/SystemDiagnostics.tsx?raw";
+import performanceSource from "../../src/diagnostics/PerformanceDiagnostics.tsx?raw";
+
+describe("P41 product-wide consumer language", () => {
+  it("keeps everyday task and route language outcome-first", () => {
+    expect(appSource).toContain('title: "Troubleshooting"');
+    expect(taskCatalogSource).toContain('label: "Clean up PDF"');
+    expect(taskCatalogSource).not.toContain('label: "Sanitize PDF"');
+    expect(compressionSource).toContain("Choose how much to shrink the PDF");
+    expect(compressionSource).not.toContain("Optimize or raster-compress");
+    expect(batchSource).toContain('<aside className="batch-recipe"><h3>Workflow</h3>');
+    expect(batchSource).not.toContain(">Export JSON</button>");
+  });
+
+  it("uses progressive disclosure for confidence, diagnostics, and validation detail", () => {
+    expect(ocrSource).toContain("<summary>Recognition details</summary>");
+    expect(diagnosticsSource).toContain("<summary>Technical diagnostics</summary>");
+    expect(systemDiagnosticsSource).toContain("<summary>Technical browser details</summary>");
+    expect(performanceSource).toContain("<summary>Technical performance measurements</summary>");
+    expect(performanceSource).not.toContain("P0 local instrumentation");
+    expect(secureSource).toContain("<summary>Check details</summary>");
+    expect(secureSource).not.toContain("PDF.js and MuPDF reopening");
+  });
+
+  it("keeps specialist concepts available only after deliberate navigation", () => {
+    expect(complianceSource).toContain('useState<Tab>("accessibility")');
+    expect(complianceSource).toContain('archive: "Archive / PDF-A"');
+    expect(diagnosticsSource).toContain('{ id: "viewer", label: "PDF.js" }');
+    expect(diagnosticsSource).toContain('{ id: "engine", label: "MuPDF" }');
+  });
+});
+''', encoding='utf-8')
+
+          Path('tests/e2e/p41-progressive-disclosure.spec.ts').write_text('''import { expect, test } from "@playwright/test";
+
+test("technical diagnostics are disclosed only when requested", async ({ page }) => {
+  await page.goto("./#/diagnostics");
+  await expect(page.getByRole("link", { name: "System", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Performance", exact: true })).toBeVisible();
+
+  const technical = page.locator("details.diagnostic-technical-disclosure");
+  await expect(technical).not.toHaveAttribute("open", "");
+  await expect(technical.getByRole("link", { name: "PDF.js", exact: true })).toBeHidden();
+  await technical.locator("summary").click();
+  await expect(technical.getByRole("link", { name: "PDF.js", exact: true })).toBeVisible();
+  await expect(technical.getByRole("link", { name: "MuPDF", exact: true })).toBeVisible();
+
+  const browserDetails = page.locator("details").filter({ hasText: "Technical browser details" });
+  await expect(browserDetails).not.toHaveAttribute("open", "");
+});
+
+test("global Tools uses consumer cleanup language", async ({ page }) => {
+  await page.goto("./#/tools");
+  await expect(page.getByText("Clean up PDF", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sanitize PDF", { exact: true })).toHaveCount(0);
+});
+''', encoding='utf-8')
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src docs/reconstruction tests
+          git commit -m "P41 product-wide consumer language and disclosure [p41-applied]"
+          git push origin HEAD:ux/p41-product-wide-consumer-language
