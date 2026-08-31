@@ -16,6 +16,7 @@ async function applyDarkPalette(page: import("@playwright/test").Page): Promise<
 test("task catalog keeps icons visible and capability metadata in normal flow", async ({ page }) => {
   await page.goto("./#/tools");
   await expect(page.getByRole("heading", { name: "Choose what you want to do" })).toBeVisible();
+  await page.getByText("Advanced & specialist tools", { exact: true }).click();
 
   // Reproduce a dark palette explicitly so this regression cannot hide behind
   // the default CI appearance settings.
@@ -155,6 +156,7 @@ test("selected task warning and catalog stay contained at narrow width", async (
   const cardProblems = await page.locator(".task-tile").evaluateAll((cards) => cards.flatMap((card, cardIndex) => {
     const rect = card.getBoundingClientRect();
     const problems: string[] = [];
+    if (rect.width === 0 && rect.height === 0) return problems;
     if (rect.left < -1 || rect.right > window.innerWidth + 1) problems.push(`card ${cardIndex}: card escaped viewport (${rect.left.toFixed(1)}..${rect.right.toFixed(1)})`);
     if (card.scrollWidth > card.clientWidth + 1) problems.push(`card ${cardIndex}: card content overflows by ${card.scrollWidth - card.clientWidth}px`);
     return problems;
