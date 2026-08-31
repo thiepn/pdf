@@ -84,7 +84,7 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
     setInspection(report); setPasswordRequired(false); setError(null);
     setOptions(value => ({ ...value, setTitle: value.setTitle || report.metadata.Title || manifest.name, setLanguage: value.setLanguage || report.accessibility.language || "en", topLevelReadingOrder: value.topLevelReadingOrder.length ? value.topLevelReadingOrder : topLevelIds }));
     setDraft(value => ({ ...value, pageNumber: Math.min(value.pageNumber, report.pageCount), name: `field_${report.fields.length + 1}` }));
-    onTitleChange?.(manifest.name, "Archive readiness, accessibility, digital signatures, standards checks, and forms");
+    onTitleChange?.(manifest.name, "Accessibility, supported fixes, archive readiness, signatures, standards checks, and forms");
   }
 
   async function unlockDocument(): Promise<void> {
