@@ -14,7 +14,7 @@ test("protected-task preflight is reused when Protect mounts", async ({ page }) 
 
   await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
   await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/secure/fill-forms`);
-  await expect(page.getByRole("button", { name: "Download secured PDF" })).toBeVisible({ timeout: 35_000 });
+  await expect(page.getByRole("button", { name: "Download protected PDF" })).toBeVisible({ timeout: 35_000 });
 
   const inspectionMetrics = await page.evaluate(() => {
     const metrics = window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? [];
