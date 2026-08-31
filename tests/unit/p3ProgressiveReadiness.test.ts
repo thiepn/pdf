@@ -32,7 +32,7 @@ describe("Recovery P3 progressive readiness", () => {
 
   it("makes overlay editing interactive before native inspection and asset hydration", () => {
     expectOrdered(editorSource, 'recordRuntimeMetric("custom", "readiness.editor.interactive"', "scheduleDeferredHydration(async (signal)");
-    expectOrdered(editorSource, 'setStatus("Ready · loading PDF content…")', 'recordRuntimeMetric("custom", "readiness.editor.interactive"');
+    expectOrdered(editorSource, 'setStatus("Ready · finding editable content…")', 'recordRuntimeMetric("custom", "readiness.editor.interactive"');
     expect(editorSource).toContain("inspectNativePdf(bytes, suppliedPassword, signal)");
     expect(editorSource).toContain("listEditorAssets(projectId)");
     expect(editorSource).toContain('recordRuntimeMetric("custom", "readiness.editor.nativeHydrated"');
