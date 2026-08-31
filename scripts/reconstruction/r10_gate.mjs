@@ -49,7 +49,6 @@ function validateDigestList(items, idField, minimum, label) {
 }
 
 function verifyDigests(certifiedItems, entries, idField, recordField, label) {
-  if (entries.length === 0) return;
   assertion(entries.length === certifiedItems.length, `${label} count does not match committed evidence`);
   const byId = new Map(entries.map((entry) => [entry[recordField][idField], entry]));
   for (const item of certifiedItems) {
