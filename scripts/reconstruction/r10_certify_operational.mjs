@@ -31,6 +31,7 @@ export function buildOperationalCertification({ gateResult, baselineRaw, r9Certi
     product_baseline_commit: gateResult.product_baseline_commit,
     r9_status: gateResult.r9_status,
     human_ux_status: gateResult.human_ux_status,
+    real_device_status: gateResult.real_device_status,
     baseline_manifest_sha256: hashText(baselineRaw),
     r9_certification_sha256: hashText(r9CertificationRaw),
     maintenance
@@ -42,10 +43,10 @@ function jsonFiles(dir) {
   return fs.readdirSync(dir).filter((name) => name.endsWith(".json")).sort().map((name) => path.join(dir, name));
 }
 
-function loadSessionEntries(dir) {
+function loadEntries(dir, recordField) {
   return jsonFiles(dir).map((file) => {
     const raw = fs.readFileSync(file, "utf8");
-    return { raw, session: JSON.parse(raw) };
+    return { raw, [recordField]: JSON.parse(raw) };
   });
 }
 
@@ -72,6 +73,7 @@ function runCli() {
     const baselinePath = path.join(repoRoot, "docs/reconstruction/evidence/r10/current-product-baseline.json");
     const r9CertificationPath = path.join(repoRoot, "docs/reconstruction/evidence/r9/certification.json");
     const r9SessionsDir = path.join(repoRoot, "docs/reconstruction/evidence/r9/sessions");
+    const r9DeviceRunsDir = path.join(repoRoot, "docs/reconstruction/evidence/r9/device-runs");
     const maintenanceDir = path.join(repoRoot, "docs/reconstruction/evidence/r10/maintenance");
 
     const baselineRaw = fs.readFileSync(baselinePath, "utf8");
@@ -81,7 +83,8 @@ function runCli() {
     }
     const r9CertificationRaw = fs.readFileSync(r9CertificationPath, "utf8");
     const r9Certification = JSON.parse(r9CertificationRaw);
-    const sessionEntries = loadSessionEntries(r9SessionsDir);
+    const sessionEntries = loadEntries(r9SessionsDir, "session");
+    const deviceEntries = loadEntries(r9DeviceRunsDir, "run");
     const maintenanceEntries = jsonFiles(maintenanceDir).map((file) => {
       const raw = fs.readFileSync(file, "utf8");
       return { raw, record: JSON.parse(raw) };
@@ -91,7 +94,8 @@ function runCli() {
       baseline,
       r9Certification,
       maintenanceRecords: maintenanceEntries.map((entry) => entry.record),
-      sessionEntries
+      sessionEntries,
+      deviceEntries
     });
 
     const certification = buildOperationalCertification({
