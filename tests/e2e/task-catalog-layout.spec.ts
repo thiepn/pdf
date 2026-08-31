@@ -61,6 +61,9 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
     // WebKit do not return intrinsic-placeholder rectangles for off-screen cards.
     await card.scrollIntoViewIfNeeded();
     await expect(card).toBeVisible();
+    await card.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
     const problems = await card.evaluate((element, index) => {
       const cardProblems: string[] = [];
       const cardRect = element.getBoundingClientRect();
