@@ -36,11 +36,36 @@ export function validateProductBaseline(baseline, maintenanceRecords = []) {
   return baseline;
 }
 
-export function validateR9Certification(certification, productBaselineCommit, sessionEntries = []) {
+function validateDigestList(items, idField, minimum, label) {
+  assertion(Array.isArray(items) && items.length >= minimum, `${label} must include at least ${minimum} evidence digests`);
+  const ids = new Set();
+  for (const item of items) {
+    assertion(typeof item[idField] === "string" && item[idField].length > 0, `${label} ${idField} is required`);
+    assertion(!ids.has(item[idField]), `${label} contains duplicate ${idField} ${item[idField]}`);
+    ids.add(item[idField]);
+    assertion(typeof item.tester_id === "string" && item.tester_id.length > 0, `${label} tester_id is required`);
+    assertion(typeof item.sha256 === "string" && /^[0-9a-f]{64}$/.test(item.sha256), `${label} sha256 is invalid`);
+  }
+}
+
+function verifyDigests(certifiedItems, entries, idField, recordField, label) {
+  if (entries.length === 0) return;
+  assertion(entries.length === certifiedItems.length, `${label} count does not match committed evidence`);
+  const byId = new Map(entries.map((entry) => [entry[recordField][idField], entry]));
+  for (const item of certifiedItems) {
+    const entry = byId.get(item[idField]);
+    assertion(entry, `${label} references missing ${idField} ${item[idField]}`);
+    assertion(entry[recordField].tester_id === item.tester_id, `${label} tester mismatch for ${idField} ${item[idField]}`);
+    assertion(sha256Text(entry.raw) === item.sha256, `${label} digest mismatch for ${idField} ${item[idField]}`);
+  }
+}
+
+export function validateR9Certification(certification, productBaselineCommit, sessionEntries = [], deviceEntries = []) {
   assertion(certification && typeof certification === "object" && !Array.isArray(certification), "R9 certification must be an object");
   assertion(certification.schema === 1, "R9 certification schema must equal 1");
   assertion(certification.status === "R9_HUMAN_USABILITY_CERTIFIED", "R9 certification status is not certified");
   assertion(certification.human_ux_status === "HUMAN_UX_TARGET_MET", "R9 human UX target is not met");
+  assertion(certification.real_device_status === "REAL_DEVICE_TARGET_MET", "R9 real-device target is not met");
   assertion(certification.product_baseline_commit === productBaselineCommit, "R9 certification does not match the current qualified product baseline");
   assertion(certification.sample?.sufficient === true, "R9 certification sample is insufficient");
   assertion(certification.sample?.distinct_testers >= 3, "R9 certification requires at least 3 distinct testers");
@@ -51,31 +76,21 @@ export function validateR9Certification(certification, productBaselineCommit, se
     assertion(certification.metrics?.[key]?.met === true, `R9 metric ${key} is not met`);
   }
 
-  assertion(Array.isArray(certification.evidence) && certification.evidence.length >= 3, "R9 certification must include at least 3 evidence digests");
-  const ids = new Set();
-  for (const item of certification.evidence) {
-    assertion(typeof item.session_id === "string" && item.session_id.length > 0, "R9 evidence session_id is required");
-    assertion(!ids.has(item.session_id), `R9 certification contains duplicate session ${item.session_id}`);
-    ids.add(item.session_id);
-    assertion(typeof item.tester_id === "string" && item.tester_id.length > 0, "R9 evidence tester_id is required");
-    assertion(typeof item.sha256 === "string" && /^[0-9a-f]{64}$/.test(item.sha256), "R9 evidence sha256 is invalid");
-  }
+  assertion(certification.real_device?.matrix?.sufficient === true, "R9 real-device matrix is insufficient");
+  assertion(certification.real_device?.matrix?.covered_slots >= 5, "R9 real-device matrix must cover at least 5 required slots");
+  assertion(certification.real_device?.journeys?.sufficient === true, "R9 real-device journey coverage is insufficient");
+  assertion(certification.real_device?.journeys?.covered >= 10, "R9 real-device journey coverage must include all 10 journeys");
+  assertion(certification.real_device?.installed_pwa_covered === true, "R9 real-device evidence must include installed-PWA recovery coverage");
 
-  if (sessionEntries.length > 0) {
-    assertion(sessionEntries.length === certification.evidence.length, "R9 certification evidence count does not match committed session evidence");
-    const bySession = new Map(sessionEntries.map((entry) => [entry.session.session_id, entry]));
-    for (const item of certification.evidence) {
-      const entry = bySession.get(item.session_id);
-      assertion(entry, `R9 certification references missing session ${item.session_id}`);
-      assertion(entry.session.tester_id === item.tester_id, `R9 tester mismatch for session ${item.session_id}`);
-      assertion(sha256Text(entry.raw) === item.sha256, `R9 evidence digest mismatch for session ${item.session_id}`);
-    }
-  }
+  validateDigestList(certification.evidence, "session_id", 3, "R9 human evidence");
+  validateDigestList(certification.real_device_evidence, "run_id", 5, "R9 real-device evidence");
+  verifyDigests(certification.evidence, sessionEntries, "session_id", "session", "R9 human evidence");
+  verifyDigests(certification.real_device_evidence, deviceEntries, "run_id", "run", "R9 real-device evidence");
 
   return certification;
 }
 
-export function evaluateR10({ baseline, r9Certification = null, maintenanceRecords = [], sessionEntries = [] }) {
+export function evaluateR10({ baseline, r9Certification = null, maintenanceRecords = [], sessionEntries = [], deviceEntries = [] }) {
   let validatedRecords;
   try {
     validatedRecords = maintenanceRecords.map(validateMaintenanceRecord);
@@ -107,12 +122,12 @@ export function evaluateR10({ baseline, r9Certification = null, maintenanceRecor
       status: "R10_BLOCKED_BY_R9",
       product_baseline_commit: baseline.product_baseline_commit,
       maintenance_records: validatedRecords.length,
-      reason: "R9 human certification record is absent"
+      reason: "R9 human and real-device certification record is absent"
     };
   }
 
   try {
-    validateR9Certification(r9Certification, baseline.product_baseline_commit, sessionEntries);
+    validateR9Certification(r9Certification, baseline.product_baseline_commit, sessionEntries, deviceEntries);
   } catch (error) {
     return {
       status: "R10_BLOCKED_BY_R9",
@@ -127,6 +142,7 @@ export function evaluateR10({ baseline, r9Certification = null, maintenanceRecor
     product_baseline_commit: baseline.product_baseline_commit,
     r9_status: r9Certification.status,
     human_ux_status: r9Certification.human_ux_status,
+    real_device_status: r9Certification.real_device_status,
     maintenance_records: validatedRecords.length,
     blocking_changes: []
   };
@@ -137,10 +153,10 @@ function jsonFiles(dir) {
   return fs.readdirSync(dir).filter((name) => name.endsWith(".json")).sort().map((name) => path.join(dir, name));
 }
 
-function loadSessionEntries(dir) {
+function loadEntries(dir, recordField) {
   return jsonFiles(dir).map((file) => {
     const raw = fs.readFileSync(file, "utf8");
-    return { raw, session: JSON.parse(raw) };
+    return { raw, [recordField]: JSON.parse(raw) };
   });
 }
 
@@ -151,13 +167,15 @@ function runCli() {
     const baselinePath = path.join(repoRoot, "docs/reconstruction/evidence/r10/current-product-baseline.json");
     const r9CertificationPath = path.join(repoRoot, "docs/reconstruction/evidence/r9/certification.json");
     const r9SessionsDir = path.join(repoRoot, "docs/reconstruction/evidence/r9/sessions");
+    const r9DeviceRunsDir = path.join(repoRoot, "docs/reconstruction/evidence/r9/device-runs");
     const maintenanceDir = path.join(repoRoot, "docs/reconstruction/evidence/r10/maintenance");
 
     const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
     const r9Certification = fs.existsSync(r9CertificationPath) ? JSON.parse(fs.readFileSync(r9CertificationPath, "utf8")) : null;
     const maintenanceRecords = jsonFiles(maintenanceDir).map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
-    const sessionEntries = r9Certification ? loadSessionEntries(r9SessionsDir) : [];
-    const result = evaluateR10({ baseline, r9Certification, maintenanceRecords, sessionEntries });
+    const sessionEntries = r9Certification ? loadEntries(r9SessionsDir, "session") : [];
+    const deviceEntries = r9Certification ? loadEntries(r9DeviceRunsDir, "run") : [];
+    const result = evaluateR10({ baseline, r9Certification, maintenanceRecords, sessionEntries, deviceEntries });
 
     console.log(JSON.stringify(result, null, 2));
 
