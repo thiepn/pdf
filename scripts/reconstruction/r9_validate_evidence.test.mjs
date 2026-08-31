@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   R9_BASELINE_SHA,
+  R9_BUILD_CHANNEL,
+  R9_SESSION_SCHEMA,
   summarizeSessions,
   validateSession
 } from "./r9_validate_evidence.mjs";
@@ -12,7 +14,7 @@ const SHUFFLED_ORDER = [...DISCOVERY_IDS.slice(7), ...DISCOVERY_IDS.slice(0, 7)]
 const COMPLETION_MAP = ["D01", "D04", "D05", "D06", "D07", "D10", "D14", "D15", "D18", "D19"];
 
 function sessionFixture({
-  sessionId = "session-20260825-01",
+  sessionId = "session-20260831-01",
   testerId = "tester-01",
   familiarity = "none",
   pdfExperience = "basic",
@@ -20,10 +22,11 @@ function sessionFixture({
   noHelpCorrect = 10,
   predictionCorrect = 20,
   defects = [],
-  measurementOrder = SHUFFLED_ORDER
+  measurementOrder = SHUFFLED_ORDER,
+  environment = {}
 } = {}) {
   return {
-    schema: 2,
+    schema: R9_SESSION_SCHEMA,
     baseline_commit: R9_BASELINE_SHA,
     session_id: sessionId,
     tester_id: testerId,
@@ -32,13 +35,26 @@ function sessionFixture({
       pdf_experience: pdfExperience
     },
     environment: {
-      date: "2026-08-25",
-      browser: "Chromium",
-      os_device: "Desktop test device",
+      date: "2026-08-31",
+      evidence_source: "human-physical-device",
+      physical_device: true,
+      simulator_or_emulator: false,
+      automation_used_for_observation: false,
+      human_attestation: true,
+      device_class: "laptop",
+      device_model: "Windows laptop",
+      os_family: "windows",
+      os_version: "Windows 11 24H2",
+      browser_family: "chromium",
+      browser_name: "Microsoft Edge",
+      browser_version: "152.0.0",
+      input_mode: "keyboard-trackpad",
       viewport: "1440x900",
-      build_channel: "r8-frozen-baseline"
+      app_mode: "browser",
+      build_channel: R9_BUILD_CHANNEL,
+      ...environment
     },
-    corpus_id: "r9-manual-v1",
+    corpus_id: "r9-manual-v2",
     measurement_order: [...measurementOrder],
     first_location: Array.from({ length: 20 }, (_, index) => ({
       id: `D${String(index + 1).padStart(2, "0")}`,
@@ -66,9 +82,9 @@ function sessionFixture({
 
 function threePassingSessions() {
   return [
-    sessionFixture({ sessionId: "session-20260825-01", testerId: "tester-01", familiarity: "none", firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 }),
-    sessionFixture({ sessionId: "session-20260825-02", testerId: "tester-02", familiarity: "light", firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 }),
-    sessionFixture({ sessionId: "session-20260825-03", testerId: "tester-03", familiarity: "experienced", firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 })
+    sessionFixture({ sessionId: "session-20260831-01", testerId: "tester-01", familiarity: "none", firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 }),
+    sessionFixture({ sessionId: "session-20260831-02", testerId: "tester-02", familiarity: "light", firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 }),
+    sessionFixture({ sessionId: "session-20260831-03", testerId: "tester-03", familiarity: "experienced", firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 })
   ];
 }
 
@@ -76,22 +92,24 @@ test("no session evidence remains HUMAN_UX_UNMEASURED", () => {
   const summary = summarizeSessions([]);
   assert.equal(summary.status, "HUMAN_UX_UNMEASURED");
   assert.equal(summary.sessions, 0);
+  assert.equal(summary.physical_device_sessions, 0);
   assert.equal(summary.metrics, null);
 });
 
-test("one passing human session remains sample-insufficient", () => {
+test("one passing physical-device human session remains sample-insufficient", () => {
   const summary = summarizeSessions([sessionFixture({ firstCorrect: 18, noHelpCorrect: 9, predictionCorrect: 18 })]);
   assert.equal(summary.status, "HUMAN_UX_SAMPLE_INSUFFICIENT");
   assert.equal(summary.sample.distinct_testers, 1);
   assert.equal(summary.sample.sufficient, false);
 });
 
-test("three distinct testers with two low-familiarity testers and exact 90 percent meet target", () => {
+test("three distinct physical-device testers with two low-familiarity testers and exact 90 percent meet target", () => {
   const summary = summarizeSessions(threePassingSessions());
   assert.equal(summary.status, "HUMAN_UX_TARGET_MET");
   assert.equal(summary.sample.distinct_testers, 3);
   assert.equal(summary.sample.low_familiarity_testers, 2);
   assert.equal(summary.sample.sufficient, true);
+  assert.equal(summary.physical_device_sessions, 3);
   assert.deepEqual(summary.metrics.first_location_accuracy, {
     numerator: 54,
     denominator: 60,
@@ -120,7 +138,7 @@ test("sample with fewer than two low-familiarity testers remains insufficient", 
 
 test("an individual session below one target produces HUMAN_UX_TARGET_MISSED", () => {
   const sessions = threePassingSessions();
-  sessions[0] = sessionFixture({ sessionId: "session-20260825-01", testerId: "tester-01", familiarity: "none", firstCorrect: 17 });
+  sessions[0] = sessionFixture({ sessionId: "session-20260831-01", testerId: "tester-01", familiarity: "none", firstCorrect: 17 });
   const summary = summarizeSessions(sessions);
   assert.equal(summary.status, "HUMAN_UX_TARGET_MISSED");
   assert.equal(summary.session_metrics[0].first_location_accuracy.met, false);
@@ -130,6 +148,32 @@ test("wrong baseline commit is rejected", () => {
   const session = sessionFixture();
   session.baseline_commit = "0000000000000000000000000000000000000000";
   assert.throws(() => validateSession(session), /baseline_commit must equal frozen R9 baseline/);
+});
+
+test("simulator, automation, and missing human attestation are rejected", () => {
+  assert.throws(
+    () => validateSession(sessionFixture({ environment: { simulator_or_emulator: true } })),
+    /simulator_or_emulator must be false/
+  );
+  assert.throws(
+    () => validateSession(sessionFixture({ environment: { automation_used_for_observation: true } })),
+    /automation_used_for_observation must be false/
+  );
+  assert.throws(
+    () => validateSession(sessionFixture({ environment: { human_attestation: false } })),
+    /human_attestation must be true/
+  );
+});
+
+test("exact OS and browser versions are required", () => {
+  assert.throws(
+    () => validateSession(sessionFixture({ environment: { os_version: "latest" } })),
+    /os_version must include an exact version number/
+  );
+  assert.throws(
+    () => validateSession(sessionFixture({ environment: { browser_version: "latest" } })),
+    /browser_version must include an exact version number/
+  );
 });
 
 test("duplicate frozen IDs are rejected", () => {
