@@ -25,10 +25,11 @@ jobs:
             scripts/reconstruction/r10_change_policy.test.mjs \
             scripts/reconstruction/r10_gate.test.mjs \
             scripts/reconstruction/r10_certify_operational.test.mjs
-      - name: Require honest pre-human R10 state
+      - name: Require honest pre-human and real-device state
         run: |
+          node scripts/reconstruction/r9_status_contract.mjs
           node scripts/reconstruction/r10_gate.mjs --expect-status R10_BLOCKED_BY_R9
           if node scripts/reconstruction/r10_certify_operational.mjs; then
-            echo "R10 certifier must refuse before R9 human certification exists"
+            echo "R10 certifier must refuse before combined human and real-device R9 certification exists"
             exit 1
           fi
