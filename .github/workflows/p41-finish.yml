@@ -1,0 +1,37 @@
+name: P41 final wording patch
+
+on:
+  push:
+    branches:
+      - ux/p41-product-wide-consumer-language
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply remaining P41 wording
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          def r(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected 1 match, got {count}: {old!r}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+          r("src/views/BatchPage.tsx", 'setError("Add at least one recipe step.")', 'setError("Add at least one workflow step.")')
+          r("src/views/BatchPage.tsx", 'message:`${(artifact.bytes.byteLength/1_000_000).toFixed(2)} MB · ${artifact.kind}`', 'message:`${(artifact.bytes.byteLength/1_000_000).toFixed(2)} MB · Ready`')
+          r("src/views/CompliancePage.tsx", 'onTitleChange?.(manifest.name, "Archive readiness, accessibility, digital signatures, standards checks, and forms");', 'onTitleChange?.(manifest.name, "Accessibility, supported fixes, archive readiness, signatures, standards checks, and forms");')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/views/BatchPage.tsx src/views/CompliancePage.tsx
+          git commit -m "P41 finish workflow and accessibility wording"
+          git push origin HEAD:ux/p41-product-wide-consumer-language
