@@ -23,7 +23,8 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
   await applyDarkPalette(page);
 
   const tiles = page.locator(".task-tile");
-  expect(await tiles.count()).toBeGreaterThan(5);
+  const tileCount = await tiles.count();
+  expect(tileCount).toBeGreaterThan(5);
 
   const iconState = await tiles.first().evaluate((tile) => {
     const iconBox = tile.querySelector(":scope > span");
@@ -52,47 +53,53 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
   expect(iconState!.svgWidth).toBeGreaterThan(0);
   expect(iconState!.svgHeight).toBeGreaterThan(0);
 
-  const layoutProblems = await tiles.evaluateAll((cards) => {
-    const problems: string[] = [];
-    const intersects = (a: DOMRect, b: DOMRect) =>
-      Math.min(a.right, b.right) > Math.max(a.left, b.left)
-      && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
-
-    cards.forEach((card, cardIndex) => {
-      const cardRect = card.getBoundingClientRect();
-      const metadata = Array.from(card.querySelectorAll("small, .task-capability-chip"));
-      const copy = card.querySelector(":scope > div");
+  const layoutProblems: string[] = [];
+  for (let cardIndex = 0; cardIndex < tileCount; cardIndex += 1) {
+    const card = tiles.nth(cardIndex);
+    // Task cards use content-visibility:auto for long catalogs. Force each card
+    // through a real layout before reading descendant geometry so Chromium and
+    // WebKit do not return intrinsic-placeholder rectangles for off-screen cards.
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeVisible();
+    const problems = await card.evaluate((element, index) => {
+      const cardProblems: string[] = [];
+      const cardRect = element.getBoundingClientRect();
+      const metadata = Array.from(element.querySelectorAll("small, .task-capability-chip"));
+      const copy = element.querySelector(":scope > div");
       const title = copy?.querySelector(":scope > strong");
       const purpose = copy?.querySelector(":scope > p");
+      const intersects = (a: DOMRect, b: DOMRect) =>
+        Math.min(a.right, b.right) > Math.max(a.left, b.left)
+        && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
 
       for (const item of metadata) {
         const style = getComputedStyle(item);
         const rect = item.getBoundingClientRect();
         if (style.position === "absolute" || style.position === "fixed") {
-          problems.push(`card ${cardIndex}: metadata escaped normal flow`);
+          cardProblems.push(`card ${index}: metadata escaped normal flow`);
         }
         if (rect.left < cardRect.left - 1 || rect.right > cardRect.right + 1 || rect.top < cardRect.top - 1 || rect.bottom > cardRect.bottom + 1) {
-          problems.push(`card ${cardIndex}: metadata escaped card bounds`);
+          cardProblems.push(`card ${index}: metadata escaped card bounds`);
         }
         if (title && intersects(rect, title.getBoundingClientRect())) {
-          problems.push(`card ${cardIndex}: metadata overlaps title`);
+          cardProblems.push(`card ${index}: metadata overlaps title`);
         }
         if (purpose && intersects(rect, purpose.getBoundingClientRect())) {
-          problems.push(`card ${cardIndex}: metadata overlaps purpose`);
+          cardProblems.push(`card ${index}: metadata overlaps purpose`);
         }
       }
 
       for (let i = 0; i < metadata.length; i += 1) {
         for (let j = i + 1; j < metadata.length; j += 1) {
           if (intersects(metadata[i].getBoundingClientRect(), metadata[j].getBoundingClientRect())) {
-            problems.push(`card ${cardIndex}: metadata items overlap each other`);
+            cardProblems.push(`card ${index}: metadata items overlap each other`);
           }
         }
       }
-    });
-
-    return problems;
-  });
+      return cardProblems;
+    }, cardIndex);
+    layoutProblems.push(...problems);
+  }
 
   expect(layoutProblems).toEqual([]);
 });
