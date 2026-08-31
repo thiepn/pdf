@@ -275,7 +275,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
     hydrationRef.current?.cancel();
     hydrationRef.current = null;
-    setStatus("Opening PDF engine…"); setError(null);
+    setStatus("Opening PDF…"); setError(null);
     try {
       const previous = documentRef.current;
       documentRef.current = null;
@@ -287,8 +287,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setPasswordRequired(false); setPassword("");
       setNativeInspection(null);
       setNativeInspecting(false);
-      setStatus("Ready · loading PDF content…");
-      onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · Unified editor ready`);
+      setStatus("Ready · finding editable content…");
+      onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · Editor ready`);
       recordRuntimeMetric("custom", "readiness.editor.interactive", 0, undefined, { projectId: manifest.id, pageCount: pdf.numPages });
 
       hydrationRef.current = scheduleDeferredHydration(async (signal) => {
@@ -304,13 +304,13 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
           const inspection = inspectionResult.value;
           setNativeInspection(inspection);
           setStatus("Ready");
-          onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms} detected PDF objects · Unified editor`);
+          onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms} PDF items found`);
           recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms });
         } else {
           const inspectionError = inspectionResult.reason;
           if (!(inspectionError instanceof DOMException && inspectionError.name === "AbortError")) {
-            setWarnings((current) => [...current, `Existing-content inspection unavailable: ${inspectionError instanceof Error ? inspectionError.message : String(inspectionError)}`]);
-            setStatus("Ready · overlay editing only");
+            setWarnings((current) => [...current, "Some existing PDF content could not be prepared for direct editing. You can still add new content."]);
+            setStatus("Ready · you can still add new content");
             recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: 0 });
           }
         }
@@ -318,7 +318,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       }, { label: "editor", timeoutMs: 1_500 });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
-      if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password for this in-memory editing session."); }
+      if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password to open it in the editor."); }
       else throw reason;
     }
   }
@@ -387,7 +387,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setHistory((current) => commitHistory(current, label, objects, nextSelection, mergeKey));
     setPreviewObject(null);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
-    onTitleChange?.(`Edit · ${project?.name ?? "PDF"}`, `${document?.numPages ?? 0} pages · ${objects.length} editor objects · Unsaved export`);
+    onTitleChange?.(`Edit · ${project?.name ?? "PDF"}`, `${document?.numPages ?? 0} pages · ${objects.length} added object${objects.length === 1 ? "" : "s"} · Changes not exported`);
   }
 
   function addObject(object: EditorObject): void {
@@ -595,7 +595,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     } catch { /* Use internal clipboard. */ }
     if (!copied.length) return;
     const available = copied.filter((object) => object.type !== "image" || assetUrls.has(object.assetId));
-    if (available.length !== copied.length) setWarnings((current) => [...current, "Image objects from another project were skipped because their local binary assets were unavailable."]);
+    if (available.length !== copied.length) setWarnings((current) => [...current, "Some pasted images were skipped because their image files are not available in this project."]);
     copied = available;
     if (!copied.length) return;
     const now = Date.now();
@@ -639,11 +639,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   async function exportPdf(saveProject: boolean): Promise<void> {
     if (!project || !sourceBytesRef.current) return;
     const sourceBytes = sourceBytesRef.current;
-    setProcessing(true); setError(null); setWarnings([]); setLastReport(null); setStatus("Compiling editor objects…");
+    setProcessing(true); setError(null); setWarnings([]); setLastReport(null); setStatus("Preparing edited PDF…");
     const controller = new AbortController(); abortRef.current = controller;
     try {
       await runProjectOperation(project.id, { label: saveProject ? "Saving edited PDF" : "Exporting edited PDF", signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
-      update({ detail: "Compiling editor objects…", progress: 0.05 });
+      update({ detail: "Preparing edited PDF…", progress: 0.05 });
       const visibleObjects = history.present.objects.filter((object) => !object.hidden);
       const affectedPages = new Set([...visibleObjects.map((object) => object.pageNumber), ...nativeEdits.map((edit) => edit.pageNumber)]);
       const assetIds = new Set(visibleObjects.filter((object): object is ImageEditorObject => object.type === "image").map((object) => object.assetId));
@@ -653,7 +653,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       let workingBytes = sourceBytes;
       let nativeReport: Awaited<ReturnType<typeof applyNativeEdits>>["report"] | undefined;
       if (nativeEdits.length) {
-        setStatus(`Applying ${nativeEdits.length} existing-content edits…`);
+        setStatus(`Applying ${nativeEdits.length} PDF edit${nativeEdits.length === 1 ? "" : "s"}…`);
         const nativeResult = await applyNativeEdits(workingBytes, nativeEdits, passwordRef.current, signal);
         workingBytes = nativeResult.bytes;
         nativeReport = nativeResult.report;
@@ -661,23 +661,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const result = visibleObjects.length
         ? await exportEditorPdf(workingBytes, history.present.objects, assets, signal, passwordRef.current)
         : { bytes: workingBytes, report: { objectCount: 0, annotationCount: 0, linkCount: 0, imageCount: 0, pageCount: document?.numPages ?? 0, outputBytes: workingBytes.byteLength, durationMs: 0, warnings: [] } };
-      setStatus("Validating unified edited PDF…");
-      update({ stage: "validating", detail: "Reopening and validating edited output…", progress: 0.82 });
+      setStatus("Checking edited PDF…");
+      update({ stage: "validating", detail: "Checking the edited PDF before saving…", progress: 0.82 });
       const [summary, afterInventory] = await Promise.all([
         inspectPdfBytes(result.bytes, passwordRef.current),
         inspectPdfAnnotationInventory(result.bytes, passwordRef.current, affectedPages)
       ]);
-      if (summary.pageCount !== document?.numPages) throw new Error(`Validation failed: expected ${document?.numPages} pages, received ${summary.pageCount}.`);
+      if (summary.pageCount !== document?.numPages) throw new Error("The edited PDF could not be verified because its page count changed unexpectedly.");
       const annotationDelta = afterInventory.annotationCount - beforeInventory.annotationCount;
       const linkDelta = afterInventory.linkCount - beforeInventory.linkCount;
-      if (annotationDelta < result.report.annotationCount) throw new Error(`Validation failed: ${result.report.annotationCount} annotations were compiled, but only ${Math.max(0, annotationDelta)} additional annotations reopened.`);
-      if (linkDelta < result.report.linkCount) throw new Error(`Validation failed: ${result.report.linkCount} links were compiled, but only ${Math.max(0, linkDelta)} additional links reopened.`);
+      if (annotationDelta < result.report.annotationCount) throw new Error("The edited PDF could not be verified because some annotations did not save correctly.");
+      if (linkDelta < result.report.linkCount) throw new Error("The edited PDF could not be verified because some links did not save correctly.");
       setWarnings([...(nativeReport?.warnings ?? []), ...result.report.warnings]);
-      const nativeSummary = nativeReport ? `${nativeReport.textEdits} text · ${nativeReport.imageEdits} image · ${nativeReport.vectorEdits} vector · ${nativeReport.tableCellEdits} table cells · ${nativeReport.formEdits} forms` : "0 existing-content edits";
-      setLastReport(`${nativeSummary} · ${result.report.objectCount} overlay objects · ${formatBytes(result.report.outputBytes)}`);
+      const pdfEditCount = nativeReport ? nativeReport.textEdits + nativeReport.imageEdits + nativeReport.vectorEdits + nativeReport.tableCellEdits + nativeReport.formEdits : 0;
+      setLastReport(`${pdfEditCount} PDF content edit${pdfEditCount === 1 ? "" : "s"} · ${result.report.objectCount} added object${result.report.objectCount === 1 ? "" : "s"} · ${formatBytes(result.report.outputBytes)}`);
       const filename = `${safeName(project.name)}_edited.pdf`;
       if (saveProject) {
-        update({ stage: "committing", detail: "Saving a new project revision…", progress: 0.94 });
+        update({ stage: "committing", detail: "Saving edited PDF as a new project…", progress: 0.94 });
         const created = await createDerivedProjectFromBytes(project.id, result.bytes, filename, "unified-editor", "application/pdf", passwordRef.current);
         await Promise.all([
           writeEditorState({ ...editorState, projectId: created.id, objects: [], dirty: false, lastSavedAt: Date.now(), updatedAt: Date.now() }),
@@ -690,7 +690,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         await writeEditorState(cleanState);
         await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: Date.now() } });
         setEditorState(cleanState);
-        setStatus("Export validated and downloaded");
+        setStatus("Edited PDF downloaded");
       }
       update({ progress: 1 });
       });
@@ -723,6 +723,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
   const localSaveLabel = localSaveStatusLabel(localSave, lastReport, Boolean(editorState.dirty || nativeEdits.length));
+  const detectedPdfItemCount = nativeInspection ? nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms : 0;
   const chooseMobileTool = (tool: EditorTool) => {
     activateTool(tool);
     setMobileToolsOpen(false);
@@ -734,9 +735,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   return (
     <div className="editor-app">
       <header className="editor-commandbar">
-        <div className="editor-file-group"><a aria-label="Back to viewer" className="icon-button" href={routeHref({ name: "viewer", projectId })}><Icon name="arrow-left" /></a><div><strong>{project.name}</strong><span>{status} · {nativeInspection ? `${nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms} PDF + ` : ""}{history.present.objects.length} overlay objects</span></div></div>
+        <div className="editor-file-group"><a aria-label="Back to viewer" className="icon-button" href={routeHref({ name: "viewer", projectId })}><Icon name="arrow-left" /></a><div><strong>{project.name}</strong><span>{status}{nativeInspection ? ` · ${detectedPdfItemCount} PDF item${detectedPdfItemCount === 1 ? "" : "s"}` : ""} · ${history.present.objects.length} added object${history.present.objects.length === 1 ? "" : "s"}</span></div></div>
         <div className="editor-commandbar__center">
-          <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo added-object change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo added-object change" type="button"><Icon name="redo" /></button><span />
+          <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo last change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo last change" type="button"><Icon name="redo" /></button><span />
           <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button><label><input aria-label="Current page" max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button><span />
           <button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><select aria-label="Zoom" onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button>
         </div>
@@ -750,7 +751,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <label className="editor-toggle"><input checked={editorState.snapEnabled} onChange={(event) => setEditorState((state) => ({ ...state, snapEnabled: event.target.checked }))} type="checkbox" />Snap</label>
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
         <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection || nativeInspecting} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />PDF content</label>
-        {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} existing-content edit{nativeEdits.length === 1 ? "" : "s"} queued</span> : null}
+        {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} PDF edit{nativeEdits.length === 1 ? "" : "s"} ready</span> : null}
         {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button onClick={groupSelection} type="button">Group added</button><button onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button onClick={() => alignUnified("left")} type="button">Align left</button><button onClick={() => alignUnified("center")} type="button">Center</button><button onClick={() => alignUnified("right")} type="button">Align right</button><button onClick={() => alignUnified("top")} type="button">Top</button><button onClick={() => alignUnified("middle")} type="button">Middle</button><button onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
         <strong aria-live="polite">{localSaveLabel}</strong>
       </div>
@@ -758,7 +759,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       <div className="editor-notices">
         {localSave.phase === "error" ? <div className="editor-banner error-banner" role="alert"><strong>Local autosave failed</strong><span>{localSave.message}</span><button onClick={retryLocalSave} type="button">Retry save</button></div> : null}
         {error ? <div className="editor-banner error-banner"><strong>Editor error</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
-        {warnings.length ? <div className="editor-banner warning-banner"><strong>Editor report</strong><span>{warnings.join(" ")}</span><button onClick={() => setWarnings([])} type="button">Dismiss</button></div> : null}
+        {warnings.length ? <div className="editor-banner warning-banner"><strong>Editor notice</strong><span>{warnings.join(" ")}</span><button onClick={() => setWarnings([])} type="button">Dismiss</button></div> : null}
         {redactionCount ? <div className="editor-banner warning-banner" role="status"><strong>Redaction marks are not permanent yet</strong><span>{redactionCount} marked region{redactionCount === 1 ? "" : "s"}. Open Forms & Protect and choose Apply redactions to permanently remove the covered content.</span></div> : null}
       </div>
 
@@ -797,10 +798,10 @@ async function persistLocalSaveSnapshot(snapshot: LocalSaveSnapshot): Promise<vo
 
 function LayerList({ objects, nativeObjects, nativeQueued, selectedIds, selectedNativeIds, onSelect, onSelectNative, onToggleHidden }: { objects: EditorObject[]; nativeObjects: NativePageObject[]; nativeQueued: NativeEdit[]; selectedIds: Set<string>; selectedNativeIds: Set<string>; onSelect: (id: string, additive: boolean) => void; onSelectNative: (object: NativePageObject, additive?: boolean) => void; onToggleHidden: (object: EditorObject) => void }) {
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
-  if (!objects.length && !nativeObjects.length) return <div className="editor-panel-empty"><strong>No editable objects detected</strong><p>Add an object or inspect another page.</p></div>;
+  if (!objects.length && !nativeObjects.length) return <div className="editor-panel-empty"><strong>No editable items on this page</strong><p>Add something new or choose another page.</p></div>;
   return <div className="editor-layer-list unified-layer-list">
     <button aria-pressed={showTechnicalDetails} className="button button--ghost button--small editor-layer-details-toggle" onClick={() => setShowTechnicalDetails((current) => !current)} type="button">{showTechnicalDetails ? "Hide technical details" : "Show technical details"}</button>
-    {nativeObjects.length ? <><div className="editor-layer-heading"><strong>Existing PDF content</strong><span>{nativeObjects.length}</span></div>{nativeObjects.map((object) => { const queued = nativeQueued.filter((edit) => edit.objectId === object.id).length; return <div className={selectedNativeIds.has(object.id) ? "editor-layer-item native-layer-item active" : "editor-layer-item native-layer-item"} key={object.id}><button onClick={(event) => onSelectNative(object, event.ctrlKey || event.metaKey || event.shiftKey)} type="button"><span>{nativeObjectIcon(object)}</span><div><strong>{nativeObjectLabel(object)}</strong><small>{object.capability.label}{queued ? ` · ${queued} queued` : ""}</small>{showTechnicalDetails ? <small className="editor-layer-technical">Confidence {Math.round(object.capability.confidence * 100)}% · Source type {object.type}</small> : null}</div></button></div>; })}</> : null}
+    {nativeObjects.length ? <><div className="editor-layer-heading"><strong>Existing PDF content</strong><span>{nativeObjects.length}</span></div>{nativeObjects.map((object) => { const queued = nativeQueued.filter((edit) => edit.objectId === object.id).length; return <div className={selectedNativeIds.has(object.id) ? "editor-layer-item native-layer-item active" : "editor-layer-item native-layer-item"} key={object.id}><button onClick={(event) => onSelectNative(object, event.ctrlKey || event.metaKey || event.shiftKey)} type="button"><span>{nativeObjectIcon(object)}</span><div><strong>{nativeObjectLabel(object)}</strong><small>{object.capability.label}{queued ? ` · ${queued} edit${queued === 1 ? "" : "s"} ready` : ""}</small>{showTechnicalDetails ? <small className="editor-layer-technical">Confidence {Math.round(object.capability.confidence * 100)}% · Source type {object.type}</small> : null}</div></button></div>; })}</> : null}
     {objects.length ? <><div className="editor-layer-heading"><strong>Added objects</strong><span>{objects.length}</span></div>{objects.slice().sort((a, b) => b.zIndex - a.zIndex).map((object) => <div className={selectedIds.has(object.id) ? "editor-layer-item active" : "editor-layer-item"} key={object.id}><button onClick={(event) => onSelect(object.id, event.ctrlKey || event.metaKey || event.shiftKey)} type="button"><span>{objectIcon(object)}</span><div><strong>{objectLabel(object)}</strong><small>Added in PDF Studio{object.hidden ? " · Hidden" : ""}</small>{showTechnicalDetails ? <small className="editor-layer-technical">Type {object.type} · Layer order {object.zIndex}</small> : null}</div></button><button onClick={() => onToggleHidden(object)} title={object.hidden ? "Show" : "Hide"} type="button">{object.hidden ? "○" : "●"}</button></div>)}</> : null}
   </div>;
 }
@@ -817,7 +818,7 @@ function PasswordDialog({ error, password, onChange, onSubmit, projectId }: { er
   const inputRef = useRef<HTMLInputElement | null>(null);
   const close = useCallback(() => { window.location.hash = routeHref({ name: "viewer", projectId }).slice(1); }, [projectId]);
   useModalFocus(true, dialogRef, close, inputRef);
-  return <div className="viewer-password-overlay" role="presentation"><div aria-describedby="editor-password-description" aria-labelledby="editor-password-title" aria-modal="true" className="viewer-password-dialog" ref={dialogRef} role="dialog"><p className="eyebrow">Protected document</p><h2 id="editor-password-title">Password required</h2><p id="editor-password-description">The password remains in memory and is passed only to the local PDF engines.</p><label className="visually-hidden" htmlFor="editor-password-input">PDF password</label><input autoComplete="off" id="editor-password-input" onChange={(event) => onChange(event.target.value)} placeholder="PDF password" ref={inputRef} type="password" value={password} /><button className="button" disabled={!password} onClick={onSubmit} type="button">Open editor</button><a className="button button--ghost" href={routeHref({ name: "viewer", projectId })}>Return to viewer</a>{error ? <span aria-live="assertive" className="selection-help selection-help--error" role="alert">{error}</span> : null}</div></div>;
+  return <div className="viewer-password-overlay" role="presentation"><div aria-describedby="editor-password-description" aria-labelledby="editor-password-title" aria-modal="true" className="viewer-password-dialog" ref={dialogRef} role="dialog"><p className="eyebrow">Protected document</p><h2 id="editor-password-title">Password required</h2><p id="editor-password-description">Your password is used only in this tab to open and edit the PDF. It is not saved.</p><label className="visually-hidden" htmlFor="editor-password-input">PDF password</label><input autoComplete="off" id="editor-password-input" onChange={(event) => onChange(event.target.value)} placeholder="PDF password" ref={inputRef} type="password" value={password} /><button className="button" disabled={!password} onClick={onSubmit} type="button">Open editor</button><a className="button button--ghost" href={routeHref({ name: "viewer", projectId })}>Return to viewer</a>{error ? <span aria-live="assertive" className="selection-help selection-help--error" role="alert">{error}</span> : null}</div></div>;
 }
 
 async function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
@@ -829,7 +830,7 @@ async function readImageDimensions(file: File): Promise<{ width: number; height:
     const image = new Image();
     const url = URL.createObjectURL(file);
     image.onload = () => { URL.revokeObjectURL(url); resolve({ width: image.naturalWidth, height: image.naturalHeight }); };
-    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("The image could not be decoded.")); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("PDF Studio could not read this image.")); };
     image.src = url;
   });
 }
