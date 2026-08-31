@@ -76,6 +76,7 @@ test("top chrome keeps paired accessible colors in every theme", async ({ page }
 test("task browser uses visible typed SVG icons", async ({ page }) => {
   await page.goto("./#/tools");
   await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
+  await page.getByText("Advanced & specialist tools", { exact: true }).click();
   const tiles = page.locator(".task-tile");
   await expect(tiles.first()).toBeVisible();
   const count = await tiles.count();
