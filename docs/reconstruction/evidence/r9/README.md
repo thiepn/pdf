@@ -106,6 +106,27 @@ Do not set the physical-device attestation flag for browser emulation, simulator
 
 It also requires qualifying coverage for every J01–J10 journey and at least one installed-PWA run qualifying J10. Any measured `FAIL` prevents the target from being met.
 
+## Campaign orchestration
+
+P44 derives one campaign-level checklist from the actual evidence currently committed:
+
+```bash
+node scripts/reconstruction/p44_campaign_status.mjs
+```
+
+Use this command before fieldwork and after every committed human session or device run. It reports:
+
+- remaining distinct human testers;
+- remaining none/light-familiarity tester requirement;
+- missing physical-device slots;
+- missing J01–J10 journeys;
+- installed-PWA J10 coverage;
+- blocking defects or measured misses;
+- whether the campaign is ready to certify;
+- the next required actions.
+
+The P44 campaign plan is `docs/reconstruction/p44-qualification-campaign-plan.json`. It contains requirements only and never pre-creates tester/device evidence.
+
 ## Validation
 
 Human evidence:
@@ -124,6 +145,12 @@ Committed state ledger:
 
 ```bash
 node scripts/reconstruction/r9_status_contract.mjs
+```
+
+Campaign progress:
+
+```bash
+node scripts/reconstruction/p44_campaign_status.mjs
 ```
 
 ## Certification
@@ -146,5 +173,7 @@ At P43 framework merge time, there are no committed human session or real-device
 - `HUMAN_UX_UNMEASURED`;
 - `REAL_DEVICE_UNMEASURED`;
 - `NOT_CERTIFIED`.
+
+With those empty evidence directories, P44 derives `P44_CAMPAIGN_READY_FOR_FIELDWORK`. That state means the campaign can start; it is not a human-usability or real-device pass.
 
 Do not create placeholders, AI-generated observations, browser-automation results, copied benchmark results, or fabricated physical-device metadata merely to change those states.
