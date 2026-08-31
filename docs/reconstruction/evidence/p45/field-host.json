@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "phase": "P45",
+  "fieldwork_state": "OPEN_NO_EVIDENCE",
+  "active": true,
+  "stable_page_url": "https://thiepn.github.io/pdf/",
+  "stable_version": "7.0.0",
+  "stable_tag": "v7.0.0",
+  "stable_tag_commit": "cc630810c290e4b081fbec01e7e21b04893d9dba",
+  "product_baseline_commit": "be223e37d3ecafe6695aa6fe4fe7f901f95f478c",
+  "qualification_path": "qualification/p42",
+  "qualification_url": "https://thiepn.github.io/pdf/qualification/p42/",
+  "root_preservation_contract": "live-release-integrity-byte-match",
+  "observation_policy": "human-physical-device-only"
+}
