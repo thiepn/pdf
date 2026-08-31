@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "phase": "P43",
+  "product_baseline_commit": "be223e37d3ecafe6695aa6fe4fe7f901f95f478c",
+  "current_operational_baseline_commit": "7c81f95815a3d8740fddef3d76e264ebb19c96f8",
+  "human_ux_status": "HUMAN_UX_UNMEASURED",
+  "real_device_status": "REAL_DEVICE_UNMEASURED",
+  "certification_status": "NOT_CERTIFIED"
+}
