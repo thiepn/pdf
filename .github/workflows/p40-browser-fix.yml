@@ -1,0 +1,77 @@
+name: P40 browser contract fixes
+
+on:
+  push:
+    branches:
+      - ux/p40-editor-secondary-language
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[p40-browser-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fix P40 header and historical browser wording contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, expected: int = 1) -> None:
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f'{path}: replacement mismatch {count} != {expected}: {old[:100]}')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace(
+              'src/views/EditorPage.tsx',
+              '<div className="editor-file-group"><a aria-label="Back to viewer" className="icon-button" href={routeHref({ name: "viewer", projectId })}><Icon name="arrow-left" /></a><div><strong>{project.name}</strong><span>{status}{nativeInspection ? ` · ${detectedPdfItemCount} PDF item${detectedPdfItemCount === 1 ? "" : "s"}` : ""} · ${history.present.objects.length} added object${history.present.objects.length === 1 ? "" : "s"}</span></div></div>',
+              '<div className="editor-file-group"><a aria-label="Back to viewer" className="icon-button" href={routeHref({ name: "viewer", projectId })}><Icon name="arrow-left" /></a><div><strong>{project.name}</strong><span>{status}{nativeInspection ? ` · ${detectedPdfItemCount} PDF item${detectedPdfItemCount === 1 ? "" : "s"}` : ""}{` · ${history.present.objects.length} added object${history.present.objects.length === 1 ? "" : "s"}`}</span></div></div>'
+          )
+
+          for path in [
+              'tests/e2e/p1-existing-content.spec.ts',
+              'tests/e2e/p2-layout-reflow.spec.ts',
+          ]:
+              replace(path, '/\\d+ existing-content edit(?:s)? queued/', '/\\d+ PDF edit(?:s)? ready/')
+              replace(path, 'Export validated and downloaded', 'Edited PDF downloaded')
+
+          for path in [
+              'tests/e2e/p3-existing-image.spec.ts',
+              'tests/e2e/p4-existing-vector.spec.ts',
+              'tests/e2e/p5-existing-table.spec.ts',
+              'tests/e2e/p7-complex-nested.spec.ts',
+          ]:
+              replace(path, '1 existing-content edit queued', '1 PDF edit ready')
+              replace(path, 'Export validated and downloaded', 'Edited PDF downloaded', 2)
+
+          replace('tests/e2e/p6-unified-layout.spec.ts', 'Export validated and downloaded', 'Edited PDF downloaded')
+          replace(
+              'tests/e2e/p6-unified-layout.spec.ts',
+              '`${count} existing-content edit${count === 1 ? "" : "s"} queued`',
+              '`${count} PDF edit${count === 1 ? "" : "s"} ready`'
+          )
+
+          replace('tests/e2e/p8-fidelity-compatibility.spec.ts', '/1 overlay object/', '/1 added object/')
+          replace('tests/e2e/p8-fidelity-compatibility.spec.ts', 'Export validated and downloaded', 'Edited PDF downloaded')
+
+          replace('tests/e2e/p33-save-trust.spec.ts', 'Local changes saved', 'Changes saved locally', 2)
+          replace(
+              'tests/e2e/smoke.spec.ts',
+              '/Local changes (waiting to save|saved)|Saving local changes…|No pending editor changes/',
+              '/Changes (waiting to save|saved|not yet saved) locally|Saving changes locally…|No unsaved local changes/'
+          )
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/views/EditorPage.tsx tests/e2e/p1-existing-content.spec.ts tests/e2e/p2-layout-reflow.spec.ts tests/e2e/p3-existing-image.spec.ts tests/e2e/p4-existing-vector.spec.ts tests/e2e/p5-existing-table.spec.ts tests/e2e/p6-unified-layout.spec.ts tests/e2e/p7-complex-nested.spec.ts tests/e2e/p8-fidelity-compatibility.spec.ts tests/e2e/p33-save-trust.spec.ts tests/e2e/smoke.spec.ts
+          git commit -m "P40 align browser contracts with product language [p40-browser-fixed]"
+          git push origin HEAD:ux/p40-editor-secondary-language
