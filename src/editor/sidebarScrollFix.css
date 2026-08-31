@@ -4,9 +4,22 @@
    property panels remain reachable on desktop, tablet, and mobile. */
 .editor-properties.native-unified-properties {
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   display: block;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   scrollbar-gutter: stable;
+}
+
+/* EditorPage runs inside UnifiedWorkspace. The workspace already subtracts its
+   document tabs/mode navigation from the available height, so a nested editor
+   must fill that remaining slot instead of claiming another full viewport.
+   Using 100dvh here made the inspector extend below the visible window and left
+   its real scroll boundary off-screen. */
+.workspace-mode-content > .editor-app {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
 }
