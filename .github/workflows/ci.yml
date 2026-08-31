@@ -79,7 +79,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate installed dependency tree
         run: npm run audit:tree
-      - name: R9, P43, and P44 human / real-device campaign contract
+      - name: R9, P43, P44, and P45 human / real-device field contract
         run: |
           node --test \
             scripts/reconstruction/r9_validate_evidence.test.mjs \
@@ -87,7 +87,8 @@ jobs:
             scripts/reconstruction/r9_prepare_session.test.mjs \
             scripts/reconstruction/r9_prepare_device_run.test.mjs \
             scripts/reconstruction/r9_certify_evidence.test.mjs \
-            scripts/reconstruction/p44_campaign_status.test.mjs
+            scripts/reconstruction/p44_campaign_status.test.mjs \
+            scripts/reconstruction/p45_field_host_contract.test.mjs
           node scripts/reconstruction/r9_recorder_contract.mjs
           python scripts/reconstruction/r9_prepare_manual_corpus.py --output /tmp/r9-manual-corpus
           test -f /tmp/r9-manual-corpus/ocr-scan.pdf
@@ -98,6 +99,7 @@ jobs:
           node scripts/reconstruction/r9_validate_real_device.mjs
           node scripts/reconstruction/r9_status_contract.mjs
           node scripts/reconstruction/p44_campaign_status.mjs
+          node scripts/reconstruction/p45_field_host_contract.mjs
           if node scripts/reconstruction/r9_certify_evidence.mjs; then
             echo "R9 certifier must refuse empty human and real-device evidence"
             exit 1
@@ -154,6 +156,7 @@ jobs:
             docs/reconstruction/evidence/r8-structural-qualification.json
             docs/reconstruction/evidence/r9/qualification-baseline.json
             docs/reconstruction/evidence/r9/status.json
+            docs/reconstruction/evidence/p45/field-host.json
             docs/reconstruction/p44-qualification-campaign-plan.json
             tests/corpus/r8-external/manifest.json
 
