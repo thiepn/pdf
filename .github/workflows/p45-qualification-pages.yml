@@ -105,7 +105,7 @@ jobs:
           VITE_BASE_PATH="$PAGES_BASE_PATH" \
           VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" \
           VITE_BUILD_TIMESTAMP="$stable_timestamp" \
-          VITE_RELEASE_CHANNEL="release-candidate" \
+          VITE_RELEASE_CHANNEL="stable" \
             npm run build:verified
       - name: Prove rebuilt Stable root equals the live Pages root
         shell: bash
