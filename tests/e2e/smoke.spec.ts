@@ -39,7 +39,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   const navigation = page.getByRole("navigation", { name: "Document workspace" });
   await navigation.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("button", { name: /Text/ }).first()).toBeVisible();
-  await expect(page.locator(".editor-contextbar > strong")).toHaveText(/Local changes (waiting to save|saved)|Saving local changes…|No pending editor changes/);
+  await expect(page.locator(".editor-contextbar > strong")).toHaveText(/Changes (waiting to save|saved|not yet saved) locally|Saving changes locally…|No unsaved local changes/);
 
   await navigation.getByRole("button", { name: "Tools", exact: true }).click();
   await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();

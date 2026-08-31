@@ -15,7 +15,7 @@ async function openImageEditor(page: import("@playwright/test").Page): Promise<i
 }
 
 async function expectQueuedEdit(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator(".native-queued-count").filter({ hasText: "1 existing-content edit queued" })).toHaveCount(1);
+  await expect(page.locator(".native-queued-count").filter({ hasText: "1 PDF edit ready" })).toHaveCount(1);
 }
 
 test("P3 moves, resizes, rotates, crops and changes opacity of an existing source image without an upload", async ({ page }) => {
@@ -35,7 +35,7 @@ test("P3 moves, resizes, rotates, crops and changes opacity of an existing sourc
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 });
 
 test("P3 deletes only the selected existing image and exports a validated PDF", async ({ page }) => {
@@ -47,5 +47,5 @@ test("P3 deletes only the selected existing image and exports a validated PDF", 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   await downloadPromise;
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 });

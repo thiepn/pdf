@@ -22,7 +22,7 @@ async function openEditorAndAddRectangle(page: import("@playwright/test").Page):
   await page.mouse.down();
   await page.mouse.move(box.x + 148, box.y + 108, { steps: 4 });
   await page.mouse.up();
-  await expect(page.getByText(/1 overlay object/)).toBeVisible();
+  await expect(page.getByText(/1 added object/)).toBeVisible();
 }
 
 async function exportValidated(page: import("@playwright/test").Page): Promise<void> {
@@ -30,7 +30,7 @@ async function exportValidated(page: import("@playwright/test").Page): Promise<v
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Export validated and downloaded")).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 25_000 });
 }
 
 test("P8 preserves rotated crop geometry while exporting an edited real-world page", async ({ page }) => {
