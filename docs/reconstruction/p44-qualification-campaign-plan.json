@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "phase": "P44",
+  "product_baseline_commit": "be223e37d3ecafe6695aa6fe4fe7f901f95f478c",
+  "human_requirements": {
+    "minimum_distinct_testers": 3,
+    "minimum_low_familiarity_testers": 2,
+    "individual_metric_target": 0.9,
+    "aggregate_metric_target": 0.9
+  },
+  "required_device_slots": [
+    "windows-chromium-desktop",
+    "macos-safari-desktop",
+    "android-chromium-phone",
+    "ios-safari-phone",
+    "ipados-safari-tablet"
+  ],
+  "required_journeys": [
+    "J01",
+    "J02",
+    "J03",
+    "J04",
+    "J05",
+    "J06",
+    "J07",
+    "J08",
+    "J09",
+    "J10"
+  ],
+  "installed_pwa_recovery_journey": "J10",
+  "certification_requires": [
+    "HUMAN_UX_TARGET_MET",
+    "REAL_DEVICE_TARGET_MET"
+  ],
+  "evidence_policy": {
+    "human_physical_device_only": true,
+    "automation_may_generate_observations": false,
+    "placeholder_evidence_allowed": false,
+    "failed_observations_must_be_preserved": true
+  }
+}
