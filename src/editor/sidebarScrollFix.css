@@ -13,11 +13,41 @@
   scrollbar-gutter: stable;
 }
 
-/* EditorPage runs inside UnifiedWorkspace. The workspace already subtracts its
-   document tabs/mode navigation from the available height, so a nested editor
-   must fill that remaining slot instead of claiming another full viewport.
-   Using 100dvh here made the inspector extend below the visible window and left
-   its real scroll boundary off-screen. */
+/* Full-bleed document routes must form one bounded flex-height chain from the
+   browser viewport down to the active workspace mode. Previously the workspace
+   could size itself from the editor's intrinsic content (roughly twice the
+   viewport on long inspectors) and was then merely clipped by .main-content.
+   That left the properties panel with no overflow of its own, so there was
+   nothing for the user to scroll. */
+.app-shell--viewer .main-content {
+  min-height: 0;
+  height: var(--app-viewport-height, 100dvh);
+  max-height: var(--app-viewport-height, 100dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell--viewer .main-content > .workspace--full {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell--viewer .workspace--full > .unified-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* EditorPage runs inside UnifiedWorkspace. It fills the remaining workspace
+   slot rather than claiming another viewport of its own. */
 .workspace-mode-content > .editor-app {
   min-height: 0;
   height: 100%;
