@@ -18,7 +18,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh api -H "Accept: application/vnd.github+json" "/repos/${GITHUB_REPOSITORY}/actions/jobs/99361606242/logs" > /tmp/p41.log
+          gh api --allow-escape-sequences -H "Accept: application/vnd.github+json" "/repos/${GITHUB_REPOSITORY}/actions/jobs/99361606242/logs" > /tmp/p41.log
           echo "--- failure markers ---"
           grep -nE "FAIL|AssertionError|Error:|error TS|Process completed with exit code|not to|expected" /tmp/p41.log | tail -80 || true
           echo "--- final 100 lines ---"
