@@ -46,6 +46,24 @@
   overflow: hidden;
 }
 
+/* The workspace body used flex-basis:auto, so a tall editor could still supply
+   its intrinsic height as the row basis even inside a bounded workspace. Give
+   the body a zero basis and a definite zero height so flex-grow alone assigns
+   the exact remaining pixels after document chrome. The active mode then fills
+   that definite row instead of expanding it from its own content. */
+.app-shell--viewer .unified-workspace > .workspace-body {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.app-shell--viewer .workspace-body > .workspace-mode-content {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 /* EditorPage runs inside UnifiedWorkspace. It fills the remaining workspace
    slot rather than claiming another viewport of its own. */
 .workspace-mode-content > .editor-app {
