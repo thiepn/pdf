@@ -1,0 +1,34 @@
+name: P41 stale audit fix
+
+on:
+  push:
+    branches:
+      - ux/p41-product-wide-consumer-language
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Update portable workflow audit
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/source-audit.mjs")
+          source = path.read_text(encoding="utf-8")
+          old = 'if (/parseBatchRecipeJson/.test(batchModelSource) && /serializeBatchRecipe/.test(batchModelSource) && /Export JSON/.test(batchPageSource) && /Import JSON/.test(batchPageSource)) pass("Phase 25 portable batch recipes", "Batch recipes can be exported/imported as validated local JSON"); else fail("Phase 25 portable batch recipes", "Portable batch recipe support is incomplete");'
+          new = 'if (/parseBatchRecipeJson/.test(batchModelSource) && /serializeBatchRecipe/.test(batchModelSource) && /\\.lpsrecipe\\.json/.test(batchPageSource) && /exportRecipe/.test(batchPageSource) && /importRecipe/.test(batchPageSource)) pass("Phase 25 portable batch recipes", "Batch workflows retain validated local JSON import/export with the .lpsrecipe.json interchange format"); else fail("Phase 25 portable batch recipes", "Portable batch workflow support is incomplete");'
+          if source.count(old) != 1:
+              raise SystemExit("Expected one Phase 25 portable batch audit assertion")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/source-audit.mjs
+          git commit -m "P41 audit portable workflows by behavior"
+          git push origin HEAD:ux/p41-product-wide-consumer-language
