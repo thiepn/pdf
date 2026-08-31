@@ -1,6 +1,6 @@
 {
-  "schema": 2,
-  "baseline_commit": "7c81f95815a3d8740fddef3d76e264ebb19c96f8",
+  "schema": 3,
+  "baseline_commit": "be223e37d3ecafe6695aa6fe4fe7f901f95f478c",
   "session_id": "session-YYYYMMDD-NN",
   "tester_id": "anonymous-local-id",
   "tester_profile": {
@@ -9,12 +9,24 @@
   },
   "environment": {
     "date": "YYYY-MM-DD",
-    "browser": "",
-    "os_device": "",
+    "evidence_source": "human-physical-device",
+    "physical_device": true,
+    "simulator_or_emulator": false,
+    "automation_used_for_observation": false,
+    "human_attestation": true,
+    "device_class": "laptop",
+    "device_model": "",
+    "os_family": "windows",
+    "os_version": "",
+    "browser_family": "chromium",
+    "browser_name": "",
+    "browser_version": "",
+    "input_mode": "keyboard-trackpad",
     "viewport": "",
-    "build_channel": "r8-frozen-baseline"
+    "app_mode": "browser",
+    "build_channel": "p42-frozen-consumer-baseline"
   },
-  "corpus_id": "r9-manual-v1",
+  "corpus_id": "r9-manual-v2",
   "measurement_order": [
     "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10",
     "D11", "D12", "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D20"
