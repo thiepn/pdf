@@ -4,7 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const R9_BASELINE_SHA = "7c81f95815a3d8740fddef3d76e264ebb19c96f8";
+export const R9_BASELINE_SHA = "be223e37d3ecafe6695aa6fe4fe7f901f95f478c";
+export const R9_SESSION_SCHEMA = 3;
+export const R9_BUILD_CHANNEL = "p42-frozen-consumer-baseline";
 export const TARGET = 0.9;
 export const MIN_DISTINCT_TESTERS = 3;
 export const MIN_LOW_FAMILIARITY_TESTERS = 2;
@@ -39,6 +41,13 @@ const ALLOWED_DEFECT_CATEGORIES = new Set([
 ]);
 const ALLOWED_FAMILIARITY = new Set(["none", "light", "experienced"]);
 const ALLOWED_PDF_EXPERIENCE = new Set(["basic", "regular", "advanced"]);
+const ALLOWED_DEVICE_CLASSES = new Set(["desktop", "laptop", "phone", "tablet"]);
+const ALLOWED_OS_FAMILIES = new Set(["windows", "macos", "android", "ios", "ipados", "linux"]);
+const ALLOWED_BROWSER_FAMILIES = new Set(["chromium", "safari-webkit", "firefox"]);
+const ALLOWED_INPUT_MODES = new Set(["keyboard-mouse", "keyboard-trackpad", "touch", "touch-keyboard"]);
+const ALLOWED_APP_MODES = new Set(["browser", "installed-pwa"]);
+
+const AUTOMATION_MARKERS = /\b(playwright|puppeteer|selenium|simulator|emulator|github actions|ci runner)\b/i;
 
 const FORBIDDEN_KEYS = new Set([
   "password",
@@ -57,7 +66,9 @@ const FORBIDDEN_KEYS = new Set([
   "document_filename",
   "email",
   "email_address",
-  "tester_name"
+  "tester_name",
+  "device_serial",
+  "serial_number"
 ]);
 
 function assertion(condition, message) {
@@ -68,7 +79,7 @@ function normalizedKey(key) {
   return key.trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function scanPrivacy(value, location = "$") {
+export function scanPrivacy(value, location = "$") {
   if (Array.isArray(value)) {
     value.forEach((item, index) => scanPrivacy(item, `${location}[${index}]`));
     return;
@@ -104,19 +115,76 @@ function validateMeasurementOrder(order) {
   assertion(order.join(",") !== CANONICAL_ORDER, "measurement_order must be shuffled rather than canonical sorted order");
 }
 
-function validateString(value, fieldName) {
+export function validateString(value, fieldName) {
   assertion(typeof value === "string" && value.trim().length > 0, `${fieldName} must be a non-empty string`);
 }
 
-function validateBoolean(value, fieldName) {
+function validateVersion(value, fieldName) {
+  validateString(value, fieldName);
+  assertion(/\d/.test(value), `${fieldName} must include an exact version number`);
+}
+
+export function validateBoolean(value, fieldName) {
   assertion(typeof value === "boolean", `${fieldName} must be boolean human evidence`);
+}
+
+export function validatePhysicalEnvironment(environment, fieldName = "environment") {
+  assertion(environment && typeof environment === "object" && !Array.isArray(environment), `${fieldName} must be an object`);
+  validateString(environment.date, `${fieldName}.date`);
+  assertion(/^\d{4}-\d{2}-\d{2}$/.test(environment.date), `${fieldName}.date must use YYYY-MM-DD`);
+  assertion(environment.evidence_source === "human-physical-device", `${fieldName}.evidence_source must equal human-physical-device`);
+  assertion(environment.physical_device === true, `${fieldName}.physical_device must be true`);
+  assertion(environment.simulator_or_emulator === false, `${fieldName}.simulator_or_emulator must be false`);
+  assertion(environment.automation_used_for_observation === false, `${fieldName}.automation_used_for_observation must be false`);
+  assertion(environment.human_attestation === true, `${fieldName}.human_attestation must be true`);
+  assertion(ALLOWED_DEVICE_CLASSES.has(environment.device_class), `${fieldName}.device_class is invalid`);
+  validateString(environment.device_model, `${fieldName}.device_model`);
+  assertion(ALLOWED_OS_FAMILIES.has(environment.os_family), `${fieldName}.os_family is invalid`);
+  validateVersion(environment.os_version, `${fieldName}.os_version`);
+  assertion(ALLOWED_BROWSER_FAMILIES.has(environment.browser_family), `${fieldName}.browser_family is invalid`);
+  validateString(environment.browser_name, `${fieldName}.browser_name`);
+  validateVersion(environment.browser_version, `${fieldName}.browser_version`);
+  assertion(ALLOWED_INPUT_MODES.has(environment.input_mode), `${fieldName}.input_mode is invalid`);
+  validateString(environment.viewport, `${fieldName}.viewport`);
+  assertion(/^\d+x\d+$/.test(environment.viewport), `${fieldName}.viewport must use WIDTHxHEIGHT`);
+  assertion(ALLOWED_APP_MODES.has(environment.app_mode), `${fieldName}.app_mode is invalid`);
+  assertion(environment.build_channel === R9_BUILD_CHANNEL, `${fieldName}.build_channel must equal ${R9_BUILD_CHANNEL}`);
+
+  const antiAutomationText = [
+    environment.device_model,
+    environment.os_version,
+    environment.browser_name,
+    environment.browser_version
+  ].join(" ");
+  assertion(!AUTOMATION_MARKERS.test(antiAutomationText), `${fieldName} contains simulator, automation, or CI markers and cannot qualify as physical-device evidence`);
+  return environment;
+}
+
+export function validateDefects(defects, fieldName = "defects") {
+  assertion(Array.isArray(defects), `${fieldName} must be an array`);
+  for (const [index, defect] of defects.entries()) {
+    assertion(defect && typeof defect === "object" && !Array.isArray(defect), `${fieldName}[${index}] must be an object`);
+    assertion(ALLOWED_SEVERITIES.has(defect.severity), `${fieldName}[${index}].severity is invalid`);
+    assertion(ALLOWED_DEFECT_CATEGORIES.has(defect.category), `${fieldName}[${index}].category is invalid`);
+    assertion(ALLOWED_DEFECT_STATUSES.has(defect.status), `${fieldName}[${index}].status is invalid`);
+    validateString(defect.description, `${fieldName}[${index}].description`);
+  }
+  return defects;
+}
+
+export function blockingDefectsFor(entries, idField) {
+  return entries.flatMap((entry) =>
+    entry.defects
+      .filter((defect) => defect.status !== "resolved" && (defect.severity === "critical" || defect.category === "data-loss"))
+      .map((defect) => ({ [idField]: entry[idField], tester_id: entry.tester_id, ...defect }))
+  );
 }
 
 export function validateSession(session) {
   assertion(session && typeof session === "object" && !Array.isArray(session), "Session must be a JSON object");
   scanPrivacy(session);
 
-  assertion(session.schema === 2, "schema must equal 2");
+  assertion(session.schema === R9_SESSION_SCHEMA, `schema must equal ${R9_SESSION_SCHEMA}`);
   assertion(session.baseline_commit === R9_BASELINE_SHA, `baseline_commit must equal frozen R9 baseline ${R9_BASELINE_SHA}`);
   validateString(session.session_id, "session_id");
   validateString(session.tester_id, "tester_id");
@@ -127,14 +195,7 @@ export function validateSession(session) {
   assertion(ALLOWED_FAMILIARITY.has(testerProfile.familiarity), "tester_profile.familiarity is invalid");
   assertion(ALLOWED_PDF_EXPERIENCE.has(testerProfile.pdf_experience), "tester_profile.pdf_experience is invalid");
 
-  const environment = session.environment;
-  assertion(environment && typeof environment === "object" && !Array.isArray(environment), "environment must be an object");
-  validateString(environment.date, "environment.date");
-  validateString(environment.browser, "environment.browser");
-  validateString(environment.os_device, "environment.os_device");
-  validateString(environment.viewport, "environment.viewport");
-  validateString(environment.build_channel, "environment.build_channel");
-
+  validatePhysicalEnvironment(session.environment);
   validateMeasurementOrder(session.measurement_order);
 
   validateExactIdSet(session.first_location, DISCOVERY_IDS, "first_location");
@@ -158,15 +219,7 @@ export function validateSession(session) {
     validateBoolean(entry.matches_canonical, `navigation_prediction.${entry.id}.matches_canonical`);
   }
 
-  assertion(Array.isArray(session.defects), "defects must be an array");
-  for (const [index, defect] of session.defects.entries()) {
-    assertion(defect && typeof defect === "object" && !Array.isArray(defect), `defects[${index}] must be an object`);
-    assertion(ALLOWED_SEVERITIES.has(defect.severity), `defects[${index}].severity is invalid`);
-    assertion(ALLOWED_DEFECT_CATEGORIES.has(defect.category), `defects[${index}].category is invalid`);
-    assertion(ALLOWED_DEFECT_STATUSES.has(defect.status), `defects[${index}].status is invalid`);
-    validateString(defect.description, `defects[${index}].description`);
-  }
-
+  validateDefects(session.defects);
   return session;
 }
 
@@ -187,6 +240,10 @@ function sessionMetrics(session) {
   return {
     session_id: session.session_id,
     tester_id: session.tester_id,
+    device_class: session.environment.device_class,
+    os_family: session.environment.os_family,
+    browser_family: session.environment.browser_family,
+    input_mode: session.environment.input_mode,
     first_location_accuracy: metric(firstCorrect, 20),
     no_help_completion: metric(noHelpCorrect, 10),
     navigation_prediction_accuracy: metric(predictionCorrect, 20)
@@ -199,6 +256,7 @@ export function summarizeSessions(rawSessions) {
       status: "HUMAN_UX_UNMEASURED",
       baseline_commit: R9_BASELINE_SHA,
       sessions: 0,
+      physical_device_sessions: 0,
       sample: {
         distinct_testers: 0,
         low_familiarity_testers: 0,
@@ -246,12 +304,7 @@ export function summarizeSessions(rawSessions) {
     navigation_prediction_accuracy: metric(predictionCorrect, sessions.length * 20)
   };
   const aggregateTargetsMet = Object.values(metrics).every((item) => item.met);
-
-  const blockingDefects = sessions.flatMap((session) =>
-    session.defects
-      .filter((defect) => defect.status !== "resolved" && (defect.severity === "critical" || defect.category === "data-loss"))
-      .map((defect) => ({ session_id: session.session_id, tester_id: session.tester_id, ...defect }))
-  );
+  const blockingDefects = blockingDefectsFor(sessions, "session_id");
 
   let status;
   if (blockingDefects.length > 0) status = "R9_BLOCKED_BY_PRODUCT_DEFECT";
@@ -263,6 +316,7 @@ export function summarizeSessions(rawSessions) {
     status,
     baseline_commit: R9_BASELINE_SHA,
     sessions: sessions.length,
+    physical_device_sessions: sessions.length,
     sample: {
       distinct_testers: distinctTesters,
       low_familiarity_testers: lowFamiliarityTesters,
@@ -276,10 +330,9 @@ export function summarizeSessions(rawSessions) {
   };
 }
 
-function defaultEvidenceFiles() {
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const repoRoot = path.resolve(scriptDir, "../..");
-  const sessionsDir = path.join(repoRoot, "docs/reconstruction/evidence/r9/sessions");
+export function defaultEvidenceFiles(repoRoot = null) {
+  const root = repoRoot || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const sessionsDir = path.join(root, "docs/reconstruction/evidence/r9/sessions");
   if (!fs.existsSync(sessionsDir)) return [];
   return fs.readdirSync(sessionsDir)
     .filter((name) => name.endsWith(".json"))

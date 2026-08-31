@@ -1,48 +1,57 @@
-# R9 — Human Usability Qualification & Post-Freeze Validation
+# R9 — Human Usability Qualification & Physical-Device Validation
 
 ## 1. Purpose
 
-R9 measures the human usability claims that R8 intentionally left `HUMAN_UX_UNMEASURED` while preserving the frozen reconstructed product.
+R9 measures PDF Studio usability using real people. P43 hardens R9 so qualifying sessions must also be conducted on physical consumer hardware.
 
-Authoritative product baseline:
+Authoritative human/device qualification baseline:
 
-`7c81f95815a3d8740fddef3d76e264ebb19c96f8`
+`be223e37d3ecafe6695aa6fe4fe7f901f95f478c`
 
-Targets:
+This is the post-P42 consumer UI baseline. The previous R8 operational baseline remains separate until the human/device evidence is complete and R10 formally promotes the newer baseline.
+
+Targets remain:
 
 1. top-20 first-location accuracy >=90%;
 2. top-10 completion without Help >=90%;
-3. navigation prediction accuracy >=90%.
+3. navigation-prediction accuracy >=90%.
 
-Automation may validate evidence structure and calculate metrics. Automation, AI agents, browser tests, synthetic users, or structural search proxies must never be counted as the human evidence itself.
+Automation may validate evidence, calculate metrics, enforce privacy, and verify hashes. AI agents, browser automation, emulators, simulators, synthetic users, and CI runners must never be counted as the observations themselves.
 
 ## 2. Freeze policy
 
-R9 does not reopen feature expansion. R9 changes are limited to qualification protocol, evidence tooling, metric calculation, and narrowly scoped maintenance defects exposed by real sessions.
+R9/P43 does not reopen feature expansion. Evidence tooling and documentation can evolve without changing the consumer baseline. If real testing exposes a product defect, preserve the failed evidence, fix only the defect, fully requalify the corrected product commit, re-freeze the qualification baseline, and rerun affected observations.
 
-If a real session exposes a product-code defect, the corrected exact head must pass the full R8 engineering gate before affected human observations are rerun.
-
-The manual session must exercise the exact frozen R8 product baseline. R9 evidence/tooling commits do not replace that baseline merely because they leave product behavior unchanged.
+Do not silently move evidence between product baselines.
 
 ## 3. Human qualification population
 
-A certification sample requires **at least three distinct human testers**.
+A certification sample requires at least **three distinct human testers**. At least **two** qualifying testers must have `none` or `light` prior familiarity with PDF Studio.
 
-To reduce owner/expert bias, at least **two of the three qualifying testers must have `none` or `light` prior familiarity** with PDF Studio. Additional testers are encouraged.
+Use anonymous tester IDs only. Repeated sessions from one tester may be retained but do not increase the distinct-tester sample.
 
-Repository evidence uses non-sensitive tester IDs only. Do not store names, emails, private filenames, document contents, passwords, OCR text, screenshots of confidential documents, or document bytes.
+Each full human session records:
 
-Each session records:
+- `familiarity`: `none`, `light`, or `experienced`;
+- `pdf_experience`: `basic`, `regular`, or `advanced`;
+- structured physical-device environment metadata required by schema 3.
 
-- `tester_id` — anonymous local identifier;
-- `familiarity` — `none`, `light`, or `experienced`;
-- `pdf_experience` — `basic`, `regular`, or `advanced`.
+## 4. Physical-device requirement
 
-Repeated sessions from the same tester may be retained for research, but they do not increase the distinct-tester certification sample size.
+Every human session must have:
 
-## 4. Frozen task sets
+- `evidence_source = human-physical-device`;
+- `physical_device = true`;
+- `simulator_or_emulator = false`;
+- `automation_used_for_observation = false`;
+- `human_attestation = true`;
+- exact OS/browser versions;
+- structured device class, OS/browser family, input mode, viewport, and app mode;
+- `build_channel = p42-frozen-consumer-baseline`.
 
-### 4.1 Top-20 first-location set
+The validator rejects simulator/emulator/Playwright/Puppeteer/Selenium/CI markers and forbids device serial numbers or identifying hardware IDs.
+
+## 5. Frozen discovery set
 
 | ID | Intent | Canonical destination |
 | --- | --- | --- |
@@ -67,15 +76,15 @@ Repeated sessions from the same tester may be retained for research, but they do
 | D19 | Images to PDF | Scan to PDF |
 | D20 | PDF pages to images | Export PDF content |
 
-For each intent, record the tester's **predicted location before navigation**, then allow navigation and record the **first actual location chosen** before any Help or task-specific assistance.
+For each item, record the tester's predicted location before navigation, then record the first deliberate location chosen before any Help or task-specific assistance.
 
-`correct_first_location=true` only when the first chosen location is the canonical location or an explicitly qualified shortcut routing directly to the same workflow.
+A first location is correct only when it is the canonical location or a qualified shortcut that routes directly to the same workflow.
 
-Target: **18/20 or better in every qualifying session**, and >=90% in aggregate.
+Individual-session and aggregate target: **18/20 or better**.
 
-### 4.2 Top-10 no-Help completion set
+## 6. Frozen no-Help completion set
 
-| ID | Workflow | Measured during discovery item |
+| ID | Workflow | Measured during |
 | --- | --- | --- |
 | C01 | Edit existing text | D01 |
 | C02 | Highlight text | D04 |
@@ -88,128 +97,141 @@ Target: **18/20 or better in every qualifying session**, and >=90% in aggregate.
 | C09 | Fill form | D18 |
 | C10 | Images to PDF | D19 |
 
-These completion outcomes are measured **during the same first exposure** as the corresponding discovery item. After recording prediction and first location, the tester continues the task without Help. Do not repeat the workflow later merely to obtain the completion metric.
+Completion is measured during the same first exposure as the mapped discovery item. A workflow counts only when the intended valid result is reached without opening Help or receiving task-specific coaching.
 
-A task counts as completed without Help only when the intended valid result is reached without opening Help or receiving task-specific navigation/instruction assistance.
+Individual-session and aggregate target: **9/10 or better**.
 
-Target: **9/10 or better in every qualifying session**, and >=90% in aggregate.
+## 7. Navigation prediction
 
-### 4.3 Navigation prediction
+Before each D01–D20 item, ask where the tester expects the task to live and record that answer before revealing the canonical destination or allowing navigation.
 
-Before each D01-D20 intent is navigated, ask where the tester expects the task to live. Record the answer before revealing the interface route or canonical destination.
+Individual-session and aggregate target: **18/20 or better**.
 
-`matches_canonical=true` only when the prediction names the canonical destination or a qualified equivalent entry point that routes directly to it.
+## 8. Learning-bias control
 
-Target: **18/20 or better in every qualifying session**, and >=90% in aggregate.
-
-## 5. Learning-bias control
-
-A fixed task order can inflate later scores as the tester learns the information architecture. Therefore each session includes a `measurement_order` containing D01-D20 exactly once in a shuffled order.
-
-The session generator derives a deterministic shuffle from the session ID so the order is reproducible but differs across session IDs.
+Each session uses a deterministic shuffled `measurement_order` containing D01–D20 exactly once. The canonical sorted order is rejected.
 
 Rules:
 
-- do not show the canonical-destination table to the tester before or during the session;
-- read only the neutral task prompt for the current item;
-- ask for prediction first;
-- allow the first navigation choice second;
-- for the mapped top-10 items, continue directly to no-Help completion third;
-- do not coach, hint, point, or expose a previous tester's result;
+- do not show canonical destinations to the tester;
+- read only the neutral task prompt;
+- capture prediction first;
+- capture first navigation choice second;
+- continue directly to mapped no-Help completion third;
+- do not coach, hint, point, or expose prior results;
 - do not restart a failed item to convert it into a pass.
 
-## 6. Session validity
+## 9. Human session validity
 
-A session is valid only when:
+A full session is valid only when:
 
-- schema is current;
-- `baseline_commit` is exactly the frozen R8 baseline;
-- tester profile and environment metadata are complete;
-- `measurement_order` contains every D01-D20 ID exactly once and is not the canonical sorted order;
-- all D01-D20 first-location observations are present exactly once;
-- all C01-C10 no-Help outcomes are present exactly once;
-- all D01-D20 navigation predictions are present exactly once;
-- all measured values are real completed human observations, not null, inferred, synthesized, or copied from automation;
-- privacy rules are satisfied;
-- observed defects are recorded.
+- schema is 3;
+- `baseline_commit` equals the exact post-P42 qualification baseline;
+- physical-device/human attestation is complete;
+- tester profile is complete;
+- measurement order is complete, unique, and shuffled;
+- D01–D20 first-location evidence is complete;
+- C01–C10 completion evidence is complete;
+- D01–D20 navigation prediction evidence is complete;
+- values are direct completed human observations rather than inferred or synthesized data;
+- privacy rules pass;
+- defects are recorded.
 
-Incomplete sessions may be retained outside certification evidence but must not enter certification denominators.
+## 10. Real-device matrix layer
 
-## 7. Evidence files
+R9 certification now also requires the P43 real-device layer. Full human sessions measure usability metrics; device runs prove representative journeys on the required hardware/browser matrix.
 
-Create sessions with `scripts/reconstruction/r9_prepare_session.mjs` rather than hand-copying the template. Completed evidence belongs under:
+Required slots:
+
+1. Windows desktop/laptop + Chromium-family browser;
+2. macOS desktop/laptop + Safari;
+3. Android physical phone + Chromium-family browser;
+4. iPhone/iOS + Safari;
+5. iPadOS tablet + Safari.
+
+Required J01–J10 journeys and detailed result rules are defined in `p43-real-device-human-evidence.md` and `p43-real-device-run-template.json`.
+
+At least one installed-PWA run must qualify J10.
+
+## 11. Evidence locations
+
+Full human sessions:
 
 `docs/reconstruction/evidence/r9/sessions/`
 
-Recommended filename:
+Real-device runs:
 
-`session-YYYYMMDD-NN.json`
+`docs/reconstruction/evidence/r9/device-runs/`
 
-The validator rejects wrong-baseline sessions, incomplete or duplicate IDs, invalid measurement order, malformed values, and privacy-sensitive fields.
+Generate files through the repository scripts rather than hand-copying templates. The generators fill metadata and randomized order only; they never synthesize observations.
 
-## 8. Metric calculation
+## 12. Metric and sample gate
 
-For `N` valid sessions:
+For `N` valid human sessions:
 
-`first_location_accuracy = correct first locations / 20N`
+- `first_location_accuracy = correct first locations / 20N`;
+- `no_help_completion = completed without Help / 10N`;
+- `navigation_prediction_accuracy = matching predictions / 20N`.
 
-`no_help_completion = completed without Help / 10N`
+`HUMAN_UX_TARGET_MET` requires every individual session and aggregate metrics to pass, at least 3 distinct testers, and at least 2 none/light-familiarity testers.
 
-`navigation_prediction_accuracy = matching predictions / 20N`
+The real-device layer is independently summarized as `REAL_DEVICE_*` and must reach `REAL_DEVICE_TARGET_MET`.
 
-A qualifying certification requires both:
+## 13. Defect policy
 
-- every individual session reaches the 90% threshold on all three metrics; and
-- aggregate evidence reaches the 90% threshold on all three metrics.
-
-This prevents a strong tester from hiding a clearly unsuccessful tester in the aggregate.
-
-## 9. Sample-size gate
-
-`HUMAN_UX_TARGET_MET` requires:
-
-- at least 3 valid sessions;
-- at least 3 distinct `tester_id` values;
-- at least 2 distinct testers with `familiarity` equal to `none` or `light`.
-
-Valid evidence below that sample remains useful, but its state is `HUMAN_UX_SAMPLE_INSUFFICIENT` unless a measured target has already been missed.
-
-## 10. Defect policy
-
-A defect blocks certification if unresolved and either:
+An unresolved defect blocks certification when either:
 
 - severity is `critical`; or
 - category is `data-loss`.
 
-When such a defect appears:
+High/medium/low usability findings remain evidence and may justify a later maintenance fix but do not automatically invalidate otherwise measured metrics.
 
-1. preserve the session evidence;
-2. open a narrowly scoped maintenance defect;
-3. fix only the defect;
-4. rerun the full R8 engineering qualification on the corrected exact head;
-5. establish that corrected commit as the new maintenance baseline;
-6. rerun affected human observations.
+## 14. Certification vocabulary
 
-High/medium/low usability defects may justify maintenance but do not automatically block metric calculation.
+Human layer:
 
-## 11. Certification vocabulary
+- `HUMAN_UX_UNMEASURED`
+- `HUMAN_UX_SAMPLE_INSUFFICIENT`
+- `HUMAN_UX_TARGET_MET`
+- `HUMAN_UX_TARGET_MISSED`
+- `R9_BLOCKED_BY_PRODUCT_DEFECT`
 
-- `HUMAN_UX_UNMEASURED` — no complete valid human session exists.
-- `HUMAN_UX_SAMPLE_INSUFFICIENT` — valid sessions exist and currently meet measured targets, but the minimum distinct-tester sample is not yet satisfied.
-- `HUMAN_UX_TARGET_MET` — sample gate passes, every individual session passes all three targets, aggregate metrics pass all three targets, and no blocking defect remains.
-- `HUMAN_UX_TARGET_MISSED` — valid human evidence exists and at least one individual or aggregate target is below 90%.
-- `R9_BLOCKED_BY_PRODUCT_DEFECT` — an unresolved critical/data-loss defect prevents certification.
+Real-device layer:
 
-Only `HUMAN_UX_TARGET_MET` closes R9.
+- `REAL_DEVICE_UNMEASURED`
+- `REAL_DEVICE_MATRIX_INCOMPLETE`
+- `REAL_DEVICE_TARGET_MET`
+- `REAL_DEVICE_TARGET_MISSED`
+- `REAL_DEVICE_BLOCKED_BY_PRODUCT_DEFECT`
 
-## 12. R9 execution sequence
+`R9_HUMAN_USABILITY_CERTIFIED` can be emitted only when both `HUMAN_UX_TARGET_MET` and `REAL_DEVICE_TARGET_MET` are true.
 
-1. Generate privacy-safe manual corpus assets.
-2. Launch the exact R8 baseline build.
-3. Generate one randomized session evidence file per human tester.
-4. Conduct the 20-item session using the neutral prompt runbook.
-5. Validate each completed evidence file immediately.
-6. Record and triage any observed defects.
-7. Continue until the minimum distinct-tester sample is reached.
-8. Run aggregate validation.
-9. If `HUMAN_UX_TARGET_MET`, freeze R9 evidence and close the phase. If not, follow the measured defect/usability findings rather than inventing new features.
+## 15. Evidence integrity
+
+The R9 certifier records SHA-256 digests for every committed human session and device run. R10 refuses operational readiness unless the underlying evidence files are present and every digest matches.
+
+A hand-authored certificate without the committed evidence cannot open R10.
+
+## 16. Current state
+
+Until physical human evidence exists, the required state is:
+
+- `HUMAN_UX_UNMEASURED`;
+- `REAL_DEVICE_UNMEASURED`;
+- `NOT_CERTIFIED`.
+
+The state is committed in `docs/reconstruction/evidence/r9/status.json` and checked against the actual evidence directories by `r9_status_contract.mjs`.
+
+## 17. Execution sequence
+
+1. Generate the privacy-safe manual corpus.
+2. Serve/build the exact post-P42 qualification baseline.
+3. Generate a schema-3 session file for each human tester with physical-device attestation.
+4. Conduct and export the 20-item sessions using the offline recorder.
+5. Validate each human session.
+6. Generate and conduct real-device J01–J10 runs until the five-slot matrix and installed-PWA requirement are covered.
+7. Validate device runs and triage defects.
+8. Update the committed qualification status to match measured evidence.
+9. Run aggregate validators.
+10. Generate the combined R9 certificate only when both layers pass.
+11. Follow the documented R10 baseline-promotion process before claiming operational readiness for the newer consumer baseline.

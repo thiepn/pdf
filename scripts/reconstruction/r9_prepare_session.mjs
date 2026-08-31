@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { R9_BUILD_CHANNEL } from "./r9_validate_evidence.mjs";
 
 const DISCOVERY_IDS = Array.from({ length: 20 }, (_, index) => `D${String(index + 1).padStart(2, "0")}`);
 
@@ -47,16 +48,36 @@ function requireOption(options, name) {
   return value;
 }
 
+export function physicalEnvironmentFromOptions(options) {
+  const attestation = requireOption(options, "attest-physical-device");
+  if (attestation !== "yes") throw new Error("--attest-physical-device must equal yes after a human verifies this is a physical-device session");
+  return {
+    date: options.get("date") || new Date().toISOString().slice(0, 10),
+    evidence_source: "human-physical-device",
+    physical_device: true,
+    simulator_or_emulator: false,
+    automation_used_for_observation: false,
+    human_attestation: true,
+    device_class: requireOption(options, "device-class"),
+    device_model: requireOption(options, "device-model"),
+    os_family: requireOption(options, "os-family"),
+    os_version: requireOption(options, "os-version"),
+    browser_family: requireOption(options, "browser-family"),
+    browser_name: requireOption(options, "browser-name"),
+    browser_version: requireOption(options, "browser-version"),
+    input_mode: requireOption(options, "input-mode"),
+    viewport: requireOption(options, "viewport"),
+    app_mode: requireOption(options, "app-mode"),
+    build_channel: R9_BUILD_CHANNEL
+  };
+}
+
 export function buildSession(template, options) {
   const sessionId = requireOption(options, "session-id");
   const testerId = requireOption(options, "tester-id");
   const familiarity = requireOption(options, "familiarity");
   const pdfExperience = requireOption(options, "pdf-experience");
-  const browser = requireOption(options, "browser");
-  const osDevice = requireOption(options, "os-device");
-  const viewport = requireOption(options, "viewport");
-  const corpusId = options.get("corpus-id") || "r9-manual-v1";
-  const date = options.get("date") || new Date().toISOString().slice(0, 10);
+  const corpusId = options.get("corpus-id") || "r9-manual-v2";
 
   const session = structuredClone(template);
   session.session_id = sessionId;
@@ -65,13 +86,7 @@ export function buildSession(template, options) {
     familiarity,
     pdf_experience: pdfExperience
   };
-  session.environment = {
-    date,
-    browser,
-    os_device: osDevice,
-    viewport,
-    build_channel: "r8-frozen-baseline"
-  };
+  session.environment = physicalEnvironmentFromOptions(options);
   session.corpus_id = corpusId;
   session.measurement_order = deterministicOrder(sessionId);
   return session;
@@ -94,6 +109,7 @@ function runCli() {
       created: output,
       session_id: session.session_id,
       tester_id: session.tester_id,
+      physical_device_attested: true,
       measurement_order: session.measurement_order
     }, null, 2));
   } catch (error) {
