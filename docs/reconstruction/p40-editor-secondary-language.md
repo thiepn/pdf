@@ -6,7 +6,7 @@ Finish the normal editor-language cleanup outside the primary properties and Lay
 
 ## Scope
 
-P40 changes presentation copy in `EditorPage` and the shared local-save status labels. It also updates the local-save unit expectations and adds browser/source regression coverage.
+P40 changes presentation copy in `EditorPage` and the shared local-save status labels. It also updates the local-save unit expectations and adds browser regression coverage.
 
 Normal surfaces now use these concepts:
 
@@ -25,4 +25,4 @@ No PDF inspection, capability scoring, selection, geometry, object ordering, nat
 
 ## Qualification
 
-P40 regression coverage verifies the normal editor header/status surfaces after opening and editing the sample, verifies the local-save and export-result language, and statically rejects the retired user-facing phrases in source. Full repository CI, browser regression, Consumer performance budget, and R10 operational readiness remain the merge gate.
+P40 browser coverage verifies the normal editor header/status surfaces after opening and editing the sample and verifies the local-save and export-result language. Diff review verifies the remaining secondary copy and the absence of retired user-facing terminology without adding Node-only test dependencies to the browser test project. Full repository CI, browser regression, Consumer performance budget, and R10 operational readiness remain the merge gate.
