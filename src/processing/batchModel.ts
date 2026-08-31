@@ -6,12 +6,12 @@ export function normalizeBatchBlankPageCount(value: number): number { return Num
 export function batchStepLabel(step: BatchStep): string {
   switch (step.type) {
     case "rotate": return `Rotate ${step.degrees}°`;
-    case "optimize": return "Lossless optimize";
+    case "optimize": return "Compress without page images";
     case "remove-metadata": return "Remove metadata";
     case "crop": return "Crop margins";
     case "decorate": return "Watermark / numbering";
     case "blank-pages": return "Insert blank pages";
-    case "raster-compress": return `Raster compress · ${step.profile}`;
+    case "raster-compress": return `Stronger image compression · ${step.profile}`;
     case "grayscale": return `Grayscale · ${step.profile}`;
     case "split-fixed": return `Split · ${step.pagesPerFile} page(s) per PDF`;
     case "page-images": return `Page images · ${step.quality}`;
@@ -32,8 +32,8 @@ export function defaultBatchStep(type: BatchStep["type"], id = randomStepId()): 
 
 export function migrateBatchRecipe(recipe: BatchRecipe, now = Date.now(), idFactory: () => string = randomStepId): BatchRecipe {
   const schemaVersion = Number(recipe?.schemaVersion);
-  if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 1) throw new Error("Batch recipe has an invalid schema version.");
-  if (schemaVersion > CURRENT_BATCH_SCHEMA_VERSION) throw new Error("This Batch recipe was created by a newer PDF Studio version. Update the app before opening or changing it.");
+  if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 1) throw new Error("This saved workflow has an invalid format version.");
+  if (schemaVersion > CURRENT_BATCH_SCHEMA_VERSION) throw new Error("This saved workflow was created by a newer PDF Studio version. Update the app before opening or changing it.");
   if (schemaVersion === CURRENT_BATCH_SCHEMA_VERSION && Array.isArray(recipe.steps)) return recipe;
   if (schemaVersion === 2 && Array.isArray(recipe.steps)) return { ...recipe, schemaVersion: CURRENT_BATCH_SCHEMA_VERSION, updatedAt: now };
   const steps: BatchStep[] = [];
@@ -47,15 +47,15 @@ export function migrateBatchRecipe(recipe: BatchRecipe, now = Date.now(), idFact
 const KNOWN_STEP_TYPES = new Set<BatchStep["type"]>(["rotate","optimize","remove-metadata","crop","decorate","blank-pages","raster-compress","grayscale","split-fixed","page-images"]);
 export function parseBatchRecipeJson(source: string): BatchRecipe {
   let parsed: unknown;
-  try { parsed = JSON.parse(source); } catch { throw new Error("Recipe file is not valid JSON."); }
-  if (!parsed || typeof parsed !== "object") throw new Error("Recipe JSON must contain an object.");
+  try { parsed = JSON.parse(source); } catch { throw new Error("This workflow file could not be read."); }
+  if (!parsed || typeof parsed !== "object") throw new Error("This workflow file is not valid.");
   const input = parsed as Partial<BatchRecipe>;
-  if (!String(input.name ?? "").trim()) throw new Error("Recipe JSON is missing a name.");
+  if (!String(input.name ?? "").trim()) throw new Error("This workflow file is missing a name.");
   const migrated = migrateBatchRecipe(input as BatchRecipe);
-  if (!Array.isArray(migrated.steps) || !migrated.steps.length) throw new Error("Recipe JSON must contain at least one processing step.");
+  if (!Array.isArray(migrated.steps) || !migrated.steps.length) throw new Error("This workflow must contain at least one processing step.");
   for (const [index, step] of migrated.steps.entries()) {
-    if (!step || typeof step !== "object" || !KNOWN_STEP_TYPES.has(step.type)) throw new Error("Recipe JSON contains an unsupported processing step.");
-    if ((step.type === "split-fixed" || step.type === "page-images") && index !== migrated.steps.length - 1) throw new Error("Multi-output Batch steps must be the final recipe step.");
+    if (!step || typeof step !== "object" || !KNOWN_STEP_TYPES.has(step.type)) throw new Error("This workflow contains an unsupported processing step.");
+    if ((step.type === "split-fixed" || step.type === "page-images") && index !== migrated.steps.length - 1) throw new Error("Split PDF and Export page images must be the final workflow step.");
   }
   return { ...migrated, id: randomStepId(), name: String(migrated.name).trim().slice(0, 120), outputSuffix: String(migrated.outputSuffix || "processed").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40) || "processed", updatedAt: Date.now() };
 }

@@ -24,7 +24,7 @@ export async function runBatchRecipe(bytes: Uint8Array, recipe: BatchRecipe, sig
     if (signal.aborted) throw new DOMException("Operation cancelled.", "AbortError");
     const step = recipe.steps[index]; const base = index/total; onProgress?.(base,batchStepLabel(step));
     const terminal = step.type === "split-fixed" || step.type === "page-images";
-    if (terminal && index !== recipe.steps.length - 1) throw new Error("Multi-output Batch steps must be the final recipe step.");
+    if (terminal && index !== recipe.steps.length - 1) throw new Error("Split PDF and Export page images must be the final workflow step.");
     if (step.type === "rotate") {
       const info = await inspectPdfBytes(output); output = (await compilePagePlan(output,Array.from({length:info.pageCount},(_,page)=>({sourcePageIndex:page,rotation:step.degrees})),signal)).bytes;
     } else if (step.type === "optimize") output = (await optimizePdf(output,{},signal)).bytes;
@@ -33,7 +33,7 @@ export async function runBatchRecipe(bytes: Uint8Array, recipe: BatchRecipe, sig
     else if (step.type === "decorate") output = (await transformPdf(output,{decoration:{enabled:true,watermarkText:step.watermarkText,headerText:step.headerText,footerText:step.footerText,pageNumbers:step.pageNumbers,startNumber:step.startNumber,fontSize:10,marginPt:mmToPt(10),fontLanguage:step.fontLanguage ?? "auto"}},undefined,signal)).bytes;
     else if (step.type === "blank-pages") { const count = normalizeBatchBlankPageCount(step.count); output = (await transformPdf(output,{blankPages:{enabled:true,position:step.position,count,widthPt:mmToPt(step.widthMm),heightPt:mmToPt(step.heightMm)}},undefined,signal)).bytes; expectedPages += count; }
     else if (step.type === "raster-compress" || step.type === "grayscale") {
-      const pdf = await openPdfWithPdfJs(output); try { const profile=RASTER_PROFILES.find(item=>item.id===step.profile); if(!profile) throw new Error(`Unknown raster profile: ${step.profile}`); output=step.type === "grayscale" ? await rasterTransformPdf(pdf,profile,{grayscale:true},signal,(done,count)=>onProgress?.(base+(done/count)/total,`${batchStepLabel(step)} · ${done}/${count}`)) : await rasterCompressPdf(pdf,profile,signal,(done,count)=>onProgress?.(base+(done/count)/total,`${batchStepLabel(step)} · ${done}/${count}`)); } finally { await pdf.loadingTask.destroy(); }
+      const pdf = await openPdfWithPdfJs(output); try { const profile=RASTER_PROFILES.find(item=>item.id===step.profile); if(!profile) throw new Error(`Unknown image-compression profile: ${step.profile}`); output=step.type === "grayscale" ? await rasterTransformPdf(pdf,profile,{grayscale:true},signal,(done,count)=>onProgress?.(base+(done/count)/total,`${batchStepLabel(step)} · ${done}/${count}`)) : await rasterCompressPdf(pdf,profile,signal,(done,count)=>onProgress?.(base+(done/count)/total,`${batchStepLabel(step)} · ${done}/${count}`)); } finally { await pdf.loadingTask.destroy(); }
     } else if (step.type === "split-fixed") {
       const zip = await exportPdfSplitZip(output, step.pagesPerFile, undefined, signal, (done,count)=>onProgress?.(base+(done/count)/total,`${batchStepLabel(step)} · ${done}/${count}`));
       onProgress?.(1,batchStepLabel(step)); return { bytes: zip, mimeType: "application/zip", extension: ".zip", kind: "split-zip" };
@@ -44,6 +44,6 @@ export async function runBatchRecipe(bytes: Uint8Array, recipe: BatchRecipe, sig
     }
     onProgress?.((index+1)/total,batchStepLabel(step));
   }
-  const final = await inspectPdfBytes(output); if (final.pageCount !== expectedPages) throw new Error(`Output page count ${final.pageCount} does not match expected ${expectedPages}.`);
+  const final = await inspectPdfBytes(output); if (final.pageCount !== expectedPages) throw new Error("The workflow output could not be verified because its page count changed unexpectedly.");
   return { bytes: output, mimeType: "application/pdf", extension: ".pdf", kind: "pdf" };
 }

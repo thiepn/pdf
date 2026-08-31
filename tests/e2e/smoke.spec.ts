@@ -51,10 +51,10 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   const fillForms = page.getByRole("button", { name: /Fill PDF forms/i });
   await expect(fillForms).toBeDisabled();
   await expect(fillForms).toContainText(/Not available for this PDF/i);
-  await page.getByRole("link", { name: /Sanitize PDF/i }).click();
+  await page.getByRole("link", { name: /Clean up PDF/i }).click();
   await expect(page).toHaveURL(/\/secure\/sanitize-pdf$/);
   await expect(page.locator(".security-app")).toBeVisible();
-  await expect(page.getByText(/security-critical changes create a new output/i)).toBeVisible();
+  await expect(page.getByText(/your original PDF is kept unchanged/i)).toBeVisible();
 
   await page.goto("./#/diagnostics/system");
   await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();

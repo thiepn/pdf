@@ -11,9 +11,15 @@ test.describe("Recovery P0 responsiveness qualification", () => {
     expect(available).toBe(true);
 
     await page.goto("./#/diagnostics/performance");
-    await expect(page.getByRole("heading", { name: "Runtime performance" })).toBeVisible();
-    await expect(page.getByText(/measurements retained in the in-memory ring buffer/)).toBeVisible();
-    await expect(page.getByText(/does not upload performance events/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Performance" })).toBeVisible();
+    await expect(page.getByText(/Performance measurements stay in this browser tab/i)).toBeVisible();
+    await expect(page.getByText(/does not upload them, filenames, document text, or your input/i)).toBeVisible();
+
+    const technicalDetails = page.locator("details").filter({ hasText: "Technical performance measurements" });
+    await expect(technicalDetails).not.toHaveAttribute("open", "");
+    await expect(page.getByRole("heading", { name: "Current session summary" })).not.toBeVisible();
+    await technicalDetails.locator("summary").click();
+    await expect(page.getByRole("heading", { name: "Current session summary" })).toBeVisible();
   });
 
   test("normal PDF reaches first page without catastrophic main-thread work", async ({ page, browserName }) => {
