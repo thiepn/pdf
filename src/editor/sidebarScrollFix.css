@@ -4,8 +4,6 @@
    property panels remain reachable on desktop, tablet, and mobile. */
 .editor-properties.native-unified-properties {
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
   display: block;
   overflow-x: hidden;
   overflow-y: auto;
@@ -13,63 +11,19 @@
   scrollbar-gutter: stable;
 }
 
-/* Full-bleed document routes must form one bounded flex-height chain from the
-   browser viewport down to the active workspace mode. Previously the workspace
-   could size itself from the editor's intrinsic content (roughly twice the
-   viewport on long inspectors) and was then merely clipped by .main-content.
-   That left the properties panel with no overflow of its own, so there was
-   nothing for the user to scroll. */
-.app-shell--viewer .main-content {
-  min-height: 0;
-  height: var(--app-viewport-height, 100dvh);
-  max-height: var(--app-viewport-height, 100dvh);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+/* EditorPage is rendered inside the shared document workspace. Keep only the
+   editor route out of intrinsic block sizing: otherwise a tall native inspector
+   can make the workspace grow to the inspector's full content height, leaving
+   no overflow inside the inspector itself. The surrounding workspace already
+   owns the correct remaining viewport height. */
+.workspace-mode-content:has(> .editor-app) {
+  position: relative;
 }
 
-.app-shell--viewer .main-content > .workspace--full {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: auto;
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.app-shell--viewer .workspace--full > .unified-workspace {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: auto;
-  max-height: 100%;
-  overflow: hidden;
-}
-
-/* The workspace body used flex-basis:auto, so a tall editor could still supply
-   its intrinsic height as the row basis even inside a bounded workspace. Give
-   the body a zero basis and a definite zero height so flex-grow alone assigns
-   the exact remaining pixels after document chrome. The active mode then fills
-   that definite row instead of expanding it from its own content. */
-.app-shell--viewer .unified-workspace > .workspace-body {
-  flex: 1 1 0;
-  min-height: 0;
-  height: 0;
-  overflow: hidden;
-}
-
-/* Preserve the normal mode-level scrolling contract. The height must be
-   definite so EditorPage can fill it, but non-editor modes still rely on the
-   existing .workspace-mode-content { overflow: auto } rule for long content. */
-.app-shell--viewer .workspace-body > .workspace-mode-content {
-  min-height: 0;
-  height: 100%;
-}
-
-/* EditorPage runs inside UnifiedWorkspace. It fills the remaining workspace
-   slot rather than claiming another viewport of its own. */
 .workspace-mode-content > .editor-app {
+  position: absolute;
+  inset: 0;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
+  height: auto;
+  max-height: none;
 }
