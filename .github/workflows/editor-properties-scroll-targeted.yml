@@ -1,0 +1,39 @@
+name: Editor properties scroll targeted
+
+on:
+  push:
+    branches: [test/editor-properties-scroll-targeted]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22.16.0
+  NPM_VERSION: 10.9.2
+  VITE_BASE_PATH: /pdf/
+  PLAYWRIGHT_BASE_PATH: /pdf/
+
+jobs:
+  scroll-regression:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-noble
+    timeout-minutes: 15
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Pin npm toolchain
+        run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build production distribution
+        run: npm run build
+      - name: Prove properties inspector scrolls in all desktop engines
+        run: npx playwright test tests/e2e/editor-properties-scroll.spec.ts --project=chromium --project=firefox --project=webkit
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
