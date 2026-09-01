@@ -10,3 +10,20 @@
   overscroll-behavior-y: contain;
   scrollbar-gutter: stable;
 }
+
+/* EditorPage is rendered inside the shared document workspace. Keep only the
+   editor route out of intrinsic block sizing: otherwise a tall native inspector
+   can make the workspace grow to the inspector's full content height, leaving
+   no overflow inside the inspector itself. The surrounding workspace already
+   owns the correct remaining viewport height. */
+.workspace-mode-content:has(> .editor-app) {
+  position: relative;
+}
+
+.workspace-mode-content > .editor-app {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+}
