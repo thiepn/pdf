@@ -58,10 +58,12 @@
   overflow: hidden;
 }
 
+/* Preserve the normal mode-level scrolling contract. The height must be
+   definite so EditorPage can fill it, but non-editor modes still rely on the
+   existing .workspace-mode-content { overflow: auto } rule for long content. */
 .app-shell--viewer .workspace-body > .workspace-mode-content {
   min-height: 0;
   height: 100%;
-  overflow: hidden;
 }
 
 /* EditorPage runs inside UnifiedWorkspace. It fills the remaining workspace
