@@ -32,14 +32,27 @@ function line(x1: number, y1: number, x2: number, y2: number, stroke = "0.78 0.8
  */
 export function createShowcasePdf(): Uint8Array {
   const content = [
-    // Searchable title text first. The first vector remains the curved source
-    // path below so existing-vector editing has a stable target.
-    text(54, 742, 8, "PDF STUDIO / SAMPLE PROJECT", "F2", "0.16 0.35 0.68"),
-    text(54, 711, 12, "PROJECT NORTHSTAR", "F2"),
-    text(54, 672, 34, "Launch Review", "F2"),
+    // Keep the opening title as one real text flow. Besides reading naturally,
+    // this gives layout-aware editing a useful destination instead of a tiny
+    // isolated eyebrow text box.
+    "BT",
+    "/F2 8 Tf",
+    "0.16 0.35 0.68 rg",
+    "54 742 Td",
+    "(PDF STUDIO / SAMPLE PROJECT) Tj",
+    "0 -31 Td",
+    "/F2 12 Tf",
+    "0.08 0.12 0.18 rg",
+    "(PROJECT NORTHSTAR) Tj",
+    "0 -39 Td",
+    "/F2 34 Tf",
+    "(Launch Review) Tj",
+    "ET",
     text(54, 646, 12, "A fictional one-page brief for exploring PDF Studio.", "F1", "0.35 0.40 0.46"),
 
-    // First source vector: visually useful and still a dependable edit target.
+    // First source vector: a standalone readiness mark. It deliberately does
+    // not sit behind selectable text; native PDF objects should remain
+    // independently targetable in Edit mode.
     "q",
     "0.94 0.97 1 rg",
     "0.16 0.35 0.68 RG",
@@ -47,15 +60,15 @@ export function createShowcasePdf(): Uint8Array {
     "1 J",
     "1 j",
     "[6 3] 1 d",
-    "396 610 m",
-    "430 646 500 646 540 610 c",
-    "540 575 l",
-    "396 575 l",
+    "484 584 m",
+    "497 618 524 632 544 612 c",
+    "551 601 550 586 540 576 c",
+    "519 568 497 571 484 584 c",
     "h",
     "B",
     "Q",
-    text(418, 611, 8, "READINESS", "F2", "0.16 0.35 0.68"),
-    text(430, 585, 26, "82%", "F2"),
+    text(396, 612, 8, "READINESS", "F2", "0.16 0.35 0.68"),
+    text(396, 580, 26, "82%", "F2"),
 
     // First source image: a tiny palette swatch integrated into the brief.
     "q",
