@@ -1,0 +1,116 @@
+name: Deploy isolated Northstar stable hotfix
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-northstar-stable-hotfix.yml]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  NODE_VERSION: 22.16.0
+  PAGES_BASE_PATH: /pdf/
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out isolated stable hotfix
+        uses: actions/checkout@v7
+        with:
+          ref: hotfix/v7.0.1-northstar-sample
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install exact tagged-stable dependency graph
+        run: npm ci --no-audit --no-fund
+      - name: Mark this isolated Pages build as v7.0.1
+        run: npm version 7.0.1 --no-git-tag-version --allow-same-version
+      - name: TypeScript and unit regression gate
+        run: npm run typecheck && npm test
+      - name: Build verified stable hotfix
+        env:
+          VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
+          VITE_SOURCE_URL: https://github.com/${{ github.repository }}
+          VITE_BUILD_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
+          VITE_RELEASE_CHANNEL: stable
+        run: npm run build:verified
+      - name: Install Chromium for real sample proof
+        run: npx playwright install --with-deps chromium
+      - name: Verify Project Northstar in the built stable application
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/pdf-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill $preview_pid || true' EXIT
+          for i in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/pdf/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser = await chromium.launch();
+          const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+          await page.goto('http://127.0.0.1:4173/pdf/#/home', { waitUntil: 'domcontentloaded' });
+          await page.getByRole('button', { name: 'Open sample', exact: true }).click();
+          await page.waitForURL(/#\/workspace\/[^/]+\/viewer/);
+          const renderedPage = page.locator('.pdf-page-shell[data-rendered="true"]').first();
+          await renderedPage.waitFor({ timeout: 20000 });
+          const textLayer = renderedPage.locator('.pdf-text-layer');
+          await page.waitForFunction(() => {
+            const text = document.querySelector('.pdf-page-shell[data-rendered="true"] .pdf-text-layer')?.textContent ?? '';
+            return text.includes('Launch Review') && text.includes('PROJECT NORTHSTAR');
+          }, { timeout: 20000 });
+          const text = await textLayer.textContent();
+          if (!text?.includes('Launch Review') || !text.includes('PROJECT NORTHSTAR')) throw new Error('Northstar text layer did not render.');
+          await page.screenshot({ path: '/tmp/northstar-stable-hotfix.png', fullPage: false });
+          await browser.close();
+          JS
+      - name: High-severity dependency security gate
+        run: npm audit --audit-level=high
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: northstar-stable-hotfix-proof
+          path: /tmp/northstar-stable-hotfix.png
+          retention-days: 7
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: qualify
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy isolated stable hotfix
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 10
+    steps:
+      - name: Verify deployed v7.0.1 stable shell
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/"
+          curl --fail --location --retry 8 --retry-delay 3 "${base}" >/dev/null
+          curl --fail --location --retry 8 --retry-delay 3 "${base}release-metadata.json" | grep -F '"version": "7.0.1"' >/dev/null
+          curl --fail --location --retry 8 --retry-delay 3 "${base}release-metadata.json" | grep -F '"channel": "stable"' >/dev/null
+          curl --fail --location --retry 8 --retry-delay 3 "${base}manifest.webmanifest" | grep -F 'PDF Studio' >/dev/null
