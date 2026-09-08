@@ -1,0 +1,48 @@
+name: Sample inspection
+on:
+  push:
+    branches: [design/better-showcase-sample]
+    paths: ['.github/workflows/sample-inspect.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Locate sample implementation and capture production state
+        run: |
+          mkdir -p sample-evidence
+          grep -RniE 'open sample|sample document|sample pdf|demo document|sample' src tests scripts --exclude='*.snap' > sample-evidence/sample-matches.txt || true
+          tar -czf sample-evidence/source.tar.gz src tests scripts package.json vite.config.* tsconfig*.json 2>/dev/null || true
+          cat > /tmp/capture.mjs <<'JS'
+          import { chromium } from '@playwright/test';
+          import fs from 'node:fs';
+          const browser=await chromium.launch();
+          const page=await browser.newPage({viewport:{width:1440,height:960},colorScheme:'light'});
+          const row={errors:[]};page.on('pageerror',e=>row.errors.push(e.message));
+          const res=await page.goto('https://thiepn.dev/pdf/',{waitUntil:'domcontentloaded',timeout:30000});
+          row.status=res.status();row.title=await page.title();row.before=(await page.locator('body').innerText()).slice(0,20000);
+          const btn=page.getByRole('button',{name:'Open sample',exact:true});row.sampleButton=await btn.count();
+          if(await btn.count()){await btn.click();await page.waitForTimeout(3000);}
+          row.after=(await page.locator('body').innerText()).slice(0,30000);
+          row.url=page.url();
+          await page.screenshot({path:'sample-evidence/current-sample.png',fullPage:false});
+          await page.screenshot({path:'sample-evidence/current-sample-full.png',fullPage:true});
+          fs.writeFileSync('sample-evidence/observation.json',JSON.stringify(row,null,2));
+          await browser.close();
+          JS
+          node /tmp/capture.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-sample-inspection
+          path: sample-evidence/
+          retention-days: 7
