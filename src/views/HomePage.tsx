@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ProjectCard } from "../components/ProjectCard";
 import { navigateTo, routeHref } from "../core/appRouter";
-import { createMinimalPdf } from "../fixtures/minimalPdf";
+import { createShowcasePdf } from "../fixtures/showcasePdf";
 import { createProjectFromBytes, importPdfProject, importProjectPackage, listProjects } from "../projects/projectRepository";
 import { acknowledgeSharedInboxFiles, listSharedInboxFiles, removeSharedInboxFiles } from "../pwa/shareInbox";
 import { acknowledgePendingPwaLaunchFiles, peekPendingPwaLaunchFiles, PWA_LAUNCH_FILES_EVENT } from "../pwa/launchFiles";
@@ -78,7 +78,7 @@ export function HomePage() {
     setBusy(true);
     setError(null);
     try {
-      const project = await createProjectFromBytes(createMinimalPdf(), "pdf-studio-welcome.pdf");
+      const project = await createProjectFromBytes(createShowcasePdf(), "northstar-launch-review.pdf");
       navigateTo({ name: "workspace", projectId: project.id, mode: "viewer" });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
