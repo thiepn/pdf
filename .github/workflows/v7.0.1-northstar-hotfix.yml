@@ -59,11 +59,19 @@ jobs:
           const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
           await page.goto('http://127.0.0.1:4173/pdf/#/home', { waitUntil: 'domcontentloaded' });
           await page.getByRole('button', { name: 'Open sample', exact: true }).click();
-          const pdfPage = page.getByRole('region', { name: 'PDF page 1' });
-          await pdfPage.waitFor({ timeout: 20000 });
-          const text = await pdfPage.innerText();
-          if (!text.includes('Launch Review') || !text.includes('PROJECT NORTHSTAR')) {
-            throw new Error(`Northstar sample did not render as expected: ${text.slice(0, 1000)}`);
+          await page.waitForURL(/#\/workspace\/[^/]+\/viewer/);
+          await page.getByText('northstar-launch-review.pdf', { exact: true }).first().waitFor({ timeout: 20000 });
+          const renderedPage = page.locator('.pdf-page-shell[data-rendered="true"]').first();
+          await renderedPage.waitFor({ timeout: 20000 });
+          const textLayer = renderedPage.locator('.pdf-text-layer');
+          await textLayer.waitFor({ timeout: 20000 });
+          await page.waitForFunction(() => {
+            const text = document.querySelector('.pdf-page-shell[data-rendered="true"] .pdf-text-layer')?.textContent ?? '';
+            return text.includes('Launch Review') && text.includes('PROJECT NORTHSTAR');
+          }, { timeout: 20000 });
+          const text = await textLayer.textContent();
+          if (!text?.includes('Launch Review') || !text.includes('PROJECT NORTHSTAR')) {
+            throw new Error(`Northstar text layer did not render as expected: ${(text ?? '').slice(0, 1000)}`);
           }
           await page.screenshot({ path: '/tmp/northstar-stable-hotfix.png', fullPage: false });
           await browser.close();
