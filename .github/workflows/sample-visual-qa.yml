@@ -29,7 +29,7 @@ jobs:
       - name: Capture real sample workspace
         run: |
           mkdir -p sample-visual-qa
-          cat > /tmp/capture.mjs <<'JS'
+          cat > sample-visual-qa/capture.mjs <<'JS'
           import { chromium } from '@playwright/test';
           import fs from 'node:fs';
           const browser=await chromium.launch();
@@ -51,7 +51,7 @@ jobs:
           fs.writeFileSync('sample-visual-qa/results.json',JSON.stringify(results,null,2));
           await browser.close();
           JS
-          node /tmp/capture.mjs
+          node sample-visual-qa/capture.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
