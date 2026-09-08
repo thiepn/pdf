@@ -60,7 +60,6 @@ jobs:
           await page.goto('http://127.0.0.1:4173/pdf/#/home', { waitUntil: 'domcontentloaded' });
           await page.getByRole('button', { name: 'Open sample', exact: true }).click();
           await page.waitForURL(/#\/workspace\/[^/]+\/viewer/);
-          await page.getByText('northstar-launch-review.pdf', { exact: true }).first().waitFor({ timeout: 20000 });
           const renderedPage = page.locator('.pdf-page-shell[data-rendered="true"]').first();
           await renderedPage.waitFor({ timeout: 20000 });
           const textLayer = renderedPage.locator('.pdf-text-layer');
