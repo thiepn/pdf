@@ -27,11 +27,15 @@ test("Layers hides implementation metadata until explicitly requested", async ({
   await page.getByRole("button", { name: "layers", exact: true }).click();
 
   const layers = page.locator(".editor-layer-list");
+  const technical = layers.locator(".editor-layer-technical");
   await expect(layers).toBeVisible();
   await expect(layers.getByText("Added objects", { exact: true })).toBeVisible();
   await expect(layers.getByText("Overlay objects", { exact: true })).toHaveCount(0);
-  await expect(layers).not.toContainText(/\b\d{1,3}%\b/);
-  await expect(layers).not.toContainText(/\bz\d+\b/);
+  // Percentages and numbers may legitimately occur in the document's own
+  // visible text (for example, the Northstar sample's 82% readiness value).
+  // Progressive disclosure is about the dedicated implementation metadata,
+  // so assert against that surface rather than banning user content patterns.
+  await expect(technical).toHaveCount(0);
   await expect(layers).not.toContainText("Source type");
   await expect(layers).not.toContainText("Layer order");
   await expect(layers).toContainText("Added in PDF Studio");
@@ -45,7 +49,7 @@ test("Layers hides implementation metadata until explicitly requested", async ({
   await expect(layers.locator(".editor-layer-item:not(.native-layer-item) .editor-layer-technical").first()).toContainText(/Type .* · Layer order \d+/);
 
   await layers.getByRole("button", { name: "Hide technical details" }).click();
-  await expect(layers).not.toContainText(/\b\d{1,3}%\b/);
+  await expect(technical).toHaveCount(0);
   await expect(layers).not.toContainText("Source type");
   await expect(layers).not.toContainText("Layer order");
 });
