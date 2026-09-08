@@ -32,9 +32,13 @@ function line(x1: number, y1: number, x2: number, y2: number, stroke = "0.78 0.8
  */
 export function createShowcasePdf(): Uint8Array {
   const content = [
-    // Keep the opening title as one real text flow. Besides reading naturally,
-    // this gives layout-aware editing a useful destination instead of a tiny
-    // isolated eyebrow text box.
+    // A small top-right docket is intentionally the first editable text flow.
+    // Keeping this pair in its own narrow column makes the sample predictable
+    // to edit without coupling title typography to unrelated body copy.
+    text(548, 758, 7, "SAMPLE BRIEF", "F1", "0.45 0.49 0.54"),
+    text(548, 716, 7, "NORTHSTAR", "F1", "0.45 0.49 0.54"),
+
+    // Main editorial title treatment.
     "BT",
     "/F2 8 Tf",
     "0.16 0.35 0.68 rg",
