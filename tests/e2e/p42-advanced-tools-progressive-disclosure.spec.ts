@@ -25,7 +25,7 @@ test("global Tools keeps advanced and recovery tasks available without crowding 
 test("current-document Tools keeps specialist tasks disclosed and Batch out of everyday related workflows", async ({ page }) => {
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
-  await expect(page.getByRole("heading", { name: "pdf-studio-welcome", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "northstar-launch-review", exact: true })).toBeVisible();
 
   const navigation = page.getByRole("navigation", { name: "Document workspace" });
   await navigation.getByRole("button", { name: "Tools", exact: true }).click();

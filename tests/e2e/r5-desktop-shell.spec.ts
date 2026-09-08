@@ -66,7 +66,7 @@ test.describe("R5 desktop workspace hierarchy", () => {
 
     await navigation.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page).toHaveURL(/\/editor$/);
-    await expect(page.getByRole("tab", { name: /pdf-studio-welcome Edit/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tab", { name: /northstar-launch-review Edit/ })).toHaveAttribute("aria-selected", "true");
 
     const editorCommandbar = page.locator(".editor-commandbar");
     await expect(editorCommandbar).toBeVisible();
