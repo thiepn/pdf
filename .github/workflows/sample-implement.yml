@@ -1,0 +1,41 @@
+name: Sample implementation
+on:
+  push:
+    branches: [design/better-showcase-sample]
+    paths: ['.github/workflows/sample-implement.yml']
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: design/better-showcase-sample
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Align existing browser contracts with the user-facing sample
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('tests/e2e')
+          for path in root.glob('*.ts'):
+              text=path.read_text()
+              if 'pdf-studio-welcome' in text:
+                  path.write_text(text.replace('pdf-studio-welcome','northstar-launch-review'))
+          Path('tests/unit/showcasePdf.test.ts').write_text('''import { describe, expect, it } from "vitest";\nimport { createShowcasePdf } from "../../src/fixtures/showcasePdf";\nimport { validatePdfBytes } from "../../src/validation/pdfValidator";\n\ndescribe("createShowcasePdf", () => {\n  it("creates a valid, searchable, feature-rich user sample", () => {\n    const bytes = createShowcasePdf();\n    const result = validatePdfBytes(bytes);\n    const source = new TextDecoder().decode(bytes);\n    expect(result.valid).toBe(true);\n    expect(source).toContain("/Count 1");\n    expect(source).toContain("(Launch Review)");\n    expect(source).toContain("(Generated validation fixture - searchable text.)");\n    expect(source).toContain("/Subtype /Image");\n    expect(source).toContain("/Subtype /Form");\n    expect(source).toContain("Workstream");\n  });\n});\n''')
+          PY
+          rm -f .github/workflows/sample-inspect.yml .github/workflows/sample-implement.yml
+      - name: Validate source, unit tests, and production build
+        run: npm run typecheck && npm run test && npm run build
+      - name: Commit validated sample update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src tests .github/workflows
+          git commit -m 'test: cover polished Northstar sample across existing workflows'
+          git push origin HEAD:design/better-showcase-sample
