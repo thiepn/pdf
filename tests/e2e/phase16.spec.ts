@@ -20,7 +20,7 @@ test("checkpoint restore creates an independent project identity", async ({ page
   const restoredId = page.url().match(/workspace\/([^/]+)\/viewer/)?.[1];
   expect(restoredId).toBeTruthy();
   expect(restoredId).not.toBe(sourceId);
-  await expect(page.getByRole("heading", { name: /pdf-studio-welcome — Phase 16 isolation/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /northstar-launch-review — Phase 16 isolation/i })).toBeVisible();
 });
 
 test("duplicate tabs cannot mount mutating modes until project ownership is released", async ({ page, context }) => {

@@ -35,7 +35,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
 
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
-  await expect(page.getByRole("heading", { name: "pdf-studio-welcome", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "northstar-launch-review", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "PDF page 1" })).toContainText(/PDF Studio.*Generated validation fixture/s);
   const navigation = page.getByRole("navigation", { name: "Document workspace" });
   await navigation.getByRole("button", { name: "Edit", exact: true }).click();

@@ -4,7 +4,7 @@ test("workspace opens the sample with four stable document destinations", async 
   await page.goto("./#/home");
   await page.getByRole("button", { name: "Open sample" }).click();
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await expect(page.getByRole("tab", { name: /pdf-studio-welcome/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /northstar-launch-review/i })).toBeVisible();
 
   const navigation = page.getByRole("navigation", { name: "Document workspace" });
   for (const destination of ["Read", "Edit", "Pages", "Tools"]) {

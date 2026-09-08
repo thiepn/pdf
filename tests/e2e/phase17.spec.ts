@@ -8,7 +8,7 @@ test("advanced workspace exposes one unified editor and source content is direct
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page).toHaveURL(/\/editor$/);
   await expect(page.getByRole("button", { name: "Legacy native edit", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: /pdf-studio-welcome Edit/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /northstar-launch-review Edit/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("checkbox", { name: "PDF content", exact: true })).toBeChecked();
 
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();

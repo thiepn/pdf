@@ -6,7 +6,7 @@ test.describe("Recovery P1 workspace lifecycle", () => {
   test("Read to Edit keeps the workspace shell mounted and does not read History stores", async ({ page }) => {
     await page.goto("./#/home");
     await page.getByRole("button", { name: "Open sample" }).click();
-    await expect(page.getByRole("heading", { name: /pdf-studio-welcome/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /northstar-launch-review/i })).toBeVisible();
     await expect(page.getByText("Editing", { exact: true })).toBeVisible();
 
     await page.evaluate(() => {
@@ -34,7 +34,7 @@ test.describe("Recovery P1 workspace lifecycle", () => {
   test("History storage is loaded only after the History panel is opened", async ({ page }) => {
     await page.goto("./#/home");
     await page.getByRole("button", { name: "Open sample" }).click();
-    await expect(page.getByRole("heading", { name: /pdf-studio-welcome/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /northstar-launch-review/i })).toBeVisible();
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
 
     const before = await historyReadStores(page);
