@@ -1,0 +1,64 @@
+name: Northstar regression QA
+on:
+  push:
+    branches: [design/better-showcase-sample]
+    paths: ['.github/workflows/northstar-regression-qa.yml','src/fixtures/showcasePdf.ts']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: design/better-showcase-sample
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Run sample unit contract
+        run: npx vitest run tests/unit/showcasePdf.test.ts
+      - name: Run exact edit/export regressions against the branch build
+        run: >-
+          npx playwright test
+          tests/e2e/p1-existing-content.spec.ts
+          tests/e2e/p2-layout-reflow.spec.ts
+          tests/e2e/p4-existing-vector.spec.ts
+          tests/e2e/p6-unified-layout.spec.ts
+          tests/e2e/p36-editor-user-language.spec.ts
+          --project=chromium --workers=1
+      - name: Capture corrected real workspace
+        if: success()
+        run: |
+          mkdir -p northstar-qa
+          npm run preview -- --host 127.0.0.1 > /tmp/northstar-preview.log 2>&1 &
+          for i in {1..40}; do curl -fsS http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          cat > northstar-qa/capture.mjs <<'JS'
+          import { chromium } from '@playwright/test';
+          const browser=await chromium.launch();
+          const page=await browser.newPage({viewport:{width:1440,height:960},colorScheme:'light'});
+          const errors=[];page.on('pageerror',e=>errors.push(e.message));
+          await page.goto('http://127.0.0.1:4173/#/home',{waitUntil:'domcontentloaded'});
+          await page.getByRole('button',{name:'Open sample',exact:true}).click();
+          const pdf=page.getByRole('region',{name:'PDF page 1'});await pdf.waitFor({timeout:20000});await page.waitForTimeout(900);
+          if(!(await pdf.innerText()).includes('Launch Review'))throw new Error('Northstar page did not render');
+          if(errors.length)throw new Error(errors.join('; '));
+          await page.screenshot({path:'northstar-qa/desktop.png'});
+          await page.getByRole('button',{name:'Edit',exact:true}).click();
+          const vector=page.getByRole('button',{name:/Select existing vector:/}).first();await vector.waitFor({timeout:20000});await vector.click();
+          await page.screenshot({path:'northstar-qa/edit-vector-selected.png'});
+          await browser.close();
+          JS
+          node northstar-qa/capture.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: northstar-regression-qa
+          path: |
+            northstar-qa/
+            playwright-report/
+            test-results/
+          retention-days: 7
