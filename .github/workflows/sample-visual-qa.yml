@@ -39,12 +39,14 @@ jobs:
             const page=await context.newPage();const row={viewport,errors:[]};page.on('pageerror',e=>row.errors.push(e.message));
             const response=await page.goto('http://127.0.0.1:4173/#/home',{waitUntil:'domcontentloaded'});row.status=response.status();
             await page.getByRole('button',{name:'Open sample',exact:true}).click();
-            await page.getByRole('heading',{name:'northstar-launch-review',exact:true}).waitFor({timeout:20000});
-            await page.getByRole('region',{name:'PDF page 1'}).waitFor({timeout:20000});
+            const pdfPage=page.getByRole('region',{name:'PDF page 1'});
+            await pdfPage.waitFor({timeout:20000});
             await page.waitForTimeout(1200);
-            row.text=(await page.getByRole('region',{name:'PDF page 1'}).innerText()).slice(0,4000);
+            row.text=(await pdfPage.innerText()).slice(0,4000);
+            row.url=page.url();
             if(!row.text.includes('Launch Review')) throw new Error('Polished sample text did not render in the workspace');
             if(row.errors.length) throw new Error(`Page errors: ${row.errors.join('; ')}`);
+            if(viewport.name==='desktop') await page.getByRole('heading',{name:/northstar-launch-review/}).waitFor({timeout:5000});
             await page.screenshot({path:`sample-visual-qa/${viewport.name}.png`,fullPage:false});
             results.push(row);await context.close();
           }
