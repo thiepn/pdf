@@ -2,7 +2,7 @@ name: Northstar regression QA
 on:
   push:
     branches: [design/better-showcase-sample]
-    paths: ['.github/workflows/northstar-regression-qa.yml','src/fixtures/showcasePdf.ts']
+    paths: ['.github/workflows/northstar-regression-qa.yml','src/fixtures/showcasePdf.ts','tests/e2e/p39-layers-progressive-disclosure.spec.ts']
 permissions:
   contents: read
 jobs:
@@ -21,7 +21,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Run sample unit contract
         run: npx vitest run tests/unit/showcasePdf.test.ts
-      - name: Run exact edit/export regressions against the branch build
+      - name: Run exact edit/export and disclosure regressions against the branch build
         run: >-
           npx playwright test
           tests/e2e/p1-existing-content.spec.ts
@@ -29,6 +29,7 @@ jobs:
           tests/e2e/p4-existing-vector.spec.ts
           tests/e2e/p6-unified-layout.spec.ts
           tests/e2e/p36-editor-user-language.spec.ts
+          tests/e2e/p39-layers-progressive-disclosure.spec.ts
           --project=chromium --workers=1
       - name: Capture corrected real workspace
         if: success()
