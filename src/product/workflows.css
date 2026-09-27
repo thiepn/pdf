@@ -127,3 +127,36 @@
 /* Keep page controls inset from the document surface on every viewport. */
 .assembly { padding: 0 20px 16px; }
 @media (max-width: 640px) { .assembly { padding: 0 12px 12px; } }
+
+/* Specialist surfaces use the same readable light/dark tokens as everyday tools. */
+.product-app .compare-page.task-page { display:block; padding:0; }
+.product-app .compare-toolbar { align-items:end; gap:14px; padding:16px; border-radius:14px; }
+.product-app .compare-toolbar label { display:grid; gap:6px; font-size:13px; color:var(--muted); }
+.product-app .compare-toolbar :is(input,select) { min-height:44px; padding:8px 12px; color:var(--ink); }
+.product-app .compare-alignment__row strong { text-transform:none; }
+.product-app .security-task-workflow { color:var(--ink); }
+.product-app .security-task-workflow .editor-file-group strong,
+.product-app .security-task-workflow .editor-save-options summary { color:var(--ink); }
+.product-app .security-task-workflow .editor-file-group span { color:var(--muted); font-size:13px; }
+.product-app .security-task-workflow .security-form-field { padding:14px; background:var(--surface); color:var(--ink); border:1px solid var(--line-strong); }
+.product-app .security-task-workflow .security-form-field.active { border-color:var(--accent); background:var(--accent-soft); }
+.product-app .security-task-workflow .security-form-field strong { color:var(--ink); font-size:15px; }
+.product-app .security-task-workflow .security-form-field small { color:var(--muted); font-size:12px; }
+.product-app .security-task-workflow .security-form-field header button { color:var(--accent); font-size:14px; min-width:44px; min-height:44px; }
+.product-app .security-task-workflow :is(.security-form-field,.security-page-controls,.security-other-tasks) :is(input,select) { background:var(--surface-strong); color:var(--ink); border-color:var(--line-strong); min-height:44px; padding:8px; font-size:14px; }
+.product-app .security-task-workflow .security-form-field input[type="checkbox"] { min-height:20px; width:20px; height:20px; }
+.product-app .security-task-workflow .security-page-controls button { color:var(--ink); background:var(--surface-strong); border:1px solid var(--line); min-width:44px; }
+.product-app .security-task-workflow :is(.security-checkbox,.property-toggle,.property-field,.security-section h3) { color:var(--ink); font-size:14px; }
+.product-app .security-task-workflow :is(.property-note,.security-empty p,.panel-title p) { color:var(--muted); font-size:13px; }
+.product-app .security-task-workflow .security-fact { background:var(--surface); border-color:var(--line); }
+.product-app .security-task-workflow .security-fact strong { color:var(--ink); }
+.product-app .security-preview-error { color:var(--danger); background:var(--surface-strong); padding:16px; }
+@media(max-width:640px) {
+ .product-app .compare-toolbar { display:flex; flex-wrap:wrap; }
+ .product-app .compare-toolbar label { min-width:100px; flex:1; }
+ .product-app .security-task-workflow .security-commandbar { padding:12px; }
+ .product-app .security-task-workflow .security-page-controls { flex-wrap:wrap; gap:6px; }
+}
+
+.security-preview-canvas { position:absolute; inset:0; }
+.security-preview-status { position:absolute; left:12px; top:12px; padding:8px 12px; background:var(--surface-strong); color:var(--ink); border:1px solid var(--line); border-radius:8px; z-index:3; }

@@ -71,6 +71,8 @@ test("two file-first PDFs reach comparison without selecting files again", async
   await page.getByRole("button", { name: "Find differences", exact: true }).click();
   await expect(page.getByRole("button", { name: "Find differences", exact: true })).toBeEnabled({ timeout: 30000 });
   await expect(page.locator(".compare-alignment").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Compare PDFs", exact: true })).toHaveCount(1);
+  await expect(page.locator(".compare-alignment__row--modified")).toHaveCount(2);
   await capture(page, info, "16-comparison");
 });
 
@@ -108,7 +110,12 @@ test("form task opens directly and pending values survive another tool", async (
   await page.goto("./#/tools/fill-forms"); await page.locator('input[type="file"]').setInputFiles("tests/corpus/generated/forms.pdf");
   const form = page.locator('.security-task-workflow[data-security-task="forms"]'); await expect(form).toBeVisible({ timeout: 30000 });
   await expect(page.locator('.security-tabs,[role="tablist"]')).toHaveCount(0);
+  await expect(page.locator(".security-preview-shell")).toHaveAttribute("aria-busy", "false");
+  const before = await page.locator(".security-preview-canvas canvas").evaluate((canvas) => canvas.toDataURL());
   await page.getByLabel("full_name", { exact: true }).fill("New value before autosave");
+  await expect.poll(async () => page.locator(".security-preview-canvas canvas").evaluate((canvas) => canvas.toDataURL())).not.toBe(before);
+  await expect(page.locator(".security-preview-shell")).toHaveAttribute("aria-busy", "false");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, info, "19-form-filling");
   await page.getByRole("button", { name: "Document actions", exact: true }).click();
   await page.getByRole("dialog", { name: "Document actions" }).getByRole("button", { name: /^Compress PDF/ }).click();
@@ -138,3 +145,15 @@ test("mobile composition and crop stay within the viewport with touch-sized cont
   await capture(page, info, "20-mobile-pages"); await page.setViewportSize({ width: 320, height: 740 }); await noOverflow(page);
   await choose(page, "crop-pages", file("mobile.pdf")); await expect(page.locator(".crop-stage")).toBeVisible(); await noOverflow(page); await capture(page, info, "21-mobile-crop");
 });
+
+ test("comparison finds graphic-only changes even when all page text is identical", async ({ page }) => {
+  const original = fixture("Same searchable text", 1);
+  const pdf = mupdf.Document.openDocument(original, "application/pdf").asPDF();
+  const p = pdf.loadPage(0); const annotation = p.createAnnotation("Square");
+  annotation.setRect([70,100,170,200]); annotation.setColor([1,0,0]); annotation.setInteriorColor([1,0,0]); annotation.update();
+  const saved = pdf.saveToBuffer(); const revised = Buffer.from(saved.asUint8Array()); saved.destroy(); annotation.destroy(); p.destroy(); pdf.destroy();
+  await page.goto("./#/home"); await page.getByLabel("Choose files to get started", { exact:true }).setInputFiles([file("original.pdf",original),file("revised.pdf",revised)]);
+  await page.getByRole("button", { name:/^Compare PDFs/ }).click(); await page.getByRole("button", { name:"Find differences",exact:true }).click();
+  await expect(page.locator(".compare-alignment__row--modified")).toHaveCount(1,{timeout:30000});
+  await expect(page.locator(".compare-alignment__row--same")).toHaveCount(0);
+ });

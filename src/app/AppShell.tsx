@@ -17,7 +17,7 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useModalFocus(menuOpen, menuRef, closeMenu);
   const routeKey = `${route.name}:${"projectId" in route ? route.projectId : ""}:${"taskId" in route ? route.taskId ?? "" : ""}:${"mode" in route ? route.mode : ""}`;
-  const ownsHeading = ["home", "tools", "quick"].includes(route.name) || hideTopbar;
+  const ownsHeading = ["home", "tools", "quick", "compare"].includes(route.name) || hideTopbar;
   useEffect(() => {
     setMenuOpen(false);
     document.title = title === "PDF Studio" ? "PDF Studio — Your everyday PDF tools" : `${title} · PDF Studio`;

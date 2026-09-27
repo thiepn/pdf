@@ -91,7 +91,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
   } else if (task === "organize-pages" || (task === "merge-pdfs" && (options.pagePlan || inputs.some((source) => source.image)))) {
     const plan = options.pagePlan ?? createAssemblyPlan(inputs);
     validateAssemblyPlan(plan, inputs);
-    const sources = [];
+    const sources: QuickInput[] = [];
     for (const source of inputs) {
       check(signal);
       sources.push(source.image ? { ...source, bytes: await imagesToPdf([source], options, signal, progress), password: undefined } : source);

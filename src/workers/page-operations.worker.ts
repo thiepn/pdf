@@ -21,7 +21,7 @@ function copyMetadata(source: any, destination: any): void {
     const value = source.getMetaData(`info:${key}`); if (typeof value === "string" && value) destination.setMetaData(`info:${key}`, value);
   }
 }
-function save(pdf: mupdf.PDFDocument): Uint8Array {
+function save(pdf: InstanceType<typeof mupdf.PDFDocument>): Uint8Array {
   const buffer = pdf.saveToBuffer("garbage=2,compress=yes");
   try {
     const bytes = Uint8Array.from(buffer.asUint8Array());

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { AnnotationMode, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
+import { previewFormValues } from "./formPreview";
+import { boundedPairScale } from "../comparison/visualDiff";
 import { asAffineMatrix, CoordinateService, type Rect } from "../core/coordinates";
 import type { EditorObject } from "../types/editor";
 import type { SecurityFormField } from "../types/security";
@@ -22,7 +24,9 @@ interface PageState {
 }
 
 export function SecurityPreviewPage({ document, pageNumber, zoom, fields, objects, values, selectedFieldId, onSelectField }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(true);
   const taskRef = useRef<RenderTask | null>(null);
   const [page, setPage] = useState<PageState>({ width: 612 * zoom, height: 792 * zoom, service: null });
   const pageFields = useMemo(() => fields.filter((field) => field.pageNumber === pageNumber), [fields, pageNumber]);
@@ -30,33 +34,50 @@ export function SecurityPreviewPage({ document, pageNumber, zoom, fields, object
 
   useEffect(() => {
     let cancelled = false;
-    void document.getPage(pageNumber).then(async (pdfPage) => {
+    let rendered: HTMLCanvasElement | null = null;
+    setRendering(true); setRenderError(null);
+    const timer = window.setTimeout(() => { void (async () => {
+      const pdfPage = await document.getPage(pageNumber);
       try {
+        const annotations = await pdfPage.getAnnotations();
+        if (cancelled) return;
+        for (const entry of previewFormValues(annotations, pageFields, values)) document.annotationStorage.setValue(entry.id, { value: entry.value });
         const viewport = pdfPage.getViewport({ scale: zoom });
         const service = new CoordinateService(asAffineMatrix(viewport.transform));
-        if (cancelled) return;
-        setPage({ width: viewport.width, height: viewport.height, service });
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ratio = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = Math.max(1, Math.floor(viewport.width * ratio));
-        canvas.height = Math.max(1, Math.floor(viewport.height * ratio));
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        const context = canvas.getContext("2d", { alpha: false });
+        // Each generation owns its canvas. A cancelled render cannot overwrite a newer preview.
+        rendered = window.document.createElement("canvas");
+        const ratio = Math.min(window.devicePixelRatio || 1, 2) * boundedPairScale(
+          { width: viewport.width * Math.min(window.devicePixelRatio || 1, 2), height: viewport.height * Math.min(window.devicePixelRatio || 1, 2) }, null
+        );
+        rendered.width = Math.max(1, Math.floor(viewport.width * ratio));
+        rendered.height = Math.max(1, Math.floor(viewport.height * ratio));
+        rendered.style.width = `${viewport.width}px`; rendered.style.height = `${viewport.height}px`;
+        const context = rendered.getContext("2d", { alpha: false });
         if (!context) throw new Error("Canvas context unavailable.");
-        taskRef.current?.cancel();
-        const task = pdfPage.render({ canvas, canvasContext: context, viewport, transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0] });
+        const task = pdfPage.render({ canvas: rendered, canvasContext: context, viewport, annotationMode: AnnotationMode.ENABLE_STORAGE, transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0] });
         taskRef.current = task;
         await task.promise;
-      } finally { pdfPage.cleanup(); }
-    }).catch(() => undefined);
-    return () => { cancelled = true; taskRef.current?.cancel(); };
-  }, [document, pageNumber, zoom]);
+        if (cancelled) return;
+        for (const old of canvasRef.current?.querySelectorAll("canvas") ?? []) { old.width = 1; old.height = 1; }
+        canvasRef.current?.replaceChildren(rendered);
+        rendered = null;
+        setPage({ width: viewport.width, height: viewport.height, service });
+        setRendering(false);
+      } finally {
+        if (rendered) { rendered.width = 1; rendered.height = 1; }
+        pdfPage.cleanup();
+      }
+    })().catch((reason) => {
+      if (!cancelled) { setRenderError(reason instanceof Error ? reason.message : "The preview could not render."); setRendering(false); }
+    }); }, 120);
+    return () => { cancelled = true; window.clearTimeout(timer); taskRef.current?.cancel(); };
+  }, [document, pageNumber, zoom, pageFields, values]);
 
   const service = page.service;
-  return <div className="security-preview-shell" style={{ width: page.width, height: page.height }}>
-    <canvas ref={canvasRef} />
+  return <div className="security-preview-shell" aria-busy={rendering} style={{ width: page.width, height: page.height }}>
+    <div ref={canvasRef} className="security-preview-canvas" />
+    {renderError ? <p className="security-preview-error" role="alert">Preview unavailable: {renderError}</p> : null}
+    {rendering ? <span className="security-preview-status" role="status">Updating form preview…</span> : null}
     {service ? <div className="security-preview-overlay">
       {pageFields.map((field) => <button className={`security-field-box${selectedFieldId === field.id ? " active" : ""}`} key={field.id} aria-label={`Fill ${field.label || field.name || field.type}`} onClick={() => onSelectField?.(field)} style={rectStyle(service.pdfRectToViewport(field.rect))} title={`${field.label || field.name || field.type} · ${field.type}`} type="button"><span>{values && values[field.id] !== undefined && values[field.id] !== field.value ? field.password ? "••••" : values[field.id] || "Empty" : field.type}</span></button>)}
       {pageObjects.map((object) => {

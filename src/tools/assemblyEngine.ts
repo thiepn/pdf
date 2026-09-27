@@ -7,8 +7,8 @@ export interface AssemblyEngineSource { name: string; bytes: ArrayBuffer; passwo
 export function assemblePdfPages(sources: AssemblyEngineSource[], pages: AssemblyEnginePage[]): Uint8Array {
   if (!pages.length || pages.length > MAX_ASSEMBLY_PAGES) throw new Error(`Choose between 1 and ${MAX_ASSEMBLY_PAGES} output pages.`);
   const destination = new mupdf.PDFDocument();
-  const opened: mupdf.Document[] = [];
-  const maps: mupdf.PDFGraftMap[] = [];
+  const opened: Array<ReturnType<typeof mupdf.Document.openDocument>> = [];
+  const maps: Array<ReturnType<InstanceType<typeof mupdf.PDFDocument>["newGraftMap"]>> = [];
   try {
     const documents = sources.map((source) => {
       const document = mupdf.Document.openDocument(source.bytes, "application/pdf"); opened.push(document);

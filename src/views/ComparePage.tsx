@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { alignPageFingerprints, type PageAlignmentRow, type PageHybridFingerprint } from "../comparison/alignment";
+import { MAX_ALIGNMENT_CELLS, alignPageFingerprints, type PageAlignmentRow, type PageHybridFingerprint } from "../comparison/alignment";
 import { diffWords, type DiffToken } from "../comparison/diff";
 import { boundedPairScale, type RgbaPlane } from "../comparison/visualDiff";
 import { runVisualDiff } from "../comparison/visualDiffClient";
@@ -253,7 +253,7 @@ export function ComparePage() {
     }
   }
 
-  async function compare(pair = { leftPage, rightPage }) {
+  async function compare(pair = { leftPage, rightPage }, compareMode = mode) {
     if (!left || !right || loadingSides.left || loadingSides.right || Object.keys(passwordFiles).length) return;
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -265,7 +265,7 @@ export function ComparePage() {
     let rightRendered: HTMLCanvasElement | null = null;
     let outputCommitted = false;
     try {
-      if (mode === "text") {
+      if (compareMode === "text") {
         const [a, b] = await Promise.all([
           pair.leftPage ? extractPageText(left.document, pair.leftPage) : Promise.resolve(""),
           pair.rightPage ? extractPageText(right.document, pair.rightPage) : Promise.resolve("")
@@ -282,10 +282,8 @@ export function ComparePage() {
         pair.rightPage ? readPageSize(right.document, pair.rightPage, controller.signal) : Promise.resolve(null)
       ]);
       const scale = boundedPairScale(leftSize, rightSize);
-      [leftRendered, rightRendered] = await Promise.all([
-        pair.leftPage ? renderPage(left.document, pair.leftPage, scale, controller.signal) : Promise.resolve(null),
-        pair.rightPage ? renderPage(right.document, pair.rightPage, scale, controller.signal) : Promise.resolve(null)
-      ]);
+      leftRendered = pair.leftPage ? await renderPage(left.document, pair.leftPage, scale, controller.signal) : null;
+      rightRendered = pair.rightPage ? await renderPage(right.document, pair.rightPage, scale, controller.signal) : null;
       throwIfAborted(controller.signal);
 
       const a = leftRendered ?? blankCanvasLike(rightRendered);
@@ -323,8 +321,10 @@ export function ComparePage() {
     abortRef.current = controller;
     setBusy(true);
     setError(null);
-    setAnalysisProgress("Fingerprinting original pages…");
+    setAnalysisProgress("Matching original pages…");
+    setAlignment([]); clearComparisonOutput();
     try {
+      if ((left.document.numPages + 1) * (right.document.numPages + 1) > MAX_ALIGNMENT_CELLS) throw new Error("These PDFs exceed the automatic page-matching limit. Compare page pairs, or extract smaller sections first.");
       const leftPrints = await extractAllFingerprints(left.document, (done, total) => setAnalysisProgress(`Original ${done}/${total}`), controller.signal);
       setAnalysisProgress("Fingerprinting revised pages…");
       const rightPrints = await extractAllFingerprints(right.document, (done, total) => setAnalysisProgress(`Revised ${done}/${total}`), controller.signal);
@@ -332,6 +332,29 @@ export function ComparePage() {
       setAnalysisProgress("Aligning text and visual page sequence…");
       await yieldToBrowser(controller.signal);
       const rows = alignPageFingerprints(leftPrints, rightPrints);
+      throwIfAborted(controller.signal);
+      // A sequence fingerprint is not evidence that a page is unchanged.
+      // Verify every equal-text pair with bounded full-page rendering; never only the first pair.
+      for (let index = 0; index < rows.length; index++) {
+        const row = rows[index];
+        if (row.leftPage !== null && row.rightPage !== null && row.status === "same") {
+          setAnalysisProgress(`Checking page appearance ${index + 1}/${rows.length}…`);
+          const aSize = await readPageSize(left.document, row.leftPage, controller.signal);
+          const bSize = await readPageSize(right.document, row.rightPage, controller.signal);
+          if (Math.abs(aSize.width - bSize.width) > 0.01 || Math.abs(aSize.height - bSize.height) > 0.01) row.status = "modified";
+          else {
+            let a: HTMLCanvasElement | null = null, b: HTMLCanvasElement | null = null;
+            try {
+              const scale = boundedPairScale(aSize, bSize);
+              a = await renderPage(left.document, row.leftPage, scale, controller.signal);
+              b = await renderPage(right.document, row.rightPage, scale, controller.signal);
+              const result = await runVisualDiff(canvasPlane(a), canvasPlane(b), controller.signal);
+              if (result.changedRatio > 0) row.status = "modified";
+            } finally { if (a) releaseCanvas(a); if (b) releaseCanvas(b); }
+          }
+        }
+        await yieldToBrowser(controller.signal);
+      }
       throwIfAborted(controller.signal);
       setAlignment(rows);
       const firstChanged = rows.find((row) => row.status !== "same") ?? rows[0];
@@ -366,6 +389,7 @@ export function ComparePage() {
   function changeMode(nextMode: typeof mode) {
     setMode(nextMode);
     clearComparisonOutput();
+    if (left && right && !busy) void compare({ leftPage, rightPage }, nextMode);
   }
 
   const loading = loadingSides.left || loadingSides.right;
@@ -378,8 +402,8 @@ export function ComparePage() {
     {error ? <div className="error-banner" role="alert"><strong>Comparison issue</strong><span>{error}</span></div> : null}
 
     <div className="compare-inputs">
-      <button className="file-slot" disabled={busy || loading} onClick={() => leftRef.current?.click()} type="button"><strong>{left?.file.name ?? "Choose original PDF"}</strong><span>{left ? `${left.document.numPages} pages` : "Left document"}</span></button>
-      <button className="file-slot" disabled={busy || loading} onClick={() => rightRef.current?.click()} type="button"><strong>{right?.file.name ?? "Choose revised PDF"}</strong><span>{right ? `${right.document.numPages} pages` : "Right document"}</span></button>
+      <button className="file-slot" disabled={busy || loading} onClick={() => leftRef.current?.click()} type="button"><strong>{left?.file.name ?? "Choose original PDF"}</strong><span>{left ? `Original · ${left.document.numPages} pages` : "Left document"}</span></button>
+      <button className="file-slot" disabled={busy || loading} onClick={() => rightRef.current?.click()} type="button"><strong>{right?.file.name ?? "Choose revised PDF"}</strong><span>{right ? `Revised · ${right.document.numPages} pages` : "Right document"}</span></button>
       <input ref={leftRef} accept="application/pdf,.pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void load(file, "left"); event.target.value = ""; }} type="file" />
       <input ref={rightRef} accept="application/pdf,.pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void load(file, "right"); event.target.value = ""; }} type="file" />
     </div>
@@ -388,9 +412,9 @@ export function ComparePage() {
     {loading ? <p role="status">Opening comparison files…</p> : null}
     <div className="compare-start"><button className="button" disabled={!left || !right || unavailable} onClick={() => void analyze()} type="button">Find differences</button><span>{left && right ? "Matches pages and opens the first difference." : "Choose both files to begin."}</span></div>
     {left && right ? <div className="compare-toolbar">
-      <label>Mode<select disabled={busy} onChange={(event) => changeMode(event.target.value as typeof mode)} value={mode}><option value="visual">Visual pixels</option><option value="text">Extracted text</option></select></label>
-      <label>Original page<input max={left?.document.numPages ?? 1} min="1" disabled={busy || leftPage === null} onChange={(event) => setLeftPage(Math.max(1, Math.min(left?.document.numPages ?? 1, Number(event.target.value))))} type="number" value={leftPage ?? ""} /></label>
-      <label>Revised page<input max={right?.document.numPages ?? 1} min="1" disabled={busy || rightPage === null} onChange={(event) => setRightPage(Math.max(1, Math.min(right?.document.numPages ?? 1, Number(event.target.value))))} type="number" value={rightPage ?? ""} /></label>
+      <label>Mode<select disabled={busy} onChange={(event) => changeMode(event.target.value as typeof mode)} value={mode}><option value="visual">Page appearance</option><option value="text">Text changes</option></select></label>
+      <label>Original page<input max={left?.document.numPages ?? 1} min="1" disabled={busy || leftPage === null} onChange={(event) => { clearComparisonOutput(); setLeftPage(Math.max(1, Math.min(left?.document.numPages ?? 1, Number(event.target.value)))); }} type="number" value={leftPage ?? ""} /></label>
+      <label>Revised page<input max={right?.document.numPages ?? 1} min="1" disabled={busy || rightPage === null} onChange={(event) => { clearComparisonOutput(); setRightPage(Math.max(1, Math.min(right?.document.numPages ?? 1, Number(event.target.value)))); }} type="number" value={rightPage ?? ""} /></label>
       <button className="button" disabled={!left || !right || unavailable} onClick={() => void compare()} type="button">Compare pair</button>
 
       {busy ? <button className="button button--danger-ghost" onClick={cancelActive} type="button">Cancel comparison</button> : null}
@@ -400,8 +424,9 @@ export function ComparePage() {
     {visualResolution ? <div className="notice-banner" role="status">{visualResolution}</div> : null}
 
     {alignment.length ? <section className="compare-alignment">
-      <div className="section-heading"><div><p className="eyebrow">Page map</p><h3>{alignment.filter((row) => row.status !== "same").length} changed sequence row(s)</h3></div></div>
-      <div className="compare-alignment__list">{alignment.map((row, index) => <button className={`compare-alignment__row compare-alignment__row--${row.status}`} disabled={busy} key={`${row.leftPage ?? "x"}-${row.rightPage ?? "x"}-${index}`} onClick={() => chooseRow(row)} type="button"><span>{row.leftPage ? `Original ${row.leftPage}` : "—"}</span><strong>{row.status}</strong><span>{row.rightPage ? `Revised ${row.rightPage}` : "—"}</span><small>{row.leftPage && row.rightPage ? `${Math.round(row.similarity * 100)}%${row.basis ? ` · ${row.basis}` : ""} similarity` : "sequence change"}</small></button>)}</div>
+      <div className="section-heading"><div><p className="eyebrow">Page map</p><h3>{alignment.filter((row) => row.status !== "same").length} page changes</h3></div></div>
+      <p className="product-muted">Text changes and sampled page appearance are checked. Page matching is not proof of identical PDF structures or invisible content.</p>
+      <div className="compare-alignment__list">{alignment.map((row, index) => <button className={`compare-alignment__row compare-alignment__row--${row.status}`} disabled={busy} key={`${row.leftPage ?? "x"}-${row.rightPage ?? "x"}-${index}`} onClick={() => chooseRow(row)} type="button"><span>{row.leftPage ? `Original ${row.leftPage}` : "—"}</span><strong>{{ same: "No visible changes", modified: "Changed", inserted: "Inserted", deleted: "Removed" }[row.status]}</strong><span>{row.rightPage ? `Revised ${row.rightPage}` : "—"}</span><small>{row.leftPage && row.rightPage ? `${row.basis ?? "text"} page match` : "sequence change"}</small></button>)}</div>
     </section> : null}
 
     {left && right && mode === "visual" ? <div className="visual-compare-grid">

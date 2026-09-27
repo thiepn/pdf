@@ -36,7 +36,7 @@ declare module "vite" { export function defineConfig(config: any): any; }
 declare module "vitest/config" { export function defineConfig(config: any): any; }
 declare module "vitest" { export const describe: any; export const expect: any; export const it: any; export const test: any; export const beforeEach: any; export const afterEach: any; export const vi: any; }
 declare module "@playwright/test" { export const test: any; export const expect: any; export type Page = any; export function defineConfig(config: any): any; export const devices: Record<string, any>; }
-declare module "pdfjs-dist" { export const GlobalWorkerOptions: any; export function getDocument(options: any): any; export type PDFDocumentProxy = any; export type PDFPageProxy = any; export type TextContent = any; }
+declare module "pdfjs-dist" { export const AnnotationMode: { ENABLE_STORAGE: number }; export const GlobalWorkerOptions: any; export function getDocument(options: any): any; export type PDFDocumentProxy = any; export type PDFPageProxy = any; export type TextContent = any; }
 declare module "pdfjs-dist/build/pdf.worker.min.mjs?url" { const value: string; export default value; }
 declare module "mupdf" { const value: any; export = value; export default value; export const PDFDocument: any; export const Document: any; export const Matrix: any; }
 declare module "tesseract.js" { const value: any; export default value; export const createWorker: any; export const PSM: any; }
