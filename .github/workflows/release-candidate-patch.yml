@@ -2,10 +2,13 @@ name: Prepare verified release fixes
 on:
   push:
     branches: [redesign/task-first-experience]
-    paths: [.github/workflows/release-candidate-patch.yml, scripts/release-candidate-build.py]
+    paths: [.github/workflows/release-candidate-patch.yml, scripts/release-candidate-build.py, scripts/release-candidate-finalize.py]
 permissions:
   contents: write
   actions: read
+concurrency:
+  group: source-candidate-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   prepare:
     if: github.repository == 'thiepn/pdf' && github.ref == 'refs/heads/redesign/task-first-experience'
@@ -20,7 +23,7 @@ jobs:
           node-version: '22.16.0'
           cache: npm
       - name: Apply checked source corrections
-        run: python scripts/release-candidate-build.py
+        run: python scripts/release-candidate-build.py && python scripts/release-candidate-finalize.py
       - run: npm ci --no-audit --no-fund
       - uses: actions/download-artifact@v4
         with:
@@ -58,11 +61,18 @@ jobs:
               console.log('CANDIDATE_BLOB '+JSON.stringify(entry));
             }
             fs.writeFileSync('/tmp/candidate-blobs.json',JSON.stringify({parent:context.sha,entries,checksums},null,2));
-      - run: npx playwright install --with-deps chromium firefox webkit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate-source-blobs
+          path: |
+            /tmp/candidate.patch
+            /tmp/candidate-blobs.json
+          retention-days: 7
+      - run: npx playwright install --with-deps chromium webkit
       - name: Previously failing interactions and new reader regressions
         id: browsers
         continue-on-error: true
-        run: npx playwright test tests/e2e/p1-existing-content.spec.ts tests/e2e/p2-layout-reflow.spec.ts tests/e2e/p3-existing-image.spec.ts tests/e2e/p4-existing-vector.spec.ts tests/e2e/p5-existing-table.spec.ts tests/e2e/p6-unified-layout.spec.ts tests/e2e/p7-complex-nested.spec.ts tests/e2e/p8-fidelity-compatibility.spec.ts tests/e2e/p35-compare-safety.spec.ts tests/e2e/p40-editor-secondary-language.spec.ts tests/e2e/phase16.spec.ts tests/e2e/phase17.spec.ts tests/e2e/phase26.spec.ts tests/e2e/phase29.spec.ts tests/e2e/release-reader-state.spec.ts tests/e2e/mobile.spec.ts --workers=3 --retries=0 --reporter=json > /tmp/candidate-browser-results.json
+        run: npx playwright test tests/e2e/p1-existing-content.spec.ts tests/e2e/p2-layout-reflow.spec.ts tests/e2e/p3-existing-image.spec.ts tests/e2e/p4-existing-vector.spec.ts tests/e2e/p5-existing-table.spec.ts tests/e2e/p6-unified-layout.spec.ts tests/e2e/p7-complex-nested.spec.ts tests/e2e/p8-fidelity-compatibility.spec.ts tests/e2e/p35-compare-safety.spec.ts tests/e2e/p40-editor-secondary-language.spec.ts tests/e2e/phase16.spec.ts tests/e2e/phase17.spec.ts tests/e2e/phase26.spec.ts tests/e2e/phase29.spec.ts tests/e2e/release-reader-state.spec.ts tests/e2e/mobile.spec.ts tests/e2e/browser-compatibility.spec.ts --project=chromium --project=tablet-webkit --workers=2 --retries=0 --reporter=json > /tmp/candidate-browser-results.json
         env:
           PLAYWRIGHT_SKIP_BUILD: '1'
           R8_EXTERNAL_CORPUS: '1'

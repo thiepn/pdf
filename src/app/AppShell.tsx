@@ -13,16 +13,28 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
-  const mounted = useRef(false);
+  const focusedRoute = useRef<string | null>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useModalFocus(menuOpen, menuRef, closeMenu);
   const routeKey = `${route.name}:${"projectId" in route ? route.projectId : ""}:${"taskId" in route ? route.taskId ?? "" : ""}:${"mode" in route ? route.mode : ""}`;
   const ownsHeading = ["home", "tools", "quick", "compare"].includes(route.name) || hideTopbar;
   useEffect(() => {
-    setMenuOpen(false);
     document.title = title === "PDF Studio" ? "PDF Studio — Your everyday PDF tools" : `${title} · PDF Studio`;
-    if (!mounted.current) { mounted.current = true; return; }
-    const frame = requestAnimationFrame(() => { mainRef.current?.focus({ preventScroll: true }); if (!hideTopbar) window.scrollTo({ top: 0 }); });
+  }, [title]);
+  useEffect(() => {
+    setMenuOpen(false);
+    if (focusedRoute.current === routeKey) return;
+    const initialRoute = focusedRoute.current === null;
+    focusedRoute.current = routeKey;
+    if (initialRoute) return;
+    const previousFocus = document.activeElement;
+    const frame = requestAnimationFrame(() => {
+      const currentFocus = document.activeElement;
+      // Do not steal focus from an interaction completed after navigation.
+      if (currentFocus !== previousFocus && currentFocus !== document.body && currentFocus?.isConnected) return;
+      mainRef.current?.focus({ preventScroll: true });
+      if (!hideTopbar) window.scrollTo({ top: 0 });
+    });
     return () => cancelAnimationFrame(frame);
   }, [routeKey]);
   return <div className={`product-app${hideTopbar ? " product-app--document" : ""}`}>
