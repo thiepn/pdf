@@ -5,11 +5,12 @@ const capabilities = [
   ["Read and manage local projects", "Available", "Open, search, back up, restore, and reopen PDFs without uploading them."],
   ["Edit & annotate", "Available", "Add content and annotations, and edit supported existing text, images, vectors, table cells, and form values."],
   ["Pages", "Available", "Reorder, rotate, duplicate, delete, reverse, extract, split, crop, insert blank pages, and merge PDFs."],
-  ["Protect & forms", "Available", "Fill forms, permanently apply redactions, remove risky active content, flatten supported structures, and add password protection."],
+  ["Protect & forms", "Available with limits", "Fill forms, permanently apply redactions, remove risky active content, flatten supported structures, and add password protection."],
   ["OCR and scanning", "Available with limits", "Printed-text OCR can create searchable raster PDFs. Image-based reconstruction does not preserve every interactive PDF structure."],
-  ["Convert & optimize", "Available", "Lossless cleanup, stronger image-based compression, metadata editing/removal, grayscale output, and local text/Markdown/HTML/page-image exports."],
+  ["Convert & optimize", "Available", "Lossless cleanup, stronger image-based compression, metadata editing/removal, grayscale output, and local text/Markdown/HTML/page-image exports, plus editable-text Word output."],
   ["Create & compare", "Available", "Create PDFs from Markdown, text, or simple HTML, or compare text and scanned PDFs with automatic page matching."],
   ["Review & accessibility", "Advanced", "Check accessibility, prepare print layouts, add Bates numbering, review archive readiness, and inspect specialist document findings. Formal standards certification remains external."],
+  ["Office conversion", "Text-only Word export", "PDF to Word (text) creates editable extracted paragraphs with page breaks. Full-layout Word, Excel and PowerPoint conversion, and Office-file import, are not implemented."],
   ["Certificate-backed signing", "Not built in", "The app can inspect embedded signatures and create visual signatures, but signing with a trusted digital certificate requires an external signing integration."],
   ["Offline/PWA", "Available", "The app can be installed, cached for offline use, and hosted statically on GitHub Pages without a backend."]
 ] as const;
@@ -18,7 +19,7 @@ export function ReleasePage() {
   const release = getReleaseInformation();
   return <div className="release-page stack">
     <section className="release-hero">
-      <div><p className="eyebrow">About this app</p><h2>PDF Studio {release.version}</h2><p>A local-first PDF workspace that runs in your browser. Files stay on this device unless you explicitly download an OCR language pack or open an external source link.</p></div>
+      <div><p className="eyebrow">About this app</p><h2>PDF Studio {release.version}</h2><p>A local-first PDF workspace that runs in your browser. Documents are processed on this device, not uploaded. Loading the app runtime, installing OCR language packs, and opening external links can use the network.</p></div>
       <div className="release-build"><span>Release status</span><strong>{release.channel === "stable" ? "Stable" : "Release candidate"}</strong><span>Build</span><strong>{release.buildTimestamp === "development" ? "Development source" : new Date(release.buildTimestamp).toLocaleString()}</strong></div>
     </section>
 

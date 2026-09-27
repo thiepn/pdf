@@ -1,7 +1,9 @@
 import * as mupdf from "mupdf";
 import { resolveDecorationLanguage, type DecorationLanguage } from "./toolboxModel";
-type PDF = mupdf.PDFDocument;
-type Obj = mupdf.PDFObject;
+type PDF = InstanceType<typeof mupdf.PDFDocument>;
+type Obj = ReturnType<PDF["newDictionary"]>;
+type PDFPage = ReturnType<PDF["loadPage"]>;
+type Rect = [number, number, number, number];
 let sequence = 0;
 const winAnsi = new Map([..."€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ"].map((character, index) => [character.codePointAt(0)!, index + 128]));
 function encode(text: string, cjk: boolean): string {
@@ -38,7 +40,7 @@ function append(pdf: PDF, object: Obj, commands: string): void {
 /** Rect and alignment are expressed in displayed, cropped page coordinates.
  * Invert page.getTransform once; keep text upright at every page rotation.
  */
-export function addPageText(pdf: PDF, page: mupdf.PDFPage, rect: mupdf.Rect, value: string, fontSize: number, gray = .22, align: "left" | "center" | "right" = "center", preferred: DecorationLanguage = "auto"): void {
+export function addPageText(pdf: PDF, page: PDFPage, rect: Rect, value: string, fontSize: number, gray = .22, align: "left" | "center" | "right" = "center", preferred: DecorationLanguage = "auto"): void {
   const text = value.replace(/[\r\n\t]/g, " "); if (!text) return;
   const language = resolveDecorationLanguage(text, preferred), encoded = encode(text, Boolean(language));
   const object = page.getObject(), inherited = object.getInheritable("Resources"), resources = shallow(pdf, inherited);

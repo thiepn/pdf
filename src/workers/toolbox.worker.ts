@@ -2,6 +2,9 @@ import * as mupdf from "mupdf";
 import type { ToolboxTransformOptions, ToolboxTransformReport } from "../types/toolbox";
 import { addPageText } from "../toolbox/pageText";
 
+type PDF = InstanceType<typeof mupdf.PDFDocument>;
+type Rect = [number, number, number, number];
+
 type TransformRequest = { type: "TRANSFORM"; requestId: string; bytes: ArrayBuffer; password?: string; options: ToolboxTransformOptions };
 type CancelRequest = { type: "CANCEL"; requestId: string };
 type Request = TransformRequest | CancelRequest;
@@ -39,7 +42,7 @@ function applyCrop(pdf:any,options:NonNullable<ToolboxTransformOptions["crop"]>,
   } finally{page.destroy();} }
   warnings.push("Cropping changes the visible CropBox only; hidden content outside the crop remains in the PDF."); return changed;
 }
-function decorate(pdf:mupdf.PDFDocument,options:NonNullable<ToolboxTransformOptions["decoration"]>,requestId:string):number[] {
+function decorate(pdf:PDF,options:NonNullable<ToolboxTransformOptions["decoration"]>,requestId:string):number[] {
   if(!options.enabled) return []; const changed:number[]=[];
   const selected = options.pageNumbersToChange ? new Set(options.pageNumbersToChange) : null;
   for(let index=0;index<pdf.countPages();index+=1){
@@ -48,8 +51,8 @@ function decorate(pdf:mupdf.PDFDocument,options:NonNullable<ToolboxTransformOpti
     try {
       const bounds=page.getBounds(),width=bounds[2]-bounds[0],height=bounds[3]-bounds[1];
       const margin=Math.min(clamp(options.marginPt,4,144),width*.2,height*.2),size=clamp(options.fontSize,6,48);
-      const top: mupdf.Rect = [bounds[0]+margin,bounds[1]+margin,bounds[2]-margin,bounds[1]+margin+size*1.8];
-      const bottom: mupdf.Rect = [bounds[0]+margin,bounds[3]-margin-size*1.8,bounds[2]-margin,bounds[3]-margin];
+      const top: Rect = [bounds[0]+margin,bounds[1]+margin,bounds[2]-margin,bounds[1]+margin+size*1.8];
+      const bottom: Rect = [bounds[0]+margin,bounds[3]-margin-size*1.8,bounds[2]-margin,bounds[3]-margin];
       const language=options.fontLanguage ?? "auto";
       if(options.watermarkText) addPageText(pdf,page,[bounds[0]+width*.1,bounds[1]+height*.36,bounds[2]-width*.1,bounds[1]+height*.64],options.watermarkText,options.watermarkSize ?? Math.max(size*2.6,24),options.watermarkGray ?? .72,"center",language);
       if(options.headerText) addPageText(pdf,page,top,options.headerText,size,.22,"center",language);
