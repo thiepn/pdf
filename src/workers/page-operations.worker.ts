@@ -19,9 +19,16 @@ function copyMetadata(source: any, destination: any): void {
     const value = source.getMetaData(`info:${key}`); if (typeof value === "string" && value) destination.setMetaData(`info:${key}`, value);
   }
 }
-function save(pdf: any): Uint8Array {
-  pdf.check(); const buffer = pdf.saveToBuffer("garbage=2,compress=yes");
-  try { return new Uint8Array(buffer.asUint8Array()); } finally { buffer.destroy(); }
+function save(pdf: mupdf.PDFDocument): Uint8Array {
+  const buffer = pdf.saveToBuffer("garbage=2,compress=yes");
+  try {
+    const bytes = Uint8Array.from(buffer.asUint8Array());
+    const verified = mupdf.Document.openDocument(bytes, "application/pdf");
+    try {
+      if (verified.countPages() !== pdf.countPages()) throw new Error("The saved PDF page count did not match the requested output.");
+    } finally { verified.destroy(); }
+    return bytes;
+  } finally { buffer.destroy(); }
 }
 function postResult(requestId: string, output: Uint8Array, pageCount: number, startedAt: number, warnings: string[]): void {
   const outputBuffer = Uint8Array.from(output).buffer;
