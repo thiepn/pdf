@@ -103,6 +103,25 @@ jobs:
           R8_EXTERNAL_CORPUS: '1'
           PLAYWRIGHT_BASE_PATH: /pdf/
           VITE_BASE_PATH: /pdf/
+      - name: Summarize actual browser results
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p = pathlib.Path('/tmp/browser-results.json')
+          if not p.exists():
+              raise SystemExit('Browser results were not produced')
+          data = json.loads(p.read_text())
+          print('RESULT_STATS', json.dumps(data.get('stats', {})))
+          def visit(suite):
+              for spec in suite.get('specs', []):
+                  for test in spec.get('tests', []):
+                      if test.get('status') != 'expected':
+                          errors = [e.get('message', '') for result in test.get('results', []) for e in result.get('errors', [])]
+                          print('RESULT_CASE', json.dumps({'file': spec.get('file'), 'title': spec.get('title'), 'status': test.get('status'), 'project': test.get('projectName'), 'errors': errors}))
+              for child in suite.get('suites', []): visit(child)
+          for suite in data.get('suites', []): visit(suite)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

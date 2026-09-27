@@ -8,6 +8,7 @@ import { exportProjectPackage, getProject, loadProjectBytes, readViewerPreferenc
 import type { ProjectManifest, ViewerPreferences } from "../types/project";
 import { readSettings } from "../settings/settingsStore";
 import { PageCanvas } from "../viewer/PageCanvas";
+import { restoreViewerPreferences, type ViewerPreferenceChanges } from "../viewer/restorePreferences";
 import { Thumbnail } from "../viewer/Thumbnail";
 import { deriveViewerPerformancePolicy } from "../viewer/performancePolicy";
 import { RenderScheduler } from "../viewer/renderScheduler";
@@ -31,6 +32,10 @@ interface ViewerPageProps { projectId: string; onTitleChange?: (title: string, s
 
 export function ViewerPage({ projectId, onTitleChange, readOnly = false }: ViewerPageProps) {
   const documentRef = useRef<PDFDocumentProxy | null>(null);
+  const openingSequenceRef = useRef(0);
+  const preferenceChangesRef = useRef<ViewerPreferenceChanges>({});
+  const stageRef = useRef<HTMLElement | null>(null);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const bytesRef = useRef<Uint8Array | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
@@ -45,7 +50,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   const [pageLabels, setPageLabels] = useState<string[] | null>(null);
   const [outline, setOutline] = useState<OutlineNode[]>([]);
   const [metadata, setMetadata] = useState<DocumentMetadata>({});
-  const [preferences, setPreferences] = useState<ViewerPreferences>({ projectId, pageNumber: 1, zoom: settings.defaultZoom, viewMode: settings.defaultViewMode, sidebarTab: "pages", sidebarOpen: !isPhoneViewport(), updatedAt: Date.now() });
+  const [preferences, setPreferences] = useState<ViewerPreferences>({ projectId, pageNumber: 1, zoom: settings.defaultZoom, viewMode: settings.defaultViewMode, sidebarTab: "pages", sidebarOpen: !isCompactReaderViewport(), updatedAt: Date.now() });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
@@ -66,12 +71,18 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   useEffect(() => () => renderScheduler.clear(), [renderScheduler]);
 
   const openDocument = useCallback(async (manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string) => {
+    const openingSequence = ++openingSequenceRef.current;
     hydrationRef.current?.cancel();
     hydrationRef.current = null;
+    preferenceChangesRef.current = {};
+    setPreferencesLoaded(false);
+    setPdfDocument(null);
     setLoading(true); setError(null); setStatus("Opening PDF…");
     try {
       const previous = documentRef.current; documentRef.current = null; if (previous) await previous.loadingTask.destroy();
+      if (openingSequence !== openingSequenceRef.current) return;
       const doc = await openPdfWithPdfJs(bytes, suppliedPassword);
+      if (openingSequence !== openingSequenceRef.current) { await doc.loadingTask.destroy(); return; }
       if (suppliedPassword) rememberProjectSessionPassword(manifest.id, suppliedPassword);
       documentRef.current = doc; setPdfDocument(doc); setPasswordRequired(false); setPassword("");
       setStatus("Ready");
@@ -91,14 +102,13 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
         setOutline((outlineResult ?? []) as OutlineNode[]);
         setMetadata((metadataResult.info ?? {}) as DocumentMetadata);
         if (editorState) setEditorObjectCount(editorState.objects.length);
-        if (savedPreferences) {
-          const normalized = normalizePreferences(savedPreferences, doc.numPages);
-          setPreferences(isPhoneViewport() ? { ...normalized, sidebarOpen: false } : normalized);
-        }
+        setPreferences((current) => restoreViewerPreferences(savedPreferences, current, preferenceChangesRef.current, doc.numPages, isCompactReaderViewport()));
+        setPreferencesLoaded(true);
         if (!readOnlyRef.current && !signal.aborted) await touchProject(manifest.id).catch(() => undefined);
         if (!signal.aborted && documentRef.current === doc) recordRuntimeMetric("custom", "readiness.viewer.hydrated", 0, undefined, { projectId: manifest.id });
       }, { label: "viewer", timeoutMs: 1_500 });
     } catch (reason) {
+      if (openingSequence !== openingSequenceRef.current) return;
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("This PDF is password protected. Enter the password to open it for this session."); }
       else setError(message);
@@ -121,6 +131,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     })();
     return () => {
       cancelled = true;
+      ++openingSequenceRef.current;
       hydrationRef.current?.cancel(); hydrationRef.current = null;
       searchAbortRef.current?.abort();
       const current = documentRef.current; documentRef.current = null; void current?.loadingTask.destroy();
@@ -130,13 +141,18 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   useEffect(() => { if (project) onTitleChange?.(project.name, `${project.summary.pageCount} pages · ${formatBytes(project.byteLength)}`); }, [onTitleChange, project]);
 
   useEffect(() => {
-    if (!pdfDocument || readOnly) return;
+    if (!pdfDocument || !preferencesLoaded || readOnly) return;
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => { void writeViewerPreferences({ ...preferences, updatedAt: Date.now() }); }, 350);
+    saveTimerRef.current = window.setTimeout(() => { void writeViewerPreferences({ ...preferences, updatedAt: Date.now() }).catch(() => setError("Reading preferences could not be saved locally. Your PDF is unchanged.")); }, 350);
     return () => { if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current); };
-  }, [pdfDocument, preferences, readOnly]);
+  }, [pdfDocument, preferences, preferencesLoaded, readOnly]);
 
-  const changePreferences = useCallback((patch: Partial<ViewerPreferences>) => setPreferences((current) => ({ ...current, ...patch, updatedAt: Date.now() })), []);
+  const changePreferences = useCallback((patch: ViewerPreferenceChanges) => {
+    Object.assign(preferenceChangesRef.current, patch);
+    setPreferences((current) => ({ ...current, ...patch, updatedAt: Date.now() }));
+  }, []);
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
 
   const jumpToPage = useCallback((pageNumber: number) => {
     if (!pdfDocument) return;
@@ -145,7 +161,36 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     if (preferences.viewMode === "continuous") window.requestAnimationFrame(() => window.document.querySelector(`[data-page-number="${bounded}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, [changePreferences, pdfDocument, preferences.viewMode]);
 
-  const handlePageVisible = useCallback((pageNumber: number) => changePreferences({ pageNumber }), [changePreferences]);
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !pdfDocument || !preferencesLoaded || preferences.viewMode !== "continuous") return;
+    let frame = 0;
+    const pages = Array.from(stage.querySelectorAll<HTMLElement>(".pdf-page-shell[data-page-number]"));
+    const updateVisiblePage = () => {
+      frame = 0;
+      const readingLine = stage.getBoundingClientRect().top + Math.min(32, stage.clientHeight / 4);
+      // Page preloading extends well outside the viewport. Reading position must
+      // follow the visible page, not the last page admitted to the render queue.
+      let low = 0, high = pages.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (pages[middle].getBoundingClientRect().bottom <= readingLine) low = middle + 1;
+        else high = middle;
+      }
+      const pageNumber = Number(pages[Math.min(low, pages.length - 1)]?.dataset.pageNumber);
+      if (Number.isFinite(pageNumber) && pageNumber !== preferencesRef.current.pageNumber) changePreferences({ pageNumber });
+    };
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(updateVisiblePage); };
+    const restoreFrame = window.requestAnimationFrame(() => {
+      pages.find((page) => Number(page.dataset.pageNumber) === preferencesRef.current.pageNumber)?.scrollIntoView({ block: "start" });
+      stage.addEventListener("scroll", onScroll, { passive: true });
+    });
+    return () => {
+      window.cancelAnimationFrame(restoreFrame);
+      if (frame) window.cancelAnimationFrame(frame);
+      stage.removeEventListener("scroll", onScroll);
+    };
+  }, [changePreferences, pdfDocument, preferencesLoaded, preferences.viewMode]);
 
   async function resolveOutlineDestination(node: OutlineNode): Promise<void> {
     if (!pdfDocument || !node.dest) return;
@@ -180,12 +225,12 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     downloadBlob(new Blob([toOwnedArrayBuffer(bytesRef.current)], { type: project.mimeType }), project.sourceFilename);
   }
 
-  async function retryPassword(): Promise<void> { if (project && bytesRef.current && password) await openDocument(project, bytesRef.current, password); }
+  async function retryPassword(): Promise<void> { if (!loading && project && bytesRef.current && password) await openDocument(project, bytesRef.current, password); }
 
   if (loading && !project) return <div aria-live="polite" className="viewer-loading" role="status"><span aria-hidden="true" className="spinner" /><strong>{status}</strong></div>;
   if (!project) return <ViewerFatalError error={error ?? "Project unavailable."} />;
 
-  return <div className="viewer-app viewer-app--r3">
+  return <div className="viewer-app viewer-app--r3" data-preferences-ready={preferencesLoaded ? "true" : "false"}>
     <div className="viewer-commandbar">
       <div className="viewer-file-group"><div className="viewer-file-title"><strong>{project.name}</strong><span>{status}{editorObjectCount ? ` · ${editorObjectCount} saved edit${editorObjectCount === 1 ? "" : "s"}` : ""}</span></div></div>
       <div className="viewer-commandbar__center">
@@ -204,9 +249,9 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
       <div className="viewer-commandbar__actions"><details className="viewer-document-actions"><summary>Document</summary><div><button onClick={downloadOriginal} type="button">Download original PDF</button><button onClick={() => void backupProject()} type="button">Back up project</button><a href={routeHref({ name: "projects" })}>Open another PDF</a></div></details></div>
     </div>
 
-    {error ? <div aria-live="assertive" className="viewer-error" role="alert"><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
+    {error && !passwordRequired ? <div aria-live="assertive" className="viewer-error" role="alert"><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
 
-    {passwordRequired ? <div className="viewer-password-overlay" role="presentation"><div aria-describedby="viewer-password-description" aria-labelledby="viewer-password-title" aria-modal="true" className="viewer-password-dialog" ref={passwordDialogRef} role="dialog"><p className="eyebrow">Protected document</p><h2 id="viewer-password-title">Password required</h2><p id="viewer-password-description">The password is kept in memory only for this viewing session.</p><label className="visually-hidden" htmlFor="viewer-password-input">PDF password</label><input autoComplete="off" id="viewer-password-input" onChange={(event: { target: HTMLInputElement }) => setPassword(event.target.value)} placeholder="PDF password" ref={passwordInputRef} type="password" value={password} /><div className="button-row"><button className="button" disabled={!password} onClick={() => void retryPassword()} type="button">Open locally</button><button className="button button--ghost" onClick={closePasswordDialog} type="button">Cancel</button></div></div></div> : null}
+    {passwordRequired ? <div className="viewer-password-overlay" role="presentation"><div aria-describedby="viewer-password-description" aria-labelledby="viewer-password-title" aria-modal="true" className="viewer-password-dialog" ref={passwordDialogRef} role="dialog"><p className="eyebrow">Protected document</p><h2 id="viewer-password-title">Password required</h2><p id="viewer-password-description">The password is kept in memory only for this viewing session.</p><form onSubmit={(event) => { event.preventDefault(); void retryPassword(); }}>{error ? <p role="alert">{error}</p> : null}<label className="visually-hidden" htmlFor="viewer-password-input">PDF password</label><input autoComplete="off" id="viewer-password-input" onChange={(event: { target: HTMLInputElement }) => setPassword(event.target.value)} placeholder="PDF password" ref={passwordInputRef} type="password" value={password} /><div className="button-row"><button className="button" disabled={!password || loading} type="submit">{loading ? "Opening…" : "Open locally"}</button><button className="button button--ghost" onClick={closePasswordDialog} type="button">Cancel</button></div></form></div></div> : null}
 
     <div className={preferences.sidebarOpen ? "viewer-layout" : "viewer-layout viewer-layout--collapsed"}>
       <aside aria-label="Document navigation" className="viewer-sidebar" id="viewer-sidebar">
@@ -221,16 +266,14 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
 
       <button aria-label={preferences.sidebarOpen ? "Collapse document navigation" : "Expand document navigation"} className="sidebar-collapse" onClick={() => changePreferences({ sidebarOpen: !preferences.sidebarOpen })} type="button">{preferences.sidebarOpen ? "‹" : "›"}</button>
 
-      <main aria-label="PDF document pages" className="document-stage">
-        {!pdfDocument ? <div aria-live="polite" className="viewer-loading" role="status"><span aria-hidden="true" className="spinner" /><strong>Opening PDF…</strong></div> : preferences.viewMode === "single" ? <div className="single-page-stage"><PageCanvas document={pdfDocument} pageNumber={preferences.pageNumber} pixelRatioCap={performancePolicy.pixelRatioCap} scheduler={renderScheduler} searchQuery={searchQuery} zoom={preferences.zoom} /></div> : <div className="continuous-page-stage">{Array.from({ length: pdfDocument.numPages }, (_, index) => <PageCanvas document={pdfDocument} key={index + 1} lazy onVisible={handlePageVisible} pageNumber={index + 1} pixelRatioCap={performancePolicy.pixelRatioCap} scheduler={renderScheduler} activationMarginPx={performancePolicy.activationMarginPx} evictionDistanceScreens={performancePolicy.evictionDistanceScreens} searchQuery={searchQuery} zoom={preferences.zoom} />)}</div>}
+      <main aria-label="PDF document pages" className="document-stage" ref={stageRef}>
+        {!pdfDocument ? <div aria-live="polite" className="viewer-loading" role="status"><span aria-hidden="true" className="spinner" /><strong>Opening PDF…</strong></div> : preferences.viewMode === "single" ? <div className="single-page-stage"><PageCanvas document={pdfDocument} pageNumber={preferences.pageNumber} pixelRatioCap={performancePolicy.pixelRatioCap} scheduler={renderScheduler} searchQuery={searchQuery} zoom={preferences.zoom} /></div> : <div className="continuous-page-stage">{Array.from({ length: pdfDocument.numPages }, (_, index) => <PageCanvas document={pdfDocument} key={index + 1} lazy pageNumber={index + 1} pixelRatioCap={performancePolicy.pixelRatioCap} scheduler={renderScheduler} activationMarginPx={performancePolicy.activationMarginPx} evictionDistanceScreens={performancePolicy.evictionDistanceScreens} searchQuery={searchQuery} zoom={preferences.zoom} />)}</div>}
       </main>
     </div>
   </div>;
 }
 
-function normalizePreferences(preferences: ViewerPreferences, pageCount: number): ViewerPreferences {
-  return { ...preferences, pageNumber: Math.max(1, Math.min(pageCount, preferences.pageNumber || 1)), zoom: Math.max(0.25, Math.min(4, preferences.zoom || 1)), viewMode: preferences.viewMode === "single" ? "single" : "continuous", sidebarTab: ["pages", "outline", "search", "info"].includes(preferences.sidebarTab) ? preferences.sidebarTab : "pages", sidebarOpen: preferences.sidebarOpen !== false };
-}
+
 
 function OutlineTree({ nodes, onSelect }: { nodes: OutlineNode[]; onSelect: (node: OutlineNode) => void }) {
   if (!nodes.length) return <div className="sidebar-empty"><strong>No document outline</strong><p>This PDF does not contain bookmarks.</p></div>;
@@ -255,6 +298,6 @@ function InformationSidebar({ metadata, project }: { metadata: DocumentMetadata;
 }
 
 function ViewerFatalError({ error }: { error: string }) { return <div className="fatal-state"><strong>Project could not be opened</strong><p>{error}</p><a className="button" href={routeHref({ name: "home" })}>Return home</a></div>; }
-function isPhoneViewport(): boolean { return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 680px)").matches : false; }
+function isCompactReaderViewport(): boolean { return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 1100px)").matches : false; }
 function formatBytes(value: number): string { if (value < 1024) return `${value} B`; const units = ["KB", "MB", "GB"]; let current = value / 1024; let index = 0; while (current >= 1024 && index < units.length - 1) { current /= 1024; index += 1; } return `${current.toFixed(1)} ${units[index]}`; }
 function safeName(value: string): string { return value.replace(/[\\/:*?"<>|]+/g, "-").trim() || "local-pdf-project"; }

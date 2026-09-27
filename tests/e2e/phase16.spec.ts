@@ -33,7 +33,9 @@ test("duplicate tabs cannot mount mutating modes until project ownership is rele
   const duplicate = await context.newPage();
   await duplicate.goto(workspaceUrl);
   await expect(duplicate.getByText("Read-only in this tab", { exact: true })).toBeVisible();
-  await switchMode(duplicate, "editor");
+  // This path intentionally cannot reach an editor: another tab owns it.
+  await duplicate.getByRole("button", { name: "Document actions", exact: true }).click();
+  await duplicate.getByRole("dialog", { name: "Document actions", exact: true }).getByRole("button", { name: /^Edit PDF/ }).click();
   await expect(duplicate.getByRole("heading", { name: /Edit is locked in this tab/i })).toBeVisible();
   await expect(duplicate.getByRole("button", { name: "Add text", exact: true })).toHaveCount(0);
 

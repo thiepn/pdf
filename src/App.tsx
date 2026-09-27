@@ -110,8 +110,8 @@ export function App() {
                             : route.name === "batch" ? <BatchPage />
                               : route.name === "compare" ? <ComparePage />
                                 : route.name === "create" ? <CreatePdfPage />
-                                  : route.name === "workspace" ? <CapabilityGatedWorkspace mode={route.mode} onTitleChange={handleViewerTitle} projectId={route.projectId} taskId={route.taskId} />
-                                    : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
+                                  : route.name === "workspace" ? <CapabilityGatedWorkspace key={route.projectId} mode={route.mode} onTitleChange={handleViewerTitle} projectId={route.projectId} taskId={route.taskId} />
+                                    : isDocumentRoute(route) ? <UnifiedWorkspace key={route.projectId} mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
                                       : <HomePage />;
   const unified = isDocumentRoute(route);
   return <AppShell fullBleed={unified} hideTopbar={unified} route={route} subtitle={header.subtitle} title={header.title}><Suspense fallback={<RouteLoading />}>{content}</Suspense></AppShell>;

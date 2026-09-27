@@ -36,6 +36,6 @@ test("editor status and secondary surfaces use product language", async ({ page 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF" }).click();
   await downloadPromise;
-  await expect(fileGroup).toContainText("Edited PDF downloaded");
+  await expect(page.getByRole("status", { name: "Document status", exact: true })).toHaveText("Edited PDF downloaded");
   await expect(page.locator(".editor-contextbar strong")).toContainText(/0 PDF content edits · 1 added object · /);
 });

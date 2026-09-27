@@ -83,6 +83,11 @@ export function useModalFocus(
         const activeModal = modalStack.at(-1);
         const target = returnFocusRef?.current;
         if (activeModal && !activeModal.contains(target ?? previous)) return;
+        // A user may already have followed a skip link or focused another control.
+        // Delayed restoration must not undo that newer, intentional focus change.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused !== document.body && focused.isConnected
+          && !container.contains(focused) && focused !== target && focused !== previous) return;
         if (target?.isConnected) target.focus({ preventScroll: true });
         else if (previous?.isConnected) previous.focus({ preventScroll: true });
       });

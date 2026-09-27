@@ -751,7 +751,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   return (
     <div className="editor-app">
       <header className="editor-commandbar">
-        <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span></div>
+        <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
         <div className="editor-commandbar__center">
           <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo last change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo last change" type="button"><Icon name="redo" /></button><span />
           <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button><label><input aria-label="Current page" max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button><span />
@@ -778,6 +778,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>
 
       <div className="editor-notices">
+        {status !== "Ready" && status !== "Opening PDF…" ? <p aria-label="Document status" className="editor-operation-status" role="status">{status}</p> : null}
         {localSave.phase === "error" ? <div className="editor-banner error-banner" role="alert"><strong>Local autosave failed</strong><span>{localSave.message}</span><button onClick={retryLocalSave} type="button">Retry save</button></div> : null}
         {error ? <div className="editor-banner error-banner"><strong>Editor error</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
         {warnings.length ? <div className="editor-banner warning-banner"><strong>Editor notice</strong><span>{warnings.join(" ")}</span><button onClick={() => setWarnings([])} type="button">Dismiss</button></div> : null}
