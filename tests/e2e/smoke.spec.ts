@@ -47,7 +47,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await chooseDocumentTask(page, "Fill PDF forms");
   await expect(page.getByRole("link", { name: "Fill with text in the editor" })).toBeVisible({ timeout: 20_000 });
   await chooseDocumentTask(page, "Clean up PDF");
-  await expect(page).toHaveURL(/\/tools\/sanitize-pdf/);
+  await expect(page).toHaveURL(/\/quick\/sanitize-pdf/);
   await expect(page.getByRole("button", { name: "Clean up PDF", exact: true })).toBeVisible();
 
   await page.goto("./#/diagnostics/system");

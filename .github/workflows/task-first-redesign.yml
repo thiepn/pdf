@@ -40,7 +40,7 @@ jobs:
       - name: Redesign and real-file regression tests
         env:
           PLAYWRIGHT_SKIP_BUILD: '1'
-        run: npx playwright test tests/e2e/task-first- tests/e2e/everyday-workflows.spec.mjs --project=chromium --project=firefox --project=webkit --workers=2 --retries=0 --max-failures=8
+        run: npx playwright test tests/e2e/task-first- tests/e2e/everyday-workflows.spec.mjs tests/e2e/release-completion.spec.mjs --project=chromium --project=firefox --project=webkit --workers=2 --retries=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:

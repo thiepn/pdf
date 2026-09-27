@@ -52,6 +52,7 @@ jobs:
           python scripts/p8/validate_compatibility_corpus.py
           python scripts/p0/generate_stress_corpus.py
           python scripts/p0/validate_stress_corpus.py
+          python scripts/reconstruction/r8_external_corpus.py
       - name: Complete non-browser release gate
         run: npm run release:web
         env:
@@ -96,9 +97,10 @@ jobs:
       - run: tar -xzf /tmp/pdf-release-runtime/pdf-release-runtime.tar.gz
       - run: npx playwright install --with-deps chromium firefox webkit
       - name: Complete application browser regression
-        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --max-failures=20 --reporter=html,json > /tmp/browser-results.json
+        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --reporter=html,json > /tmp/browser-results.json
         env:
           PLAYWRIGHT_SKIP_BUILD: '1'
+          R8_EXTERNAL_CORPUS: '1'
           PLAYWRIGHT_BASE_PATH: /pdf/
           VITE_BASE_PATH: /pdf/
       - uses: actions/upload-artifact@v4

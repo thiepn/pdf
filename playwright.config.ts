@@ -21,7 +21,8 @@ export default defineConfig({
   reporter: [["html", { open: "never" }], ["list"]],
   use: {
     baseURL: serverUrl,
-    trace: "on-first-retry"
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure"
   },
   webServer: {
     command: skipBuild ? "npm run preview -- --host 127.0.0.1" : "npm run build && npm run preview -- --host 127.0.0.1",
