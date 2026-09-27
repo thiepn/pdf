@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import * as mupdf from "mupdf";
-import { readFileSync } from "node:fs";
 import { createSecurityState } from "../../src/security/securityModel";
 
 // Exercise the actual worker handlers and installed WASM engine, not mocks of
@@ -134,7 +133,7 @@ describe("Real everyday PDF engine exports", () => {
     expect(messages[0].report).toMatchObject({ encrypted: false, hasJavaScript: false, hasOpenAction: false, hasAdditionalActions: false });
   });
   it("inspects and strips page and annotation actions while keeping legitimate links", () => {
-    const pdf = mupdf.Document.openDocument(fixture(), "application/pdf").asPDF()!; const page = pdf.loadPage(0);
+    const pdf = mupdf.Document.openDocument(fixture(), "application/pdf").asPDF()!; const page = pdf.loadPage(0) as mupdf.PDFPage;
     const script = pdf.addObject({ S: pdf.newName("JavaScript"), JS: pdf.newString("void 0;") });
     page.getObject().put("AA", { O: script });
     const note = page.createAnnotation("Text"); note.setRect([10, 10, 30, 30]);
@@ -148,7 +147,12 @@ describe("Real everyday PDF engine exports", () => {
     expect(messages[0].report).toMatchObject({ hasJavaScript: false, hasOpenAction: false, hasAdditionalActions: false, linkCount: 1 });
   });
   it("exports actual filled forms with correct safety evidence", () => {
-    const bytes = Uint8Array.from(readFileSync("tests/corpus/generated/forms.pdf")).buffer;
+    const source = new mupdf.PDFDocument(); const font = new mupdf.Font("Helvetica");
+    const fontRef = source.addSimpleFont(font);
+    const pageObject = source.addPage([0, 0, 300, 400], 0, { Font: { Helv: fontRef } }, ""); source.insertPage(-1, pageObject);
+    const widget = source.addObject({ Type: source.newName("Annot"), Subtype: source.newName("Widget"), FT: source.newName("Tx"), T: source.newString("full_name"), V: source.newString("Original value"), Rect: [30, 300, 270, 330], P: pageObject, F: 4, DA: source.newString("/Helv 12 Tf 0 g") });
+    pageObject.put("Annots", [widget]); source.getTrailer().get("Root").put("AcroForm", { Fields: [widget], DR: { Font: { Helv: fontRef } }, DA: source.newString("/Helv 12 Tf 0 g") });
+    const buffer = source.saveToBuffer(); const bytes = Uint8Array.from(buffer.asUint8Array()).buffer; buffer.destroy(); source.destroy(); font.destroy();
     messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes, requestId: "form" } });
     const field = messages[0].report.formFields.find((field: any) => field.name === "full_name"); expect(field).toBeTruthy();
     const state = createSecurityState("test"); const filled = execute("security", { type: "APPLY_SECURITY", bytes, options: { ...state, formUpdates: [{ ...field, value: "New form value" }] } });
