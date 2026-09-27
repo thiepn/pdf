@@ -1,0 +1,100 @@
+name: Prepare verified release fixes
+on:
+  push:
+    branches: [redesign/task-first-experience]
+    paths: [.github/workflows/release-candidate-patch.yml, scripts/release-candidate-build.py]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  prepare:
+    if: github.repository == 'thiepn/pdf' && github.ref == 'refs/heads/redesign/task-first-experience'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Apply checked source corrections
+        run: python scripts/release-candidate-build.py
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: pdf-release-runtime
+          run-id: 36356323558
+          github-token: ${{ github.token }}
+          path: /tmp/previous-runtime
+      - run: tar -xzf /tmp/previous-runtime/pdf-release-runtime.tar.gz
+      - name: Typecheck, unit suite, runtime guards and production build
+        run: npm run typecheck && npm test && npm run test:runtime:phase29 && npm run test:runtime:v6.1.0 && npm run build:verified
+        env:
+          VITE_BASE_PATH: /pdf/
+      - name: Stage verified source only
+        run: |
+          git add -A
+          git diff --cached --binary > /tmp/candidate.patch
+          git diff --cached --stat
+      - name: Prepare exact source blobs without moving any branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const cp = require('child_process');
+            const {owner,repo} = context.repo;
+            const names = cp.execFileSync('git',['diff','--cached','--name-only','-z']).toString().split('\0').filter(Boolean);
+            const entries = [];
+            const checksums = {};
+            for (const path of names) {
+              if (!fs.existsSync(path)) { entries.push({path,mode:'100644',type:'blob',sha:null}); continue; }
+              const bytes = fs.readFileSync(path);
+              checksums[path] = require('crypto').createHash('sha256').update(bytes).digest('hex');
+              const blob = await github.rest.git.createBlob({owner,repo,content:bytes.toString('base64'),encoding:'base64'});
+              const entry = {path,mode:'100644',type:'blob',sha:blob.data.sha};
+              entries.push(entry);
+              console.log('CANDIDATE_BLOB '+JSON.stringify(entry));
+            }
+            fs.writeFileSync('/tmp/candidate-blobs.json',JSON.stringify({parent:context.sha,entries,checksums},null,2));
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Previously failing interactions and new reader regressions
+        id: browsers
+        continue-on-error: true
+        run: npx playwright test tests/e2e/p1-existing-content.spec.ts tests/e2e/p2-layout-reflow.spec.ts tests/e2e/p3-existing-image.spec.ts tests/e2e/p4-existing-vector.spec.ts tests/e2e/p5-existing-table.spec.ts tests/e2e/p6-unified-layout.spec.ts tests/e2e/p7-complex-nested.spec.ts tests/e2e/p8-fidelity-compatibility.spec.ts tests/e2e/p35-compare-safety.spec.ts tests/e2e/p40-editor-secondary-language.spec.ts tests/e2e/phase16.spec.ts tests/e2e/phase17.spec.ts tests/e2e/phase26.spec.ts tests/e2e/phase29.spec.ts tests/e2e/release-reader-state.spec.ts tests/e2e/mobile.spec.ts --workers=3 --retries=0 --reporter=json > /tmp/candidate-browser-results.json
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+          R8_EXTERNAL_CORPUS: '1'
+          PLAYWRIGHT_BASE_PATH: /pdf/
+          VITE_BASE_PATH: /pdf/
+      - name: Summarize exact browser failures
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('/tmp/candidate-browser-results.json')
+          if not p.exists(): raise SystemExit('No browser report was produced')
+          data=json.loads(p.read_text())
+          print('RESULT_STATS',json.dumps(data.get('stats',{})))
+          def visit(s):
+              for spec in s.get('specs',[]):
+                  for test in spec.get('tests',[]):
+                      if test.get('status') != 'expected':
+                          errors=[e.get('message','') for r in test.get('results',[]) for e in r.get('errors',[])]
+                          print('RESULT_CASE',json.dumps({'file':spec.get('file'),'title':spec.get('title'),'project':test.get('projectName'),'status':test.get('status'),'errors':errors}))
+              for child in s.get('suites',[]):visit(child)
+          for s in data.get('suites',[]):visit(s)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verified-release-candidate
+          path: |
+            /tmp/candidate.patch
+            /tmp/candidate-blobs.json
+            /tmp/candidate-browser-results.json
+          retention-days: 7
+      - name: Preserve a failing browser result
+        if: steps.browsers.outcome == 'failure'
+        run: exit 1
