@@ -102,7 +102,35 @@ test("latest editor text survives immediate tool handoff and real PDF export", a
   await page.getByRole("dialog", { name: "Document actions" }).getByRole("button", { name: /^Compress PDF/ }).click();
   await expect(page).toHaveURL(/quick\/compress-pdf$/, { timeout: 30000 });
   await page.getByRole("button", { name: "Compress PDF", exact: true }).click();
-  expect(inspect(await download(page)).map((p) => p.text).join("\n")).toContain("LATEST EDIT SURVIVES");
+  const output = await download(page);
+  expect(inspect(output).map((p) => p.text)).toEqual(["Page 1", "Page 2", "Page 3"]);
+  const exported = mupdf.Document.openDocument(output, "application/pdf").asPDF();
+  try {
+    const first = exported.loadPage(0);
+    try {
+      const annotations = first.getAnnotations();
+      try {
+        // Add text deliberately exports an editable FreeText annotation. Page
+        // content extraction excludes annotations; check both the object and
+        // its real appearance rather than mistaking that distinction for loss.
+        const text = annotations.filter((annotation) => annotation.getType() === "FreeText");
+        expect(text.map((annotation) => annotation.getContents())).toEqual(["LATEST EDIT SURVIVES"]);
+        const appearance = text[0].toDisplayList();
+        try {
+          const content = appearance.toStructuredText();
+          try { expect(content.asText().replace(/\s+/g, " ").trim()).toContain("LATEST EDIT SURVIVES"); }
+          finally { content.destroy(); }
+        } finally { appearance.destroy(); }
+        const visible = first.toPixmap(mupdf.Matrix.identity, mupdf.ColorSpace.DeviceRGB, false, true);
+        const originalContent = first.toPixmap(mupdf.Matrix.identity, mupdf.ColorSpace.DeviceRGB, false, false);
+        try {
+          expect(Buffer.from(visible.getPixels()).equals(Buffer.from(originalContent.getPixels()))).toBe(false);
+          await info.attach("edited-compressed-page.png", { body: Buffer.from(visible.asPNG()), contentType: "image/png" });
+        } finally { visible.destroy(); originalContent.destroy(); }
+      } finally { annotations.forEach((annotation) => annotation.destroy()); }
+    } finally { first.destroy(); }
+  } finally { exported.destroy(); }
+  await info.attach("edited-compressed.pdf", { body: output, contentType: "application/pdf" });
   await capture(page, info, "18-edited-document-continuity");
 });
 
