@@ -123,3 +123,7 @@
 .quick-more-tools { width:100%; margin:20px 0; text-align:left; }
 
 .ocr-full-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font: inherit; }
+
+/* Keep page controls inset from the document surface on every viewport. */
+.assembly { padding: 0 20px 16px; }
+@media (max-width: 640px) { .assembly { padding: 0 12px 12px; } }

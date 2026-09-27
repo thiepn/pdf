@@ -409,6 +409,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setSelectedNativeId(undefined);
     setEditorState((state) => ({ ...state, activeTool: object.type === "ink" ? "pen" : "select" }));
     if (object.type === "note") setLeftTab("comments");
+    // Newly placed text must be editable immediately, without finding Properties.
+    if (object.type !== "ink") {
+      setPropertiesOpen(true);
+      if (isCompactViewport()) setSidebarOpen(false);
+    }
   }
 
   function queueNativeCanvasTargets(targets: Map<string, UnifiedCanvasBounds>): string[] {

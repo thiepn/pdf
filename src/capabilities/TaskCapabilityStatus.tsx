@@ -29,15 +29,16 @@ export function TaskCapabilityBlocker({
   onBack?: () => void;
 }) {
   const alternative = capability.alternativeTaskId ? getTask(capability.alternativeTaskId) : undefined;
+  const flatForm = taskLabel === "Fill PDF forms" && alternative?.id === "edit-pdf";
   const alternativeRoute = alternative ? taskRoute(alternative, projectId) : null;
   return <section className="task-capability-blocker" aria-live="polite">
     <p className="eyebrow">{capability.label}</p>
-    <h2>{taskLabel} cannot start for this document</h2>
+    <h2>{flatForm ? "Fill this form with text and marks" : `${taskLabel} cannot start for this document`}</h2>
     {capability.reason ? <div className="task-capability-explanation"><strong>Why</strong><p>{capability.reason}</p></div> : null}
     {capability.recovery ? <div className="task-capability-explanation"><strong>What you can do</strong><p>{capability.recovery}</p></div> : null}
     <p className="task-capability-safety">This task did not start. Your PDF is unchanged.</p>
     <div className="task-capability-blocker__actions">
-      {alternative && alternativeRoute ? <a className="button" href={routeHref(alternativeRoute)}>Open {alternative.label}</a> : null}
+      {alternative && alternativeRoute ? <a className="button" href={routeHref(alternativeRoute)}>{flatForm ? "Fill with text in the editor" : `Open ${alternative.label}`}</a> : null}
       {onBack ? <button className="button button--secondary" onClick={onBack} type="button">Choose another task</button> : null}
     </div>
   </section>;

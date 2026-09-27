@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import * as mupdf from "mupdf";
+import { readFileSync } from "node:fs";
 import { createSecurityState } from "../../src/security/securityModel";
 
 // Exercise the actual worker handlers and installed WASM engine, not mocks of
@@ -114,4 +115,46 @@ describe("Real everyday PDF engine exports", () => {
     const unlocked = execute("security", { type: "APPLY_SECURITY", bytes: encrypted.output, password: "correct-horse-123", options: { ...options, encryption: { ...options.encryption, mode: "remove" } } });
     expect(inspect(unlocked.output).map((page) => page.text)).toEqual(["Page 1", "Page 2", "Page 3"]);
   });
+  it("does not mistake MuPDF null wrappers or the encryption description None for risks", () => {
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes: fixture(), requestId: "clean" } });
+    expect(messages[0].report).toMatchObject({ encrypted: false, hasJavaScript: false, hasOpenAction: false, hasAdditionalActions: false, attachmentCount: 0 });
+  });
+  it("removes both catalog action entries, not only the first truthy deletion", () => {
+    const pdf = mupdf.Document.openDocument(fixture(), "application/pdf").asPDF()!;
+    const root = pdf.getTrailer().get("Root");
+    const script = { S: pdf.newName("JavaScript"), JS: pdf.newString("void 0;") };
+    root.put("Names", { JavaScript: { Names: [pdf.newString("test"), script] } });
+    root.put("JavaScript", script); root.put("OpenAction", script); root.put("AA", { WC: script });
+    const output = pdf.saveToBuffer(); const bytes = Uint8Array.from(output.asUint8Array()).buffer; output.destroy(); pdf.destroy();
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes, requestId: "actions" } });
+    expect(messages[0].report).toMatchObject({ hasJavaScript: true, hasOpenAction: true, hasAdditionalActions: true });
+    const state = createSecurityState("test");
+    const cleaned = execute("security", { type: "APPLY_SECURITY", bytes, options: { ...state, formUpdates: [] } });
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes: cleaned.output, requestId: "cleaned" } });
+    expect(messages[0].report).toMatchObject({ encrypted: false, hasJavaScript: false, hasOpenAction: false, hasAdditionalActions: false });
+  });
+  it("inspects and strips page and annotation actions while keeping legitimate links", () => {
+    const pdf = mupdf.Document.openDocument(fixture(), "application/pdf").asPDF()!; const page = pdf.loadPage(0);
+    const script = pdf.addObject({ S: pdf.newName("JavaScript"), JS: pdf.newString("void 0;") });
+    page.getObject().put("AA", { O: script });
+    const note = page.createAnnotation("Text"); note.setRect([10, 10, 30, 30]);
+    note.getObject().put("A", script); note.getObject().put("AA", { E: script });
+    page.createLink([40, 40, 80, 60], "https://example.org/");
+    const buffer = pdf.saveToBuffer(); const bytes = Uint8Array.from(buffer.asUint8Array()).buffer; buffer.destroy(); note.destroy(); page.destroy(); pdf.destroy();
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes, requestId: "page-actions" } });
+    expect(messages[0].report).toMatchObject({ hasJavaScript: true, hasAdditionalActions: true, linkCount: 1 });
+    const state = createSecurityState("test"); const cleaned = execute("security", { type: "APPLY_SECURITY", bytes, options: { ...state, formUpdates: [] } });
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes: cleaned.output, requestId: "page-cleaned" } });
+    expect(messages[0].report).toMatchObject({ hasJavaScript: false, hasOpenAction: false, hasAdditionalActions: false, linkCount: 1 });
+  });
+  it("exports actual filled forms with correct safety evidence", () => {
+    const bytes = Uint8Array.from(readFileSync("tests/corpus/generated/forms.pdf")).buffer;
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes, requestId: "form" } });
+    const field = messages[0].report.formFields.find((field: any) => field.name === "full_name"); expect(field).toBeTruthy();
+    const state = createSecurityState("test"); const filled = execute("security", { type: "APPLY_SECURITY", bytes, options: { ...state, formUpdates: [{ ...field, value: "New form value" }] } });
+    messages = []; handlers.security({ data: { type: "INSPECT_SECURITY", bytes: filled.output, requestId: "filled" } });
+    expect(messages[0].report).toMatchObject({ encrypted: false, hasJavaScript: false, hasOpenAction: false, hasAdditionalActions: false });
+    expect(messages[0].report.formFields.find((field: any) => field.name === "full_name").value).toBe("New form value");
+  });
+
 });

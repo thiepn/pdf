@@ -24,6 +24,6 @@ check("Portable batch recipe",()=>{const json=serializeBatchRecipe({schemaVersio
 check("Searchable creator worker",()=>{assert.match(creatorWorker,/new \(mupdf as any\)\.PDFDocument/);assert.match(creatorWorker,/addCJKFont/);assert.match(creatorWorker,/Use Visual compatibility PDF/);});
 check("Visual shaping fallback",()=>{assert.match(raster,/buildJpegPdf/);assert.match(raster,/not searchable\/selectable/);});
 check("Create PDF Studio UI",()=>{assert.match(creatorPage,/Searchable text PDF/);assert.match(creatorPage,/Visual compatibility PDF/);assert.match(creatorPage,/Save as project/);});
-check("Compare 2.0 UI",()=>{assert.match(comparePage,/Analyze document/);assert.match(comparePage,/Page map/);assert.match(comparePage,/inserted/);});
-check("Tools entry point",()=>{assert.match(taskCatalog,/id:\s*"create-pdf"/);assert.match(taskCatalog,/label:\s*"Create PDF"/);assert.match(taskCatalog,/route:\s*\{ name:\s*"create" \}/);assert.match(toolsPage,/taskCategories/);assert.match(toolsPage,/pdfTasks/);});
+check("Compare 2.0 UI",()=>{assert.match(comparePage,/Find differences/);assert.match(comparePage,/takeTaskTransfer/);assert.match(comparePage,/Page map/);assert.match(comparePage,/inserted/);});
+check("Tools entry point",()=>{assert.match(taskCatalog,/id:\s*"create-pdf"/);assert.match(taskCatalog,/label:\s*"Create PDF"/);assert.match(taskCatalog,/route:\s*\{ name:\s*"create" \}/);assert.match(toolsPage,/TaskDirectory/);assert.match(toolsPage,/taskCopy/);});
 console.log(`Phase 25 runtime regression: ${passed}/12 passed.`);

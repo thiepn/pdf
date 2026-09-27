@@ -44,6 +44,7 @@ test("visual page composition supports order, rotation, blanks, removal and undo
   await assembly.getByRole("button", { name: "Remove selected (1)", exact: true }).click();
   await assembly.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.locator(".assembly-card")).toHaveCount(4);
+  await expect(assembly.locator("img").first()).toBeVisible({ timeout: 30000 });
   await capture(page, info, "15-page-composition");
   await page.getByRole("button", { name: "Save arranged PDF", exact: true }).click();
   const result = inspect(await download(page)); expect(result.map((p) => p.text)).toEqual(["Page 3", "Page 2", "Page 1", ""]); expect(result[0].bounds).toEqual([0, 0, 400, 300]); expect(result[3].bounds[3]).toBeGreaterThan(800);
@@ -77,9 +78,10 @@ test("visual crop changes only the selected page and keeps numeric fields in syn
   await choose(page, "crop-pages", file("report.pdf"));
   await page.getByLabel("Preview page", { exact: true }).fill("2");
   const stage = page.getByRole("group", { name: "Drag to select the area to keep" }); await expect(page.getByAltText("Page 2 crop preview", { exact: true })).toBeVisible();
+  await stage.scrollIntoViewIfNeeded();
   const box = await stage.boundingBox(); expect(box).toBeTruthy();
   await page.mouse.move(box.x + box.width * .1, box.y + box.height * .1); await page.mouse.down(); await page.mouse.move(box.x + box.width * .9, box.y + box.height * .9, { steps: 6 }); await page.mouse.up();
-  expect(Number(await page.getByLabel("Top margin (mm)", { exact: true }).inputValue())).toBeGreaterThan(0);
+  await expect.poll(async () => Number(await page.getByLabel("Top margin (mm)", { exact: true }).inputValue())).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Crop only this page", exact: true }).click();
   await expect(page.getByLabel("Pages to crop", { exact: true })).toHaveValue("2");
   await capture(page, info, "17-visual-crop");

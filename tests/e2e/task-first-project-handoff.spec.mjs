@@ -24,7 +24,7 @@ test("document actions hand a stored PDF into a quick task without confusing its
   await page.getByRole("dialog", { name: "Document actions" }).getByRole("button", { name: /^Extract pages/ }).click();
   await expect(page.getByRole("button", { name: "Page 3", exact: true })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.locator(".quick-warning")).not.toContainText("saved source PDF");
+  await expect(page.locator(".quick-warning").filter({ hasText: "saved source PDF" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Pages", exact: true }).fill("2");
   await page.getByRole("button", { name: "Extract selected pages", exact: true }).click();
   await expect(page.getByRole("region", { name: "Your files are ready" })).toBeVisible();

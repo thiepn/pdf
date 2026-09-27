@@ -259,7 +259,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
   }
 
   async function chooseDocumentTask(task: PdfTask, readOnly = false): Promise<void> {
-    if (activeOperation || handoffRef.current) return;
+    if (activeOperation || handoffRef.current) { setError("Finish or cancel the current operation before choosing another task."); return; }
     const route = readOnly ? { name: "workspace" as const, projectId, mode: "viewer" as const } : taskRoute(task, projectId); if (!route) return;
     // Same editor: preserve editable objects, selections, and undo history in place.
     if (route.name === "workspace" && route.mode === mode && route.projectId === projectId) { closeMobileTools(); navigateTo(route); return; }
@@ -296,7 +296,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
 
   return <div className="document-workspace unified-workspace">
     <header className="document-topbar">
-      <a className="document-home" href={routeHref({ name: "home" })} aria-label="Back to PDF tools"><Icon name="arrow-left" size={20}/><span>All tools</span></a>
+      <a className="document-home" aria-disabled={Boolean(activeOperation)} onClick={(event) => { if (activeOperation) { event.preventDefault(); setError("Finish or cancel the current operation before leaving this document."); } }} href={routeHref({ name: "home" })} aria-label="Back to PDF tools"><Icon name="arrow-left" size={20}/><span>All tools</span></a>
       <div className="document-identity"><h1 id="workspace-document-title" title={project.name}>{project.name}</h1><span>{project.summary.pageCount} pages · {formatBytes(project.byteLength)}{project.summary.encrypted ? " · Protected" : ""}{leaseMode === "read-only" ? " · Read only" : ""}</span></div>
       <div className="document-actions">
         <button aria-label="Document actions" aria-controls="document-actions-dialog" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="button button--secondary" disabled={Boolean(activeOperation)} onClick={() => setMobileToolsOpen(true)} type="button"><Icon name="tools" size={18}/><span>Document actions</span></button>
