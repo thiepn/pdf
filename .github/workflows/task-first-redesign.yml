@@ -10,25 +10,12 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    if: github.repository == 'thiepn/pdf' && github.ref == 'refs/heads/redesign/task-first-experience'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
-      - name: Materialize locally verified redesign source once
-        run: |
-          set -eu
-          if [ -f scripts/redesign-bootstrap/apply.py ]; then
-            python3 scripts/redesign-bootstrap/apply.py
-            rm scripts/redesign-bootstrap/apply.py scripts/redesign-bootstrap/quick.py scripts/redesign-bootstrap/editor.py
-            git add src/views/QuickToolPage.tsx src/views/EditorPage.tsx src/workspace/UnifiedWorkspace.tsx src/main.tsx src/App.tsx tests/e2e/everyday-workflows.spec.mjs scripts/redesign-bootstrap
-            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: replace tabbed workspaces with focused PDF tasks and direct document editing'
-            git push origin HEAD:refs/heads/redesign/task-first-experience
-          fi
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
