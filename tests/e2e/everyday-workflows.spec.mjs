@@ -63,6 +63,7 @@ test("extract preserves selected order, text, and source; changing options inval
   const result = inspect(await getDownload(page, "Download PDF")); expect(result.pages).toBe(3);
   expect(result.text.map((text) => text.trim())).toEqual(["Page 4", "Page 2", "Page 3"]);
   await screenshot(page, info, "desktop-extraction-result");
+  await page.getByRole("button", { name: "Edit options", exact: true }).click();
   await page.getByRole("textbox", { name: "Pages", exact: true }).fill("1");
   await expect(page.getByRole("region", { name: "Your files are ready" })).toHaveCount(0);
   await page.getByRole("button", { name: "Extract selected pages", exact: true }).click();
@@ -141,6 +142,7 @@ test("merging a password-protected file authenticates each source separately", a
 test("lossless compression never offers a larger file, and lossy mode requires consent", async ({ page }) => {
   const original = fixture(); await upload(page, "compress-pdf", original); await page.getByRole("button", { name: "Compress PDF", exact: true }).click();
   expect((await getDownload(page, "Download PDF")).length).toBeLessThanOrEqual(original.length);
+  await page.getByRole("button", { name: "Edit options", exact: true }).click();
   await page.getByRole("combobox", { name: "Compression", exact: true }).selectOption("small");
   await expect(page.getByRole("button", { name: "Compress PDF", exact: true })).toBeDisabled(); await expect(page.getByRole("region", { name: "Your files are ready" })).toHaveCount(0);
 });

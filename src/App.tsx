@@ -104,7 +104,7 @@ export function App() {
                   : route.name === "maintenance" ? <MaintenancePage />
                     : route.name === "help" ? <HelpPage />
                       : route.name === "quick" ? <QuickToolPage key={`${route.taskId}:${route.projectId ?? ""}`} taskId={route.taskId} projectId={route.projectId} />
-                      : route.name === "tools" ? <ToolsPage />
+                      : route.name === "tools" ? <ToolsPage key={route.taskId ?? "directory"} />
                         : route.name === "merge" ? <MergeToolPage />
                           : route.name === "scan" ? <ScanPage />
                             : route.name === "batch" ? <BatchPage />
