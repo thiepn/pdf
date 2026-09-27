@@ -1,0 +1,61 @@
+name: Task-first redesign verification
+on:
+  push:
+    branches: [redesign/task-first-experience]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: task-first-redesign-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Prepare reproducible review snapshot
+        run: |
+          git archive --format=tar HEAD > /tmp/pdf-redesign-source.tar
+          if [ '${{ github.run_number }}' = '1' ]; then
+            tar -czf /tmp/pdf-redesign-dependencies.tar.gz node_modules
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-redesign-review
+          path: /tmp/pdf-redesign-*.tar*
+          retention-days: 2
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Production build
+        run: npm run build
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Redesign and real-file regression tests
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+        run: |
+          if [ -f tests/e2e/task-first-redesign.spec.ts ]; then
+            npx playwright test tests/e2e/task-first-redesign.spec.ts tests/e2e/everyday-workflows.spec.mjs --project=chromium --project=firefox --project=webkit --workers=2 --retries=0 --max-failures=5
+          else
+            npx playwright test tests/e2e/everyday-workflows.spec.mjs --project=chromium --workers=2 --retries=0 --max-failures=3
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-redesign-browser-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
