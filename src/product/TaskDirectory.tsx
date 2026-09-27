@@ -5,7 +5,7 @@ import { pdfTasks, taskRoute, type PdfTask } from "../ia/taskCatalog";
 import { rankTasksByQuery } from "../ia/taskSearch";
 import { createGenericTaskCapabilityContext, evaluateTaskCapability, isCapabilityBlocked } from "../capabilities/taskCapability";
 import { TaskGlyph } from "./TaskGlyph";
-import type { InputKind } from "./fileHandoff";
+import { acceptsTaskInput, type InputKind } from "./fileHandoff";
 
 const popular = ["merge-pdfs", "split-pdf", "compress-pdf", "edit-pdf", "images-to-pdf", "pdf-to-jpg", "organize-pages", "visual-signature", "extract-pages", "remove-pages", "ocr-pdf", "fill-forms"];
 const groups = [
@@ -15,27 +15,21 @@ const groups = [
   { title: "Protect & review", ids: ["password-protect", "unlock-pdf", "apply-redactions", "compare-pdfs"] }
 ];
 const shortCopy: Record<string, string> = {
-  "merge-pdfs": "Put several PDFs together, in your order.", "split-pdf": "Break one PDF into separate files.",
+  "merge-pdfs": "Combine PDFs and images, in your order.", "split-pdf": "Break one PDF into separate files.",
   "compress-pdf": "Make your file smaller, with clear quality choices.", "edit-pdf": "Add content or change supported PDF text and images.",
   "images-to-pdf": "Turn your photos and images into PDF pages.", "pdf-to-jpg": "Save PDF pages as JPG images.",
-  "organize-pages": "Arrange, duplicate, rotate or delete pages visually.", "visual-signature": "Place a signature on your document.",
+  "organize-pages": "Insert, replace, reorder, rotate or remove pages.", "visual-signature": "Place a signature on your document.",
   "extract-pages": "Keep just the pages you need.", "remove-pages": "Remove unwanted pages. Keep the rest.",
   "ocr-pdf": "Make scanned text searchable and selectable.", "fill-forms": "Fill in existing interactive form fields.",
   "rotate-pdf": "Turn sideways pages the right way up.", "pdf-to-png": "Save PDF pages as PNG images.",
   "password-protect": "Add a password to protect your PDF.", "unlock-pdf": "Remove a password you already know."
 };
 export function taskCopy(task: PdfTask): string { return shortCopy[task.id] ?? task.description; }
-function compatible(task: PdfTask, kind?: InputKind): boolean {
-  if (!kind) return true;
-  if (kind === "images") return task.id === "images-to-pdf";
-  if (kind === "pdfs") return task.id === "merge-pdfs";
-  return task.target.kind === "workspace" || ["merge-pdfs", "extract-pages", "remove-pages", "rotate-pdf", "pdf-to-jpg", "pdf-to-png", "pdf-to-text", "unlock-pdf", "add-page-numbers", "add-watermark"].includes(task.id);
-}
-interface Props { home?: boolean; compact?: boolean; projectId?: string; kind?: InputKind; onChoose?: (task: PdfTask) => void; }
-export function TaskDirectory({ home = false, compact = false, projectId, kind, onChoose }: Props) {
+interface Props { home?: boolean; compact?: boolean; projectId?: string; kind?: InputKind; fileCount?: number; onChoose?: (task: PdfTask) => void; }
+export function TaskDirectory({ home = false, compact = false, projectId, kind, fileCount, onChoose }: Props) {
   const [query, setQuery] = useState("");
   const context = useMemo(() => createGenericTaskCapabilityContext(), []);
-  const tasks = useMemo(() => pdfTasks.filter((task) => compatible(task, kind) && evaluateTaskCapability(task, context).state !== "hidden"), [kind, context]);
+  const tasks = useMemo(() => pdfTasks.filter((task) => (!kind || acceptsTaskInput(task, kind, fileCount)) && evaluateTaskCapability(task, context).state !== "hidden"), [kind, fileCount, context]);
   const needle = query.trim();
   const matching = needle ? rankTasksByQuery(tasks, needle) : tasks;
   const officeQuery = /\b(word|docx?|excel|xlsx?|powerpoint|pptx?)\b/i.test(needle);

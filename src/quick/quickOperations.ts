@@ -1,5 +1,6 @@
+import { createAssemblyPlan, validateAssemblyPlan } from "./assemblyModel";
 import { openPdfWithPdfJs, extractPageText } from "../engines/pdfjsBase";
-import { compilePagePlan, mergePdfSources } from "../tools/pageOperationsClient";
+import { assembleSources, compilePagePlan, mergePdfSources } from "../tools/pageOperationsClient";
 import { createStoredZip } from "../toolbox/zip";
 import { transformPdf } from "../toolbox/toolboxClient";
 import { optimizePdf } from "../processing/processingClient";
@@ -18,12 +19,14 @@ const asPdf = (name: string, bytes: Uint8Array): QuickOutput => ({ name: safeOut
 
 export function validateQuickOptions(task: QuickTaskId, inputs: QuickInput[], options: QuickOptions): void {
   if (!inputs.length) throw new Error("Choose a file first.");
-  if (task === "merge-pdfs" && inputs.length < 2) throw new Error("Choose at least two PDFs to merge.");
-  if (!["merge-pdfs", "images-to-pdf"].includes(task) && inputs.length !== 1) throw new Error("This tool works on one PDF at a time.");
+  if (task === "merge-pdfs" && inputs.length < 2 && !options.pagePlan) throw new Error("Add another PDF or image, or arrange the pages of this document.");
+  if (!["merge-pdfs", "organize-pages", "images-to-pdf", "compress-pdf"].includes(task) && inputs.length !== 1) throw new Error("This tool works on one PDF at a time.");
   if (["extract-pages", "remove-pages", "rotate-pdf", "pdf-to-jpg", "pdf-to-png", "pdf-to-text"].includes(task)) {
     const selected = parsePageSelection(options.selection, inputs[0].pageCount);
     if (task === "remove-pages" && selected.length === inputs[0].pageCount) throw new Error("Keep at least one page. Select only the pages you want to remove.");
   }
+  if ((task === "organize-pages" || task === "merge-pdfs") && options.pagePlan) validateAssemblyPlan(options.pagePlan, inputs);
+  if (task === "crop-pages") parsePageSelection(options.cropPages, inputs[0].pageCount);
   if (task === "split-pdf") planSplit(inputs[0].pageCount, options.splitMode, options.every, options.ranges);
   if (task === "password-protect" && (!options.outputPassword || options.outputPassword !== options.confirmPassword)) throw new Error("Enter a password and the same password again to confirm it.");
   if (task === "add-watermark" && !options.watermark.trim()) throw new Error("Enter the watermark text.");
@@ -75,8 +78,27 @@ async function imagesToPdf(inputs: QuickInput[], options: QuickOptions, signal: 
 export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[], options: QuickOptions, name: string, signal: AbortSignal, progress: (text: string) => void): Promise<QuickResult> {
   check(signal); validateQuickOptions(task, inputs, options);
   const input = inputs[0]; const warnings: string[] = []; const files: QuickOutput[] = [];
+  if (task === "compress-pdf" && inputs.length > 1) {
+    for (const [index, source] of inputs.entries()) {
+      check(signal);
+      const output = await runQuickOperation(task, [source], options, `${String(index + 1).padStart(3, "0")}-${source.name.replace(/\.pdf$/i, "")}-compressed`, signal, (detail) => progress(`${index + 1}/${inputs.length} · ${source.name} · ${detail}`));
+      files.push(...output.files); warnings.push(...output.warnings.map((warning) => `${source.name}: ${warning}`)); enforceOutputBudget(files);
+    }
+    return { files, warnings: [...new Set(warnings)] };
+  }
   if (task === "images-to-pdf") {
     files.push(asPdf(name, await imagesToPdf(inputs, options, signal, progress)));
+  } else if (task === "organize-pages" || (task === "merge-pdfs" && (options.pagePlan || inputs.some((source) => source.image)))) {
+    const plan = options.pagePlan ?? createAssemblyPlan(inputs);
+    validateAssemblyPlan(plan, inputs);
+    const sources = [];
+    for (const source of inputs) {
+      check(signal);
+      sources.push(source.image ? { ...source, bytes: await imagesToPdf([source], options, signal, progress), password: undefined } : source);
+    }
+    progress("Assembling pages in the exact order shown…");
+    const result = await assembleSources(sources, plan.map((page) => ({ sourceIndex: page.sourceId === null ? null : inputs.findIndex((source) => source.id === page.sourceId), sourcePageIndex: page.sourcePageIndex, rotation: page.rotation })), signal);
+    warnings.push(...result.warnings); files.push(asPdf(name, result.bytes));
   } else if (task === "merge-pdfs") {
     progress("Combining PDFs in the order shown…");
     const result = await mergePdfSources(inputs, signal); warnings.push(...result.warnings); files.push(asPdf(name, result.bytes));
@@ -144,7 +166,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
   } else {
     progress("Applying changes to a separate copy…");
     const crop = options.crop;
-    const result = await transformPdf(input.bytes, task === "crop-pages" ? { crop: { enabled: true, topPt: crop.top * 72 / 25.4, rightPt: crop.right * 72 / 25.4, bottomPt: crop.bottom * 72 / 25.4, leftPt: crop.left * 72 / 25.4 } } : { decoration: { enabled: true, watermarkText: task === "add-watermark" ? options.watermark : "", headerText: "", footerText: "", pageNumbers: task === "add-page-numbers", startNumber: options.startNumber, fontSize: 11, marginPt: 28.35 } }, input.password, signal);
+    const result = await transformPdf(input.bytes, task === "crop-pages" ? { crop: { enabled: true, pageNumbers: parsePageSelection(options.cropPages, input.pageCount).map((index) => index + 1), topPt: crop.top * 72 / 25.4, rightPt: crop.right * 72 / 25.4, bottomPt: crop.bottom * 72 / 25.4, leftPt: crop.left * 72 / 25.4 } } : { decoration: { enabled: true, watermarkText: task === "add-watermark" ? options.watermark : "", headerText: "", footerText: "", pageNumbers: task === "add-page-numbers", startNumber: options.startNumber, fontSize: 11, marginPt: 28.35 } }, input.password, signal);
     warnings.push(...result.report.warnings); files.push(asPdf(name, result.bytes));
   }
   check(signal); enforceOutputBudget(files);

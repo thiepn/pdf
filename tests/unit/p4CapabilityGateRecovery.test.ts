@@ -7,7 +7,8 @@ import securityWorkerEntrySource from "../../src/workers/security-entry.worker.t
 describe("Recovery P4 capability gate decoupling", () => {
   it("keeps one safe workspace mounted while task preflight hands off to the requested tool", () => {
     expect(gateSource).toContain('capability-gated-workspace--checking');
-    expect(gateSource).toContain('key="workspace" mode={checking ? "viewer" : mode}');
+    expect(gateSource).toMatch(/<UnifiedWorkspace key="workspace"[^>]+mode=\{checking \? "viewer" : mode\}/);
+    expect(gateSource).toContain("taskId={checking ? undefined : taskId}");
     expect(gateSource).toContain('key="gate-status"');
     expect(gateSource).toContain("You can keep reading while this local check finishes.");
   });

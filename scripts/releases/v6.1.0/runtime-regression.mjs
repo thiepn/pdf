@@ -18,6 +18,9 @@ const nativePropsLegacy = await read("src/editor/native/LegacyNativeContentPrope
 const nativeProps = `${nativePropsEntry}\n${nativePropsLegacy}`;
 const ocr = await read("src/views/OcrPage.tsx");
 const organizer = await read("src/views/OrganizerPage.tsx");
+const taskDirectory = await read("src/product/TaskDirectory.tsx");
+const assembly = await read("src/quick/AssemblyPanel.tsx");
+const quickTools = await read("src/views/QuickToolPage.tsx");
 const tools = await read("src/views/ToolsPage.tsx");
 const documentTools = await read("src/views/DocumentToolsPage.tsx");
 const toolbox = await read("src/views/ToolboxPage.tsx");
@@ -35,9 +38,9 @@ const browserCompatibility = await read("tests/e2e/browser-compatibility.spec.ts
 
 check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/preservationOpen:\s*false/.test(workspace), "technical preservation details default closed");
-check(/<details aria-label="Advanced & support" className="sidebar-advanced">/.test(shell) && /<summary>Support<\/summary>/.test(shell), "advanced support is progressively disclosed");
+check(/<details className="product-advanced">/.test(taskDirectory) && /More tools & troubleshooting/.test(taskDirectory) && /Troubleshooting/.test(shell), "advanced support is progressively disclosed");
 check(!/route:\s*\{ name: "diagnostics" \}/.test(shell) && !/route:\s*\{ name: "validation" \}/.test(shell) && !/route:\s*\{ name: "storage" \}/.test(shell), "engineering and release destinations stay out of normal support navigation");
-check(/primaryModes:\s*WorkspaceMode\[\]\s*=\s*\["viewer",\s*"editor",\s*"organizer",\s*"toolbox"\]/.test(unifiedWorkspace) && /Read/.test(unifiedWorkspace) && /Edit/.test(unifiedWorkspace) && /Pages/.test(unifiedWorkspace) && /Tools/.test(unifiedWorkspace), "document navigation has four stable user destinations");
+check(/Document actions/.test(unifiedWorkspace) && /TaskDirectory/.test(unifiedWorkspace) && /prepareDocumentSnapshot/.test(unifiedWorkspace) && /useModalFocus/.test(unifiedWorkspace) && /editing-toolbar/.test(editor) && !/role="tablist"/.test(unifiedWorkspace), "document tasks use one focus-managed command surface and preserve current edits, without mode tabs");
 check(!/simpleModes|technicalModes|Show advanced tools|Simple workspace|Advanced workspace/.test(unifiedWorkspace), "workspace no longer exposes competing simple advanced or technical mode navigation");
 check(/viewer-document-actions/.test(viewer) && /Download original PDF/.test(viewer) && /Back up project/.test(viewer) && /Search options/.test(viewer) && /Technical details/.test(viewer) && !/viewer-performance-badge/.test(viewer), "Read keeps document administration and technical details secondary");
 check(/toolGroups/.test(editor) && /Insert/.test(editor) && /Shapes/.test(editor) && /Markup/.test(editor) && /Mark redaction/.test(editor), "editor tools are grouped and redaction is clearly staged");
@@ -45,14 +48,14 @@ check(/not permanent yet/i.test(editor) && /Apply redactions/.test(editor), "red
 check(/LegacyNativeContentPropertiesPanel/.test(nativePropsEntry) && /Technical details/.test(nativeProps) && /Directly editable/.test(nativeProps) && /pending change/.test(nativeProps), "existing-content editor uses plain capability language with technical details disclosed");
 check(/\.p6-selection-count/.test(r3Styles) && /\.native-queued-count/.test(r3Styles) && /Original PDF stays unchanged/.test(r3Styles) && /unified-layer-list/.test(r3Styles), "Edit removes implementation provenance from default chrome while preserving the editor engine");
 check(/Recognition quality/.test(ocr) && /Balanced \(recommended\)/.test(ocr) && /Advanced image cleanup/.test(ocr), "OCR defaults to understandable quality presets");
-check(/organizer-selection-actions/.test(organizer) && /Select pages to act on them/.test(organizer) && /Download copy/.test(organizer) && /Save new project/.test(organizer) && /What happens when I create an output\?/.test(organizer), "Pages is selection-first and uses explicit output semantics");
+check(/Arrange output pages/.test(assembly) && /Output order/.test(assembly) && /Undo/.test(assembly) && /Replace with file/.test(assembly) && /Save arranged PDF/.test(quickTools), "Pages is output-first, reversible, and directly downloadable");
 check(/taskCategories/.test(taskCatalog) && /Create & combine/.test(taskCatalog) && /Edit & annotate/.test(taskCatalog) && /Protect & sign/.test(taskCatalog) && /Convert & optimize/.test(taskCatalog) && /Review & accessibility/.test(taskCatalog), "canonical task catalog organizes tools by user intent");
-check(/(?:What do you want to do\?|Choose what you want to do)/.test(tools) && /Search PDF tasks/.test(tools) && /taskCategories/.test(tools) && !/Forms & Protect|Print & Advanced|Inspect PDF structure/.test(tools), "global tools page discovers outcomes rather than subsystem names");
+check(/TaskDirectory/.test(tools) && /Find a PDF tool/.test(taskDirectory) && /rankTasksByQuery/.test(taskDirectory) && /Organize your pages/.test(taskDirectory) && /Protect & review/.test(taskDirectory), "global tools page discovers grouped outcomes rather than subsystem names");
 check(/Current PDF/.test(documentTools) && /initialTaskId=\{selectedUtility\.id\}/.test(documentTools) && /taskId:\s*task\.id/.test(documentTools), "current-document utility tasks preserve intent through to focused controls");
 check(/TASK_TAB/.test(toolbox) && /crop-pages/.test(toolbox) && /split-pdf/.test(toolbox) && /toolbox-page--focused/.test(toolbox) && /Create updated PDF/.test(toolbox), "document utilities open task-specific controls instead of requiring rediscovery");
 check(/Find a PDF task/.test(commandPalette) && /taskMatchScore/.test(commandPalette) && /rankTasksByQuery|taskMatchScore/.test(taskSearch) && /TASK_INTENT_PHRASES/.test(taskSearch) && !/workspaceModes/.test(commandPalette), "command palette searches and ranks tasks by user intent rather than workspace modes");
 check(!/Experience level/.test(settings) && !/setExperienceMode/.test(unifiedWorkspace), "global Simple Advanced experience navigation has been retired from the consumer UI");
-check((help.match(/id:\s*"/g) ?? []).length >= 20 && /redaction/.test(help) && /print-advanced/.test(help) && /what-changes/.test(help) && /four stable destinations/.test(help), "offline help covers the reconstructed information architecture and advanced workflows");
+check((help.match(/id:\s*"/g) ?? []).length >= 20 && /redaction/.test(help) && /print-advanced/.test(help) && /what-changes/.test(help) && /Document actions/.test(help) && /latest edits/.test(help), "offline help covers the reconstructed information architecture and advanced workflows");
 check(/Prevent browser cleanup/.test(pwa), "persistent-storage action is described by its user outcome");
 check(!/<p className="eyebrow">Phase 17<\/p>/.test(nativeRoute), "legacy compatibility route does not expose internal phase numbering");
 check(/import "\.\/interaction\/r3\.css"/.test(main), "R3 interaction disclosure layer is included in production entry");

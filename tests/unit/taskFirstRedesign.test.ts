@@ -8,7 +8,7 @@ describe("task-first file entry", () => {
   it("recognizes supported mixed image formats", () => expect(inspectIncomingFiles([new File(["a"], "photo.JPG"), new File(["b"], "scan.webp"), new File(["c"], "page.png")])).toBe("images"));
   it("rejects no files", () => expect(() => inspectIncomingFiles([])).toThrow("Choose at least one"));
   it("rejects empty files", () => expect(() => inspectIncomingFiles([new File([], "empty.pdf")])).toThrow("empty"));
-  it("explains how to resolve mixed PDFs and images", () => expect(() => inspectIncomingFiles([pdf(), new File(["a"], "image.jpg")])).toThrow("Convert images to PDF first"));
+  it("accepts mixed PDFs and images for direct assembly", () => expect(inspectIncomingFiles([pdf(), new File(["a"], "image.jpg")])).toBe("mixed"));
   it("does not pretend Office conversion exists", () => expect(() => inspectIncomingFiles([new File(["a"], "document.docx")])).toThrow("not implemented"));
   it("rejects a batch above the memory budget before opening it", () => {
     const file = pdf(); Object.defineProperty(file, "size", { value: 201 * 1024 * 1024 });
@@ -21,7 +21,7 @@ describe("one-use file handoff", () => {
     expect(takeTaskFiles("merge-pdfs")).toEqual([first, second]); expect(takeTaskFiles("merge-pdfs")).toBeNull();
   });
   it("does not leak files to a different task", () => {
-    handOffTaskFiles("extract-pages", [pdf()]); expect(takeTaskFiles("compress-pdf")).toBeNull(); expect(takeTaskFiles("extract-pages")).toBeNull();
+    handOffTaskFiles("extract-pages", [pdf()]); expect(takeTaskFiles("compress-pdf")).toBeNull(); expect(takeTaskFiles("extract-pages")).toHaveLength(1); expect(takeTaskFiles("extract-pages")).toBeNull();
   });
   it("expires abandoned handoffs", () => {
     vi.useFakeTimers(); handOffTaskFiles("extract-pages", [pdf()]); vi.advanceTimersByTime(10 * 60 * 1000 + 1);

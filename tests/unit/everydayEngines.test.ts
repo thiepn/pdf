@@ -16,12 +16,12 @@ beforeAll(async () => {
   await import("../../src/workers/security.worker"); handlers.security = scope.onmessage;
 });
 afterAll(() => vi.unstubAllGlobals());
-function fixture(): ArrayBuffer {
+function fixture(rotation: 0 | 90 | 180 | 270 = 0, media: [number, number, number, number] = [0, 0, 300, 400]): ArrayBuffer {
   const pdf = new mupdf.PDFDocument(); const font = new mupdf.Font("Helvetica");
   try {
     const embedded = pdf.addSimpleFont(font);
     for (let number = 1; number <= 3; number++) {
-      pdf.insertPage(-1, pdf.addPage([0, 0, 300, 400], 0, { Font: { F1: embedded } }, `BT /F1 20 Tf 40 300 Td (Page ${number}) Tj ET`));
+      pdf.insertPage(-1, pdf.addPage(media, rotation, { Font: { F1: embedded } }, `BT /F1 20 Tf 40 300 Td (Page ${number}) Tj ET`));
     }
     const buffer = pdf.saveToBuffer();
     try { return Uint8Array.from(buffer.asUint8Array()).buffer; } finally { buffer.destroy(); }
@@ -66,6 +66,43 @@ describe("Real everyday PDF engine exports", () => {
   it("crops a PDF by the requested margin", () => {
     const result = execute("toolbox", { type: "TRANSFORM", bytes: fixture(), options: { crop: { enabled: true, topPt: 20, rightPt: 0, bottomPt: 0, leftPt: 0 } } });
     const bounds = inspect(result.output)[0].bounds; expect(bounds[3] - bounds[1]).toBe(380);
+  });
+  it.each([0, 90, 180, 270] as const)("crops displayed coordinates on rotated and offset pages (%s degrees)", (rotation) => {
+    const source = fixture(rotation, [10, 20, 310, 420]);
+    const result = execute("toolbox", { type: "TRANSFORM", bytes: source, options: { crop: { enabled: true, topPt: 20, rightPt: 8, bottomPt: 5, leftPt: 12, pageNumbers: [2] } } });
+    const pages = inspect(result.output);
+    const width = rotation % 180 ? 400 : 300, height = rotation % 180 ? 300 : 400;
+    expect(pages[0].bounds).toEqual([0, 0, width, height]);
+    expect(pages[1].bounds).toEqual([0, 0, width - 20, height - 25]);
+    expect(pages[2].bounds).toEqual(pages[0].bounds);
+    // Compare against the engine's documented page-space box setter, not just width/height.
+    const expected = mupdf.Document.openDocument(source, "application/pdf");
+    const actual = mupdf.Document.openDocument(result.output, "application/pdf");
+    const ep = expected.asPDF()!.loadPage(1) as mupdf.PDFPage, ap = actual.asPDF()!.loadPage(1) as mupdf.PDFPage;
+    try {
+      ep.setPageBox("CropBox", [12, 20, width - 8, height - 5]);
+      expect(ap.getObject().get("CropBox").toString()).toBe(ep.getObject().get("CropBox").toString());
+    } finally { ep.destroy(); ap.destroy(); expected.destroy(); actual.destroy(); }
+  });
+  it("rejects oversized or invalid crop margins rather than silently changing them", () => {
+    for (const topPt of [-1, 500, NaN, Infinity]) expect(() => execute("toolbox", { type: "TRANSFORM", bytes: fixture(), options: { crop: { enabled: true, topPt, rightPt: 0, bottomPt: 0, leftPt: 0 } } })).toThrow();
+  });
+  it("assembles native pages from different sources with repeats, blanks and independent rotations", () => {
+    const result = execute("pages", { type: "ASSEMBLE", sources: [{ name: "a.pdf", bytes: fixture() }, { name: "b.pdf", bytes: fixture(90) }], pages: [
+      { sourceIndex: 1, sourcePageIndex: 2, rotation: 90 },
+      { sourceIndex: 0, sourcePageIndex: 0, rotation: 0 },
+      { sourceIndex: 0, sourcePageIndex: 0, rotation: 270 },
+      { sourceIndex: null, sourcePageIndex: 0, rotation: 0 }
+    ] });
+    const pages = inspect(result.output);
+    expect(pages.map((page) => page.text)).toEqual(["Page 3", "Page 1", "Page 1", ""]);
+    expect(pages[0].bounds).toEqual([0, 0, 300, 400]);
+    expect(pages[1].bounds).toEqual([0, 0, 300, 400]);
+    expect(pages[2].bounds).toEqual([0, 0, 400, 300]);
+  });
+  it("refuses missing assembly sources and empty plans", () => {
+    expect(() => execute("pages", { type: "ASSEMBLE", sources: [], pages: [] })).toThrow();
+    expect(() => execute("pages", { type: "ASSEMBLE", sources: [{ name: "a.pdf", bytes: fixture() }], pages: [{ sourceIndex: 4, sourcePageIndex: 0, rotation: 0 }] })).toThrow();
   });
   it("encrypts and unlocks using the exact supplied password", () => {
     const state = createSecurityState("");

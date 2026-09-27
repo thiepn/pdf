@@ -102,7 +102,9 @@ test("file-first entry hands the file directly into page selection and downloads
 test("multiple files only suggest a compatible action and keep their order", async ({ page }, info) => {
     await page.goto("./#/home");
     await page.getByLabel("Choose files to get started", { exact: true }).setInputFiles([{ name: "first.pdf", mimeType: "application/pdf", buffer: fixture(2) }, { name: "second.pdf", mimeType: "application/pdf", buffer: fixture(1) }]);
-    await expect(page.locator(".product-tool-card")).toHaveCount(1);
+    await expect(page.locator(".product-tool-card")).toHaveCount(4);
+    await expect(page.getByRole("button", { name: /^Compare PDFs/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Compress PDF/ })).toBeVisible();
     await page.getByRole("button", { name: /^Merge PDFs/ }).click();
     await expect(page.locator(".task-file-card")).toHaveCount(2);
     await page.getByRole("button", { name: "Move second.pdf up", exact: true }).click();

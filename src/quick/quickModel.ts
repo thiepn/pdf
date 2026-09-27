@@ -1,6 +1,7 @@
+import type { AssemblyPage } from "./assemblyModel";
 /** Everyday operations use temporary files, not persistent project workspaces. */
 export const quickTaskIds = [
-  "merge-pdfs", "split-pdf", "extract-pages", "remove-pages", "rotate-pdf",
+  "merge-pdfs", "organize-pages", "split-pdf", "extract-pages", "remove-pages", "rotate-pdf",
   "pdf-to-jpg", "pdf-to-png", "pdf-to-text", "images-to-pdf", "compress-pdf",
   "unlock-pdf", "password-protect", "add-page-numbers", "add-watermark", "crop-pages"
 ] as const;
@@ -65,6 +66,8 @@ export function formatBytes(bytes: number): string {
 }
 
 export interface QuickOptions {
+  pagePlan: AssemblyPage[] | null;
+  cropPages: string;
   selection: string;
   splitMode: SplitMode;
   every: number;
@@ -83,7 +86,7 @@ export interface QuickOptions {
   crop: { top: number; right: number; bottom: number; left: number };
 }
 export function defaultQuickOptions(): QuickOptions {
-  return { selection: "all", splitMode: "each", every: 2, ranges: "", rotation: 90, dpi: 150, paper: "a4", orientation: "auto", margin: 10, compression: "lossless", acceptRaster: false, outputPassword: "", confirmPassword: "", watermark: "", startNumber: 1, crop: { top: 0, right: 0, bottom: 0, left: 0 } };
+  return { pagePlan: null, cropPages: "all", selection: "all", splitMode: "each", every: 2, ranges: "", rotation: 90, dpi: 150, paper: "a4", orientation: "auto", margin: 10, compression: "lossless", acceptRaster: false, outputPassword: "", confirmPassword: "", watermark: "", startNumber: 1, crop: { top: 0, right: 0, bottom: 0, left: 0 } };
 }
 
 // One-use, in-memory hand-off. Never persisted to storage or sent over a network.

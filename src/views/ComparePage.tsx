@@ -5,6 +5,8 @@ import { diffWords, type DiffToken } from "../comparison/diff";
 import { boundedPairScale, type RgbaPlane } from "../comparison/visualDiff";
 import { runVisualDiff } from "../comparison/visualDiffClient";
 import { visualFingerprintFromRgba } from "../comparison/visualFingerprint";
+import { takeTaskTransfer, inspectIncomingFiles } from "../product/fileHandoff";
+import { routeHref } from "../core/appRouter";
 import { extractPageText, openPdfWithPdfJs } from "../engines/pdfjs";
 
 interface Loaded {
@@ -171,6 +173,12 @@ export function ComparePage() {
   const rightCanvas = useRef<HTMLDivElement | null>(null);
   const diffCanvas = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  const loadGeneration = useRef({ left: 0, right: 0 });
+  const [loadingSides, setLoadingSides] = useState({ left: false, right: false });
+  const [passwordFiles, setPasswordFiles] = useState<Partial<Record<"left" | "right", File>>>({});
+  const [passwords, setPasswords] = useState({ left: "", right: "" });
+  const [inputWarnings, setInputWarnings] = useState<string[]>([]);
   const [left, setLeft] = useState<Loaded | null>(null);
   const [right, setRight] = useState<Loaded | null>(null);
   const [leftPage, setLeftPage] = useState<number | null>(1);
@@ -184,13 +192,26 @@ export function ComparePage() {
   const [alignment, setAlignment] = useState<PageAlignmentRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => () => {
+  useEffect(() => {
+    mounted.current = true;
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
+      if (cancelled) return;
+      const transfer = takeTaskTransfer("compare-pdfs");
+      if (!transfer) return;
+      setInputWarnings(transfer.warnings);
+      await Promise.all(transfer.files.slice(0, 2).map((file, index) => load(file, index === 0 ? "left" : "right", transfer.passwords[index])));
+    });
+    return () => {
+    cancelled = true; mounted.current = false;
+    loadGeneration.current.left++; loadGeneration.current.right++;
     abortRef.current?.abort();
     clearCanvasContainer(leftCanvas.current);
     clearCanvasContainer(rightCanvas.current);
     clearCanvasContainer(diffCanvas.current);
     void documentsRef.current.left?.loadingTask.destroy();
     void documentsRef.current.right?.loadingTask.destroy();
+    };
   }, []);
 
   function clearComparisonOutput(): void {
@@ -202,32 +223,38 @@ export function ComparePage() {
     clearCanvasContainer(diffCanvas.current);
   }
 
-  async function load(file: File, side: "left" | "right") {
+  async function load(file: File, side: "left" | "right", password?: string) {
+    const generation = ++loadGeneration.current[side];
     abortRef.current?.abort();
-    setError(null);
-    setAlignment([]);
-    setAnalysisProgress("");
-    clearComparisonOutput();
+    setLoadingSides((current) => ({ ...current, [side]: true }));
+    setError(null); setAlignment([]); setAnalysisProgress(""); clearComparisonOutput();
     try {
-      const pdf = await openPdfWithPdfJs(new Uint8Array(await file.arrayBuffer()));
-      if (side === "left") {
-        if (documentsRef.current.left) await documentsRef.current.left.loadingTask.destroy();
-        documentsRef.current.left = pdf;
-        setLeft({ file, document: pdf });
-        setLeftPage(1);
-      } else {
-        if (documentsRef.current.right) await documentsRef.current.right.loadingTask.destroy();
-        documentsRef.current.right = pdf;
-        setRight({ file, document: pdf });
-        setRightPage(1);
-      }
+      if (inspectIncomingFiles([file]) !== "pdf") throw new Error("Choose a PDF for comparison.");
+      const other = side === "left" ? right?.file : left?.file;
+      if (other) inspectIncomingFiles([file, other]);
+      const pdf = await openPdfWithPdfJs(new Uint8Array(await file.arrayBuffer()), password);
+      if (!mounted.current || generation !== loadGeneration.current[side]) { await pdf.loadingTask.destroy(); return; }
+      const previous = documentsRef.current[side];
+      documentsRef.current[side] = pdf;
+      if (side === "left") { setLeft({ file, document: pdf }); setLeftPage(1); }
+      else { setRight({ file, document: pdf }); setRightPage(1); }
+      setPasswordFiles((current) => { const next = { ...current }; delete next[side]; return next; });
+      setPasswords((current) => ({ ...current, [side]: "" }));
+      void previous?.loadingTask.destroy();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (!mounted.current || generation !== loadGeneration.current[side]) return;
+      const text = reason instanceof Error ? reason.message : String(reason);
+      if (/password|encrypted/i.test(text)) {
+        setPasswordFiles((current) => ({ ...current, [side]: file }));
+        setError(password ? "That password did not open the PDF. Try again." : null);
+      } else setError(text);
+    } finally {
+      if (mounted.current && generation === loadGeneration.current[side]) setLoadingSides((current) => ({ ...current, [side]: false }));
     }
   }
 
   async function compare(pair = { leftPage, rightPage }) {
-    if (!left || !right) return;
+    if (!left || !right || loadingSides.left || loadingSides.right || Object.keys(passwordFiles).length) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -290,7 +317,7 @@ export function ComparePage() {
   }
 
   async function analyze() {
-    if (!left || !right) return;
+    if (!left || !right || loadingSides.left || loadingSides.right || Object.keys(passwordFiles).length) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -311,6 +338,8 @@ export function ComparePage() {
       if (firstChanged) {
         setLeftPage(firstChanged.leftPage);
         setRightPage(firstChanged.rightPage);
+        // Show the first difference immediately, rather than requiring a second command.
+        await compare({ leftPage: firstChanged.leftPage, rightPage: firstChanged.rightPage });
       }
     } catch (reason) {
       if (!isAbortError(reason)) setError(reason instanceof Error ? reason.message : String(reason));
@@ -339,30 +368,34 @@ export function ComparePage() {
     clearComparisonOutput();
   }
 
-  return <div className="compare-page">
-    <section className="tools-hero">
-      <p className="eyebrow">Compare PDFs</p>
-      <h2>Compare text PDFs and scanned documents page by page.</h2>
-      <p>Pages are matched automatically, including scanned pages, so inserted or deleted pages do not throw off the rest of the comparison. Large visual comparisons are sampled to a bounded local working size. Nothing leaves the browser.</p>
-    </section>
-    {error ? <div className="error-banner"><strong>Comparison issue</strong><span>{error}</span></div> : null}
+  const loading = loadingSides.left || loadingSides.right;
+  const unavailable = busy || loading || Boolean(Object.keys(passwordFiles).length);
+  return <div className="compare-page task-page">
+    <a className="product-back" href={routeHref({ name: "tools" })}>← All PDF tools</a>
+    <header className="task-heading"><div><h1>Compare PDFs</h1><p>Choose the original and revised files. Find changed, inserted, and removed pages without matching them manually.</p></div></header>
+    <p className="product-muted">Private, local comparison. Visual similarity is sampled for large pages; it is not a legal or byte-for-byte equivalence certificate.</p>
+    {inputWarnings.map((warning) => <p className="quick-warning" key={warning}>{warning}</p>)}
+    {error ? <div className="error-banner" role="alert"><strong>Comparison issue</strong><span>{error}</span></div> : null}
 
     <div className="compare-inputs">
-      <button className="file-slot" disabled={busy} onClick={() => leftRef.current?.click()} type="button"><strong>{left?.file.name ?? "Choose original PDF"}</strong><span>{left ? `${left.document.numPages} pages` : "Left document"}</span></button>
-      <button className="file-slot" disabled={busy} onClick={() => rightRef.current?.click()} type="button"><strong>{right?.file.name ?? "Choose revised PDF"}</strong><span>{right ? `${right.document.numPages} pages` : "Right document"}</span></button>
+      <button className="file-slot" disabled={busy || loading} onClick={() => leftRef.current?.click()} type="button"><strong>{left?.file.name ?? "Choose original PDF"}</strong><span>{left ? `${left.document.numPages} pages` : "Left document"}</span></button>
+      <button className="file-slot" disabled={busy || loading} onClick={() => rightRef.current?.click()} type="button"><strong>{right?.file.name ?? "Choose revised PDF"}</strong><span>{right ? `${right.document.numPages} pages` : "Right document"}</span></button>
       <input ref={leftRef} accept="application/pdf,.pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void load(file, "left"); event.target.value = ""; }} type="file" />
       <input ref={rightRef} accept="application/pdf,.pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void load(file, "right"); event.target.value = ""; }} type="file" />
     </div>
 
-    <div className="compare-toolbar">
+    {(["left", "right"] as const).map((side) => passwordFiles[side] ? <form className="quick-panel task-password" key={side} onSubmit={(event) => { event.preventDefault(); void load(passwordFiles[side]!, side, passwords[side]); }}><h2>{side === "left" ? "Original" : "Revised"} PDF needs its password</h2><p>{passwordFiles[side]?.name}</p><label className="quick-field"><span>{side === "left" ? "Original" : "Revised"} PDF password</span><input type="password" autoComplete="off" value={passwords[side]} onChange={(event) => setPasswords((current) => ({ ...current, [side]: event.target.value }))}/></label><button className="button" disabled={loadingSides[side] || !passwords[side]} type="submit">Open protected PDF</button><button className="button button--secondary" type="button" disabled={loadingSides[side]} onClick={() => { setPasswordFiles((current) => { const next = { ...current }; delete next[side]; return next; }); setPasswords((current) => ({ ...current, [side]: "" })); }}>Cancel</button></form> : null)}
+    {loading ? <p role="status">Opening comparison files…</p> : null}
+    <div className="compare-start"><button className="button" disabled={!left || !right || unavailable} onClick={() => void analyze()} type="button">Find differences</button><span>{left && right ? "Matches pages and opens the first difference." : "Choose both files to begin."}</span></div>
+    {left && right ? <div className="compare-toolbar">
       <label>Mode<select disabled={busy} onChange={(event) => changeMode(event.target.value as typeof mode)} value={mode}><option value="visual">Visual pixels</option><option value="text">Extracted text</option></select></label>
       <label>Original page<input max={left?.document.numPages ?? 1} min="1" disabled={busy || leftPage === null} onChange={(event) => setLeftPage(Math.max(1, Math.min(left?.document.numPages ?? 1, Number(event.target.value))))} type="number" value={leftPage ?? ""} /></label>
       <label>Revised page<input max={right?.document.numPages ?? 1} min="1" disabled={busy || rightPage === null} onChange={(event) => setRightPage(Math.max(1, Math.min(right?.document.numPages ?? 1, Number(event.target.value))))} type="number" value={rightPage ?? ""} /></label>
-      <button className="button" disabled={!left || !right || busy} onClick={() => void compare()} type="button">Compare pair</button>
-      <button className="button button--secondary" disabled={!left || !right || busy} onClick={() => void analyze()} type="button">Analyze document</button>
+      <button className="button" disabled={!left || !right || unavailable} onClick={() => void compare()} type="button">Compare pair</button>
+
       {busy ? <button className="button button--danger-ghost" onClick={cancelActive} type="button">Cancel comparison</button> : null}
       {changed !== null ? <strong>{(changed * 100).toFixed(2)}% changed pixels</strong> : null}
-    </div>
+    </div> : null}
     {busy ? <div aria-live="polite" className="notice-banner" role="status">{analysisProgress || "Comparing selected pages…"}</div> : null}
     {visualResolution ? <div className="notice-banner" role="status">{visualResolution}</div> : null}
 
@@ -371,10 +404,10 @@ export function ComparePage() {
       <div className="compare-alignment__list">{alignment.map((row, index) => <button className={`compare-alignment__row compare-alignment__row--${row.status}`} disabled={busy} key={`${row.leftPage ?? "x"}-${row.rightPage ?? "x"}-${index}`} onClick={() => chooseRow(row)} type="button"><span>{row.leftPage ? `Original ${row.leftPage}` : "—"}</span><strong>{row.status}</strong><span>{row.rightPage ? `Revised ${row.rightPage}` : "—"}</span><small>{row.leftPage && row.rightPage ? `${Math.round(row.similarity * 100)}%${row.basis ? ` · ${row.basis}` : ""} similarity` : "sequence change"}</small></button>)}</div>
     </section> : null}
 
-    {mode === "visual" ? <div className="visual-compare-grid">
+    {left && right && mode === "visual" ? <div className="visual-compare-grid">
       <section><h3>Original{leftPage === null ? " · page missing" : leftPage ? ` · page ${leftPage}` : ""}</h3><div className="compare-canvas" ref={leftCanvas} /></section>
       <section><h3>Revised{rightPage === null ? " · page missing" : rightPage ? ` · page ${rightPage}` : ""}</h3><div className="compare-canvas" ref={rightCanvas} /></section>
       <section><h3>Difference</h3><div className="compare-canvas" ref={diffCanvas} /></section>
-    </div> : <div className="text-diff">{tokens.length ? tokens.map((token, index) => <span className={`diff-${token.kind}`} key={`${index}-${token.text}`}>{token.text}</span>) : <div className="empty-state"><strong>No text comparison yet</strong><p>Choose both PDFs, optionally analyze their page alignment, then compare a selected pair.</p></div>}</div>}
+    </div> : mode === "text" ? <div className="text-diff">{tokens.length ? tokens.map((token, index) => <span className={`diff-${token.kind}`} key={`${index}-${token.text}`}>{token.text}</span>) : <div className="empty-state"><strong>No text comparison yet</strong><p>Choose both PDFs, optionally analyze their page alignment, then compare a selected pair.</p></div>}</div> : null}
   </div>;
 }

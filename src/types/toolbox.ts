@@ -8,6 +8,8 @@ export interface ToolboxMetadata {
 }
 
 export interface ToolboxCrop {
+  /** 1-based page numbers. Omitted means all pages. */
+  pageNumbers?: number[];
   enabled: boolean;
   topPt: number;
   rightPt: number;

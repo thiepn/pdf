@@ -1,3 +1,4 @@
+import type { AssemblyEnginePage } from "./assemblyEngine";
 export interface CompilePage { sourcePageIndex: number; rotation: 0 | 90 | 180 | 270 }
 export interface MergeSource { password?: string; name: string; bytes: Uint8Array }
 interface Ready { type: "READY" }
@@ -34,5 +35,11 @@ export async function compilePagePlan(bytes: Uint8Array, pages: CompilePage[], s
 export async function mergePdfSources(sources: MergeSource[], signal?: AbortSignal) {
   const workerSources = sources.map((source) => ({ name: source.name, password: source.password, bytes: Uint8Array.from(source.bytes).buffer }));
   const response = await invokeWorker({ type: "MERGE", sources: workerSources }, workerSources.map((source) => source.bytes), signal);
+  return { bytes: new Uint8Array(response.output), ...response.result };
+}
+
+export async function assembleSources(sources: MergeSource[], pages: AssemblyEnginePage[], signal?: AbortSignal) {
+  const workerSources = sources.map((source) => ({ name: source.name, password: source.password, bytes: Uint8Array.from(source.bytes).buffer }));
+  const response = await invokeWorker({ type: "ASSEMBLE", sources: workerSources, pages }, workerSources.map((source) => source.bytes), signal);
   return { bytes: new Uint8Array(response.output), ...response.result };
 }

@@ -57,11 +57,14 @@ function addBlankPages(pdf:any,options:NonNullable<ToolboxTransformOptions["blan
 }
 function applyCrop(pdf:any,options:NonNullable<ToolboxTransformOptions["crop"]>,requestId:string,warnings:string[]):number[] {
   if(!options.enabled) return []; const changed:number[]=[];
-  for(let index=0;index<pdf.countPages();index+=1){ active(requestId); const page=pdf.loadPage(index); try{
+  const selected = options.pageNumbers ? new Set(options.pageNumbers) : null;
+  for(let index=0;index<pdf.countPages();index+=1){ if(selected && !selected.has(index+1)) continue; active(requestId); const page=pdf.loadPage(index); try{
     const bounds=page.getBounds() as [number,number,number,number]; const width=bounds[2]-bounds[0],height=bounds[3]-bounds[1];
-    const left=clamp(options.leftPt,0,Math.max(0,width-1)),right=clamp(options.rightPt,0,Math.max(0,width-left-1)),top=clamp(options.topPt,0,Math.max(0,height-1)),bottom=clamp(options.bottomPt,0,Math.max(0,height-top-1));
+    const left=options.leftPt,right=options.rightPt,top=options.topPt,bottom=options.bottomPt;
+    if([left,right,top,bottom].some((margin)=>!Number.isFinite(margin)||margin<0)) throw new Error("Crop margins must be finite and non-negative.");
     const pageRect:[number,number,number,number]=[bounds[0]+left,bounds[1]+top,bounds[2]-right,bounds[3]-bottom]; if(pageRect[2]-pageRect[0]<12||pageRect[3]-pageRect[1]<12) throw new Error(`Crop margins leave page ${index+1} too small.`);
-    const pdfRect=transformRect(page.getTransform() as AffineMatrix,pageRect); page.setPageBox("CropBox",pdfRect); changed.push(index+1);
+    // setPageBox accepts displayed page coordinates and converts to PDF space internally.
+    page.setPageBox("CropBox",pageRect); changed.push(index+1);
   } finally{page.destroy();} }
   warnings.push("Cropping changes the visible CropBox only; hidden content outside the crop remains in the PDF."); return changed;
 }

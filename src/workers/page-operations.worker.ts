@@ -1,8 +1,10 @@
+import { assemblePdfPages, type AssemblyEnginePage, type AssemblyEngineSource } from "../tools/assemblyEngine";
 import * as mupdf from "mupdf";
 interface CompileRequest { type: "COMPILE_PLAN"; requestId: string; bytes: ArrayBuffer; pages: Array<{ sourcePageIndex: number; rotation: 0 | 90 | 180 | 270 }>; password?: string }
 interface MergeRequest { type: "MERGE"; requestId: string; sources: Array<{ name: string; bytes: ArrayBuffer; password?: string }> }
 interface CancelRequest { type: "CANCEL"; requestId: string }
-type Request = CompileRequest | MergeRequest | CancelRequest;
+interface AssemblyRequest { type: "ASSEMBLE"; requestId: string; sources: AssemblyEngineSource[]; pages: AssemblyEnginePage[] }
+type Request = CompileRequest | MergeRequest | AssemblyRequest | CancelRequest;
 const cancelled = new Set<string>();
 function assertActive(requestId: string): void { if (cancelled.has(requestId)) throw new DOMException("Operation cancelled.", "AbortError"); }
 function rotatePage(pdf: any, pageIndex: number, delta: number): void {
@@ -40,7 +42,10 @@ self.onmessage = (event: MessageEvent<Request>) => {
   const startedAt = performance.now();
   try {
     assertActive(request.requestId);
-    if (request.type === "COMPILE_PLAN") {
+    if (request.type === "ASSEMBLE") {
+      const output = assemblePdfPages(request.sources, request.pages);
+      postResult(request.requestId, output, request.pages.length, startedAt, ["Page content and selectable text are retained. Document-level bookmarks, attachments, complex form relationships and digital signatures may not survive page assembly."]);
+    } else if (request.type === "COMPILE_PLAN") {
       if (!request.pages.length) throw new Error("A PDF must contain at least one page.");
       const source = mupdf.Document.openDocument(request.bytes, "application/pdf");
       try {

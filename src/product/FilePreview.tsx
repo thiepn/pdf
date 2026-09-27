@@ -4,7 +4,7 @@ import { openPdfWithPdfJs } from "../engines/pdfjsBase";
 import type { QuickInput } from "../quick/quickOperations";
 
 /** A bounded cover preview. Callers limit these to six files, never every page. */
-export function FilePreview({ input }: { input: QuickInput }) {
+export function FilePreview({ input, pageNumber = 1 }: { input: QuickInput; pageNumber?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
   const [imageUrl, setImageUrl] = useState<string>();
@@ -23,7 +23,7 @@ export function FilePreview({ input }: { input: QuickInput }) {
         destroy = () => { void pdf.loadingTask.destroy(); };
         if (disposed) { destroy(); return; }
         try {
-          const page = await pdf.getPage(1);
+          const page = await pdf.getPage(pageNumber);
           try {
             const canvas = canvasRef.current; if (!canvas || disposed) return;
             const original = page.getViewport({ scale: 1 });
@@ -37,6 +37,6 @@ export function FilePreview({ input }: { input: QuickInput }) {
       } catch { /* A cover preview failure must never prevent processing the PDF. */ }
     })();
     return () => { disposed = true; destroy?.(); };
-  }, [input.id, input.bytes, input.password, input.image]);
+  }, [input.id, input.bytes, input.password, input.image, pageNumber]);
   return <span className="file-preview" aria-hidden="true">{imageUrl ? <img alt="" src={imageUrl} /> : <><canvas ref={canvasRef} style={{ display: ready ? "block" : "none" }} />{!ready ? <Icon name="documents" size={38} /> : null}</>}</span>;
 }

@@ -1,0 +1,125 @@
+/* Visual operations share one output-first model on desktop and touch. */
+.assembly-intro,.assembly-heading,.assembly-tools,.compare-start { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.assembly-intro { margin:16px 0; justify-content:space-between; }
+.assembly-heading { justify-content:space-between; margin:18px 0; }
+.assembly-heading h2 { margin:0 0 6px; font-size:21px; }
+.assembly-heading p,.assembly-intro p { margin:0; color:var(--muted); }
+.assembly-tools { margin:12px 0; }
+.product-app .assembly-tools button,.product-app .assembly-card-actions button,.product-app .assembly-page-menu button { min-height:44px; padding:9px 12px; border:1px solid var(--line-strong); color:var(--ink); background:var(--surface-strong); }
+.assembly-tools label { display:grid; gap:4px; }
+.assembly-tools input { padding:8px; width:100px; }
+.assembly-presets { padding:14px; background:var(--surface-subtle); border-radius:12px; }
+.assembly-presets summary { cursor:pointer; font-weight:650; }
+.assembly-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; list-style:none; padding:0; margin:20px 0; }
+.assembly-card { min-width:0; padding:12px; background:var(--surface-strong); border:1px solid var(--line); border-radius:14px; box-shadow:var(--product-shadow); }
+.assembly-card:has(input[type="checkbox"]:checked) { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.assembly-select { display:flex; align-items:center; gap:8px; min-height:36px; font-size:13px; }
+.assembly-select input { width:20px; height:20px; }
+.assembly-preview { height:205px; display:grid; place-items:center; margin:9px 0; padding:14px; background:var(--canvas); border-radius:8px; overflow:hidden; }
+.assembly-preview img { max-width:100%; max-height:180px; object-fit:contain; box-shadow:var(--product-page-shadow); }
+.assembly-source { font-size:12px; color:var(--muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.assembly-card-actions { display:flex; gap:6px; }
+.assembly-card-actions button { flex:1; }
+.assembly-page-menu { margin-top:8px; font-size:13px; }
+.assembly-page-menu summary { padding:10px 0; cursor:pointer; color:var(--accent); font-weight:650; }
+.assembly-page-menu[open] { display:grid; gap:8px; }
+.assembly-page-menu label { display:grid; gap:4px; }
+.assembly-page-menu input { padding:8px; max-width:100%; }
+.assembly-page-menu button { width:100%; text-align:left; margin:3px 0; }
+.output-sequence { padding:14px 16px; border:1px solid var(--line); border-radius:12px; margin:16px 0; background:var(--accent-soft); overflow-wrap:anywhere; }
+.output-sequence p { line-height:1.8; margin:8px 0; }
+.output-sequence small { display:block; margin-top:8px; }
+.product-app .quick-thumbnail small { display:block; color:var(--accent); margin-top:5px; }
+.visual-crop { max-width:720px; margin:20px auto; }
+.visual-crop .quick-inline { align-items:end; }
+.visual-crop .quick-field { max-width:130px; }
+.visual-crop > p { color:var(--muted); font-size:13px; }
+.crop-stage { position:relative; width:100%;  max-width:100%; overflow:hidden; margin:16px auto; background:#fff; box-shadow:var(--product-page-shadow); touch-action:none; user-select:none; cursor:crosshair; }
+.crop-stage img { width:100%; height:100%; position:absolute; inset:0; pointer-events:none; }
+.crop-selection { position:absolute; border:2px solid var(--accent); box-shadow:0 0 0 1800px rgb(0 0 0 / 45%); pointer-events:none; display:grid; place-items:center; }
+.crop-selection span { padding:5px 10px; color:var(--ink); background:var(--surface-strong); border:1px solid var(--line); border-radius:7px; font-size:12px; box-shadow:var(--product-shadow); }
+.document-task-options { padding:0; border:0; min-width:0; }
+.compare-page.task-page { max-width:1180px; width:calc(100% - 56px); margin:24px auto 60px; }
+.compare-page .compare-inputs { margin:24px 0; }
+.compare-page .file-slot { border:1.5px dashed var(--line-strong); border-radius:16px; background:var(--surface-strong); color:var(--ink); min-height:126px; overflow-wrap:anywhere; }
+.compare-page .file-slot:hover:not(:disabled) { border-color:var(--accent); background:var(--accent-soft); }
+.compare-start { background:var(--surface-strong); padding:20px; border:1px solid var(--line); border-radius:14px; margin:20px 0; }
+.compare-start span { color:var(--muted); }
+.compare-page .compare-toolbar { border-radius:14px; margin:20px 0; background:var(--surface-strong); color:var(--ink); }
+.compare-page .compare-alignment { border-radius:14px; }
+.compare-page .visual-compare-grid section { min-width:0; }
+.compare-page .compare-canvas { background:var(--canvas); border-radius:12px; }
+.compare-page .compare-alignment__list { max-height:380px; overflow:auto; }
+.product-home-hero { padding-top:40px; padding-bottom:26px; }
+.product-home-hero h1 { font-size:clamp(34px,4.4vw,50px); }
+.product-home-drop { margin-top:24px; padding:22px; }
+.product-search { margin-bottom:24px; }
+@media (max-width:1000px) { .assembly-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) {
+ .assembly-grid { gap:10px; }
+ .assembly-card { padding:9px; }
+ .assembly-preview { height:160px; padding:8px; }
+ .assembly-preview img { max-height:145px; }
+ .assembly-select { font-size:12px; gap:5px; }
+ .assembly-card-actions { flex-wrap:wrap; }
+ .product-app .assembly-card-actions button { min-width:40px; padding:8px; }
+ .assembly-card-actions button:last-child { flex-basis:100%; }
+ .assembly-tools { gap:8px; }
+ .assembly-tools .button { flex-grow:1; font-size:13px; }
+ .visual-crop { margin-top:14px; }
+ .crop-stage { max-height:none; }
+ .compare-page.task-page { width:calc(100% - 28px); }
+ .compare-inputs,.visual-compare-grid { grid-template-columns:minmax(0,1fr); }
+ .compare-start { align-items:stretch; flex-direction:column; }
+ .compare-start .button { width:100%; }
+ .product-home-hero { padding-top:28px; }
+ .product-app .editor-commandbar { gap:8px; padding:8px 12px; }
+ .product-app .editor-purpose { display:none; }
+ .product-app .editor-commandbar__center { flex:1; min-width:0; }
+ .product-app .editing-toolbar__primary { overflow-x:auto; flex-wrap:nowrap; max-width:100%; scrollbar-width:thin; padding-bottom:3px; }
+ .product-app .editing-toolbar__primary button { flex:0 0 auto; min-width:70px; min-height:52px; }
+ .product-app .editor-contextbar { padding:6px 12px; gap:8px; }
+ .product-app .editor-contextbar .editor-guides-menu { display:none; }
+ .product-app .document-topbar { padding:8px 12px; }
+ .product-app .document-identity h1 { font-size:14px; }
+}
+@media (max-width:360px) { .assembly-grid { grid-template-columns:minmax(0,1fr); } }
+@media (prefers-reduced-motion:reduce) { .product-app *, .product-app *::before,.product-app *::after { scroll-behavior:auto!important; } }
+/* Focused specialist tasks: document first, one settings panel, no section tabs. */
+.product-app .security-task-workflow { min-height:100%; height:auto; overflow:visible; background:var(--surface); }
+.product-app .security-task-workflow .security-commandbar { display:flex; flex-wrap:wrap; align-items:center; gap:14px; padding:16px 22px; background:var(--surface-strong); border-bottom:1px solid var(--line); }
+.product-app .security-task-workflow .security-layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; align-items:start; gap:20px; padding:22px; height:auto; overflow:visible; }
+.product-app .security-task-workflow .security-stage { grid-column:1; grid-row:1; min-width:0; min-height:520px; overflow:auto; padding:24px; border:1px solid var(--line); border-radius:14px; background:var(--canvas); }
+.product-app .security-task-workflow .security-panel { grid-column:2; grid-row:1; background:var(--surface-strong); border:1px solid var(--line); border-radius:14px; overflow:visible; height:auto; }
+.product-app .security-task-workflow .security-validation-panel { grid-column:1/-1; grid-row:2; background:var(--surface-strong); color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:18px; width:auto; }
+.product-app .security-task-workflow .security-validation-panel summary { cursor:pointer; font-weight:650; min-height:30px; }
+.product-app .security-settings { padding:0; margin:0; border:0; min-width:0; }
+.product-app .security-task-workflow .security-panel-body { padding:20px; }
+.product-app .security-other-tasks { border-top:1px solid var(--line); padding:18px 20px; color:var(--muted); }
+.product-app .security-other-tasks summary { cursor:pointer; }
+.product-app .security-other-tasks label { display:grid; gap:8px; margin-top:15px; }
+.product-app .security-task-workflow .security-page-controls :is(button,select,input) { min-height:44px; }
+.product-app .security-task-workflow .security-field-box span { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.product-app .ocr-workspace { width:min(1180px,calc(100% - 44px)); margin:22px auto; display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:24px; height:auto; min-height:0; background:var(--surface); }
+.product-app .ocr-controls { grid-column:2; grid-row:1; border:1px solid var(--line); border-radius:14px; padding:22px; background:var(--surface-strong); overflow:visible; }
+.product-app .ocr-results { grid-column:1; grid-row:1; min-width:0; padding:0; }
+.product-app .ocr-results .processing-header { background:var(--surface-strong); border:1px solid var(--line); border-radius:14px; padding:20px; }
+.product-app .ocr-page-result { background:var(--surface-strong); border:1px solid var(--line); border-radius:14px; padding:20px; }
+.product-app .ocr-results .output-bar { position:static; flex-wrap:wrap; margin-top:20px; border-radius:14px; background:var(--surface-strong); padding:20px; border:1px solid var(--line); }
+.product-app .ocr-input-preview { padding:22px; margin:20px 0; background:var(--canvas); border:1px solid var(--line); border-radius:14px; }
+.product-app .ocr-input-preview .file-preview { max-width:340px; margin:auto; }
+@media(max-width:900px) {
+ .product-app .security-task-workflow .security-layout { grid-template-columns:minmax(0,1fr); padding:14px; }
+ .product-app .security-task-workflow .security-panel { grid-column:1; grid-row:1; }
+ .product-app .security-task-workflow .security-stage { grid-column:1; grid-row:2; min-height:400px; }
+ .product-app .security-task-workflow .security-validation-panel { grid-column:1; grid-row:3; }
+ .product-app .ocr-workspace { width:calc(100% - 28px); grid-template-columns:minmax(0,1fr); }
+ .product-app .ocr-controls { grid-column:1; grid-row:1; }
+ .product-app .ocr-results { grid-column:1; grid-row:2; }
+}
+
+.assembly-sources { margin:20px 0; padding:16px; border-top:1px solid var(--line); }
+.assembly-sources summary,.quick-more-tools summary { cursor:pointer; font-weight:650; padding:10px 0; }
+.quick-more-tools { width:100%; margin:20px 0; text-align:left; }
+
+.ocr-full-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font: inherit; }

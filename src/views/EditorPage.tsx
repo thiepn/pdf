@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Icon, type IconName } from "../components/Icon";
+import { registerDocumentSnapshot, type SnapshotSource } from "../product/documentSnapshot";
 import { routeHref } from "../core/appRouter";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { useModalFocus } from "../accessibility/modalFocus";
@@ -59,7 +60,7 @@ const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: s
     { id: "hand", label: "Pan", key: "H", icon: "hand" }
   ] },
   { label: "Insert", tools: [
-    { id: "text", label: "Text", key: "T", icon: "text" },
+    { id: "text", label: "Add text", key: "T", icon: "text" },
     { id: "image", label: "Image", key: "I", icon: "image" },
     { id: "link", label: "Link", icon: "link" },
     { id: "signature", label: "Signature", icon: "signature" },
@@ -132,6 +133,14 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const mobileToolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
   useModalFocus(mobileToolsOpen, mobileToolsRef, closeMobileTools, undefined, mobileToolsTriggerRef);
+
+  const liveSnapshotRef = useRef<() => SnapshotSource>(() => { throw new Error("The editor is still opening."); });
+  liveSnapshotRef.current = () => {
+    if (!sourceBytesRef.current || !document || !project) throw new Error("Wait until the document has opened before switching tools.");
+    if (processing) throw new Error("Finish the current export before switching tools.");
+    return { bytes: sourceBytesRef.current, objects: history.present.objects, nativeEdits, password: passwordRef.current, filename: project.sourceFilename || project.name };
+  };
+  useEffect(() => registerDocumentSnapshot(projectId, () => liveSnapshotRef.current()), [projectId]);
 
   const enqueueLocalSave = useCallback((revision: number, snapshot: LocalSaveSnapshot) => {
     localSaveQueuedRevisionRef.current = Math.max(localSaveQueuedRevisionRef.current, revision);
@@ -747,7 +756,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </header>
 
       <nav className="editing-toolbar" aria-label="Editing tools">
-        <div className="editing-toolbar__primary">{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
+        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
         <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
         <input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" />
       </nav>

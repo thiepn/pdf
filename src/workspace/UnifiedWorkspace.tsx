@@ -1,8 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { TaskDirectory } from "../product/TaskDirectory";
-import { taskRoute } from "../ia/taskCatalog";
-import { getProject } from "../projects/projectRepository";
+import { handOffTaskFiles } from "../product/fileHandoff";
+import { rememberProjectSessionPassword } from "../security/sessionPasswords";
+import { prepareDocumentSnapshot } from "../product/documentSnapshot";
+import { taskRoute, getTask, type PdfTask } from "../ia/taskCatalog";
+import { getProject, createDerivedProjectFromBytes } from "../projects/projectRepository";
 import { createProjectLease, type ProjectLease, type ProjectLeaseMode } from "../projects/projectLease";
 import { readSettings, SETTINGS_CHANGED_EVENT } from "../settings/settingsStore";
 import type { ProjectManifest } from "../types/project";
@@ -44,10 +47,11 @@ const DocumentToolsPage = lazy(() => import("../views/DocumentToolsPage").then((
 interface UnifiedWorkspaceProps {
   projectId: string;
   mode: WorkspaceMode;
+  taskId?: string;
   onTitleChange?: (title: string, subtitle?: string) => void;
 }
 
-export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWorkspaceProps) {
+export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: UnifiedWorkspaceProps) {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
   const [project, setProject] = useState<ProjectManifest | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => readSettings());
@@ -65,6 +69,8 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   const [leaseHandle, setLeaseHandle] = useState<ProjectLease | null>(null);
   const [interruptedSession, setInterruptedSession] = useState<InterruptedWorkspaceSession | null>(() => readInterruptedWorkspaceSession(projectId));
   const [activeOperation, setActiveOperation] = useState<ProjectOperationSnapshot | null>(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const handoffRef = useRef(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const mobileSheetRef = useRef<HTMLElement | null>(null);
   const modeRef = useRef(mode);
@@ -203,27 +209,6 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   const workspaceLocked = leaseMode === "read-only" && modeRequiresOwnership;
   const workspaceAcquiring = leaseMode === "acquiring" && modeRequiresOwnership;
 
-  function optimisticMode(nextMode: WorkspaceMode): void {
-    const now = Date.now();
-    setSession((current) => current ? {
-      ...current,
-      activeProjectId: projectId,
-      tabs: current.tabs.map((tab) => tab.projectId === projectId ? { ...tab, lastMode: nextMode, lastActivatedAt: now } : tab),
-      updatedAt: now
-    } : current);
-  }
-
-  function switchMode(nextMode: WorkspaceMode): void {
-    closeMobileTools();
-    if (nextMode === mode) return;
-    if (activeOperation) { setError(`Finish or cancel “${activeOperation.label}” before switching tools.`); return; }
-    setError(null);
-    setChildSubtitle(undefined);
-    optimisticMode(nextMode);
-    navigateTo({ name: "workspace", projectId, mode: nextMode });
-    void updateWorkspaceMode(projectId, nextMode).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-  }
-
   async function createCheckpoint(): Promise<void> {
     if (!project) return;
     setCheckpointBusy(true);
@@ -273,6 +258,31 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     if (panel === "timelineOpen" && opening && !timelineLoaded) void ensureTimeline();
   }
 
+  async function chooseDocumentTask(task: PdfTask, readOnly = false): Promise<void> {
+    if (activeOperation || handoffRef.current) return;
+    const route = readOnly ? { name: "workspace" as const, projectId, mode: "viewer" as const } : taskRoute(task, projectId); if (!route) return;
+    // Same editor: preserve editable objects, selections, and undo history in place.
+    if (route.name === "workspace" && route.mode === mode && route.projectId === projectId) { closeMobileTools(); navigateTo(route); return; }
+    handoffRef.current = true; setHandoffBusy(true); setError(null);
+    try {
+      await runProjectOperation(projectId, { label: "Preparing your current document" }, async ({ signal, update }) => {
+        update({ detail: "Including and verifying your latest edits…" });
+        const snapshot = await prepareDocumentSnapshot(projectId, signal);
+        if (route.name === "quick" || task.id === "compare-pdfs") {
+          handOffTaskFiles(task.id, [snapshot.file], { passwords: [snapshot.password], warnings: snapshot.warnings });
+          closeMobileTools(); navigateTo(taskRoute(task)!); return;
+        }
+        if (route.name === "workspace" && snapshot.changed) {
+          const derived = await createDerivedProjectFromBytes(projectId, snapshot.bytes, snapshot.file.name, "tool-handoff", "application/pdf", snapshot.password);
+          if (snapshot.password) rememberProjectSessionPassword(derived.id, snapshot.password);
+          closeMobileTools(); navigateTo({ ...route, projectId: derived.id }); return;
+        }
+        closeMobileTools(); navigateTo(route);
+      });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { handoffRef.current = false; setHandoffBusy(false); }
+  }
+
   async function retryOwnership(): Promise<void> {
     if (!leaseHandle) return;
     setLeaseMode("acquiring");
@@ -301,7 +311,7 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
 
     <div className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"}>
       <section aria-labelledby="workspace-document-title" className="workspace-mode-content" id="workspace-document-panel">
-        {workspaceAcquiring ? <AcquiringMode mode={mode} /> : workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
+        {workspaceAcquiring ? <AcquiringMode mode={mode} /> : workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent taskId={taskId} mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
       </section>
       {session.preservationOpen && settings.showPreservationWarnings ? <aside className="workspace-insight-panel">
         <div className="workspace-insight-panel__header"><div><p className="eyebrow">What this tool changes</p><h2>{workspaceModeLabel(mode)}</h2></div><button aria-label="Close what-changes panel" onClick={() => void togglePanel("preservationOpen")} type="button">×</button></div>
@@ -323,11 +333,11 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
 
     {mobileToolsOpen ? <div className="product-modal-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="Document actions" aria-modal="true" className="product-modal document-task-dialog" id="document-actions-dialog" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
       <header><div><p className="eyebrow">WORK WITH THIS DOCUMENT</p><h2>What would you like to do?</h2></div><button className="icon-button" aria-label="Close document actions" onClick={closeMobileTools} type="button"><Icon name="close"/></button></header>
-      <p className="product-muted">{project.name}</p>
-      <div className="document-action-shortcuts"><button className="button button--secondary" onClick={() => switchMode("editor")} type="button"><Icon name="edit"/>Edit this PDF</button><button className="button button--secondary" onClick={() => switchMode("viewer")} type="button"><Icon name="read"/>Read PDF</button><button className="button button--secondary" onClick={() => switchMode("organizer")} type="button"><Icon name="pages"/>Arrange pages</button></div>
+      <p className="product-muted">{project.name}</p>{handoffBusy ? <p role="status">Preparing and checking your latest edits…</p> : null}{error ? <p role="alert">{error}</p> : null}
+      <div className="document-action-shortcuts"><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("edit-pdf")!)} type="button"><Icon name="edit"/>Edit this PDF</button><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("edit-pdf")!, true)} type="button"><Icon name="read"/>Read PDF</button><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("organize-pages")!)} type="button"><Icon name="pages"/>Arrange pages</button></div>
       <div className="document-action-shortcuts"><button className="button button--secondary" onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button className="button button--secondary" onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes in this PDF?</button> : null}</div>
-      <TaskDirectory compact projectId={projectId} onChoose={(task) => { if (activeOperation) return; const route = taskRoute(task, projectId); if (route) { closeMobileTools(); navigateTo(route); } }} />
-      <p className="product-fineprint">Quick tools use the saved source PDF. Download your edited PDF first to include added text, signatures and other editor changes.</p>
+      <fieldset className="document-task-options" disabled={handoffBusy}><legend className="visually-hidden">Choose the next task</legend><TaskDirectory compact projectId={projectId} kind="pdf" fileCount={1} onChoose={(task) => void chooseDocumentTask(task)} /></fieldset>
+      <p className="product-fineprint">Your latest editor changes are included and checked before the next tool opens. The original and editable project remain unchanged.</p>
     </section></div> : null}
   </div>;
 }
@@ -340,13 +350,13 @@ function LockedMode({ mode, onRetry }: { mode: WorkspaceMode; onRetry: () => voi
   return <div className="workspace-locked-mode"><div><p className="eyebrow">Write protection</p><h2>{workspaceModeLabel(mode)} is locked in this tab</h2><p>Only the tab that owns this local project may change document state. This prevents two tabs from silently overwriting each other.</p><button className="button" onClick={onRetry} type="button">Try editing here</button></div></div>;
 }
 
-function ModeContent({ mode, projectId, readOnly, onSubtitle }: { mode: WorkspaceMode; projectId: string; readOnly: boolean; onSubtitle: (value?: string) => void }) {
+function ModeContent({ mode, projectId, taskId, readOnly, onSubtitle }: { taskId?: string; mode: WorkspaceMode; projectId: string; readOnly: boolean; onSubtitle: (value?: string) => void }) {
   const onTitleChange = (_title: string, subtitle?: string) => onSubtitle(subtitle);
   let content;
   if (mode === "viewer") content = <ViewerPage onTitleChange={onTitleChange} projectId={projectId} readOnly={readOnly} />;
   else if (mode === "editor") content = <EditorPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "organizer") content = <OrganizerPage onTitleChange={onTitleChange} projectId={projectId} />;
-  else if (mode === "secure") content = <SecurePage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "secure") content = <SecurePage taskId={taskId} onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "ocr") content = <OcrPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "compress") content = <CompressionPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "inspector") content = <InspectorPage onTitleChange={onTitleChange} projectId={projectId} />;
