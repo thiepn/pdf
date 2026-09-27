@@ -1,4 +1,5 @@
 import * as mupdf from "mupdf";
+import { preservePageInteractions, type CopiedPage } from "./pagePreservation";
 import { MAX_ASSEMBLY_PAGES } from "../quick/assemblyModel";
 
 export interface AssemblyEnginePage { sourceIndex: number | null; sourcePageIndex: number; rotation: 0 | 90 | 180 | 270 }
@@ -16,6 +17,10 @@ export function assemblePdfPages(sources: AssemblyEngineSource[], pages: Assembl
       const pdf = document.asPDF(); if (!pdf) throw new Error(`${source.name} is not a PDF.`);
       maps.push(destination.newGraftMap()); return pdf;
     });
+    if (documents[0]) for (const key of ["Title", "Author", "Subject", "Keywords", "Creator", "Producer"]) {
+      const value = documents[0].getMetaData(`info:${key}`); if (value) destination.setMetaData(`info:${key}`, value);
+    }
+    const copied: CopiedPage[] = [];
     for (const item of pages) {
       if (![0, 90, 180, 270].includes(item.rotation)) throw new Error("Invalid page rotation.");
       if (item.sourceIndex === null) {
@@ -26,6 +31,7 @@ export function assemblePdfPages(sources: AssemblyEngineSource[], pages: Assembl
         const source = documents[item.sourceIndex];
         if (!Number.isInteger(item.sourceIndex) || !source || !Number.isInteger(item.sourcePageIndex) || item.sourcePageIndex < 0 || item.sourcePageIndex >= source.countPages()) throw new Error("An output page refers to a missing source page.");
         maps[item.sourceIndex].graftPage(-1, source, item.sourcePageIndex);
+        copied.push({ sourceIndex: item.sourceIndex, sourcePageIndex: item.sourcePageIndex, outputPageIndex: destination.countPages() - 1 });
         if (item.rotation) {
           const page = destination.loadPage(destination.countPages() - 1);
           try {
@@ -36,6 +42,7 @@ export function assemblePdfPages(sources: AssemblyEngineSource[], pages: Assembl
         }
       }
     }
+    preservePageInteractions(destination, documents, maps, copied);
     const buffer = destination.saveToBuffer("garbage=2,compress=yes");
     try {
       const bytes = Uint8Array.from(buffer.asUint8Array());
