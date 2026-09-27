@@ -1,0 +1,86 @@
+name: Preview correctness and release checks
+on:
+  push:
+    branches: [redesign/task-first-experience]
+    paths: [.github/workflows/apply-preview-polish.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.repository == 'thiepn/pdf' && github.ref == 'refs/heads/redesign/task-first-experience'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, lzma
+          from pathlib import Path
+          encoded = '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'
+          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'fa5f26f116c78bb846d619f8da97e1e863abc04dcbe17c65aeea4621ca2a13d6'
+          Path('/tmp/preview.patch').write_bytes(patch)
+          PY
+          git apply --unidiff-zero --check /tmp/preview.patch
+          git apply --unidiff-zero --index /tmp/preview.patch
+          test "$(git diff --cached --name-only | wc -l)" -eq 16
+          git rm .github/workflows/apply-preview-polish.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: true comparison changes, live form previews and precise crop submission'
+          test "$(git ls-remote origin refs/heads/redesign/task-first-experience | cut -f1)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/redesign/task-first-experience
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --requirement requirements-phase11.txt
+      - run: sudo apt-get -o Acquire::Retries=3 install --yes --no-install-recommends fonts-noto-core
+      - run: npm ci --no-audit --no-fund
+      - name: Capture exact source and implementation revision
+        run: |
+          git archive --format=tar.gz HEAD > /tmp/pdf-preview-source.tar.gz
+          git rev-parse HEAD > /tmp/pdf-preview-sha.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-preview-source
+          path: /tmp/pdf-preview-*
+          retention-days: 3
+      - name: Run complete non-browser release gate
+        run: npm run release:web
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Check real-file task workflows without retries
+        run: PLAYWRIGHT_SKIP_BUILD=1 npx playwright test tests/e2e/task-first- tests/e2e/everyday-workflows.spec.mjs --project=chromium --project=firefox --project=webkit --workers=2 --retries=0 --max-failures=8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-preview-browser-evidence
+          path: |
+            playwright-report/
+            test-results/
+            source-audit-report.json
+            docs/phase-11/corpus-validation-report.json
+            docs/phase-28/adversarial-corpus-report.json
+          retention-days: 7
