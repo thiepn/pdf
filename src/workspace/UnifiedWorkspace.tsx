@@ -4,6 +4,7 @@ import { TaskDirectory } from "../product/TaskDirectory";
 import { handOffTaskFiles } from "../product/fileHandoff";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { prepareDocumentSnapshot } from "../product/documentSnapshot";
+import { registerDocumentTaskLauncher } from "../product/documentTaskLauncher";
 import { taskRoute, getTask, type PdfTask } from "../ia/taskCatalog";
 import { getProject, createDerivedProjectFromBytes } from "../projects/projectRepository";
 import { createProjectLease, type ProjectLease, type ProjectLeaseMode } from "../projects/projectLease";
@@ -282,6 +283,10 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { handoffRef.current = false; setHandoffBusy(false); }
   }
+
+  const taskLauncherRef = useRef(chooseDocumentTask);
+  taskLauncherRef.current = chooseDocumentTask;
+  useEffect(() => registerDocumentTaskLauncher(projectId, (task) => taskLauncherRef.current(task)), [projectId]);
 
   async function retryOwnership(): Promise<void> {
     if (!leaseHandle) return;

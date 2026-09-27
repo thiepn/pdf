@@ -23,6 +23,19 @@ async function choose(page, task, files) { await page.goto(`./#/quick/${task}`);
 async function capture(page, info, name) { await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true, animations: "disabled" }); }
 async function noOverflow(page) { expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1); }
 test.setTimeout(90_000);
+async function continueWithCompression(page, entry) {
+  if (entry === "tool search") {
+    await page.keyboard.press("Control+k");
+    const dialog = page.getByRole("dialog", { name: "Find a PDF task", exact: true });
+    await dialog.getByRole("textbox", { name: "Search PDF tasks" }).fill("compress PDF");
+    await expect(dialog.locator(".command-palette__results a").first().locator("strong")).toHaveText("Compress PDF");
+    await dialog.getByRole("textbox", { name: "Search PDF tasks" }).press("Enter");
+  } else {
+    await page.getByRole("button", { name: "Document actions", exact: true }).click();
+    await page.getByRole("dialog", { name: "Document actions" }).getByRole("button", { name: /^Compress PDF/ }).click();
+  }
+}
+
 
 test("file-first mixed assembly preserves PDF text and image order", async ({ page }, info) => {
   await page.goto("./#/home"); await page.getByLabel("Choose files to get started", { exact: true }).setInputFiles([image(), file("report.pdf")]);
@@ -91,15 +104,15 @@ test("visual crop changes only the selected page and keeps numeric fields in syn
   const result = inspect(await download(page)); expect(result).toHaveLength(3); expect(result[0].bounds).toEqual([0, 0, 300, 400]); expect(result[1].bounds[2]).toBeCloseTo(240, 0); expect(result[1].bounds[3]).toBeCloseTo(320, 0); expect(result[2].bounds).toEqual([0, 0, 300, 400]);
 });
 
-test("latest editor text survives immediate tool handoff and real PDF export", async ({ page }, info) => {
+for (const entry of ["document actions", "tool search"]) {
+test(`latest editor text survives immediate tool handoff and real PDF export via ${entry}`, async ({ page }, info) => {
   await page.goto("./#/tools/edit-pdf"); await page.locator('input[type="file"]').setInputFiles(file("editable.pdf"));
   await expect(page.locator(".editor-stage canvas").first()).toBeVisible({ timeout: 30000 });
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   const layer = page.locator(".editor-page-layers"); const box = await layer.boundingBox(); expect(box).toBeTruthy();
   await page.mouse.move(box.x + 40, box.y + 140); await page.mouse.down(); await page.mouse.move(box.x + 240, box.y + 200, { steps: 4 }); await page.mouse.up();
   await page.getByLabel("Content", { exact: true }).fill("LATEST EDIT SURVIVES");
-  await page.getByRole("button", { name: "Document actions", exact: true }).click();
-  await page.getByRole("dialog", { name: "Document actions" }).getByRole("button", { name: /^Compress PDF/ }).click();
+  await continueWithCompression(page, entry);
   await expect(page).toHaveURL(/quick\/compress-pdf$/, { timeout: 30000 });
   await page.getByRole("button", { name: "Compress PDF", exact: true }).click();
   const output = await download(page);
@@ -134,7 +147,7 @@ test("latest editor text survives immediate tool handoff and real PDF export", a
   await capture(page, info, "18-edited-document-continuity");
 });
 
-test("form task opens directly and pending values survive another tool", async ({ page }, info) => {
+test(`form task opens directly and pending values survive another tool via ${entry}`, async ({ page }, info) => {
   await page.goto("./#/tools/fill-forms"); await page.locator('input[type="file"]').setInputFiles("tests/corpus/generated/forms.pdf");
   const form = page.locator('.security-task-workflow[data-security-task="forms"]'); await expect(form).toBeVisible({ timeout: 30000 });
   await expect(page.locator('.security-tabs,[role="tablist"]')).toHaveCount(0);
@@ -145,12 +158,13 @@ test("form task opens directly and pending values survive another tool", async (
   await expect(page.locator(".security-preview-shell")).toHaveAttribute("aria-busy", "false");
   await page.evaluate(() => window.scrollTo(0, 0));
   await capture(page, info, "19-form-filling");
-  await page.getByRole("button", { name: "Document actions", exact: true }).click();
-  await page.getByRole("dialog", { name: "Document actions" }).getByRole("button", { name: /^Compress PDF/ }).click();
+  await continueWithCompression(page, entry);
   await expect(page).toHaveURL(/quick\/compress-pdf$/, { timeout: 30000 }); await page.getByRole("button", { name: "Compress PDF", exact: true }).click();
   const pdf = mupdf.Document.openDocument(await download(page), "application/pdf");
   try { const first = pdf.loadPage(0); try { const widgets = first.getWidgets(); try { expect(widgets.find((widget) => widget.getName() === "full_name").getValue()).toBe("New value before autosave"); } finally { widgets.forEach((widget) => widget.destroy()); } } finally { first.destroy(); } } finally { pdf.destroy(); }
 });
+
+}
 
 test("flat forms provide a direct editor fallback instead of a dead end", async ({ page }) => {
   await page.goto("./#/tools/fill-forms"); await page.locator('input[type="file"]').setInputFiles(file("flat-form.pdf", fixture("Name", 1)));
