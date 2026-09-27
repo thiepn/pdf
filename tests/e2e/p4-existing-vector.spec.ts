@@ -1,10 +1,11 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openVectorEditor(page: import("@playwright/test").Page): Promise<import("@playwright/test").Locator> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
   await expect(page).toHaveURL(/\/editor$/);
   const vector = page.getByRole("button", { name: /Select existing vector:/ }).first();
   await expect(vector).toBeVisible({ timeout: 20_000 });

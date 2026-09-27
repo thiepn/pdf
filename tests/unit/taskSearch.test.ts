@@ -6,7 +6,7 @@ const cases: Array<[string, string]> = [
   ["sign this document visually", "visual-signature"], ["permanently hide this account number", "apply-redactions"], ["combine two PDFs", "merge-pdfs"],
   ["split this PDF into parts", "split-pdf"], ["extract pages 4 through 7", "extract-pages"], ["remove pages 4 through 7", "remove-pages"],
   ["move pages into a new order", "organize-pages"], ["rotate pages", "rotate-pdf"], ["trim page margins", "crop-pages"], ["make this PDF smaller", "compress-pdf"],
-  ["make this scan searchable", "ocr-pdf"], ["remove document metadata", "metadata"], ["lock this PDF with a password", "password-protect"],
+  ["make this scan searchable", "ocr-pdf"], ["remove document metadata", "remove-metadata"], ["lock this PDF with a password", "password-protect"],
   ["fill this form", "fill-forms"], ["turn photos into a PDF", "images-to-pdf"], ["export PDF pages as images", "pdf-to-jpg"]
 ];
 describe("R8 natural-language task discovery", () => {

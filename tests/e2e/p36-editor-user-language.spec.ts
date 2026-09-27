@@ -1,10 +1,11 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 test("P36 keeps native editor property panels in user-facing language", async ({ page }) => {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
   await expect(page).toHaveURL(/\/editor$/);
 
   const cases = [

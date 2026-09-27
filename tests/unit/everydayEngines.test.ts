@@ -63,6 +63,44 @@ describe("Real everyday PDF engine exports", () => {
     const result = execute("toolbox", { type: "TRANSFORM", bytes: fixture(), options: { decoration: { enabled: true, watermarkText: "DRAFT", headerText: "", footerText: "", pageNumbers: true, startNumber: 8, fontSize: 11, marginPt: 28 } } });
     const pages = inspect(result.output); expect(pages[0].text).toContain("Page 1"); expect(pages[0].text).toContain("DRAFT"); expect(pages[0].text).toContain("8");
   });
+  it.each([0, 90, 180, 270] as const)("keeps Unicode decorations upright and in displayed bounds at %s degrees", (rotation) => {
+    const result = execute("toolbox", { type: "TRANSFORM", bytes: fixture(rotation, [10, 20, 310, 420]), options: { decoration: { enabled: true, watermarkText: "Café — €", headerText: "HEADER", footerText: "", pageNumbers: true, startNumber: 1, fontSize: 11, marginPt: 24, pageNumbersToChange: [2, 3], numberPosition: "top-right" } } });
+    const pdf = mupdf.Document.openDocument(result.output, "application/pdf");
+    try {
+      const untouched = pdf.loadPage(0), decorated = pdf.loadPage(1);
+      const a = untouched.toStructuredText(), b = decorated.toStructuredText();
+      try {
+        expect(a.asText()).not.toContain("Café"); expect(b.asText()).toContain("Café — €");
+        const rectangles = b.search("Café"); expect(rectangles.length).toBe(1);
+        const quad = rectangles[0][0];
+        // Text baseline is horizontal on the displayed page, independent of /Rotate.
+        expect(quad[1]).toBeCloseTo(quad[3], 1);
+        const bounds = decorated.getBounds();
+        expect(Math.min(quad[0], quad[2], quad[4], quad[6])).toBeGreaterThanOrEqual(0);
+        expect(Math.max(quad[0], quad[2], quad[4], quad[6])).toBeLessThanOrEqual(bounds[2]);
+        expect(Math.min(quad[1], quad[3], quad[5], quad[7])).toBeGreaterThanOrEqual(0);
+        expect(Math.max(quad[1], quad[3], quad[5], quad[7])).toBeLessThanOrEqual(bounds[3]);
+      } finally { a.destroy(); b.destroy(); untouched.destroy(); decorated.destroy(); }
+    } finally { pdf.destroy(); }
+    expect(result.report.changedPages).toEqual([2, 3]);
+  });
+  it("numbers blank pages and isolates shared resources and content arrays", () => {
+    const pdf = new mupdf.PDFDocument();
+    const font = new mupdf.Font("Courier"), ref = pdf.addSimpleFont(font);
+    const content = pdf.addStream("BT /LPST1 12 Tf 10 200 Td (ORIGINAL) Tj ET", {}), streams = pdf.newArray(); streams.push(content);
+    const resources = pdf.addObject({ Font: { LPST1: ref } });
+    for (let index = 0; index < 3; index++) { const page = pdf.addPage([0, 0, 300, 400], 0, resources, ""); if (index < 2) page.put("Contents", streams); else { page.delete("Contents"); page.delete("Resources"); } pdf.insertPage(-1, page); page.destroy(); }
+    const buffer = pdf.saveToBuffer(); const bytes = Uint8Array.from(buffer.asUint8Array()).buffer;
+    buffer.destroy(); resources.destroy(); streams.destroy(); content.destroy(); ref.destroy(); font.destroy(); pdf.destroy();
+    const first = execute("toolbox", { type: "TRANSFORM", bytes, options: { decoration: { enabled: true, watermarkText: "ONLY_SECOND", headerText: "", footerText: "", pageNumbers: false, startNumber: 1, fontSize: 11, marginPt: 24, pageNumbersToChange: [2] } } });
+    expect(inspect(first.output).map((page) => page.text)).toEqual(["ORIGINAL", expect.stringContaining("ONLY_SECOND"), ""]);
+    const second = execute("toolbox", { type: "TRANSFORM", bytes: first.output, options: { decoration: { enabled: true, watermarkText: "", headerText: "", footerText: "", pageNumbers: true, startNumber: 9, fontSize: 11, marginPt: 24, pageNumbersToChange: [3] } } });
+    const pages = inspect(second.output); expect(pages[0].text).toBe("ORIGINAL"); expect(pages[1].text).toContain("ONLY_SECOND"); expect(pages[2].text).toBe("9");
+  });
+  it("writes searchable CJK watermark text", () => {
+    const result = execute("toolbox", { type: "TRANSFORM", bytes: fixture(), options: { decoration: { enabled: true, watermarkText: "안녕하세요", headerText: "", footerText: "", pageNumbers: false, startNumber: 1, fontSize: 11, marginPt: 24 } } });
+    expect(inspect(result.output)[0].text).toContain("안녕하세요");
+  });
   it("crops a PDF by the requested margin", () => {
     const result = execute("toolbox", { type: "TRANSFORM", bytes: fixture(), options: { crop: { enabled: true, topPt: 20, rightPt: 0, bottomPt: 0, leftPt: 0 } } });
     const bounds = inspect(result.output)[0].bounds; expect(bounds[3] - bounds[1]).toBe(380);

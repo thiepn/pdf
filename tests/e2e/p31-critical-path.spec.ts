@@ -1,10 +1,11 @@
+import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test, type Page } from "@playwright/test";
 
 async function openEditor(page: Page): Promise<void> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
   await expect(page.locator(".editor-app")).toBeVisible();
 }
 
@@ -47,7 +48,7 @@ test.describe("P31 interaction critical path", () => {
     test.setTimeout(40_000);
     await openEditor(page);
 
-    await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+    await chooseEditorTool(page, "Rectangle");
     const canvas = page.locator(".editor-page-layers");
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).toBeTruthy();

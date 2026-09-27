@@ -1,3 +1,4 @@
+import { switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const generatedCorpus = "tests/corpus/generated";
@@ -8,7 +9,7 @@ test("opens metadata PDF, imports a second PDF, and reopens persisted projects",
   const uncaught: string[] = [];
   page.on("pageerror", (error) => uncaught.push(error.message));
 
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${phase28Corpus}/unicode-metadata.pdf`);
   await expect(page.getByText("UNICODE_METADATA_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
   await page.getByRole("tab", { name: "Info", exact: true }).click();
@@ -17,7 +18,7 @@ test("opens metadata PDF, imports a second PDF, and reopens persisted projects",
   await expect(fileInfo).toContainText("unicode-metadata.pdf");
   const metadataProjectUrl = page.url();
 
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${generatedCorpus}/plain-text.pdf`);
   await expect(page.getByText("PLAIN_PAGE_1_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".page-input")).toContainText("/ 3");
@@ -27,6 +28,7 @@ test("opens metadata PDF, imports a second PDF, and reopens persisted projects",
   await expect(page.locator(".project-card")).toHaveCount(2);
   const metadataProject = page.locator(".project-card").filter({ hasText: "unicode-metadata" });
   await metadataProject.getByRole("link", { name: "Open workspace" }).click();
+  await switchMode(page, "viewer");
   await expect(page).toHaveURL(metadataProjectUrl);
   await expect(page.getByText("UNICODE_METADATA_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
 

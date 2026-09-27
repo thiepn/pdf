@@ -13,7 +13,7 @@ test("opens and renders a real PDF without Map upsert proposal APIs", async ({ p
   const uncaught: string[] = [];
   page.on("pageerror", error => uncaught.push(error.message));
 
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   await page.waitForTimeout(250);
   expect(uncaught.filter(message => /getOrInsert(?:Computed)?/.test(message))).toEqual([]);
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${corpus}/plain-text.pdf`);

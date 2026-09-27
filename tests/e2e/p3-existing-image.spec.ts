@@ -1,10 +1,11 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openImageEditor(page: import("@playwright/test").Page): Promise<import("@playwright/test").Locator> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
   await expect(page).toHaveURL(/\/editor$/);
   const image = page.getByRole("button", { name: /Select existing image:/ }).first();
   await expect(image).toBeVisible({ timeout: 20_000 });

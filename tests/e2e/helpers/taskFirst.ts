@@ -1,0 +1,33 @@
+import { expect, type Page } from "@playwright/test";
+import { createShowcasePdf } from "../../../src/fixtures/showcasePdf";
+
+/** Import the same showcase through the public task-first reader. This avoids
+ * coupling native-engine tests to the homepage demo's editor-first shortcut. */
+export async function openSample(page: Page, mode: "viewer" | "editor" = "viewer"): Promise<void> {
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).evaluate((node, data) => {
+    const input = node as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([Uint8Array.from(data).buffer], "northstar-launch-review.pdf", { type: "application/pdf" }));
+    input.files = transfer.files; input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, Array.from(createShowcasePdf()));
+  await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
+  if (mode === "editor") await switchMode(page, "editor");
+}
+export async function switchMode(page: Page, mode: "viewer" | "editor" | "organizer"): Promise<void> {
+  await page.getByRole("button", { name: "Document actions", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
+  await dialog.getByRole("button", { name: mode === "viewer" ? "Read PDF" : mode === "editor" ? "Edit this PDF" : "Arrange pages", exact: true }).click();
+}
+export async function chooseEditorTool(page: Page, label: string): Promise<void> {
+  const direct = page.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: label, exact: true });
+  if (await direct.isVisible()) { await direct.click(); return; }
+  await page.getByRole("button", { name: "More tools", exact: true }).click();
+  await page.getByRole("dialog", { name: "Editor tools" }).getByRole("button", { name: label, exact: true }).click();
+}
+export async function chooseDocumentTask(page: Page, label: string): Promise<void> {
+  await page.getByRole("button", { name: "Document actions", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
+  await dialog.getByRole("searchbox", { name: "Find a PDF tool" }).fill(label);
+  await dialog.locator(".product-tool-card").filter({ has: page.locator("strong", { hasText: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) }).click();
+}

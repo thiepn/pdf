@@ -8,6 +8,7 @@ export interface AssemblyPage {
 export interface AssemblySource { id: string; pageCount: number }
 export const MAX_ASSEMBLY_PAGES = 2000;
 export function createAssemblyPlan(inputs: readonly AssemblySource[]): AssemblyPage[] {
+  if (inputs.some((input) => !Number.isSafeInteger(input.pageCount) || input.pageCount < 1)) throw new Error("Every source must have a positive whole page count.");
   const count = inputs.reduce((sum, input) => sum + input.pageCount, 0);
   if (!Number.isSafeInteger(count) || count > MAX_ASSEMBLY_PAGES) throw new Error(`Arrange up to ${MAX_ASSEMBLY_PAGES} pages at a time.`);
   return inputs.flatMap((input) => Array.from({ length: input.pageCount }, (_, sourcePageIndex) => ({ id: crypto.randomUUID(), sourceId: input.id, sourcePageIndex, rotation: 0 as const })));
@@ -32,6 +33,7 @@ export function validateAssemblyPlan(plan: readonly AssemblyPage[], inputs: read
 /** Front scans and back scans are interleaved; reverseBacks handles face-down feeders. */
 export function interleaveAssembly(inputs: readonly AssemblySource[], reverseBacks = false): AssemblyPage[] {
   if (inputs.length !== 2) throw new Error("Choose exactly two documents: fronts first, backs second.");
+  createAssemblyPlan(inputs); // Validate the combined budget before allocating/interleaving.
   const front = createAssemblyPlan([inputs[0]]); const back = createAssemblyPlan([inputs[1]]);
   if (reverseBacks) back.reverse();
   return Array.from({ length: Math.max(front.length, back.length) }, (_, index) => [front[index], back[index]].filter((page): page is AssemblyPage => Boolean(page))).flat();

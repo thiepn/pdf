@@ -1,19 +1,20 @@
+import { openSample } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const generatedCorpus = "tests/corpus/generated";
 
 test("R7 capability blocker explains why, recovery, and document safety", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "R7 trust copy is browser-independent");
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${generatedCorpus}/annotations.pdf`);
   await expect(page.getByText("ANNOTATION_TARGET_TEXT", { exact: true })).toBeVisible({ timeout: 20_000 });
   const match = page.url().match(/\/workspace\/([^/]+)\/viewer/);
   expect(match?.[1]).toBeTruthy();
   const projectId = decodeURIComponent(match?.[1] ?? "");
 
-  await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/secure/fill-forms`);
+  await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/secure/apply-redactions`);
   const blocker = page.locator(".task-capability-blocker");
-  await expect(blocker.getByRole("heading", { name: /Fill PDF forms cannot start for this document/i })).toBeVisible();
+  await expect(blocker.getByRole("heading", { name: /Apply permanent redactions cannot start for this document/i })).toBeVisible();
   await expect(blocker.getByText("Why", { exact: true })).toBeVisible();
   await expect(blocker.getByText("What you can do", { exact: true })).toBeVisible();
   await expect(blocker.getByText("This task did not start. Your PDF is unchanged.", { exact: true })).toBeVisible();
@@ -21,9 +22,9 @@ test("R7 capability blocker explains why, recovery, and document safety", async 
 
 test("R7 update guidance never blocks normal workspace controls", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "webkit", "Cover the browser that previously exposed update-banner pointer interception");
-  await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
-  const history = page.getByRole("button", { name: "History", exact: true });
+  await page.goto("./#/tools/read-pdf");
+  await openSample(page);
+  const history = page.getByRole("button", { name: "History and checkpoints", exact: true });
   await expect(history).toBeVisible();
 
   await page.evaluate(() => {

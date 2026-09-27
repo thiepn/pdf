@@ -1,10 +1,11 @@
+import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openEditor(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
   await expect(page).toHaveURL(/\/editor$/);
   await expect(page.getByRole("button", { name: /Select existing image:/ }).first()).toBeVisible({ timeout: 20_000 });
 }
@@ -65,7 +66,7 @@ test("P6 drags an existing image directly on canvas and exports the source-prese
 
 test("P6 aligns an added shape and existing PDF image as one mixed selection", async ({ page }) => {
   await openEditor(page);
-  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await chooseEditorTool(page, "Rectangle");
   const canvas = page.locator(".editor-page-layers");
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();

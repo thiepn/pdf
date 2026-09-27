@@ -1,19 +1,20 @@
+import { chooseEditorTool, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const corpus = "tests/corpus/p8";
 
 async function uploadPdf(page: import("@playwright/test").Page, filename: string): Promise<void> {
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   const input = page.locator('input[type="file"][accept*="pdf"]').first();
   await input.setInputFiles(`${corpus}/${filename}`);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
 }
 
 async function openEditorAndAddRectangle(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
   await expect(page).toHaveURL(/\/editor$/);
   await expect(page.locator(".editor-page-layers")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await chooseEditorTool(page, "Rectangle");
   const canvas = page.locator(".editor-page-layers");
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();

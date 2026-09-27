@@ -53,7 +53,7 @@ test("home search discovers direct everyday tools and reports unavailable Office
   await expect(page.getByRole("button", { name: "Choose PDF", exact: true })).toBeVisible();
   await screenshot(page, info, "desktop-file-first");
   await page.goto("./#/home"); await page.getByRole("searchbox", { name: "Find a PDF tool" }).fill("Word");
-  await expect(page.getByText(/Editable Word, Excel, and PowerPoint conversion is not implemented/)).toBeVisible();
+  await expect(page.getByText(/Full-layout Office conversion, Excel and PowerPoint conversion, and Office-file import are not implemented/)).toBeVisible();
 });
 test("extract preserves selected order, text, and source; changing options invalidates the result", async ({ page }, info) => {
   await upload(page, "extract-pages"); await page.getByRole("textbox", { name: "Pages", exact: true }).fill("4, 2-3");

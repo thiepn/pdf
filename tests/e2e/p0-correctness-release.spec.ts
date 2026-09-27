@@ -1,8 +1,9 @@
+import { openSample } from "./helpers/taskFirst";
 import { expect, test, type Page } from "@playwright/test";
 
 async function openSampleProject(page: Page): Promise<string> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   const match = page.url().match(/#\/workspace\/([^/]+)\/viewer/);
   if (!match) throw new Error("Sample project route did not contain a project id.");
@@ -39,10 +40,10 @@ test("canonical task links activate the exact shared-workspace tool or tab", asy
   const projectId = await openSampleProject(page);
 
   await openTask(page, projectId, "editor", "visual-signature");
-  await expect(page.locator('.editor-toolrail button[aria-label="Signature"]')).toHaveClass(/active/, { timeout: 20_000 });
+  await expect(page.locator('.editing-toolbar button[aria-label="Signature"]')).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
 
   await openTask(page, projectId, "secure", "password-protect");
-  await expect(page.locator(".security-tabs button").filter({ hasText: "Protect" })).toHaveClass(/active/, { timeout: 35_000 });
+  await expect(page.locator("[data-security-task=protect]")).toBeVisible({ timeout: 35_000 });
 
   await openTask(page, projectId, "professional", "print-layout");
   await expect(page.locator(".professional-page .professional-tabs button").filter({ hasText: "Print layout" })).toHaveClass(/professional-tab--active|active/, { timeout: 20_000 });

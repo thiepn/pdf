@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { discardTaskFiles, handOffTaskFiles, inspectIncomingFiles, takeTaskFiles } from "../../src/product/fileHandoff";
+import { discardTaskFiles, handOffTaskFiles, inspectIncomingFiles, takeTaskFiles, takeTaskTransfer } from "../../src/product/fileHandoff";
 const pdf = (name = "report.pdf") => new File(["%PDF-test"], name, { type: "application/pdf" });
 afterEach(() => { discardTaskFiles(); vi.useRealTimers(); });
 describe("task-first file entry", () => {
@@ -32,4 +32,22 @@ describe("one-use file handoff", () => {
     expect(takeTaskFiles("merge-pdfs")).toEqual([first]);
   });
   it("can release file references explicitly", () => { handOffTaskFiles("extract-pages", [pdf()]); discardTaskFiles(); expect(takeTaskFiles("extract-pages")).toBeNull(); });
+});
+
+
+describe("Mobile files and handoff recovery", () => {
+  it("accepts extensionless PDF and image files with supported MIME types", () => {
+    expect(inspectIncomingFiles([pdf("shared-file")])).toBe("pdf");
+    expect(inspectIncomingFiles([new File(["image"], "camera", { type: "image/jpeg" })])).toBe("images");
+  });
+  it("routes a batch of images directly into scanning", () => {
+    const files = [new File(["scan"], "camera.jpg")]; handOffTaskFiles("scan-to-pdf", files);
+    expect(takeTaskTransfer("scan-to-pdf")?.files).toEqual(files);
+  });
+  it("keeps per-file passwords aligned and insulated from caller mutations", () => {
+    const passwords = ["first", "second"]; const warnings = ["Review forms"];
+    handOffTaskFiles("merge-pdfs", [pdf("first.pdf"), pdf("second.pdf")], { passwords, warnings });
+    passwords.reverse(); warnings.push("not in transfer");
+    expect(takeTaskTransfer("merge-pdfs")).toMatchObject({ passwords: ["first", "second"], warnings: ["Review forms"] });
+  });
 });

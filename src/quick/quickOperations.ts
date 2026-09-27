@@ -3,7 +3,7 @@ import { openPdfWithPdfJs, extractPageText } from "../engines/pdfjsBase";
 import { assembleSources, compilePagePlan, mergePdfSources } from "../tools/pageOperationsClient";
 import { createStoredZip } from "../toolbox/zip";
 import { transformPdf } from "../toolbox/toolboxClient";
-import { optimizePdf } from "../processing/processingClient";
+import { optimizePdf, repairPdf } from "../processing/processingClient";
 import { RASTER_PROFILES, rasterTransformPdf } from "../processing/rasterCompression";
 import { applySecurity } from "../security/securityClient";
 import { createSecurityState } from "../security/securityModel";
@@ -11,7 +11,7 @@ import { buildJpegPdf, type JpegPdfPage } from "../pdf/jpegPdf";
 import { MAX_CANVAS_PIXELS, MAX_OUTPUT_BYTES, parsePageSelection, planSplit, safeOutputName, type QuickOptions, type QuickTaskId } from "./quickModel";
 
 export interface QuickInput { id: string; name: string; bytes: Uint8Array; pageCount: number; password?: string; image?: File }
-export interface QuickOutput { name: string; bytes: Uint8Array; mime: string }
+export interface QuickOutput { name: string; bytes: Uint8Array; mime: string; /** Confirmed by reopening the output, never inferred from the input. */ password?: string; pageCount?: number }
 export interface QuickResult { files: QuickOutput[]; warnings: string[] }
 const PDF = "application/pdf";
 const check = (signal: AbortSignal) => signal.throwIfAborted();
@@ -21,11 +21,13 @@ export function validateQuickOptions(task: QuickTaskId, inputs: QuickInput[], op
   if (!inputs.length) throw new Error("Choose a file first.");
   if (task === "merge-pdfs" && inputs.length < 2 && !options.pagePlan) throw new Error("Add another PDF or image, or arrange the pages of this document.");
   if (!["merge-pdfs", "organize-pages", "images-to-pdf", "compress-pdf"].includes(task) && inputs.length !== 1) throw new Error("This tool works on one PDF at a time.");
-  if (["extract-pages", "remove-pages", "rotate-pdf", "pdf-to-jpg", "pdf-to-png", "pdf-to-text"].includes(task)) {
+  if (["extract-pages", "remove-pages", "rotate-pdf", "pdf-to-jpg", "pdf-to-png", "pdf-to-text", "pdf-to-docx"].includes(task)) {
     const selected = parsePageSelection(options.selection, inputs[0].pageCount);
     if (task === "remove-pages" && selected.length === inputs[0].pageCount) throw new Error("Keep at least one page. Select only the pages you want to remove.");
   }
   if ((task === "organize-pages" || task === "merge-pdfs") && options.pagePlan) validateAssemblyPlan(options.pagePlan, inputs);
+  if (["add-page-numbers", "add-watermark"].includes(task)) parsePageSelection(options.selection, inputs[0].pageCount);
+  if (task === "flatten-pdf" && !options.flattenForms && !options.flattenAnnotations) throw new Error("Choose forms or annotations to flatten.");
   if (task === "crop-pages") parsePageSelection(options.cropPages, inputs[0].pageCount);
   if (task === "split-pdf") planSplit(inputs[0].pageCount, options.splitMode, options.every, options.ranges);
   if (task === "password-protect" && (!options.outputPassword || options.outputPassword !== options.confirmPassword)) throw new Error("Enter a password and the same password again to confirm it.");
@@ -114,13 +116,13 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
       warnings.push(...result.warnings);
       files.push(asPdf(groups.length > 1 ? `${name}-part-${String(index + 1).padStart(3, "0")}` : name, result.bytes)); enforceOutputBudget(files);
     }
-  } else if (["pdf-to-jpg", "pdf-to-png", "pdf-to-text"].includes(task)) {
+  } else if (["pdf-to-jpg", "pdf-to-png", "pdf-to-text", "pdf-to-docx"].includes(task)) {
     const pdf = await openPdfWithPdfJs(input.bytes, input.password);
     try {
       const selected = parsePageSelection(options.selection, pdf.numPages); const texts: string[] = [];
       for (const [index, pageIndex] of selected.entries()) {
         check(signal); progress(`Exporting page ${pageIndex + 1} (${index + 1} of ${selected.length})…`);
-        if (task === "pdf-to-text") { texts.push(await extractPageText(pdf, pageIndex + 1)); continue; }
+        if (task === "pdf-to-text" || task === "pdf-to-docx") { texts.push(await extractPageText(pdf, pageIndex + 1)); continue; }
         const page = await pdf.getPage(pageIndex + 1); const canvas = document.createElement("canvas");
         try {
           const viewport = page.getViewport({ scale: options.dpi / 72 });
@@ -135,9 +137,14 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
           files.push({ name: safeOutputName(`${name}-page-${String(pageIndex + 1).padStart(3, "0")}`, extension), bytes: await encodeCanvas(canvas, mime), mime }); enforceOutputBudget(files);
         } finally { page.cleanup(); canvas.width = 0; canvas.height = 0; }
       }
-      if (task === "pdf-to-text") {
+      if (task === "pdf-to-text" || task === "pdf-to-docx") {
         if (!texts.some((text) => text.trim())) throw new Error("No selectable text was found. Use OCR PDF first to recognize text in scanned pages.");
-        files.push({ name: safeOutputName(name, "txt"), bytes: new TextEncoder().encode(texts.join("\n\n")), mime: "text/plain;charset=utf-8" });
+        if (task === "pdf-to-docx") {
+          const { buildSimpleDocx } = await import("../professional/docx");
+          const paragraphs = texts.flatMap((text, index) => [...(index ? ["\f"] : []), ...text.split(/\r?\n/)]);
+          files.push({ name: safeOutputName(name, "docx"), bytes: buildSimpleDocx(name, paragraphs, false), mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+          warnings.push("This Word document contains editable extracted text with page breaks. Original fonts, page layout, tables and images are not reconstructed. Check text order before using it.");
+        } else files.push({ name: safeOutputName(name, "txt"), bytes: new TextEncoder().encode(texts.join("\n\n")), mime: "text/plain;charset=utf-8" });
       }
     } finally { await pdf.loadingTask.destroy(); }
   } else if (task === "compress-pdf") {
@@ -153,8 +160,21 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
       } finally { await pdf.loadingTask.destroy(); }
       warnings.push("Image-based compression removes selectable text, interactive forms, links, layers, and digital signatures. Password protection is not retained.");
     }
-    if (output.byteLength >= input.bytes.byteLength) { output = input.bytes; warnings.push("This PDF is already smaller than the compressed result. The original file is offered unchanged instead."); }
+    if (output.byteLength >= input.bytes.byteLength) { output = input.bytes; warnings.length = 0; warnings.push("This PDF is already smaller than the compressed result. The original file is offered unchanged instead."); }
     files.push(asPdf(name, output));
+  } else if (task === "repair-pdf") {
+    progress("Rebuilding a separate copy and checking that it opens…");
+    const result = await repairPdf(input.bytes, input.password, signal);
+    warnings.push(...result.report.warnings, "Repair rewrites recoverable PDF structure; missing or irreversibly damaged content cannot be recreated. Review every page of the result.");
+    files.push(asPdf(name, result.bytes));
+  } else if (task === "flatten-pdf" || task === "sanitize-pdf") {
+    const state = createSecurityState("");
+    const sanitization = task === "sanitize-pdf"
+      ? { ...state.sanitization, removeAttachments: options.removeAttachments, removeMetadata: options.removeMetadata }
+      : { ...state.sanitization, removeJavaScript: false, removeOpenActions: false, collapseRevisionHistory: false, flattenForms: options.flattenForms, flattenAnnotations: options.flattenAnnotations };
+    progress(task === "flatten-pdf" ? "Flattening selected interactive content into page appearance…" : "Removing active scripts and automatic actions…");
+    const result = await applySecurity(input.bytes, { formUpdates: [], redaction: state.redaction, sanitization, encryption: state.encryption }, input.password, signal);
+    files.push(asPdf(name, result.bytes)); warnings.push(...result.report.warnings, task === "flatten-pdf" ? "Flattened content is visible but no longer interactive or independently editable. Review the resulting appearance." : "Cleanup is not redaction or malware certification. Visible text, links and annotations stay unless explicitly removed by a separate operation.");
   } else if (task === "unlock-pdf" || task === "password-protect") {
     progress(task === "unlock-pdf" ? "Removing password protection from the opened PDF…" : "Encrypting your PDF…");
     const state = createSecurityState("");
@@ -166,10 +186,32 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
   } else {
     progress("Applying changes to a separate copy…");
     const crop = options.crop;
-    const result = await transformPdf(input.bytes, task === "crop-pages" ? { crop: { enabled: true, pageNumbers: parsePageSelection(options.cropPages, input.pageCount).map((index) => index + 1), topPt: crop.top * 72 / 25.4, rightPt: crop.right * 72 / 25.4, bottomPt: crop.bottom * 72 / 25.4, leftPt: crop.left * 72 / 25.4 } } : { decoration: { enabled: true, watermarkText: task === "add-watermark" ? options.watermark : "", headerText: "", footerText: "", pageNumbers: task === "add-page-numbers", startNumber: options.startNumber, fontSize: 11, marginPt: 28.35 } }, input.password, signal);
+    const result = await transformPdf(input.bytes, task === "remove-metadata" ? { removeMetadata: true } : task === "crop-pages" ? { crop: { enabled: true, pageNumbers: parsePageSelection(options.cropPages, input.pageCount).map((index) => index + 1), topPt: crop.top * 72 / 25.4, rightPt: crop.right * 72 / 25.4, bottomPt: crop.bottom * 72 / 25.4, leftPt: crop.left * 72 / 25.4 } } : { decoration: { enabled: true, watermarkText: task === "add-watermark" ? options.watermark : "", headerText: "", footerText: "", pageNumbers: task === "add-page-numbers", startNumber: options.startNumber, pageNumbersToChange: parsePageSelection(options.selection, input.pageCount).map((index) => index + 1), numberPosition: options.numberPosition, fontSize: options.decorationFontSize, watermarkSize: options.decorationFontSize * 2.6, marginPt: 28.35 } }, input.password, signal);
     warnings.push(...result.report.warnings); files.push(asPdf(name, result.bytes));
   }
   check(signal); enforceOutputBudget(files);
+  // Verify the actual download and its password state before offering a handoff.
+  // Optimization may return the original encrypted bytes; other tools decrypt.
+  for (const file of files) {
+    if (file.mime !== PDF) continue;
+    check(signal);
+    const candidates = [...new Set([undefined, ...(task === "password-protect" ? [options.outputPassword] : []), ...inputs.map((source) => source.password)])];
+    let failure: unknown;
+    for (const password of candidates) {
+      check(signal);
+      try {
+        const pdf = await openPdfWithPdfJs(file.bytes, password);
+        try { if (!pdf.numPages) throw new Error("The output contains no pages."); file.pageCount = pdf.numPages; file.password = password; }
+        finally { await pdf.loadingTask.destroy(); }
+        failure = undefined; break;
+      } catch (reason) {
+        failure = reason;
+        if (!/password|encrypted/i.test(reason instanceof Error ? reason.message : String(reason))) throw reason;
+      }
+    }
+    if (failure) throw new Error("The output could not be reopened with its expected password. No download was published.");
+  }
+  check(signal);
   return { files, warnings: [...new Set(warnings)] };
 }
 

@@ -1,3 +1,4 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const HISTORY_STORES = new Set(["workspaceEvents", "workspaceCheckpoints", "documentTransactions", "documentRevisions"]);
@@ -5,20 +6,20 @@ const HISTORY_STORES = new Set(["workspaceEvents", "workspaceCheckpoints", "docu
 test.describe("Recovery P1 workspace lifecycle", () => {
   test("Read to Edit keeps the workspace shell mounted and does not read History stores", async ({ page }) => {
     await page.goto("./#/home");
-    await page.getByRole("button", { name: "Open sample" }).click();
+    await openSample(page);
     await expect(page.getByRole("heading", { name: /northstar-launch-review/i })).toBeVisible();
-    await expect(page.getByText("Editing", { exact: true })).toBeVisible();
+    await expect(page.locator(".document-workspace:not(.is-readonly)")).toBeVisible();
 
     await page.evaluate(() => {
       window.__PDF_STUDIO_PERFORMANCE__?.clear();
       document.querySelector(".unified-workspace")?.setAttribute("data-p1-shell-token", "persistent");
     });
 
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await switchMode(page, "editor");
     await expect(page).toHaveURL(/#\/workspace\/[^/]+\/editor/);
     await expect(page.locator('.unified-workspace[data-p1-shell-token="persistent"]')).toBeVisible();
     await expect(page.getByText("Opening document…", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Text$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
 
     const forbiddenHistoryReads = await page.evaluate((stores) => {
       const blocked = new Set(stores);
@@ -33,14 +34,14 @@ test.describe("Recovery P1 workspace lifecycle", () => {
 
   test("History storage is loaded only after the History panel is opened", async ({ page }) => {
     await page.goto("./#/home");
-    await page.getByRole("button", { name: "Open sample" }).click();
+    await openSample(page);
     await expect(page.getByRole("heading", { name: /northstar-launch-review/i })).toBeVisible();
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
 
     const before = await historyReadStores(page);
     expect(before).toEqual([]);
 
-    await page.getByRole("button", { name: "History", exact: true }).click();
+    await page.getByRole("button", { name: "History and checkpoints", exact: true }).click();
     await expect(page.getByRole("heading", { name: "History & checkpoints" })).toBeVisible();
     await expect.poll(() => historyReadStores(page)).toContain("workspaceCheckpoints");
 

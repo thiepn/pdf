@@ -1,3 +1,4 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 test("editor never reports a failed local write as saved and can retry it", async ({ page }) => {
@@ -13,9 +14,9 @@ test("editor never reports a failed local write as saved and can retry it", asyn
   });
 
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   const navigation = page.getByRole("navigation", { name: "Document workspace" });
-  await navigation.getByRole("button", { name: "Edit", exact: true }).click();
+  await switchMode(page, "editor");
 
   const contextStatus = page.locator(".editor-contextbar > strong");
   await expect(contextStatus).toHaveText("Changes saved locally", { timeout: 15_000 });

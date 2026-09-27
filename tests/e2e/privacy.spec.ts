@@ -1,3 +1,4 @@
+import { openSample } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 test("core application and sample project do not request cross-origin resources", async ({ page }) => {
@@ -10,7 +11,7 @@ test("core application and sample project do not request cross-origin resources"
     }
   });
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page.getByRole("heading", { name: "northstar-launch-review", exact: true })).toBeVisible();
   expect([...external]).toEqual([]);
 });

@@ -3,7 +3,7 @@ import type { AssemblyPage } from "./assemblyModel";
 export const quickTaskIds = [
   "merge-pdfs", "organize-pages", "split-pdf", "extract-pages", "remove-pages", "rotate-pdf",
   "pdf-to-jpg", "pdf-to-png", "pdf-to-text", "images-to-pdf", "compress-pdf",
-  "unlock-pdf", "password-protect", "add-page-numbers", "add-watermark", "crop-pages"
+  "pdf-to-docx", "flatten-pdf", "sanitize-pdf", "remove-metadata", "repair-pdf", "unlock-pdf", "password-protect", "add-page-numbers", "add-watermark", "crop-pages"
 ] as const;
 export type QuickTaskId = typeof quickTaskIds[number];
 export function isQuickTask(id: string): id is QuickTaskId {
@@ -57,7 +57,7 @@ export function planSplit(pageCount: number, mode: SplitMode, every: number, ran
 }
 
 export function safeOutputName(value: string, extension: string): string {
-  const base = value.trim().replace(/[\x00-\x1f<>:"/\\|?*]/g, "-").replace(/\.(pdf|zip|txt|jpe?g|png)$/i, "").replace(/[. ]+$/, "").slice(0, 140) || "document";
+  const base = value.trim().replace(/[\x00-\x1f<>:"/\\|?*]/g, "-").replace(/\.(pdf|zip|txt|docx|jpe?g|png)$/i, "").replace(/[. ]+$/, "").slice(0, 140) || "document";
   return `${base}.${extension}`;
 }
 
@@ -83,10 +83,16 @@ export interface QuickOptions {
   confirmPassword: string;
   watermark: string;
   startNumber: number;
+  numberPosition: "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
+  decorationFontSize: number;
+  flattenForms: boolean;
+  flattenAnnotations: boolean;
+  removeAttachments: boolean;
+  removeMetadata: boolean;
   crop: { top: number; right: number; bottom: number; left: number };
 }
 export function defaultQuickOptions(): QuickOptions {
-  return { pagePlan: null, cropPages: "all", selection: "all", splitMode: "each", every: 2, ranges: "", rotation: 90, dpi: 150, paper: "a4", orientation: "auto", margin: 10, compression: "lossless", acceptRaster: false, outputPassword: "", confirmPassword: "", watermark: "", startNumber: 1, crop: { top: 0, right: 0, bottom: 0, left: 0 } };
+  return { pagePlan: null, cropPages: "all", selection: "all", splitMode: "each", every: 2, ranges: "", rotation: 90, dpi: 150, paper: "a4", orientation: "auto", margin: 10, compression: "lossless", acceptRaster: false, outputPassword: "", confirmPassword: "", watermark: "", startNumber: 1, numberPosition: "bottom-center", decorationFontSize: 11, flattenForms: true, flattenAnnotations: true, removeAttachments: false, removeMetadata: false, crop: { top: 0, right: 0, bottom: 0, left: 0 } };
 }
 
 // One-use, in-memory hand-off. Never persisted to storage or sent over a network.

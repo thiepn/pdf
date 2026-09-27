@@ -13,9 +13,9 @@ describe("P42 task audience boundary", () => {
     expect(everyday.length + advanced.length + recovery.length).toBe(pdfTasks.length);
   });
 
-  it("keeps Batch advanced and repair workflows recovery-scoped", () => {
+  it("keeps Batch advanced while exposing direct PDF repair as an everyday task", () => {
     expect(pdfTasks.find((task) => task.id === "batch-automation")?.audience).toBe("advanced");
-    expect(pdfTasks.find((task) => task.id === "repair-pdf")?.audience).toBe("recovery");
+    expect(pdfTasks.find((task) => task.id === "repair-pdf")?.audience).toBe("everyday");
     expect(pdfTasks.find((task) => task.id === "document-details")?.audience).toBe("recovery");
   });
 });

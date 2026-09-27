@@ -33,6 +33,10 @@ export type AppRoute =
   | { name: "help" };
 
 export function readAppRoute(hash = window.location.hash): AppRoute {
+  try { return parseAppRoute(hash); }
+  catch (error) { if (error instanceof URIError) return { name: "home" }; throw error; }
+}
+function parseAppRoute(hash: string): AppRoute {
   const clean = hash.replace(/^#\/?/, "");
   const [name = "home", id] = clean.split("/").filter(Boolean);
   if (name === "quick" && id) {

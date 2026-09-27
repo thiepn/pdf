@@ -7,7 +7,7 @@ test("command palette traps focus and restores it on close", async ({ page }) =>
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Find a PDF task" });
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Search PDF tasks" })).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "Find a PDF tool" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -15,7 +15,7 @@ test("command palette traps focus and restores it on close", async ({ page }) =>
 
 test("skip link moves keyboard focus into the workspace", async ({ page, browserName }) => {
   await page.goto("#/home");
-  await expect(page.getByRole("heading", { name: /What do you want to do with your PDF\?/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
   await page.evaluate(() => {
     document.body.tabIndex = -1;
     document.body.focus();

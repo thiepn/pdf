@@ -15,14 +15,14 @@ async function applyDarkPalette(page: import("@playwright/test").Page): Promise<
 
 test("task catalog keeps icons visible and capability metadata in normal flow", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: "Choose what you want to do" })).toBeVisible();
-  await page.getByText("Advanced & specialist tools", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Find your next PDF tool." })).toBeVisible();
+  await page.locator(".product-advanced summary").click();
 
   // Reproduce a dark palette explicitly so this regression cannot hide behind
   // the default CI appearance settings.
   await applyDarkPalette(page);
 
-  const tiles = page.locator(".task-tile");
+  const tiles = page.locator(".product-tool-card");
   const tileCount = await tiles.count();
   expect(tileCount).toBeGreaterThan(5);
 
@@ -68,9 +68,9 @@ test("task catalog keeps icons visible and capability metadata in normal flow", 
       const cardProblems: string[] = [];
       const cardRect = element.getBoundingClientRect();
       const metadata = Array.from(element.querySelectorAll("small, .task-capability-chip"));
-      const copy = element.querySelector(":scope > div");
+      const copy = element.querySelector(".product-tool-card__body");
       const title = copy?.querySelector(":scope > strong");
-      const purpose = copy?.querySelector(":scope > p");
+      const purpose = copy?.querySelector(":scope > span");
       const intersects = (a: DOMRect, b: DOMRect) =>
         Math.min(a.right, b.right) > Math.max(a.left, b.left)
         && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
@@ -113,15 +113,15 @@ test("selected task warning and catalog stay contained at narrow width", async (
   await expect(page.getByRole("heading", { name: "Add visual signature" })).toBeVisible();
   await applyDarkPalette(page);
 
-  const focus = page.locator(".task-focus");
+  const focus = page.locator(".product-tool-start");
   await expect(focus).toBeVisible();
 
   const layoutProblems = await focus.evaluate((banner) => {
     const problems: string[] = [];
     const bannerRect = banner.getBoundingClientRect();
-    const row = banner.querySelector(":scope > div");
-    const copy = row?.querySelector(":scope > div");
-    const title = copy?.querySelector("h2");
+    const row = banner.querySelector(".product-task-intro");
+    const copy = row;
+    const title = copy?.querySelector("h1");
     const purpose = Array.from(copy?.querySelectorAll("p") ?? []).find((item) => !item.classList.contains("eyebrow"));
     const metadata = Array.from(copy?.querySelectorAll(".task-capability-chip, .task-capability-reason, .task-capability-recovery") ?? []);
     const intersects = (a: DOMRect, b: DOMRect) =>
@@ -158,12 +158,13 @@ test("selected task warning and catalog stay contained at narrow width", async (
 
   expect(layoutProblems).toEqual([]);
 
-  const taskGrids = page.locator(".task-grid");
+  await page.goto("./#/tools");
+  const taskGrids = page.locator(".product-tool-grid");
   expect(await taskGrids.count()).toBeGreaterThan(0);
   const narrowGridColumns = await taskGrids.first().evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length);
   expect(narrowGridColumns).toBe(1);
 
-  const cardProblems = await page.locator(".task-tile").evaluateAll((cards) => cards.flatMap((card, cardIndex) => {
+  const cardProblems = await page.locator(".product-tool-card").evaluateAll((cards) => cards.flatMap((card, cardIndex) => {
     const rect = card.getBoundingClientRect();
     const problems: string[] = [];
     if (rect.width === 0 && rect.height === 0) return problems;

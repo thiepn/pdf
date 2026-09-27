@@ -7,7 +7,7 @@ import { createGenericTaskCapabilityContext, evaluateTaskCapability, isCapabilit
 import { Icon } from "../components/Icon";
 import { TaskDirectory, taskCopy } from "../product/TaskDirectory";
 import { TaskGlyph } from "../product/TaskGlyph";
-import { handOffTaskFiles, takeTaskFiles } from "../product/fileHandoff";
+import { handOffTaskFiles, takeTaskTransfer, isPdfFile } from "../product/fileHandoff";
 
 export function ToolsPage() {
   const route = readAppRoute();
@@ -26,9 +26,9 @@ export function ToolsPage() {
   async function openFile(file: File, suppliedPassword?: string): Promise<void> {
     if (!task || blocked || opening.current) return;
     const destination = taskRoute(task);
-    if (destination?.name === "quick") { handOffTaskFiles(task.id, [file]); navigateTo(destination); return; }
+    if (destination?.name === "quick") { handOffTaskFiles(task.id, [file], { passwords: [suppliedPassword] }); navigateTo(destination); return; }
     if (task.target.kind !== "workspace") { navigateTo(task.target.route); return; }
-    if (!/\.pdf$/i.test(file.name)) { setError("Choose a PDF for this tool. Images can be converted with Images to PDF."); return; }
+    if (!isPdfFile(file)) { setError("Choose a PDF for this tool. Images can be converted with Images to PDF."); return; }
     opening.current = true; setBusy(true); setError("");
     try {
       const project = await importPdfProject(file, suppliedPassword);
@@ -49,7 +49,7 @@ export function ToolsPage() {
   }
   useEffect(() => {
     alive.current = true; let cancelled = false;
-    void Promise.resolve().then(() => { if (cancelled || !task) return; const files = takeTaskFiles(task.id); if (files) chooseFiles(files); });
+    void Promise.resolve().then(() => { if (cancelled || !task) return; const transfer = takeTaskTransfer(task.id); if (transfer?.files.length === 1) void openFile(transfer.files[0], transfer.passwords[0]); });
     return () => { cancelled = true; alive.current = false; };
   }, [task?.id]);
   if (!task) return <div className="product-tools"><header className="product-directory-heading"><span className="product-eyebrow">ONE PLACE. EVERYDAY TASKS.</span><h1>Find your next PDF tool.</h1><p>Start with what you want to do. The right controls follow.</p></header><TaskDirectory /></div>;
