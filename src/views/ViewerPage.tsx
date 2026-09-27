@@ -50,7 +50,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
   const [pageLabels, setPageLabels] = useState<string[] | null>(null);
   const [outline, setOutline] = useState<OutlineNode[]>([]);
   const [metadata, setMetadata] = useState<DocumentMetadata>({});
-  const [preferences, setPreferences] = useState<ViewerPreferences>({ projectId, pageNumber: 1, zoom: settings.defaultZoom, viewMode: settings.defaultViewMode, sidebarTab: "pages", sidebarOpen: !isCompactReaderViewport(), updatedAt: Date.now() });
+  const [preferences, setPreferences] = useState<ViewerPreferences>({ projectId, pageNumber: 1, zoom: settings.defaultZoom, viewMode: settings.defaultViewMode, sidebarTab: "pages", sidebarOpen: !isPhoneViewportOrTablet(), updatedAt: Date.now() });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
@@ -102,7 +102,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
         setOutline((outlineResult ?? []) as OutlineNode[]);
         setMetadata((metadataResult.info ?? {}) as DocumentMetadata);
         if (editorState) setEditorObjectCount(editorState.objects.length);
-        setPreferences((current) => restoreViewerPreferences(savedPreferences, current, preferenceChangesRef.current, doc.numPages, isCompactReaderViewport()));
+        setPreferences((current) => restoreViewerPreferences(savedPreferences, current, preferenceChangesRef.current, doc.numPages, isPhoneViewportOrTablet()));
         setPreferencesLoaded(true);
         if (!readOnlyRef.current && !signal.aborted) await touchProject(manifest.id).catch(() => undefined);
         if (!signal.aborted && documentRef.current === doc) recordRuntimeMetric("custom", "readiness.viewer.hydrated", 0, undefined, { projectId: manifest.id });
@@ -298,6 +298,6 @@ function InformationSidebar({ metadata, project }: { metadata: DocumentMetadata;
 }
 
 function ViewerFatalError({ error }: { error: string }) { return <div className="fatal-state"><strong>Project could not be opened</strong><p>{error}</p><a className="button" href={routeHref({ name: "home" })}>Return home</a></div>; }
-function isCompactReaderViewport(): boolean { return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 1100px)").matches : false; }
+function isPhoneViewportOrTablet(): boolean { return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 1100px)").matches : false; }
 function formatBytes(value: number): string { if (value < 1024) return `${value} B`; const units = ["KB", "MB", "GB"]; let current = value / 1024; let index = 0; while (current >= 1024 && index < units.length - 1) { current /= 1024; index += 1; } return `${current.toFixed(1)} ${units[index]}`; }
 function safeName(value: string): string { return value.replace(/[\\/:*?"<>|]+/g, "-").trim() || "local-pdf-project"; }
