@@ -63,7 +63,7 @@ test.describe("Recovery P0 responsiveness qualification", () => {
 
     await switchMode(page, "editor");
     await expect(page.locator(".editor-app")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: /Hide sidebar|Pages \/ layers/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Hide pages|Show pages/ })).toBeVisible();
     await page.waitForTimeout(2_000);
 
     const heartbeat = await page.evaluate(() => {

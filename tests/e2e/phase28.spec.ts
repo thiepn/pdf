@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const corpus = "tests/corpus/phase28";
 
 async function uploadPdf(page: import("@playwright/test").Page, filename: string): Promise<void> {
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${corpus}/${filename}`);
 }
 

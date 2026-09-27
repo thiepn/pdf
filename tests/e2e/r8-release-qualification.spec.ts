@@ -46,7 +46,7 @@ test("R8 command palette ranks outcome phrases instead of exact menu labels", as
   await page.keyboard.press("Control+K");
   const dialog = page.getByRole("dialog", { name: /Find a PDF task/i });
   await expect(dialog).toBeVisible({ timeout: 10_000 });
-  const search = dialog.getByRole("textbox", { name: "Find a PDF tool" });
+  const search = dialog.getByRole("textbox", { name: "Search PDF tasks" });
   const firstResult = dialog.locator(".command-palette__results a").first();
   await search.fill("make this PDF smaller");
   await expect(firstResult).toContainText("Compress PDF");

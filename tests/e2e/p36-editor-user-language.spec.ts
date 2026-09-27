@@ -6,7 +6,7 @@ test("P36 keeps native editor property panels in user-facing language", async ({
   await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
 
   const cases = [
     { selector: /Select existing (?:text|paragraph):/, heading: /Layout-aware paragraph|Text/ },

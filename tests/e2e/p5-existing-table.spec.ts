@@ -6,7 +6,7 @@ async function openTableEditor(page: import("@playwright/test").Page): Promise<i
   await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   const table = page.getByRole("button", { name: /Select existing table:/ }).first();
   await expect(table).toBeVisible({ timeout: 20_000 });
   await table.click();

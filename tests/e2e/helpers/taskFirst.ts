@@ -18,6 +18,8 @@ export async function switchMode(page: Page, mode: "viewer" | "editor" | "organi
   await page.getByRole("button", { name: "Document actions", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
   await dialog.getByRole("button", { name: mode === "viewer" ? "Read PDF" : mode === "editor" ? "Edit this PDF" : "Arrange pages", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${mode}(?:/[^/]+)?$`));
+  await expect(page.locator(mode === "organizer" ? ".organizer-app" : `.${mode}-app`)).toBeVisible();
 }
 export async function chooseEditorTool(page: Page, label: string): Promise<void> {
   const direct = page.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: label, exact: true });

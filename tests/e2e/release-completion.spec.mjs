@@ -153,7 +153,7 @@ test("cancelled scanning keeps the inputs and publishes no partial result", asyn
   await page.locator('input[type="file"][multiple]').setInputFiles(image());
   await page.getByRole("button", { name: "Create PDF", exact: true }).click();
   await page.getByRole("button", { name: "Cancel scan", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Cancelled. Your images and settings are unchanged.");
+  await expect(page.locator(".processing-header [role=status]")).toContainText("Cancelled. Your images and settings are unchanged.");
   await expect(page.locator(".scan-card")).toHaveCount(1); await expect(page.locator(".output-bar")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Create PDF", exact: true })).toBeEnabled();
 });

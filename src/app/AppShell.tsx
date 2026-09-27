@@ -30,9 +30,9 @@ export function AppShell({ route, children, title, subtitle, fullBleed = false, 
     {!hideTopbar ? <header className="product-header">
       <a className="product-brand" aria-label="PDF Studio home" href={routeHref({ name: "home" })}><ProductMark /><span>PDF<span className="product-brand__light">Studio</span></span></a>
       <nav className="product-header__links" aria-label="Main navigation"><a href={routeHref({ name: "tools" })}>All PDF tools</a><a href={routeHref({ name: "tools", taskId: "edit-pdf" })}>Edit a PDF</a></nav>
-      <div className="product-header__end"><span className="product-private"><Icon name="shield" size={16} />On your device</span><button className="product-menu-button" aria-label="Open app menu" aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)} type="button"><Icon name="more" size={22} /></button></div>
+      <div className="product-header__end"><CommandPalette /><span className="product-private"><Icon name="shield" size={16} />On your device</span><button className="product-menu-button" aria-label="Open app menu" aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)} type="button"><Icon name="more" size={22} /></button></div>
     </header> : null}
-    <CommandPalette showTrigger={false} />
+    {hideTopbar ? <CommandPalette showTrigger={false} /> : null}
     <main className={`product-main${fullBleed ? " product-main--full" : ""}`} aria-label={title} id="main-workspace" ref={mainRef} tabIndex={-1}>
       <span className="visually-hidden" aria-live="polite" aria-atomic="true">{title}</span>
       <UpdateBanner />

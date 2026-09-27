@@ -13,7 +13,7 @@ test("Phase 26 creator previews rich inline Markdown", async ({ page }) => {
 
 test("Phase 26 exposes hybrid Compare 3.0", async ({ page }) => {
   await page.goto("./#/compare");
-  await expect(page.getByRole("heading", { name: /Compare text PDFs and scanned documents page by page/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Compare PDFs/i })).toBeVisible();
   await expect(page.getByLabel("Mode").locator('option[value="visual"]')).toHaveText("Visual pixels");
   await expect(page.getByLabel("Mode").locator('option[value="text"]')).toHaveText("Extracted text");
 });

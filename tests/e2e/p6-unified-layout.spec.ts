@@ -6,7 +6,7 @@ async function openEditor(page: import("@playwright/test").Page): Promise<void> 
   await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   await expect(page.getByRole("button", { name: /Select existing image:/ }).first()).toBeVisible({ timeout: 20_000 });
 }
 

@@ -22,6 +22,7 @@ test("editor never reports a failed local write as saved and can retry it", asyn
   await expect(contextStatus).toHaveText("Changes saved locally", { timeout: 15_000 });
 
   await page.evaluate(() => { (window as Window & { __pdfStudioFailEditorSave?: boolean }).__pdfStudioFailEditorSave = true; });
+  await page.locator(".editor-guides summary").click();
   await page.getByRole("checkbox", { name: "Snap" }).click();
 
   const saveFailure = page.getByRole("alert").filter({ hasText: "Local autosave failed" });

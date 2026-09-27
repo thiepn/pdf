@@ -87,7 +87,7 @@ export function CommandPalette({ showTrigger = true }: CommandPaletteProps) {
 
   if (!open) {
     if (!showTrigger) return null;
-    return <button aria-haspopup="dialog" aria-label="Open command palette" className="command-palette-trigger" onClick={() => setOpen(true)} ref={triggerRef} type="button"><span>Find a PDF task</span><kbd>Ctrl K</kbd></button>;
+    return <button aria-haspopup="dialog" aria-label="Open command palette" className="command-palette-trigger" onClick={() => setOpen(true)} ref={triggerRef} type="button"><span>Find a tool</span><kbd>Ctrl K</kbd></button>;
   }
 
   return <div className="command-palette-backdrop" onMouseDown={(event: MouseEvent<HTMLDivElement>) => { if (event.currentTarget === event.target) closePalette(); }} role="presentation">

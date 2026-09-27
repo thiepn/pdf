@@ -12,19 +12,21 @@ async function openEditor(page: Page): Promise<void> {
 test.describe("P31 interaction critical path", () => {
   test("non-critical native hydration waits for an input-quiet window", async ({ page }) => {
     test.setTimeout(40_000);
-    await openEditor(page);
-
-    // Keep producing harmless keyboard activity for longer than the quiet
-    // window. Existing-content enrichment should not start while the user is
-    // actively interacting with the editor.
-    for (let index = 0; index < 7; index += 1) {
-      await page.keyboard.press("Shift");
-      await page.waitForTimeout(150);
-    }
+    await openSample(page);
+    // Begin activity before navigation so browser-driver round trips cannot
+    // consume the editor's grace period before the first input arrives.
+    await page.evaluate(() => {
+      (window as Window & { __hydrationActivity?: number }).__hydrationActivity = window.setInterval(() => {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift", bubbles: true }));
+      }, 50);
+    });
+    await switchMode(page, "editor");
+    await page.waitForTimeout(1050);
 
     // This is an instantaneous checkpoint. A retrying locator assertion would
     // itself wait into the subsequent quiet period and make the test flaky.
     expect(await page.locator(".native-content-hitbox").count()).toBe(0);
+    await page.evaluate(() => window.clearInterval((window as Window & { __hydrationActivity?: number }).__hydrationActivity));
 
     // Once input stops, the same enrichment remains automatic and the existing
     // PDF content becomes selectable without an explicit user action.

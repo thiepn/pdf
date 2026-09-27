@@ -6,7 +6,7 @@ async function openVectorEditor(page: import("@playwright/test").Page): Promise<
   await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   const vector = page.getByRole("button", { name: /Select existing vector:/ }).first();
   await expect(vector).toBeVisible({ timeout: 20_000 });
   await vector.click();

@@ -12,7 +12,7 @@ async function uploadPdf(page: import("@playwright/test").Page, filename: string
 
 async function openEditorAndAddRectangle(page: import("@playwright/test").Page): Promise<void> {
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   await expect(page.locator(".editor-page-layers")).toBeVisible({ timeout: 20_000 });
   await chooseEditorTool(page, "Rectangle");
   const canvas = page.locator(".editor-page-layers");

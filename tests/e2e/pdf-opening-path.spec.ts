@@ -12,11 +12,12 @@ test("opens metadata PDF, imports a second PDF, and reopens persisted projects",
   await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${phase28Corpus}/unicode-metadata.pdf`);
   await expect(page.getByText("UNICODE_METADATA_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("tab", { name: "Info", exact: true }).click();
+  await page.getByRole("combobox", { name: "Reader panel" }).selectOption("info");
   const fileInfo = page.locator(".info-list").filter({ hasText: "unicode-metadata.pdf" });
   await expect(fileInfo).toBeVisible();
   await expect(fileInfo).toContainText("unicode-metadata.pdf");
   const metadataProjectUrl = page.url();
+  const projectRoute = new RegExp(`${metadataProjectUrl.split("#/workspace/")[1].split("/")[0]}/viewer(?:/read-pdf)?$`);
 
   await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${generatedCorpus}/plain-text.pdf`);
@@ -29,11 +30,11 @@ test("opens metadata PDF, imports a second PDF, and reopens persisted projects",
   const metadataProject = page.locator(".project-card").filter({ hasText: "unicode-metadata" });
   await metadataProject.getByRole("link", { name: "Open workspace" }).click();
   await switchMode(page, "viewer");
-  await expect(page).toHaveURL(metadataProjectUrl);
+  await expect(page).toHaveURL(projectRoute);
   await expect(page.getByText("UNICODE_METADATA_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
 
   await page.reload();
-  await expect(page).toHaveURL(metadataProjectUrl);
+  await expect(page).toHaveURL(projectRoute);
   await expect(page.getByText("UNICODE_METADATA_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
   expect(uncaught).toEqual([]);
 });

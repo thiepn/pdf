@@ -7,7 +7,7 @@ test("advanced workspace exposes one unified editor and source content is direct
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
 
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   await expect(page.getByRole("button", { name: "Legacy native edit", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "northstar-launch-review", exact: true })).toBeVisible();
   await expect(page.locator(".workspace-tabs")).toHaveCount(0);

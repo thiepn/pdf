@@ -1,5 +1,7 @@
 import { useEffect, type RefObject } from "react";
 
+const modalStack: HTMLElement[] = [];
+
 const FOCUSABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -12,7 +14,7 @@ const FOCUSABLE_SELECTOR = [
 export function getFocusableElements(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
     const style = window.getComputedStyle(element);
-    return !element.hasAttribute("hidden") && style.display !== "none" && style.visibility !== "hidden";
+    return !element.closest("[hidden], [inert]") && element.getClientRects().length > 0 && style.display !== "none" && style.visibility !== "hidden";
   });
 }
 
@@ -28,8 +30,11 @@ export function useModalFocus(
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const container = containerRef.current;
     if (!container) return;
+    const openingLocation = window.location.href;
+    modalStack.push(container);
 
     const focusInitial = () => {
+      if (modalStack.at(-1) !== container || !container.isConnected) return;
       const target = initialFocusRef?.current ?? getFocusableElements(container)[0] ?? container;
       if (!container.hasAttribute("tabindex") && target === container) container.tabIndex = -1;
       target.focus({ preventScroll: true });
@@ -37,8 +42,10 @@ export function useModalFocus(
     const frame = window.requestAnimationFrame(focusInitial);
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (modalStack.at(-1) !== container) return;
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopImmediatePropagation();
         onClose();
         return;
       }
@@ -51,7 +58,10 @@ export function useModalFocus(
       }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (!container.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -65,9 +75,14 @@ export function useModalFocus(
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown, true);
-      delete document.documentElement.dataset.modalOpen;
+      const index = modalStack.lastIndexOf(container);
+      if (index >= 0) modalStack.splice(index, 1);
+      if (!modalStack.length) delete document.documentElement.dataset.modalOpen;
       window.requestAnimationFrame(() => {
+        if (window.location.href !== openingLocation) return;
+        const activeModal = modalStack.at(-1);
         const target = returnFocusRef?.current;
+        if (activeModal && !activeModal.contains(target ?? previous)) return;
         if (target?.isConnected) target.focus({ preventScroll: true });
         else if (previous?.isConnected) previous.focus({ preventScroll: true });
       });

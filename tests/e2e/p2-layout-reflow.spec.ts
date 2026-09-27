@@ -6,7 +6,7 @@ test("P2 exposes font-fidelity evidence and exports through the layout-aware tex
   await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
 
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
   await expect(sourceText).toBeVisible({ timeout: 20_000 });

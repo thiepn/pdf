@@ -32,7 +32,7 @@ test("direct URLs and command search preserve the form fallback and permanent-re
   await expect(page.locator(".viewer-app")).toBeVisible();
   await page.keyboard.press("Control+K");
   const dialog = page.getByRole("dialog", { name: /Find a PDF task/ });
-  await dialog.getByRole("textbox", { name: "Find a PDF tool" }).fill("fill pdf forms");
+  await dialog.getByRole("textbox", { name: "Search PDF tasks" }).fill("fill pdf forms");
   await dialog.getByRole("link", { name: /Fill PDF forms/ }).click();
   await expect(page.getByRole("link", { name: "Fill with text in the editor" })).toBeVisible({ timeout: 20_000 });
   await page.goto(`./#/workspace/${projectId}/secure/apply-redactions`);

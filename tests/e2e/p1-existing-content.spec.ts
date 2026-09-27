@@ -7,7 +7,7 @@ test("P1 edits existing PDF text as one fitted replacement and exports a validat
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
 
   await switchMode(page, "editor");
-  await expect(page).toHaveURL(/\/editor$/);
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
 
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
   await expect(sourceText).toBeVisible({ timeout: 20_000 });
