@@ -387,7 +387,7 @@ function sanitizeCatalog(pdf: any, options: SecurityExportOptions["sanitization"
   return { metadataRemoved, javascriptRemoved, attachmentsRemoved };
 }
 
-function saveOptions(options: SecurityExportOptions): string {
+function saveOptions(options: SecurityExportOptions): Record<string, string | number | boolean> {
   const write: Record<string, string | number | boolean> = {
     garbage: options.sanitization.collapseRevisionHistory || options.redaction.enabled ? "deduplicate" : "compact",
     compress: true,
@@ -397,12 +397,19 @@ function saveOptions(options: SecurityExportOptions): string {
   if (options.encryption.mode === "remove") write.encrypt = "none";
   else if (options.encryption.mode === "aes-256") {
     if (!options.encryption.ownerPassword) throw new Error("An owner password is required for AES-256 protection.");
+    // The installed MuPDF JS options encoder rewrites commas to colons. Refuse
+    // passwords it cannot represent exactly rather than silently changing them.
+    for (const password of [options.encryption.userPassword, options.encryption.ownerPassword]) {
+      if (/[,\x00]/.test(password) || new TextEncoder().encode(password).length > 127) {
+        throw new Error("Use a PDF password without commas or null characters and no longer than 127 UTF-8 bytes.");
+      }
+    }
     write.encrypt = "aes-256";
     write["user-password"] = options.encryption.userPassword;
     write["owner-password"] = options.encryption.ownerPassword;
     write.permissions = permissionMask(options.encryption.permissions);
   } else write.encrypt = "keep";
-  return JSON.stringify(write);
+  return write;
 }
 
 function countSignedFields(pdf: any): number {
