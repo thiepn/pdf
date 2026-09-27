@@ -29,3 +29,7 @@
   .product-app .editor-tools-sheet__groups button > span { font-size:12px; }
   .product-app .editor-contextbar .editor-save-status { display:block; }
 }
+
+/* Keep the skip link off-canvas even during full-page capture and scrolling. */
+.product-app .skip-link:not(:focus) { clip-path:inset(50%); width:1px; height:1px; overflow:hidden; padding:0; white-space:nowrap; }
+.product-app .skip-link:focus { clip-path:none; color:white; }

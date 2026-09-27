@@ -106,7 +106,7 @@ function QuickWorkflow({ taskId, projectId }: { taskId: QuickTaskId; projectId?:
           setLoading(true);
           const project = await getProject(projectId); if (!project) throw new Error("The source document is no longer available. Choose a file instead.");
           const bytes = await loadProjectBytes(project);
-          if (!cancelled) { setLoading(false); await readFiles([new File([Uint8Array.from(bytes).buffer], project.name, { type: "application/pdf" })], [], readProjectSessionPassword(projectId)); }
+          if (!cancelled) { setLoading(false); await readFiles([new File([Uint8Array.from(bytes).buffer], safeOutputName(project.sourceFilename || project.name, "pdf"), { type: "application/pdf" })], [], readProjectSessionPassword(projectId)); }
         } catch (reason) { if (!cancelled) { setLoading(false); setError(message(reason)); } }
       }
     });
