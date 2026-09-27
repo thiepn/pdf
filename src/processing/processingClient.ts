@@ -1,12 +1,12 @@
 interface ProcessingResult { type: "PROCESSING_RESULT"; requestId: string; output: ArrayBuffer; report: { operation: string; inputBytes: number; outputBytes: number; repaired: boolean; versionsBefore: number; durationMs: number; warnings: string[] } }
 interface ProcessingError { type: "PROCESSING_ERROR"; requestId: string; error: { name: string; message: string } }
 type Response = ProcessingResult | ProcessingError;
-
 async function invoke(type: "OPTIMIZE" | "REPAIR", bytes: Uint8Array, options: { password?: string; removeMetadata?: boolean } = {}, signal?: AbortSignal) {
   const worker = new Worker(new URL("../workers/processing.worker.ts", import.meta.url), { type: "module" });
   const requestId = crypto.randomUUID();
   const source = Uint8Array.from(bytes).buffer;
   return new Promise<{ bytes: Uint8Array; report: ProcessingResult["report"] }>((resolve, reject) => {
+    if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
     const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
     signal?.addEventListener("abort", cancel, { once: true });
@@ -20,6 +20,5 @@ async function invoke(type: "OPTIMIZE" | "REPAIR", bytes: Uint8Array, options: {
     worker.postMessage({ type, requestId, bytes: source, ...options }, [source]);
   });
 }
-
 export function optimizePdf(bytes: Uint8Array, options?: { password?: string; removeMetadata?: boolean }, signal?: AbortSignal) { return invoke("OPTIMIZE", bytes, options, signal); }
 export function repairPdf(bytes: Uint8Array, password?: string, signal?: AbortSignal) { return invoke("REPAIR", bytes, { password }, signal); }

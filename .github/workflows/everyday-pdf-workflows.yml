@@ -22,14 +22,12 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Export reproducible review workspace
-        run: |
-          git archive --format=tar HEAD > /tmp/pdf-review-source.tar
-          tar -cf /tmp/pdf-review-dependencies.tar node_modules
+      - name: Export review source
+        run: git archive --format=tar HEAD > /tmp/pdf-review-source.tar
       - uses: actions/upload-artifact@v4
         with:
-          name: pdf-review-workspace
-          path: /tmp/pdf-review-*.tar
+          name: pdf-review-source
+          path: /tmp/pdf-review-source.tar
           retention-days: 2
       - name: Typecheck
         run: npm run typecheck
@@ -37,13 +35,12 @@ jobs:
         run: npm run test:unit
       - name: Production build
         run: npm run build
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Everyday workflow browser tests
-        shell: bash
-        run: |
-          if [ -f tests/e2e/everyday-workflows.spec.ts ]; then
-            npx playwright install --with-deps chromium
-            npx playwright test tests/e2e/everyday-workflows.spec.ts --project=chromium
-          fi
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+        run: npx playwright test tests/e2e/everyday-workflows.spec.mjs --project=chromium --project=firefox --project=webkit --workers=2 --retries=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,6 +1,7 @@
 import type { WorkspaceMode } from "../types/workspace";
 export type AppRoute =
   | { name: "home" }
+  | { name: "quick"; taskId: string; projectId?: string }
   | { name: "workspace"; projectId: string; mode: WorkspaceMode; taskId?: string }
   | { name: "viewer"; projectId: string }
   | { name: "editor"; projectId: string }
@@ -34,7 +35,10 @@ export type AppRoute =
 export function readAppRoute(hash = window.location.hash): AppRoute {
   const clean = hash.replace(/^#\/?/, "");
   const [name = "home", id] = clean.split("/").filter(Boolean);
-
+  if (name === "quick" && id) {
+    const project = clean.split("/").filter(Boolean)[2];
+    return { name: "quick", taskId: decodeURIComponent(id), ...(project ? { projectId: decodeURIComponent(project) } : {}) };
+  }
   if (name === "workspace" && id) {
     const parts = clean.split("/").filter(Boolean);
     const base = { name: "workspace" as const, projectId: decodeURIComponent(id), mode: normalizeWorkspaceMode(parts[2]) };
@@ -73,6 +77,7 @@ export function readAppRoute(hash = window.location.hash): AppRoute {
 
 export function routeHref(route: AppRoute): string {
   switch (route.name) {
+    case "quick": return `#/quick/${encodeURIComponent(route.taskId)}${route.projectId ? `/${encodeURIComponent(route.projectId)}` : ""}`;
     case "workspace": return `#/workspace/${encodeURIComponent(route.projectId)}/${route.mode}${route.taskId ? `/${encodeURIComponent(route.taskId)}` : ""}`;
     case "viewer": return `#/workspace/${encodeURIComponent(route.projectId)}/viewer`;
     case "editor": return `#/workspace/${encodeURIComponent(route.projectId)}/editor`;
@@ -106,11 +111,7 @@ export function routeHref(route: AppRoute): string {
     default: return "#/home";
   }
 }
-
-export function navigateTo(route: AppRoute): void {
-  window.location.hash = routeHref(route).slice(1);
-}
-
+export function navigateTo(route: AppRoute): void { window.location.hash = routeHref(route).slice(1); }
 function normalizeWorkspaceMode(value?: string): WorkspaceMode {
   const modes: WorkspaceMode[] = ["viewer", "editor", "organizer", "secure", "ocr", "compress", "inspector", "repair", "professional", "preservation", "native", "compliance", "toolbox"];
   return modes.includes(value as WorkspaceMode) ? value as WorkspaceMode : "viewer";
