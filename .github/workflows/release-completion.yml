@@ -1,0 +1,112 @@
+name: Release completion verification
+on:
+  push:
+    branches: [redesign/task-first-experience]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-completion-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: npm ci --no-audit --no-fund
+      - name: Reproducible offline test dependencies
+        run: |
+          git rev-parse HEAD > /tmp/qualification-sha.txt
+          sha256sum package-lock.json > /tmp/qualification-lock.sha256
+          tar -czf /tmp/pdf-test-dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-test-dependencies
+          path: |
+            /tmp/pdf-test-dependencies.tar.gz
+            /tmp/qualification-sha.txt
+            /tmp/qualification-lock.sha256
+          retention-days: 1
+      - name: Install external PDF validators and corpus fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-core
+          python -m pip install --requirement requirements-phase11.txt
+      - name: Generate and validate browser corpora
+        run: |
+          python scripts/phase11/generate_corpus.py
+          python scripts/phase11/validate_corpus.py
+          python scripts/phase28/generate_adversarial_corpus.py
+          python scripts/phase28/validate_adversarial_corpus.py
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
+          python scripts/p0/generate_stress_corpus.py
+          python scripts/p0/validate_stress_corpus.py
+      - name: Complete non-browser release gate
+        run: npm run release:web
+        env:
+          PHASE11_CORPUS_REUSE: '1'
+          VITE_BASE_PATH: /pdf/
+          VITE_SOURCE_URL: https://github.com/thiepn/pdf
+      - name: Bundle the tested source and distribution
+        if: always()
+        run: |
+          git archive HEAD | gzip > /tmp/pdf-release-source.tar.gz
+          tar -czf /tmp/pdf-release-runtime.tar.gz dist tests/corpus docs/phase-11/corpus-validation-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-release-runtime
+          path: |
+            /tmp/pdf-release-source.tar.gz
+            /tmp/pdf-release-runtime.tar.gz
+            /tmp/qualification-sha.txt
+          retention-days: 3
+  browser:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit, mobile-chromium, tablet-webkit]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: pdf-release-runtime
+          path: /tmp/pdf-release-runtime
+      - run: tar -xzf /tmp/pdf-release-runtime/pdf-release-runtime.tar.gz
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Complete application browser regression
+        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --max-failures=20 --reporter=html,json > /tmp/browser-results.json
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+          PLAYWRIGHT_BASE_PATH: /pdf/
+          VITE_BASE_PATH: /pdf/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-release-${{ matrix.project }}
+          path: |
+            playwright-report
+            test-results
+            /tmp/browser-results.json
+          retention-days: 7
