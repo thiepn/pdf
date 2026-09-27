@@ -145,7 +145,10 @@ test("mobile editor exposes touch-sized direct tools and does not overflow the v
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Show pages", exact: true }).click();
     await expect(page.locator(".editor-left-panel")).toBeVisible();
-    await page.getByRole("button", { name: "Close editor panel", exact: true }).click({ position: { x: 375, y: 10 } });
+    const backdrop = page.getByRole("button", { name: "Close editor panel", exact: true });
+    const bounds = await backdrop.boundingBox();
+    expect(bounds).toBeTruthy();
+    await backdrop.click({ position: { x: bounds.width - 8, y: 10 } });
     await expect(page.locator(".editor-left-panel")).toHaveCount(0);
 });
 test("app menu traps focus, closes with Escape, and the skip link does not change the route", async ({ page }) => {
