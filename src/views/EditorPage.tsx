@@ -326,6 +326,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (processing) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       const command = event.ctrlKey || event.metaKey;
@@ -349,7 +350,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems]);
+  }, [history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
     hydrationRef.current?.cancel();
@@ -453,7 +454,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function queueNativeEdits(edits: NativeEdit[]): void {
-    if (!edits.length) return;
+    if (processing || !edits.length) return;
     setHistory((current) => {
       const nextNativeEdits = mergeNativeEdits(current.present.nativeEdits, edits);
       return commitHistory(current, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits);
@@ -463,6 +464,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function removeNativeEdits(objectId: string): void {
+    if (processing) return;
     setHistory((current) => {
       const nextNativeEdits = discardNativeObjectEdits(current.present.nativeEdits, objectId);
       if (nextNativeEdits.length === current.present.nativeEdits.length) return current;
@@ -472,6 +474,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function commitObjects(label: string, objects: EditorObject[], mergeKey?: string, nextSelection = selectedIds): void {
+    if (processing) return;
     setHistory((current) => commitHistory(current, label, objects, nextSelection, mergeKey));
     setPreviewObject(null);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
@@ -625,6 +628,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function deleteSelection(): void {
+    if (processing) return;
     let acted = false;
     if (selectedIds.size) {
       commitObjects("Delete objects", history.present.objects.filter((object) => !selectedIds.has(object.id)), undefined, new Set());
@@ -642,6 +646,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function duplicateSelection(): void {
+    if (processing) return;
     if (selectedNativeIds.size) setWarnings((current) => [...current, "Existing PDF objects cannot be duplicated safely. Only objects added in PDF Studio are duplicated."]);
     if (!selectedIds.size) return;
     const next = duplicateObjects(history.present.objects, selectedIds);
@@ -654,6 +659,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function arrange(direction: "front" | "back"): void {
+    if (processing) return;
     if (selectedNativeIds.size) setWarnings((current) => [...current, "Bring to front and Send to back only reorder objects added in PDF Studio. Existing PDF content keeps its original painting order."]);
     if (!selectedIds.size) return;
     const ordered = history.present.objects.slice().sort((a, b) => a.zIndex - b.zIndex);
@@ -664,17 +670,18 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function groupSelection(): void {
-    if (selectedIds.size < 2) return;
+    if (processing || selectedIds.size < 2) return;
     const groupId = crypto.randomUUID();
     commitObjects("Group objects", updateObjects(history.present.objects, selectedIds, (object) => ({ ...object, groupId })));
   }
 
   function ungroupSelection(): void {
-    if (!selectedIds.size) return;
+    if (processing || !selectedIds.size) return;
     commitObjects("Ungroup objects", updateObjects(history.present.objects, selectedIds, (object) => ({ ...object, groupId: undefined })));
   }
 
   async function copySelection(): Promise<void> {
+    if (processing) return;
     if (selectedNativeIds.size) setWarnings((current) => [...current, "Existing PDF objects cannot be copied as independent objects. Objects added in PDF Studio are copied normally."]);
     const copied = history.present.objects.filter((object) => selectedIds.has(object.id));
     if (!copied.length) return;
@@ -684,6 +691,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   async function pasteSelection(): Promise<void> {
+    if (processing) return;
     let copied = internalClipboardRef.current;
     try {
       const text = await navigator.clipboard.readText();
@@ -710,6 +718,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   async function importImage(file: File): Promise<void> {
+    if (processing) return;
     if (!project || !file.type.startsWith("image/")) { setError("Select a supported image file."); return; }
     try {
       const bytes = await file.arrayBuffer();
@@ -734,10 +743,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   async function exportPdf(saveProject: boolean): Promise<void> {
-    if (!project || !sourceBytesRef.current) return;
+    if (!project || !sourceBytesRef.current || processing || abortRef.current) return;
     const sourceBytes = sourceBytesRef.current;
+    (window.document.activeElement as HTMLElement | null)?.blur();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setProcessing(true); setError(null); setWarnings([]); setLastReport(null); setStatus("Preparing edited PDF…");
-    const controller = new AbortController(); abortRef.current = controller;
     try {
       await runProjectOperation(project.id, { label: saveProject ? "Saving edited PDF" : "Exporting edited PDF", signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
       update({ detail: "Preparing edited PDF…", progress: 0.05 });
@@ -783,10 +794,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
       } else {
         downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), filename);
-        const cleanState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: false, lastSavedAt: Date.now(), updatedAt: Date.now() };
+        const savedAt = Date.now();
+        const cleanState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: false, lastSavedAt: savedAt, updatedAt: savedAt };
         await writeEditorState(cleanState);
-        await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: Date.now() } });
-        setEditorState(cleanState);
+        await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: savedAt } });
+        setEditorState((current) => ({ ...current, dirty: false, lastSavedAt: savedAt, updatedAt: savedAt }));
         setStatus("Edited PDF downloaded");
       }
       update({ progress: 1 });
@@ -830,7 +842,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   if (!document) return <div className="editor-app"><div className="viewer-loading"><span className="spinner" /><strong>{status}</strong></div>{passwordRequired ? <PasswordDialog error={error} password={password} onChange={setPassword} onSubmit={() => void retryPassword()} projectId={projectId} /> : null}</div>;
   const renderedDocument = nativePreviewDocument ?? document;
 
-  const contextControls = <div className="editor-contextbar editor-selectionbar">
+  const contextControls = <div className="editor-contextbar editor-selectionbar" inert={processing ? true : undefined}>
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !sidebarOpen; setSidebarOpen(next); if (next && isCompactViewport()) setPropertiesOpen(false); }} type="button" aria-expanded={sidebarOpen}>{sidebarOpen ? "Hide pages" : "Show pages"}</button>
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !propertiesOpen; setPropertiesOpen(next); if (next && isCompactViewport()) setSidebarOpen(false); }} type="button" aria-expanded={propertiesOpen}>{propertiesOpen ? "Hide properties" : "Properties"}</button>
         <span />
@@ -846,7 +858,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     <div className="editor-app" data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
       {!compactControls ? <header className="editor-commandbar">
         <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
-        <div className="editor-commandbar__center">
+        <div className="editor-commandbar__center" inert={processing ? true : undefined}>
           <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo last change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo last change" type="button"><Icon name="redo" /></button><span />
           <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button><label><input aria-label="Current page" max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button><span />
           <button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><select aria-label="Zoom" onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}>{[...new Set([.5,.75,1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,editorState.zoom])].sort((a,b) => a-b).map((zoom) => <option key={zoom} value={zoom}>{Math.round(zoom * 100)}%</option>)}</select><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button>
@@ -854,15 +866,15 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <div className="editor-commandbar__actions"><details className="editor-save-options"><summary aria-label="More save options"><Icon name="more"/></summary><button disabled={!changeCount || processing} onClick={() => void exportPdf(true)} type="button">Save as project</button></details><button className="button button--small" disabled={processing} onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={17}/>Download PDF</button>{processing ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
       </header> : null}
 
-      {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools">
+      {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
         <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
         <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
       </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
         <CompactDocumentHome />
-        {["select", "text", !["select", "text"].includes(editorState.activeTool) ? editorState.activeTool : "highlight"].map(id => tools.find(tool => tool.id === id)!).map(tool => <button className="icon-button" aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} title={tool.label} onClick={() => activateTool(tool.id)} type="button"><Icon name={tool.icon} size={20} /></button>)}
+        {["select", "text", !["select", "text"].includes(editorState.activeTool) ? editorState.activeTool : "highlight"].map(id => tools.find(tool => tool.id === id)!).map(tool => <button className="icon-button" aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} disabled={processing} key={tool.id} title={tool.label} onClick={() => activateTool(tool.id)} type="button"><Icon name={tool.icon} size={20} /></button>)}
         <button className="icon-button" aria-label="Undo" title="Undo" disabled={!history.past.length || processing} onClick={undo} type="button"><Icon name="undo" /></button>
         {processing ? <button className="icon-button" aria-label="Cancel" title="Cancel export" onClick={() => abortRef.current?.abort()} type="button"><Icon name="close" /></button> : <button className="icon-button compact-download" aria-label="Download PDF" title="Download PDF" onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={20} /></button>}
-        <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button>
+        <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} disabled={processing} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button>
       </nav>}
         <input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" />
       {!compactControls ? contextControls : null}
@@ -875,7 +887,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         {redactionCount ? <div className="editor-banner warning-banner" role="status"><strong>Redaction marks are not permanent yet</strong><span>{redactionCount} marked region{redactionCount === 1 ? "" : "s"}. Choose Document actions → Apply permanent redactions to remove the covered content before sharing.</span></div> : null}
       </div>
 
-      <div className={`editor-layout${sidebarOpen ? "" : " editor-layout--no-sidebar"}${propertiesOpen ? "" : " editor-layout--no-properties"}`}>
+      <div aria-busy={processing || undefined} className={`editor-layout${sidebarOpen ? "" : " editor-layout--no-sidebar"}${propertiesOpen ? "" : " editor-layout--no-properties"}`} inert={processing ? true : undefined}>
         {(sidebarOpen || propertiesOpen) ? <button aria-label="Close editor panel" className="editor-mobile-backdrop" onClick={() => { setSidebarOpen(false); setPropertiesOpen(false); }} type="button" /> : null}
 
         {sidebarOpen ? <aside className="editor-left-panel"><label className="editor-sidebar-select"><span className="visually-hidden">Sidebar content</span><select value={leftTab} onChange={(event) => setLeftTab(event.target.value as LeftTab)}><option value="pages">Pages</option><option value="layers">Objects & layers</option><option value="comments">Comments</option></select></label><div className="editor-left-body">{leftTab === "pages" ? <div className="thumbnail-list">{Array.from({ length: renderedDocument.numPages }, (_, index) => <Thumbnail document={renderedDocument} key={index + 1} onSelect={(pageNumber) => { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setEditorState((state) => ({ ...state, currentPage: pageNumber })); }} pageNumber={index + 1} selected={editorState.currentPage === index + 1} />)}</div> : null}{leftTab === "layers" ? <LayerList nativeObjects={currentNativeObjects} nativeQueued={nativeEdits} objects={currentPageObjects} selectedIds={selectedIds} selectedNativeIds={selectedNativeIds} onSelect={selectObject} onSelectNative={selectNativeObject} onToggleHidden={(object) => commitObject(object.hidden ? "Show object" : "Hide object", { ...object, hidden: !object.hidden })} /> : null}{leftTab === "comments" ? <CommentList comments={comments} onSelect={(comment) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setEditorState((state) => ({ ...state, currentPage: comment.pageNumber, activeTool: "select" })); setSelectedIds(new Set([comment.id])); }} /> : null}</div></aside> : null}
