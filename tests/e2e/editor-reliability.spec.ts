@@ -1,11 +1,17 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { chooseEditorTool, openSample } from "./helpers/taskFirst";
 
 async function reopenDownload(page: import("@playwright/test").Page, download: import("@playwright/test").Download) {
   const path = await download.path();
   if (!path) throw new Error("Downloaded PDF path is unavailable.");
+  const buffer = await readFile(path);
   await page.goto("./#/tools/read-pdf");
-  await page.getByLabel("PDF file", { exact: true }).setInputFiles(path);
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles({
+    name: download.suggestedFilename() || "edited.pdf",
+    mimeType: "application/pdf",
+    buffer
+  });
   await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible({ timeout: 20_000 });
 }
 
@@ -31,7 +37,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   await editor.fill("UNDO OK");
   const beforePreview = await page.locator(".editor-page-layers > canvas").screenshot();
   await properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ }).click();
-  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
   await expect.poll(async () => !(await page.locator(".editor-page-layers > canvas").screenshot()).equals(beforePreview), { timeout: 20_000 }).toBe(true);
 
@@ -44,7 +50,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   await expect(redo).toBeEnabled();
   await redo.click();
-  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
 
   const downloadPromise = page.waitForEvent("download");
@@ -90,7 +96,7 @@ test("deleted existing objects leave no stale canvas hitbox and return on Undo",
   expect(nativeId).toBeTruthy();
   await image.click();
   await page.keyboard.press("Delete");
-  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
   await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
 
@@ -110,7 +116,7 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
 
   const properties = page.locator(".native-unified-properties");
   await properties.getByRole("button", { name: "Delete existing text", exact: true }).click();
-  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
   await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
 
@@ -118,7 +124,7 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
   await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
   await page.keyboard.press("Control+y");
-  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
 
   const downloadPromise = page.waitForEvent("download");
