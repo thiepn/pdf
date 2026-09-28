@@ -279,6 +279,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
           previewDocumentRef.current = nextDocument;
           setNativePreviewDocument(nextDocument);
           setNativePreviewState("ready");
+          setWarnings((current) => current.filter((item) => !item.startsWith("Live edit preview could not refresh")));
           if (previous && previous !== nextDocument) void previous.loadingTask.destroy();
         } catch (reason) {
           if (controller.signal.aborted || sequence !== previewSequenceRef.current) return;
@@ -892,6 +893,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       {!compactControls ? contextControls : null}
 
       <div className="editor-notices">
+        {nativeEdits.length && nativePreviewState === "loading" ? <p aria-label="Preview status" className="editor-operation-status" role="status">Updating edited PDF preview…</p> : null}
         {status !== "Ready" && status !== "Opening PDF…" ? <p aria-label="Document status" className="editor-operation-status" role="status">{status}</p> : null}
         {localSave.phase === "error" ? <div className="editor-banner error-banner" role="alert"><strong>Local autosave failed</strong><span>{localSave.message}</span><button onClick={retryLocalSave} type="button">Retry save</button></div> : null}
         {error ? <div className="editor-banner error-banner"><strong>Editor error</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
