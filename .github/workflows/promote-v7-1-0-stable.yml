@@ -1,0 +1,120 @@
+name: Promote qualified v7.1.0 stable artifact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/promote-v7-1-0-stable.yml
+
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+
+env:
+  RELEASE_TAG: v7.1.0
+  RELEASE_COMMIT: 74c50a140d8424db7b2fb3f4667e6ece94f77b64
+  QUALIFIED_RUN_ID: "36447446945"
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  stage-qualified-artifact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify immutable release identity
+        run: |
+          set -euo pipefail
+          git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}" --force
+          test "$(git rev-list -n 1 "${RELEASE_TAG}")" = "${RELEASE_COMMIT}"
+          git merge-base --is-ancestor "${RELEASE_COMMIT}" HEAD
+          test "$(git show "${RELEASE_COMMIT}:package.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{if(JSON.parse(s).version!=='7.1.0')process.exit(1)})")" = ""
+      - name: Download already-qualified stable Pages artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: github-pages
+          path: qualified-pages
+          repository: ${{ github.repository }}
+          run-id: ${{ env.QUALIFIED_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Verify stable artifact metadata before promotion
+        run: |
+          set -euo pipefail
+          artifact="$(find qualified-pages -type f -name 'artifact.tar' -print -quit)"
+          test -n "$artifact"
+          mkdir inspected
+          tar -xf "$artifact" -C inspected
+          grep -q '"version": "7.1.0"' inspected/release-metadata.json
+          grep -q '"channel": "stable"' inspected/release-metadata.json
+          grep -q 'fileCount' inspected/release-integrity.json
+          grep -q 'release-metadata.json' inspected/offline-assets.json
+          cp "$artifact" artifact.tar
+      - name: Re-stage exact qualified Pages artifact in this main workflow
+        uses: actions/upload-artifact@v7
+        with:
+          name: github-pages
+          path: artifact.tar
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
+  deploy-stable:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: stage-qualified-artifact
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy exact qualified v7.1.0 stable artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke-stable:
+    runs-on: ubuntu-latest
+    needs: deploy-stable
+    timeout-minutes: 10
+    steps:
+      - name: Verify deployed stable application
+        env:
+          PAGE_URL: ${{ needs.deploy-stable.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/"
+          curl --fail --location --retry 8 --retry-delay 5 "${base}"
+          curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '7.1.0' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "stable"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "7.1.0"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'release-metadata.json' > /dev/null
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs: smoke-stable
+    steps:
+      - name: Download exact qualified release assets
+        uses: actions/download-artifact@v8
+        with:
+          name: v7.1.0-release-assets
+          path: release-assets
+          repository: ${{ github.repository }}
+          run-id: ${{ env.QUALIFIED_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Publish immutable GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v7.1.0
+          target_commitish: 74c50a140d8424db7b2fb3f4667e6ece94f77b64
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: release-assets/*
