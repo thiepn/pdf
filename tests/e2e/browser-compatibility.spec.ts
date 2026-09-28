@@ -55,7 +55,7 @@ test("reader hydration and page jumps never scroll document actions out of the v
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("./#/tools/read-pdf");
   await page.getByLabel("PDF file", { exact: true }).setInputFiles(`${corpus}/plain-text.pdf`);
-  await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
+  await expect(page.locator(".viewer-app")).toHaveAttribute("data-preferences-ready", "true");
   const geometry = await page.locator(".document-stage").evaluate(stage => {
     const nodes = [];
     for (let node: HTMLElement | null = stage as HTMLElement; node; node = node.parentElement) {
@@ -74,6 +74,19 @@ test("reader hydration and page jumps never scroll document actions out of the v
   await expect.poll(() => page.locator(".document-stage").evaluate(node => node.scrollTop)).toBeGreaterThan(400);
   expect((await actions.boundingBox())!.y).toBeGreaterThanOrEqual(0);
   expect(await page.locator(".workspace-mode-content").evaluate(node => node.scrollTop)).toBe(0);
+  // Legacy reader links do not have the capability wrapper. Both routes must
+  // keep the same bounded viewport, rather than relying on intrinsic page size.
+  const taskHash = new URL(page.url()).hash;
+  const projectId = taskHash.match(/^#\/workspace\/([^/]+)\/viewer/)?.[1];
+  expect(projectId).toBeTruthy();
+  await page.goto(`./#/viewer/${projectId}`);
+  await expect(page.locator(".viewer-app")).toHaveAttribute("data-preferences-ready", "true");
+  const legacyHeight = await page.locator(".document-stage").evaluate(node => node.clientHeight);
+  expect(legacyHeight).toBeGreaterThan(80);
+  expect(legacyHeight).toBeLessThan(390);
+  await page.goto(`./${taskHash}`);
+  await expect(page.locator(".viewer-app")).toHaveAttribute("data-preferences-ready", "true");
+  expect(await page.locator(".document-stage").evaluate(node => node.clientHeight)).toBeGreaterThan(80);
   await actions.click();
   await expect(page.getByRole("dialog", { name: "Document actions", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit this PDF", exact: true }).click();
