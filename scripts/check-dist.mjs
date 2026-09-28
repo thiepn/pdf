@@ -1,3 +1,4 @@
+import { verifyLicenseBundle } from "./releases/license-bundle.mjs";
 import { createHash } from "node:crypto";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
@@ -88,6 +89,9 @@ try {
   if (!sw.includes(`const RELEASE_CHANNEL = "${expectedChannel}";`)) failures.push("Built service worker channel does not match the release channel.");
   if (!sw.includes(`const RELEASE_BUILD_EPOCH = Number("${metadata.buildEpoch}")`)) failures.push("Built service worker build identity does not match release metadata.");
 } catch (reason) { failures.push(`Could not validate release-metadata.json/service-worker identity: ${reason instanceof Error ? reason.message : String(reason)}`); }
+
+try { await verifyLicenseBundle(root, dist); }
+catch (reason) { failures.push(`Release licence bundle is invalid: ${reason instanceof Error ? reason.message : String(reason)}`); }
 
 const files = await walk(dist);
 let total = 0;
