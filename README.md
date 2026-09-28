@@ -188,7 +188,7 @@ The application does not claim universal Word-like PDF text reflow, high-fidelit
 ## Run locally
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -196,32 +196,35 @@ The `predev` and `prebuild` scripts copy Tesseract’s browser worker and WebAss
 
 ## Validate
 
-Run the dependency-independent Phase 11 gate first:
+Use the committed lockfile with the qualified Node 22.16.0 / npm 10.9.2 toolchain. For a clean checkout:
 
 ```bash
+npm ci
 python -m pip install -r requirements-phase11.txt
-npm run gate:phase11
-```
-
-After the exact lockfile is committed and dependencies are installed with `npm ci`, the complete local qualification command is:
-
-```bash
+node scripts/releases/prepare-browser-corpora.mjs
+npx playwright install --with-deps chromium firefox webkit
+node --test scripts/releases/*.test.mjs
 npm run release:check
 ```
 
-That command runs the historical stability/regression gates, lock/toolchain/dependency audits, official TypeScript and Vitest checks, a verified production build, high-severity dependency audit, and Playwright against the already-built `dist`. Install the required Playwright browsers first with `npx playwright install chromium firefox webkit`.
+Corpus generation requires an installed Noto-compatible Unicode font; CI installs `fonts-noto-core`. The release gate runs the historical stability/regression checks, lock/toolchain/dependency audits, TypeScript and Vitest checks, a verified production build, the moderate-or-higher dependency security gate, and Playwright against the already-built `dist`.
 
-A release-qualified build requires a committed `package-lock.json`; the manual **Bootstrap dependency lock** workflow generates it from the exact pinned `package.json`, verifies it with `npm ci`, and opens a review PR.
+The **Release completion verification** workflow independently builds both `release-candidate` and `stable`, proves repeat-build identity, retains full and production-only npm audit reports, and runs Chromium, Firefox, WebKit, phone Chromium and tablet WebKit with zero retries. Its release certificate records actual passes and explained capability skips separately and refuses incomplete, failed or flaky matrices. Use the certificate for the current PR head, not results from an older commit.
+
+The lockfile is already committed. **Bootstrap dependency lock** is only for initial setup or a deliberately reviewed dependency-graph change, not a routine prerequisite for releasing this version.
 
 ## Deploy to GitHub Pages
 
-1. Create a GitHub repository and upload this project.
-2. Run **Actions → Bootstrap dependency lock**.
-3. Merge the generated dependency-lock PR only after its clean-install checks pass.
-4. Open **Settings → Pages** and set **Source** to **GitHub Actions**.
-5. Push or merge to `main`.
+1. Open **Settings → Pages** and set **Source** to **GitHub Actions**.
+2. Merge the reviewed, current-head-qualified release PR into `main`. Do not bypass failed checks.
+3. The main-branch workflow requalifies the merged source before publishing a **release-candidate** build. It preserves an existing same-version Stable deployment instead of overwriting it.
+4. For Stable publication, create the exact **`v7.1.0` tag on the accepted commit in `main` history** and push that tag. Do not tag an unmerged branch, recreate an existing tag, or manually publish a GitHub Release ahead of verification.
 
-Main-branch Pages deployments remain explicitly **release-candidate** builds. They derive the repository subpath, use deterministic commit metadata, run the complete PDF/runtime/adversarial-corpus/type/unit/build gates, browser-test the exact verified `dist`, and only then publish it. To promote the frozen source to stable, create the exact `v6.0.6` tag only after the dependency-lock PR is merged; the tagged workflow rebuilds with `VITE_RELEASE_CHANNEL=stable`, proves reproducibility, reruns the full browser/security gates, deploys that exact artifact to Pages, smoke-tests the live site, and only then publishes the GitHub Release.
+The tagged workflow rebuilds with `VITE_RELEASE_CHANNEL=stable`, proves reproducibility, reruns browser and security gates, packages source/distribution archives with checksums, deploys the qualified artifact, and smoke-tests the live application. Only after those steps succeed does it publish the GitHub Release. A passing PR or a local stable-channel build is not evidence that deployment has happened.
+
+The default deployment base is `/pdf/`; an explicit `PAGES_BASE_PATH` repository variable can override it for a separately configured deployment. Runtime assets, PWA scope and release metadata must use the same base. See [the v7.1.0 release contract](docs/P9_RELEASE_CANDIDATE.md) for preserved schemas and capability boundaries.
+
+Every verified distribution contains `LICENSE.txt`, `THIRD_PARTY_NOTICES.txt` and `license-inventory.json`. They are covered by distribution integrity checks and included in the core offline cache. Keep these files with redistributed builds.
 
 ## Privacy
 

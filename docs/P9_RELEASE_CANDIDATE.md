@@ -33,16 +33,19 @@ A v7 RC is acceptable only when all of the following are green on the exact cand
 - Historical v6.0.1–v6.1.0 maintenance regressions, widened only so they continue to protect v7 without forcing a v6 version number.
 - Dedicated v7.0.0 universal-editing regression retained across the v7 release line.
 - P8 compatibility corpus independently opened by PyMuPDF and pypdf.
-- Source audit, Pages readiness, dependency policy, lockfile/toolchain/tree audits, and high-severity npm security gate.
+- Source audit, Pages readiness, dependency policy, lockfile/toolchain/tree audits, and moderate-or-higher npm security gate.
 - TypeScript qualification and complete unit suite.
 - Verified production build and distribution audit.
 - Same-commit reproducibility fingerprint comparison.
+- Both release-candidate and stable build channels qualified by the ten-job browser matrix; passes, skips and their reasons are retained separately.
+- Full and production-only dependency audit reports with no reported vulnerabilities.
+- Application and upstream licence texts packaged deterministically, verified against the lock and installed packages, and readable offline.
 - Playwright regression against the exact verified distribution, including Chromium, Firefox, WebKit, mobile Chromium, and tablet WebKit projects already defined by the repository.
 - P1–P8 browser regressions, including the mixed P6 overlay/native export path and P8 rotated/cropped + incremental-revision editor exports.
 
 ## Publication contract
 
-Merging the P9 PR into the integration branch does **not** publish Stable. The release candidate may later be promoted by merging the accepted integration state into `main`, where the candidate Pages workflow rebuilds and requalifies it with `VITE_RELEASE_CHANNEL=release-candidate`.
+The task-first release PR targets `main` directly. Merging it does **not** publish Stable: the candidate Pages workflow rebuilds and requalifies the merged commit with `VITE_RELEASE_CHANNEL=release-candidate`, unless a same-version Stable tag already exists. Existing Stable tags are never moved or replaced.
 
 Stable publication requires an exact `v7.1.0` tag on a commit reachable from `main`. The Stable workflow must then independently:
 

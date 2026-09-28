@@ -11,19 +11,21 @@
 - Latest OCR output can continue into another task; changing its source settings invalidates the old result.
 - Migrated legacy source-audit assertions to meaningful checks for the task-first navigation, while retaining capability gates and operation safety.
 
-## Evidence
+## Historical implementation evidence
+
+This section records an early implementation checkpoint, not the current branch status. For release decisions use the current PR head, its Release completion verification certificate, and [the v7.1.0 release contract](P9_RELEASE_CANDIDATE.md).
 
 Implementation commit: `7f5bf4f028d8c685f3f1276bd0c54178f986feaa`.
 The implementation was transferred with SHA-256 verification; temporary patch and write-workflow files were removed in that commit.
 
 Local checks on the exact source: TypeScript typecheck passed; all 394 unit tests passed; production build passed; source audit and v6.1 runtime contracts passed.
 
-Browser qualification is still running. Ten new end-to-end scenarios exercise actual downloaded PDFs, not only visible buttons: mixed assembly, page rotation/order, replacement with undo, two-file comparison handoff, selected-page visual crop, current overlay handoff, pending form-value handoff, flat-form fallback, batch compression, and narrow mobile layouts.
+At that historical checkpoint browser qualification was still running. The initial ten end-to-end scenarios exercise actual downloaded PDFs, not only visible buttons: mixed assembly, page rotation/order, replacement with undo, two-file comparison handoff, selected-page visual crop, current overlay handoff, pending form-value handoff, flat-form fallback, batch compression, and narrow mobile layouts.
 
 **Do not treat local/unit results as full release certification.** Required before deployment: current-commit browser regression, remaining full-product release gates, screenshot review, and deployment-policy checks. Do not bypass failed gates or manufacture human usability evidence.
 
 ## Capability boundaries
 
-Editable Word/Excel/PowerPoint conversion is not implemented. No placeholder tool is advertised as a working converter. Existing-text edits remain bounded by supported PDF structures. OCR creates image-plus-text pages and does not preserve every interactive document feature. Rebuilding or merging page collections can affect document-level forms, bookmarks, signatures and metadata; preservation disclosures remain. Numeric/visual cropping does not permanently erase cropped content.
+The current branch supports editable text-only DOCX export with page breaks. Layout-faithful PDF-to-Word, Excel/PowerPoint conversion and Office-file import remain outside the implemented scope. No placeholder tool is advertised as a working converter. Existing-text edits remain bounded by supported PDF structures. OCR creates image-plus-text pages and does not preserve every interactive document feature. Rebuilding or merging page collections can affect document-level forms, bookmarks, signatures and metadata; preservation disclosures remain. Numeric/visual cropping does not permanently erase cropped content.
 
 Some specialist professional/compliance/legacy utility interiors still require dedicated interaction review. Automated tests do not establish first-use usability on real devices. This document is a qualification record, not a claim of universal feature completeness or production deployment.
