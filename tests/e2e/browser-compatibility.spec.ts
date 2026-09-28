@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { openDocumentActions, openReaderOptions, closeReaderOptions, readerCommand } from "./helpers/taskFirst";
+
 const corpus = "tests/corpus/generated";
 
 function contrastRatio(first: string, second: string): number {
@@ -30,7 +32,7 @@ test("opens and renders a real PDF without Map upsert proposal APIs", async ({ p
   await expect(page.getByText("PLAIN_PAGE_1_MARKER", { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".page-input")).toContainText("/ 3");
   if (!testInfo.project.name.includes("mobile") && !testInfo.project.name.includes("tablet")) {
-    await page.getByRole("button", { name: "Single", exact: true }).click();
+    await readerCommand(page, "Single");
     await page.getByLabel("Current page").fill("1");
     await expect(page.getByLabel("Current page")).toHaveValue("1");
     await page.getByRole("button", { name: "Next page" }).click();
@@ -68,7 +70,7 @@ test("reader hydration and page jumps never scroll document actions out of the v
   expect(geometry[0].height).toBeGreaterThan(80);
   expect(geometry[0].height).toBeLessThan(390);
   expect(geometry[0].scrollHeight).toBeGreaterThan(geometry[0].clientHeight + 400);
-  const actions = page.getByRole("button", { name: "Document actions", exact: true });
+  const actions = page.getByRole("button", { name: "More reader actions", exact: true });
   expect((await actions.boundingBox())!.y).toBeGreaterThanOrEqual(0);
   await page.getByLabel("Current page", { exact: true }).fill("3");
   await expect.poll(() => page.locator(".document-stage").evaluate(node => node.scrollTop)).toBeGreaterThan(400);
@@ -92,7 +94,7 @@ test("reader hydration and page jumps never scroll document actions out of the v
   await expect(page.locator(".capability-gated-workspace .viewer-app")).toBeVisible();
   await expect(page.locator(".capability-gated-workspace .viewer-app")).toHaveAttribute("data-preferences-ready", "true");
   expect(await page.locator(".document-stage").evaluate(node => node.clientHeight)).toBeGreaterThan(80);
-  await actions.click();
+  await openDocumentActions(page);
   await expect(page.getByRole("dialog", { name: "Document actions", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit this PDF", exact: true }).click();
   await expect(page.locator(".editor-app")).toBeVisible();
@@ -105,12 +107,11 @@ test("reader fit, download and search controls remain usable on narrow and wide 
   });
   await page.getByLabel("PDF file", { exact: true }).setInputFiles(`${corpus}/plain-text.pdf`);
   await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
-  await page.getByRole("button", { name: "Single", exact: true }).click();
-  const closePanel = page.getByRole("button", { name: "Close panel", exact: true });
-  if (await closePanel.isVisible()) await closePanel.click();
+  await readerCommand(page, "Single");
+  if (await page.locator(".viewer-sidebar").isVisible()) await readerCommand(page, "Close panel");
   for (const width of [320, 390, 834, 1366]) {
     await page.setViewportSize({ width, height: 844 });
-    await page.getByRole("button", { name: "Fit width", exact: true }).click();
+    await readerCommand(page, "Fit width");
     await expect.poll(async () => {
       const stage = await page.locator(".document-stage").boundingBox();
       const paper = await page.locator(".pdf-page-shell").boundingBox();
@@ -118,17 +119,21 @@ test("reader fit, download and search controls remain usable on narrow and wide 
     }).toBe(true);
     await expect(page.getByRole("button", { name: "Download original PDF", exact: true })).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    await openReaderOptions(page);
     const zoom = await page.getByLabel("Zoom", { exact: true }).evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
     expect(contrastRatio(zoom.foreground, zoom.background)).toBeGreaterThanOrEqual(4.5);
+    await closeReaderOptions(page);
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Fit page", exact: true }).click();
+  await readerCommand(page, "Fit page");
   await expect.poll(async () => (await page.locator(".pdf-page-shell").boundingBox())!.height <= (await page.locator(".document-stage").boundingBox())!.height).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("reader-phone.png") });
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
   await page.screenshot({ path: testInfo.outputPath("reader-phone-dark.png") });
+  await openReaderOptions(page);
   const darkZoom = await page.getByLabel("Zoom", { exact: true }).evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
   expect(contrastRatio(darkZoom.foreground, darkZoom.background)).toBeGreaterThanOrEqual(4.5);
+  await closeReaderOptions(page);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download original PDF", exact: true }).click();
   const file = await download;
@@ -145,7 +150,7 @@ test("reader accepts a blank draft, multi-digit page entry, and invalid-number r
   await page.goto("./#/tools/read-pdf");
   await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/phase28/pages-50.pdf");
   await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
-  await page.getByRole("button", { name: "Single", exact: true }).click();
+  await readerCommand(page, "Single");
   const input = page.getByLabel("Current page", { exact: true });
   await input.fill(""); await expect(input).toHaveValue("");
   await input.fill("12"); await input.press("Enter");

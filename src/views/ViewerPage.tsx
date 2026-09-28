@@ -221,7 +221,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
 
   const closePanel = useCallback(() => {
     changePreferences({ sidebarOpen: false });
-    window.requestAnimationFrame(() => window.document.querySelector<HTMLButtonElement>('.viewer-app .viewer-mobile-panel-toggle')?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => window.document.querySelector<HTMLButtonElement>('.viewer-app .compact-document-bar button[aria-label="More reader actions"], .viewer-app .viewer-mobile-panel-toggle')?.focus({ preventScroll: true }));
   }, [changePreferences]);
 
   useEffect(() => {

@@ -15,7 +15,7 @@ export async function openSample(page: Page, mode: "viewer" | "editor" = "viewer
   if (mode === "editor") await switchMode(page, "editor");
 }
 export async function switchMode(page: Page, mode: "viewer" | "editor" | "organizer"): Promise<void> {
-  await page.getByRole("button", { name: "Document actions", exact: true }).click();
+  await openDocumentActions(page);
   const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
   await dialog.getByRole("button", { name: mode === "viewer" ? "Read PDF" : mode === "editor" ? "Edit this PDF" : "Arrange pages", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${mode}(?:/[^/]+)?$`));
@@ -28,8 +28,31 @@ export async function chooseEditorTool(page: Page, label: string): Promise<void>
   await page.getByRole("dialog", { name: "Editor tools" }).getByRole("button", { name: label, exact: true }).click();
 }
 export async function chooseDocumentTask(page: Page, label: string): Promise<void> {
-  await page.getByRole("button", { name: "Document actions", exact: true }).click();
+  await openDocumentActions(page);
   const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
   await dialog.getByRole("searchbox", { name: "Find a PDF tool" }).fill(label);
   await dialog.locator(".product-tool-card").filter({ has: page.locator("strong", { hasText: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) }).click();
+}
+
+/** Follow the public overflow menu when the document has its compact controls. */
+export async function openDocumentActions(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  const action = page.getByRole("button", { name: "Document actions", exact: true });
+  if (!await action.isVisible()) {
+    await page.locator('.compact-document-bar button[aria-haspopup="dialog"]').click();
+  }
+  await action.click();
+}
+export async function openReaderOptions(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  const menu = page.locator('.compact-document-bar button[aria-label="More reader actions"]');
+  if (await menu.isVisible() && !await page.getByRole("dialog", { name: "Reading options", exact: true }).isVisible()) await menu.click();
+}
+export async function closeReaderOptions(page: Page): Promise<void> {
+  const close = page.getByRole("button", { name: "Close reading options", exact: true });
+  if (await close.isVisible()) await close.click();
+}
+export async function readerCommand(page: Page, name: string): Promise<void> {
+  await openReaderOptions(page);
+  await page.getByRole("button", { name, exact: true }).click();
 }

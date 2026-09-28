@@ -1,3 +1,5 @@
+import { CompactDocumentActions, CompactDocumentHome, useCompactDocumentControls, useDocumentControls } from "../product/CompactDocumentControls";
+import { ReaderPageInput } from "../viewer/ReaderToolbar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Icon, type IconName } from "../components/Icon";
@@ -128,6 +130,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [selectedNativeIds, setSelectedNativeIds] = useState<Set<string>>(new Set());
   const [showNativeContent, setShowNativeContent] = useState(true);
   const [nativeInspecting, setNativeInspecting] = useState(false);
+  const compactControls = useCompactDocumentControls();
+  const documentControls = useDocumentControls();
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const mobileToolsRef = useRef<HTMLDivElement | null>(null);
   const mobileToolsTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -748,26 +752,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   if (!project) return <div className="viewer-loading"><span className="spinner" /><strong>{error ?? status}</strong></div>;
   if (!document) return <div className="editor-app"><div className="viewer-loading"><span className="spinner" /><strong>{status}</strong></div>{passwordRequired ? <PasswordDialog error={error} password={password} onChange={setPassword} onSubmit={() => void retryPassword()} projectId={projectId} /> : null}</div>;
 
-  return (
-    <div className="editor-app">
-      <header className="editor-commandbar">
-        <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
-        <div className="editor-commandbar__center">
-          <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo last change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo last change" type="button"><Icon name="redo" /></button><span />
-          <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button><label><input aria-label="Current page" max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button><span />
-          <button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><select aria-label="Zoom" onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}>{[...new Set([.5,.75,1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,editorState.zoom])].sort((a,b) => a-b).map((zoom) => <option key={zoom} value={zoom}>{Math.round(zoom * 100)}%</option>)}</select><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button>
-        </div>
-        <div className="editor-commandbar__actions"><details className="editor-save-options"><summary aria-label="More save options"><Icon name="more"/></summary><button disabled={!changeCount || processing} onClick={() => void exportPdf(true)} type="button">Save as project</button></details><button className="button button--small" disabled={processing} onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={17}/>Download PDF</button>{processing ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
-      </header>
-
-      <nav className="editing-toolbar" aria-label="Editing tools">
-        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
-        <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
-        <input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" />
-      </nav>
-      <div className="editor-contextbar editor-selectionbar">
-        <button onClick={() => { const next = !sidebarOpen; setSidebarOpen(next); if (next && isCompactViewport()) setPropertiesOpen(false); }} type="button" aria-expanded={sidebarOpen}>{sidebarOpen ? "Hide pages" : "Show pages"}</button>
-        <button onClick={() => { const next = !propertiesOpen; setPropertiesOpen(next); if (next && isCompactViewport()) setSidebarOpen(false); }} type="button" aria-expanded={propertiesOpen}>{propertiesOpen ? "Hide properties" : "Properties"}</button>
+  const contextControls = <div className="editor-contextbar editor-selectionbar">
+        <button onClick={() => { if (compactControls) closeMobileTools(); const next = !sidebarOpen; setSidebarOpen(next); if (next && isCompactViewport()) setPropertiesOpen(false); }} type="button" aria-expanded={sidebarOpen}>{sidebarOpen ? "Hide pages" : "Show pages"}</button>
+        <button onClick={() => { if (compactControls) closeMobileTools(); const next = !propertiesOpen; setPropertiesOpen(next); if (next && isCompactViewport()) setSidebarOpen(false); }} type="button" aria-expanded={propertiesOpen}>{propertiesOpen ? "Hide properties" : "Properties"}</button>
         <span />
         <details className="editor-guides"><summary>Guides & PDF content</summary><div><label className="editor-toggle"><input checked={editorState.snapEnabled} onChange={(event) => setEditorState((state) => ({ ...state, snapEnabled: event.target.checked }))} type="checkbox" />Snap</label>
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
@@ -775,7 +762,32 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} PDF edit{nativeEdits.length === 1 ? "" : "s"} ready</span> : null}
         {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button onClick={groupSelection} type="button">Group added</button><button onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button onClick={() => alignUnified("left")} type="button">Align left</button><button onClick={() => alignUnified("center")} type="button">Center</button><button onClick={() => alignUnified("right")} type="button">Align right</button><button onClick={() => alignUnified("top")} type="button">Top</button><button onClick={() => alignUnified("middle")} type="button">Middle</button><button onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
         <strong className="editor-save-status" aria-live="polite">{localSaveLabel}</strong>
-      </div>
+      </div>;
+
+  return (
+    <div className="editor-app">
+      {!compactControls ? <header className="editor-commandbar">
+        <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
+        <div className="editor-commandbar__center">
+          <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo last change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo last change" type="button"><Icon name="redo" /></button><span />
+          <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button><label><input aria-label="Current page" max={document.numPages} min="1" onChange={(event) => setEditorState((state) => ({ ...state, currentPage: Math.max(1, Math.min(document.numPages, Number(event.target.value))) }))} type="number" value={editorState.currentPage} /><span>/ {document.numPages}</span></label><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button><span />
+          <button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><select aria-label="Zoom" onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}>{[...new Set([.5,.75,1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,editorState.zoom])].sort((a,b) => a-b).map((zoom) => <option key={zoom} value={zoom}>{Math.round(zoom * 100)}%</option>)}</select><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button>
+        </div>
+        <div className="editor-commandbar__actions"><details className="editor-save-options"><summary aria-label="More save options"><Icon name="more"/></summary><button disabled={!changeCount || processing} onClick={() => void exportPdf(true)} type="button">Save as project</button></details><button className="button button--small" disabled={processing} onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={17}/>Download PDF</button>{processing ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
+      </header> : null}
+
+      {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools">
+        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
+        <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
+      </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
+        <CompactDocumentHome />
+        {["select", "text", !["select", "text"].includes(editorState.activeTool) ? editorState.activeTool : "highlight"].map(id => tools.find(tool => tool.id === id)!).map(tool => <button className="icon-button" aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} title={tool.label} onClick={() => activateTool(tool.id)} type="button"><Icon name={tool.icon} size={20} /></button>)}
+        <button className="icon-button" aria-label="Undo" title="Undo" disabled={!history.past.length || processing} onClick={undo} type="button"><Icon name="undo" /></button>
+        {processing ? <button className="icon-button" aria-label="Cancel" title="Cancel export" onClick={() => abortRef.current?.abort()} type="button"><Icon name="close" /></button> : <button className="icon-button compact-download" aria-label="Download PDF" title="Download PDF" onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={20} /></button>}
+        <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button>
+      </nav>}
+        <input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" />
+      {!compactControls ? contextControls : null}
 
       <div className="editor-notices">
         {status !== "Ready" && status !== "Opening PDF…" ? <p aria-label="Document status" className="editor-operation-status" role="status">{status}</p> : null}
@@ -798,6 +810,18 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <div aria-label="Editor tools" aria-modal="true" className="product-modal editor-tools-sheet" ref={mobileToolsRef} role="dialog">
           <div className="editor-tools-sheet__handle" />
           <header><div><span>Editing tool</span><h2>{activeTool.label}</h2></div><button aria-label="Close tools" onClick={closeMobileTools} type="button"><Icon name="close" /></button></header>
+          {compactControls ? <div className="compact-editor-options">
+            <p className="compact-document-name" title={documentControls?.title}>{documentControls?.title}</p>
+            <CompactDocumentActions onChoose={closeMobileTools} />
+            <div className="compact-options-row compact-editor-pages">
+              <button className="icon-button" aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => setEditorState(state => ({ ...state, currentPage: state.currentPage - 1 }))} type="button"><Icon name="chevron-left" /></button>
+              <ReaderPageInput page={editorState.currentPage} total={document.numPages} onChange={page => setEditorState(state => ({ ...state, currentPage: page }))} />
+              <button className="icon-button" aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => setEditorState(state => ({ ...state, currentPage: state.currentPage + 1 }))} type="button"><Icon name="chevron-right" /></button>
+              <button className="icon-button" aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} type="button"><Icon name="redo" /></button>
+            </div>
+            {contextControls}
+            <button disabled={!nativeInspection || nativeInspecting} onClick={() => { closeMobileTools(); activateTool("select"); setShowNativeContent(true); setSidebarOpen(false); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" />Edit existing text</button>
+          </div> : null}
           <div className="editor-tools-sheet__groups">{toolGroups.map((group) => <section key={group.label}><h3>{group.label}</h3><div>{group.tools.map((tool) => <button aria-label={tool.label} aria-keyshortcuts={tool.key} aria-pressed={editorState.activeTool === tool.id} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => chooseMobileTool(tool.id)} type="button"><Icon name={tool.icon} /><span>{tool.label}</span>{tool.key ? <kbd>{tool.key}</kbd> : null}</button>)}</div></section>)}</div>
           <section className="editor-tools-sheet__document"><h3>Document</h3><div className="editor-tools-sheet__zoom"><button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><strong>{Math.round(editorState.zoom * 100)}%</strong><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button></div><button aria-pressed={editorState.snapEnabled} onClick={() => setEditorState((state) => ({ ...state, snapEnabled: !state.snapEnabled }))} type="button">Snap {editorState.snapEnabled ? "on" : "off"}</button><button aria-pressed={showNativeContent} onClick={() => setShowNativeContent(!showNativeContent)} type="button">Original PDF content {showNativeContent ? "on" : "off"}</button></section>
           <div className="editor-tools-sheet__actions"><button disabled={processing} onClick={() => { closeMobileTools(); void exportPdf(false); }} type="button"><Icon name="download" />Download PDF</button><button disabled={!changeCount || processing} onClick={() => { closeMobileTools(); void exportPdf(true); }} type="button"><Icon name="save" />Save as project</button></div>

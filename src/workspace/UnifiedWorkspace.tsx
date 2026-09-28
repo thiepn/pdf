@@ -1,3 +1,4 @@
+import { DocumentControlsContext, useCompactDocumentControls } from "../product/CompactDocumentControls";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { TaskDirectory } from "../product/TaskDirectory";
@@ -72,6 +73,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
   const [activeOperation, setActiveOperation] = useState<ProjectOperationSnapshot | null>(null);
   const [handoffBusy, setHandoffBusy] = useState(false);
   const handoffRef = useRef(false);
+  const compactControls = useCompactDocumentControls();
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const mobileSheetRef = useRef<HTMLElement | null>(null);
   const modeRef = useRef(mode);
@@ -299,8 +301,12 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
   if (!project || project.id !== projectId || !session) return <div className="viewer-loading"><span className="spinner" /><strong>Opening document…</strong></div>;
 
 
-  return <div className="document-workspace unified-workspace">
-    <header className="document-topbar">
+  const compactToolbar = compactControls && (mode === "viewer" || mode === "editor") && !workspaceAcquiring && !workspaceLocked;
+  return <DocumentControlsContext.Provider value={{ title: project.name, summary: `${project.summary.pageCount} pages · ${formatBytes(project.byteLength)}`, busy: Boolean(activeOperation),
+    onHomeClick: (event) => { if (activeOperation) { event.preventDefault(); setError("Finish or cancel the current operation before leaving this document."); } },
+    openActions: () => { if (!activeOperation) setMobileToolsOpen(true); }, openHistory: () => void togglePanel("timelineOpen") }}>
+  <div className="document-workspace unified-workspace" data-compact-toolbar={compactToolbar ? "true" : undefined}>
+    {compactToolbar ? <h1 className="visually-hidden" id="workspace-document-title">{project.name}</h1> : <header className="document-topbar">
       <a className="document-home" aria-disabled={Boolean(activeOperation)} onClick={(event) => { if (activeOperation) { event.preventDefault(); setError("Finish or cancel the current operation before leaving this document."); } }} href={routeHref({ name: "home" })} aria-label="Back to PDF tools"><Icon name="arrow-left" size={20}/><span>All tools</span></a>
       <div className="document-identity"><h1 id="workspace-document-title" title={project.name}>{project.name}</h1><span>{project.summary.pageCount} pages · {formatBytes(project.byteLength)}{project.summary.encrypted ? " · Protected" : ""}{leaseMode === "read-only" ? " · Read only" : ""}</span></div>
       <div className="document-actions">
@@ -308,7 +314,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
         <button aria-label="History and checkpoints" aria-expanded={session.timelineOpen} className="icon-button" onClick={() => void togglePanel("timelineOpen")} title="History and checkpoints" type="button"><Icon name="undo" size={19}/></button>
         {settings.showPreservationWarnings ? <button aria-label="What changes in this PDF?" aria-expanded={session.preservationOpen} className="icon-button document-integrity" onClick={() => void togglePanel("preservationOpen")} title="What changes in this PDF?" type="button"><Icon name="shield" size={19}/></button> : null}
       </div>
-    </header>
+    </header>}
     {error ? <div aria-live="assertive" className="error-banner" role="alert"><strong>Workspace action failed</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
     {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
     {activeOperation ? <div className="workspace-operation-banner" role="status" aria-live="polite"><div><strong>{activeOperation.label}</strong><span>{activeOperation.detail ?? operationStageLabel(activeOperation.stage)}</span>{activeOperation.progress !== undefined ? <progress max="1" value={activeOperation.progress} /> : null}</div><div><small>{formatElapsed(Date.now() - activeOperation.startedAt)}</small>{activeOperation.cancellable ? <button className="button button--small button--secondary" onClick={() => cancelProjectOperation(projectId)} type="button">Cancel</button> : null}</div></div> : null}
@@ -344,7 +350,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
       <fieldset className="document-task-options" disabled={handoffBusy}><legend className="visually-hidden">Choose the next task</legend><TaskDirectory compact projectId={projectId} kind="pdf" fileCount={1} onChoose={(task) => void chooseDocumentTask(task)} /></fieldset>
       <p className="product-fineprint">Your latest editor changes are included and checked before the next tool opens. The original and editable project remain unchanged.</p>
     </section></div> : null}
-  </div>;
+  </div></DocumentControlsContext.Provider>;
 }
 
 function AcquiringMode({ mode }: { mode: WorkspaceMode }) {
