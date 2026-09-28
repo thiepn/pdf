@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { AppShell } from "./app/AppShell";
 import { navigateTo, readAppRoute, type AppRoute } from "./core/appRouter";
+import { useAppRoute } from "./core/useAppRoute";
 import { HomePage } from "./views/HomePage";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { getLastOpenedProjectId, getProject } from "./projects/projectRepository";
@@ -64,35 +65,46 @@ function headerForRoute(route: AppRoute): HeaderState {
 }
 function RouteLoading() { return <div className="viewer-loading" role="status" aria-live="polite"><span className="spinner" /><strong>Opening tool…</strong></div>; }
 export function App() {
-  const [route, setRoute] = useState<AppRoute>(() => readAppRoute());
-  const [header, setHeader] = useState<HeaderState>(() => headerForRoute(readAppRoute()));
+  const route = useAppRoute();
+  const [customHeader, setCustomHeader] = useState<{ route: AppRoute; value: HeaderState } | null>(null);
+  const header = customHeader?.route === route ? customHeader.value : headerForRoute(route);
   useEffect(() => {
     initializeRuntimePerformanceMonitoring();
-    noteNavigationStart(route.name);
     const settings = readSettings();
     applySettings(settings);
-    try {
-      if (!isSafeMode() && settings.reopenLastProject && route.name === "home" && !sessionStorage.getItem("local-pdf-studio-reopen-attempted")) {
-        sessionStorage.setItem("local-pdf-studio-reopen-attempted", "1");
-        const projectId = getLastOpenedProjectId();
-        if (projectId) void getProject(projectId).then((project) => { if (project) navigateTo({ name: "viewer", projectId }); });
-      }
-    } catch { /* Session storage may be unavailable. */ }
-    const onHashChange = () => {
-      const next = readAppRoute();
-      noteNavigationStart(next.name);
-      setRoute(next);
-      setHeader(headerForRoute(next));
+    const launchHash = window.location.hash;
+    let cancelled = false;
+    const cancelReopen = () => { cancelled = true; };
+    window.addEventListener("hashchange", cancelReopen);
+    window.addEventListener("popstate", cancelReopen);
+    // Defer one microtask so StrictMode's discarded mount cannot consume the
+    // once-per-session reopen attempt before its live mount can use it.
+    void Promise.resolve().then(() => {
+      if (cancelled || window.location.hash !== launchHash) return;
+      try {
+        if (!isSafeMode() && settings.reopenLastProject && readAppRoute(launchHash).name === "home" && !sessionStorage.getItem("local-pdf-studio-reopen-attempted")) {
+          sessionStorage.setItem("local-pdf-studio-reopen-attempted", "1");
+          const projectId = getLastOpenedProjectId();
+          if (projectId) void getProject(projectId).then((project) => {
+            // A slow storage read must never override a task the user just chose.
+            if (project && !cancelled && window.location.hash === launchHash) navigateTo({ name: "viewer", projectId });
+          }).catch(() => { /* The homepage remains usable when local storage fails. */ });
+        }
+      } catch { /* Session storage may be unavailable. */ }
+    });
+    return () => {
+      cancelled = true;
+      window.removeEventListener("hashchange", cancelReopen);
+      window.removeEventListener("popstate", cancelReopen);
     };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   useEffect(() => {
+    noteNavigationStart(route.name);
     let secondFrame = 0;
     const firstFrame = window.requestAnimationFrame(() => { secondFrame = window.requestAnimationFrame(() => noteNavigationPaint(route.name)); });
     return () => { window.cancelAnimationFrame(firstFrame); if (secondFrame) window.cancelAnimationFrame(secondFrame); };
   }, [route]);
-  const handleViewerTitle = useCallback((title: string, subtitle?: string) => setHeader({ title, subtitle }), []);
+  const handleViewerTitle = useCallback((title: string, subtitle?: string) => setCustomHeader({ route, value: { title, subtitle } }), [route]);
   const content = route.name === "home" ? <HomePage />
     : route.name === "projects" ? <ProjectsPage />
       : route.name === "settings" ? <SettingsPage />

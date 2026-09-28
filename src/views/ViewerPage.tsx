@@ -9,6 +9,7 @@ import type { ProjectManifest, ViewerPreferences } from "../types/project";
 import { readSettings } from "../settings/settingsStore";
 import { PageCanvas } from "../viewer/PageCanvas";
 import { restoreViewerPreferences, type ViewerPreferenceChanges } from "../viewer/restorePreferences";
+import { scrollPageWithinStage } from "../viewer/scrollPageWithinStage";
 import { Thumbnail } from "../viewer/Thumbnail";
 import { deriveViewerPerformancePolicy } from "../viewer/performancePolicy";
 import { RenderScheduler } from "../viewer/renderScheduler";
@@ -138,7 +139,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     };
   }, [openDocument, projectId]);
 
-  useEffect(() => { if (project) onTitleChange?.(project.name, `${project.summary.pageCount} pages · ${formatBytes(project.byteLength)}`); }, [onTitleChange, project]);
+  useEffect(() => { if (project) onTitleChange?.(project.name, `${project.summary.pageCount} ${project.summary.pageCount === 1 ? "page" : "pages"} · ${formatBytes(project.byteLength)}`); }, [onTitleChange, project]);
 
   useEffect(() => {
     if (!pdfDocument || !preferencesLoaded || readOnly) return;
@@ -158,8 +159,13 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     if (!pdfDocument) return;
     const bounded = Math.max(1, Math.min(pdfDocument.numPages, Math.round(pageNumber)));
     changePreferences({ pageNumber: bounded });
-    if (preferences.viewMode === "continuous") window.requestAnimationFrame(() => window.document.querySelector(`[data-page-number="${bounded}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [changePreferences, pdfDocument, preferences.viewMode]);
+    if (preferences.viewMode === "continuous") window.requestAnimationFrame(() => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const reduced = settings.motion === "reduced" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      scrollPageWithinStage(stage, stage.querySelector<HTMLElement>(`[data-page-number="${bounded}"]`) ?? undefined, reduced ? "auto" : "smooth");
+    });
+  }, [changePreferences, pdfDocument, preferences.viewMode, settings.motion]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -182,7 +188,7 @@ export function ViewerPage({ projectId, onTitleChange, readOnly = false }: Viewe
     };
     const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(updateVisiblePage); };
     const restoreFrame = window.requestAnimationFrame(() => {
-      pages.find((page) => Number(page.dataset.pageNumber) === preferencesRef.current.pageNumber)?.scrollIntoView({ block: "start" });
+      scrollPageWithinStage(stage, pages.find((page) => Number(page.dataset.pageNumber) === preferencesRef.current.pageNumber));
       stage.addEventListener("scroll", onScroll, { passive: true });
     });
     return () => {
