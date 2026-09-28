@@ -16,6 +16,7 @@ interface Props {
   originY?: number;
   pageSize?: { width: number; height: number };
   effectiveBounds?: Map<string, NativeRect>;
+  hiddenIds?: Set<string>;
   transformableIds?: Set<string>;
   snapEnabled?: boolean;
   gridSize?: number;
@@ -134,11 +135,12 @@ function resizeRect(source: NativeRect, dx: number, dy: number, handle: NativeRe
   return { x: left, y: top, w: right - left, h: bottom - top };
 }
 
-function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds, enabled, originX = 0, originY = 0, pageSize, effectiveBounds, transformableIds, snapEnabled = true, gridSize = 8, onSelect, onTransform }: Props) {
+function NativeContentOverlayComponent({ objects, zoom, selectedId, selectedIds, enabled, originX = 0, originY = 0, pageSize, effectiveBounds, hiddenIds, transformableIds, snapEnabled = true, gridSize = 8, onSelect, onTransform }: Props) {
   const dragRef = useRef<DragState | null>(null);
   const previewFrameRef = useRef<number | null>(null);
   const selectedSet = selectedIds ?? new Set(selectedId ? [selectedId] : []);
-  const overlayBudget = useMemo(() => nativeOverlayObjectsWithinBudget(objects, selectedSet), [objects, selectedSet]);
+  const hitTestObjects = useMemo(() => hiddenIds?.size ? objects.filter((object) => !hiddenIds.has(object.id)) : objects, [hiddenIds, objects]);
+  const overlayBudget = useMemo(() => nativeOverlayObjectsWithinBudget(hitTestObjects, selectedSet), [hitTestObjects, selectedSet]);
   const visibleObjects = overlayBudget.objects;
 
   useEffect(() => () => cancelScheduledPreview(), []);

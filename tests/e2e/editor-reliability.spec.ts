@@ -80,3 +80,21 @@ test("hidden added objects stay out of exported PDF", async ({ page }) => {
   await reopenDownload(page, download);
   expect(await searchDocument(page, "HIDDEN EXPORT MARKER")).toContain("0 matches");
 });
+
+
+test("deleted existing objects leave no stale canvas hitbox and return on Undo", async ({ page }) => {
+  await openSample(page, "editor");
+  const image = page.getByRole("button", { name: /Select existing image:/ }).first();
+  await expect(image).toBeVisible({ timeout: 20_000 });
+  const nativeId = await image.getAttribute("data-native-object-id");
+  expect(nativeId).toBeTruthy();
+  await image.click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
+
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
+});
