@@ -190,7 +190,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const currentNativePage = useMemo(() => nativeInspection?.pages.find((page) => page.pageNumber === editorState.currentPage), [nativeInspection, editorState.currentPage]);
   const currentNativeObjects = currentNativePage?.objects ?? [];
   const nativeHiddenIds = useMemo(() => new Set(nativeEdits.filter((edit) =>
-    (edit.kind === "image" || edit.kind === "vector" || edit.kind === "table" || edit.kind === "complex") && edit.action === "delete"
+    (edit.kind === "text" && edit.mode === "replace" && edit.text === "")
+    || ((edit.kind === "image" || edit.kind === "vector" || edit.kind === "table" || edit.kind === "complex") && edit.action === "delete")
   ).map((edit) => edit.objectId)), [nativeEdits]);
   const selectedNativeObjects = useMemo(() => currentNativeObjects.filter((object) => selectedNativeIds.has(object.id)), [currentNativeObjects, selectedNativeIds]);
   const selectedNativeObject = useMemo(() => nativeInspection?.pages.flatMap((page) => page.objects).find((object) => object.id === selectedNativeId), [nativeInspection, selectedNativeId]);
