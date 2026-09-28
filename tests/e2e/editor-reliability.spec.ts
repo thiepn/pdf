@@ -98,3 +98,28 @@ test("deleted existing objects leave no stale canvas hitbox and return on Undo",
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
   await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
 });
+
+
+test("editable source text can be deleted, previewed, undone and exported", async ({ page }) => {
+  await openSample(page, "editor");
+  const textTarget = page.getByRole("button", { name: /Select existing (?:text|paragraph):.*SAMPLE BRIEF/i }).first();
+  await expect(textTarget).toBeVisible({ timeout: 20_000 });
+  await textTarget.click();
+
+  const properties = page.locator(".native-unified-properties");
+  await properties.getByRole("button", { name: "Delete existing text", exact: true }).click();
+  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await page.keyboard.press("Control+y");
+  await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+  const download = await downloadPromise;
+  await reopenDownload(page, download);
+  expect(await searchDocument(page, "SAMPLE BRIEF")).toContain("0 matches");
+});
