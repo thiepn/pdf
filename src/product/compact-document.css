@@ -32,6 +32,11 @@
   .product-app .compact-document-bar .page-input input::-webkit-inner-spin-button,.product-app .compact-document-bar .page-input input::-webkit-outer-spin-button { appearance:none; margin:0; }
   .product-app .compact-document-bar .page-input > span:not(.visually-hidden) { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .product-app .compact-editor-bar { gap:0; }
+  /* Update availability is a transient toast, not a second mobile toolbar row. */
+  .product-app .update-banner { position:fixed; z-index:90; inset:calc(60px + env(safe-area-inset-top,0px)) 8px auto 8px; width:auto; max-width:420px; margin-left:auto; padding:10px 12px; border:1px solid #8ca9cd; border-radius:12px; box-shadow:0 12px 32px rgb(0 0 0 / 20%); }
+  .product-app .update-banner > span { min-width:0; font-size:13px; line-height:1.35; }
+  .product-app .update-banner > div { flex:0 0 auto; align-items:center; }
+  .product-app .update-banner .button { min-height:40px; justify-content:center; text-align:center; }
   /* Compact menus use centered labels consistently; no action should read as an accidentally left-aligned list item. */
   .product-app .compact-options button,
   .product-app .compact-editor-options button,
