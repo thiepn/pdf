@@ -37,7 +37,7 @@ describe("editor history", () => {
     const committed = commitHistory(initial, "Edit existing PDF content", [], [], undefined, [nativeEdit]);
     expect(committed.present.nativeEdits).toHaveLength(1);
     expect(undoHistory(committed).present.nativeEdits).toHaveLength(0);
-    expect(redoHistory(undoHistory(committed)).present.nativeEdits[0].text).toBe("After");
+    expect(redoHistory(undoHistory(committed)).present.nativeEdits[0]).toMatchObject({ kind: "text", text: "After" });
   });
 
   it("keeps native edits while overlay edits are committed and undone", () => {
