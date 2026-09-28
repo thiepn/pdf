@@ -95,6 +95,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const sourceBytesRef = useRef<Uint8Array | null>(null);
   const passwordRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+  const previewAbortRef = useRef<AbortController | null>(null);
+  const previewDocumentRef = useRef<PDFDocumentProxy | null>(null);
+  const previewSequenceRef = useRef(0);
   const hydrationRef = useRef<DeferredHydrationHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const internalClipboardRef = useRef<EditorObject[]>([]);
@@ -107,6 +110,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const editorMountedRef = useRef(true);
   const [project, setProject] = useState<ProjectManifest | null>(null);
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
+  const [nativePreviewDocument, setNativePreviewDocument] = useState<PDFDocumentProxy | null>(null);
+  const [nativePreviewState, setNativePreviewState] = useState<"source" | "loading" | "ready" | "error">("source");
   const [editorState, setEditorState] = useState<EditorDocumentState>(() => createEditorState(projectId));
   const [history, setHistory] = useState<EditorHistoryState>(() => createHistory());
   const nativeEdits = history.present.nativeEdits;
@@ -221,6 +226,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       cancelled = true;
       hydrationRef.current?.cancel(); hydrationRef.current = null;
       abortRef.current?.abort();
+      previewAbortRef.current?.abort();
+      previewAbortRef.current = null;
+      ++previewSequenceRef.current;
+      const preview = previewDocumentRef.current;
+      previewDocumentRef.current = null;
+      if (preview) void preview.loadingTask.destroy();
       passwordRef.current = undefined;
       sourceBytesRef.current = null;
       const current = documentRef.current;
@@ -230,6 +241,62 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       objectUrlsRef.current.clear();
     };
   }, [projectId]);
+
+  useEffect(() => {
+    const source = sourceBytesRef.current;
+    if (!document || !source) return;
+    const sequence = ++previewSequenceRef.current;
+    previewAbortRef.current?.abort();
+    previewAbortRef.current = null;
+
+    if (!nativeEdits.length) {
+      const previous = previewDocumentRef.current;
+      previewDocumentRef.current = null;
+      setNativePreviewDocument(null);
+      setNativePreviewState("source");
+      if (previous) void previous.loadingTask.destroy();
+      return;
+    }
+
+    setNativePreviewState("loading");
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await applyNativeEdits(source, nativeEdits, passwordRef.current, controller.signal);
+          if (controller.signal.aborted || sequence !== previewSequenceRef.current) return;
+          const nextDocument = await openPdfWithPdfJs(result.bytes, passwordRef.current);
+          if (controller.signal.aborted || sequence !== previewSequenceRef.current) {
+            await nextDocument.loadingTask.destroy();
+            return;
+          }
+          const previous = previewDocumentRef.current;
+          previewDocumentRef.current = nextDocument;
+          setNativePreviewDocument(nextDocument);
+          setNativePreviewState("ready");
+          if (previous && previous !== nextDocument) void previous.loadingTask.destroy();
+        } catch (reason) {
+          if (controller.signal.aborted || sequence !== previewSequenceRef.current) return;
+          const previous = previewDocumentRef.current;
+          previewDocumentRef.current = null;
+          setNativePreviewDocument(null);
+          setNativePreviewState("error");
+          if (previous) void previous.loadingTask.destroy();
+          const message = reason instanceof Error ? reason.message : String(reason);
+          setWarnings((current) => current.some((item) => item.startsWith("Live edit preview could not refresh"))
+            ? current
+            : [...current, `Live edit preview could not refresh: ${message}. Export validation still runs before download.`]);
+        }
+      })();
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+      if (previewAbortRef.current === controller) previewAbortRef.current = null;
+    };
+  }, [document, nativeEdits]);
 
   useEffect(() => {
     if (!project || !document) return;
@@ -389,7 +456,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (!edits.length) return;
     setHistory((current) => {
       const nextNativeEdits = mergeNativeEdits(current.present.nativeEdits, edits);
-      return commitHistory(current, "Edit existing PDF content", current.present.objects, current.present.selectedIds, undefined, nextNativeEdits);
+      return commitHistory(current, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits);
     });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
@@ -399,7 +466,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setHistory((current) => {
       const nextNativeEdits = discardNativeObjectEdits(current.present.nativeEdits, objectId);
       if (nextNativeEdits.length === current.present.nativeEdits.length) return current;
-      return commitHistory(current, "Discard existing PDF edit", current.present.objects, current.present.selectedIds, undefined, nextNativeEdits);
+      return commitHistory(current, "Discard existing PDF edit", current.present.objects, selectedIds, undefined, nextNativeEdits);
     });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
   }
@@ -752,6 +819,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
+  const renderedDocument = nativePreviewDocument ?? document;
   const localSaveLabel = localSaveStatusLabel(localSave, lastReport, Boolean(editorState.dirty || nativeEdits.length));
   const detectedPdfItemCount = nativeInspection ? nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms : 0;
   const chooseMobileTool = (tool: EditorTool) => {
@@ -775,7 +843,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>;
 
   return (
-    <div className="editor-app">
+    <div className="editor-app" data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
       {!compactControls ? <header className="editor-commandbar">
         <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
         <div className="editor-commandbar__center">
@@ -810,9 +878,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       <div className={`editor-layout${sidebarOpen ? "" : " editor-layout--no-sidebar"}${propertiesOpen ? "" : " editor-layout--no-properties"}`}>
         {(sidebarOpen || propertiesOpen) ? <button aria-label="Close editor panel" className="editor-mobile-backdrop" onClick={() => { setSidebarOpen(false); setPropertiesOpen(false); }} type="button" /> : null}
 
-        {sidebarOpen ? <aside className="editor-left-panel"><label className="editor-sidebar-select"><span className="visually-hidden">Sidebar content</span><select value={leftTab} onChange={(event) => setLeftTab(event.target.value as LeftTab)}><option value="pages">Pages</option><option value="layers">Objects & layers</option><option value="comments">Comments</option></select></label><div className="editor-left-body">{leftTab === "pages" ? <div className="thumbnail-list">{Array.from({ length: document.numPages }, (_, index) => <Thumbnail document={document} key={index + 1} onSelect={(pageNumber) => { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setEditorState((state) => ({ ...state, currentPage: pageNumber })); }} pageNumber={index + 1} selected={editorState.currentPage === index + 1} />)}</div> : null}{leftTab === "layers" ? <LayerList nativeObjects={currentNativeObjects} nativeQueued={nativeEdits} objects={currentPageObjects} selectedIds={selectedIds} selectedNativeIds={selectedNativeIds} onSelect={selectObject} onSelectNative={selectNativeObject} onToggleHidden={(object) => commitObject(object.hidden ? "Show object" : "Hide object", { ...object, hidden: !object.hidden })} /> : null}{leftTab === "comments" ? <CommentList comments={comments} onSelect={(comment) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setEditorState((state) => ({ ...state, currentPage: comment.pageNumber, activeTool: "select" })); setSelectedIds(new Set([comment.id])); }} /> : null}</div></aside> : null}
+        {sidebarOpen ? <aside className="editor-left-panel"><label className="editor-sidebar-select"><span className="visually-hidden">Sidebar content</span><select value={leftTab} onChange={(event) => setLeftTab(event.target.value as LeftTab)}><option value="pages">Pages</option><option value="layers">Objects & layers</option><option value="comments">Comments</option></select></label><div className="editor-left-body">{leftTab === "pages" ? <div className="thumbnail-list">{Array.from({ length: renderedDocument.numPages }, (_, index) => <Thumbnail document={renderedDocument} key={index + 1} onSelect={(pageNumber) => { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setEditorState((state) => ({ ...state, currentPage: pageNumber })); }} pageNumber={index + 1} selected={editorState.currentPage === index + 1} />)}</div> : null}{leftTab === "layers" ? <LayerList nativeObjects={currentNativeObjects} nativeQueued={nativeEdits} objects={currentPageObjects} selectedIds={selectedIds} selectedNativeIds={selectedNativeIds} onSelect={selectObject} onSelectNative={selectNativeObject} onToggleHidden={(object) => commitObject(object.hidden ? "Show object" : "Hide object", { ...object, hidden: !object.hidden })} /> : null}{leftTab === "comments" ? <CommentList comments={comments} onSelect={(comment) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setEditorState((state) => ({ ...state, currentPage: comment.pageNumber, activeTool: "select" })); setSelectedIds(new Set([comment.id])); }} /> : null}</div></aside> : null}
 
-        <section className="editor-stage" aria-label="PDF page canvas"><EditorCanvasPage activeTool={editorState.activeTool} assetUrls={assetUrls} author={editorState.author} document={document} gridSize={editorState.gridSize} nativeEffectiveBounds={nativeEffectiveBounds} nativeObjects={currentNativeObjects} nativeOrigin={currentNativePage ? { x: currentNativePage.originX, y: currentNativePage.originY } : undefined} nativeTransformableIds={nativeTransformableIds} objects={displayObjects} onCommit={commitObject} onCreate={addObject} onEditText={(object) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setSelectedIds(new Set([object.id])); if (isCompactViewport()) setSidebarOpen(false); setPropertiesOpen(true); }} onPageGeometry={setPageGeometry} onPreview={setPreviewObject} onSelect={selectObject} onSelectNative={selectNativeObject} onTransformNative={transformNativeObject} pageNumber={editorState.currentPage} selectedIds={selectedIds} selectedNativeId={selectedNativeId} selectedNativeIds={selectedNativeIds} showNativeContent={showNativeContent} snapEnabled={editorState.snapEnabled} zoom={editorState.zoom} /></section>
+        <section className="editor-stage" aria-label="PDF page canvas"><EditorCanvasPage activeTool={editorState.activeTool} assetUrls={assetUrls} author={editorState.author} document={renderedDocument} gridSize={editorState.gridSize} nativeEffectiveBounds={nativeEffectiveBounds} nativeObjects={currentNativeObjects} nativeOrigin={currentNativePage ? { x: currentNativePage.originX, y: currentNativePage.originY } : undefined} nativeTransformableIds={nativeTransformableIds} objects={displayObjects} onCommit={commitObject} onCreate={addObject} onEditText={(object) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setSelectedIds(new Set([object.id])); if (isCompactViewport()) setSidebarOpen(false); setPropertiesOpen(true); }} onPageGeometry={setPageGeometry} onPreview={setPreviewObject} onSelect={selectObject} onSelectNative={selectNativeObject} onTransformNative={transformNativeObject} pageNumber={editorState.currentPage} selectedIds={selectedIds} selectedNativeId={selectedNativeId} selectedNativeIds={selectedNativeIds} showNativeContent={showNativeContent} snapEnabled={editorState.snapEnabled} zoom={editorState.zoom} /></section>
 
         {propertiesOpen ? unifiedSelectionCount > 1 ? <UnifiedLayoutPropertiesPanel items={unifiedItems} nativeCount={selectedNativeIds.size} onAlign={alignUnified} onDelete={deleteSelection} onDistribute={distributeUnified} onDuplicateOverlays={duplicateSelection} onGroupOverlays={groupSelection} onMatchSize={matchUnifiedSize} onRotate={rotateUnified} onUngroupOverlays={ungroupSelection} overlayCount={selectedIds.size} primaryKey={primaryUnifiedKey} /> : selectedNativeObject ? <NativeContentPropertiesPanel object={selectedNativeObject} onQueue={queueNativeEdits} onRemove={removeNativeEdits} queuedEdits={nativeEdits} /> : <EditorPropertiesPanel onBringFront={() => arrange("front")} onChange={commitObject} onDelete={deleteSelection} onDuplicate={duplicateSelection} onSendBack={() => arrange("back")} selected={selectedObjects} /> : null}
       </div>

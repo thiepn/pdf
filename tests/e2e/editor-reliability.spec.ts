@@ -29,18 +29,24 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   const properties = page.locator(".native-unified-properties");
   const editor = properties.locator("textarea").first();
   await editor.fill("UNDO OK");
+  const beforePreview = await page.locator(".editor-page-layers > canvas").screenshot();
   await properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ }).click();
   await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+  const afterPreview = await page.locator(".editor-page-layers > canvas").screenshot();
+  expect(afterPreview.equals(beforePreview)).toBe(false);
 
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   await expect(undo).toBeEnabled();
   await undo.click();
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "source", { timeout: 20_000 });
 
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   await expect(redo).toBeEnabled();
   await redo.click();
   await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
