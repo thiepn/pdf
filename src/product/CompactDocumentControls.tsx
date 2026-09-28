@@ -1,4 +1,4 @@
-import { createContext, useContext, useSyncExternalStore, type MouseEventHandler } from "react";
+import { createContext, useContext, useSyncExternalStore, type MouseEvent } from "react";
 import { Icon } from "../components/Icon";
 import { routeHref } from "../core/appRouter";
 
@@ -18,7 +18,7 @@ interface DocumentControls {
   title: string;
   summary: string;
   busy: boolean;
-  onHomeClick: MouseEventHandler<HTMLAnchorElement>;
+  onHomeClick: (event: MouseEvent<HTMLAnchorElement>) => void;
   openActions: () => void;
   openHistory: () => void;
 }
