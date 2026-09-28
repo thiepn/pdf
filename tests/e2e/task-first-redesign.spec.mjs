@@ -145,7 +145,10 @@ test("mobile editor exposes touch-sized direct tools and does not overflow the v
     await expect(tools.getByRole("button", { name: /Original PDF content/ })).toBeVisible();
     await capture(page, info, "12-editor-mobile-tools");
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Show pages", exact: true }).click();
+    await page.getByRole("button", { name: "More tools", exact: true }).click();
+    const reopenedTools = page.getByRole("dialog", { name: "Editor tools" });
+    await reopenedTools.getByRole("button", { name: "Show pages", exact: true }).click();
+    await expect(reopenedTools).toHaveCount(0);
     await expect(page.locator(".editor-left-panel")).toBeVisible();
     const backdrop = page.getByRole("button", { name: "Close editor panel", exact: true });
     const bounds = await backdrop.boundingBox();
