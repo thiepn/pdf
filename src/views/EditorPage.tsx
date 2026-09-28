@@ -473,12 +473,17 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
   }
 
-  function commitObjects(label: string, objects: EditorObject[], mergeKey?: string, nextSelection = selectedIds): void {
+  function commitEditorTransaction(label: string, objects: EditorObject[], nextNativeEdits: NativeEdit[], nextSelection = selectedIds, mergeKey?: string): void {
     if (processing) return;
-    setHistory((current) => commitHistory(current, label, objects, nextSelection, mergeKey));
+    setHistory((current) => commitHistory(current, label, objects, nextSelection, mergeKey, nextNativeEdits));
     setPreviewObject(null);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
+    setLastReport(null);
     onTitleChange?.(`Edit · ${project?.name ?? "PDF"}`, `${document?.numPages ?? 0} pages · ${objects.length} added object${objects.length === 1 ? "" : "s"} · Changes not exported`);
+  }
+
+  function commitObjects(label: string, objects: EditorObject[], mergeKey?: string, nextSelection = selectedIds): void {
+    commitEditorTransaction(label, objects, nativeEdits, nextSelection, mergeKey);
   }
 
   function addObject(object: EditorObject): void {
@@ -496,8 +501,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     }
   }
 
-  function queueNativeCanvasTargets(targets: Map<string, UnifiedCanvasBounds>): string[] {
-    if (!currentNativePage || !targets.size) return [];
+  function collectNativeCanvasTargets(targets: Map<string, UnifiedCanvasBounds>): { edits: NativeEdit[]; blocked: string[] } {
+    if (!currentNativePage || !targets.size) return { edits: [], blocked: [] };
     const edits: NativeEdit[] = [];
     const blocked: string[] = [];
     for (const object of selectedNativeObjects) {
@@ -506,12 +511,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const result = nativeGeometryEdit(object, canvasToNativeRect(clampCanvasBounds(target, currentNativePage.width, currentNativePage.height), currentNativePage), nativeEdits);
       if (result.edit) edits.push(result.edit); else if (result.blocked) blocked.push(`${nativeObjectLabel(object)}: ${result.blocked}`);
     }
-    if (edits.length) queueNativeEdits(edits);
-    return blocked;
+    return { edits, blocked };
   }
 
   function applyUnifiedBounds(targets: Map<string, UnifiedCanvasBounds>, label: string): void {
-    if (!targets.size) return;
+    if (processing || !targets.size) return;
     const pageWidth = currentNativePage?.width ?? Math.abs(pageGeometry.x1 - pageGeometry.x0);
     const pageHeight = currentNativePage?.height ?? Math.abs(pageGeometry.y1 - pageGeometry.y0);
     let overlayChanged = false;
@@ -522,8 +526,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       overlayChanged = true;
       return { ...object, bounds: canvasToEditorRect(clampCanvasBounds(target, pageWidth, pageHeight), pageGeometry), modifiedAt: Date.now() };
     });
-    const blocked = queueNativeCanvasTargets(targets);
-    if (overlayChanged) commitObjects(label, nextObjects);
+    const { edits, blocked } = collectNativeCanvasTargets(targets);
+    if (overlayChanged || edits.length) {
+      const nextNativeEdits = edits.length ? mergeNativeEdits(nativeEdits, edits) : nativeEdits;
+      commitEditorTransaction(label, nextObjects, nextNativeEdits);
+    }
     if (blocked.length) setWarnings((current) => [...current, ...blocked]);
   }
 
@@ -591,6 +598,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function rotateUnified(degrees: number): void {
+    if (processing) return;
     let overlayChanged = false;
     const rotatableOverlayIds = new Set(unifiedItems.filter((item) => item.source === "editor" && item.rotatable).map((item) => item.id));
     const nextObjects = updateObjects(history.present.objects, rotatableOverlayIds, (object) => { overlayChanged = true; return { ...object, rotation: object.rotation + degrees }; });
@@ -600,8 +608,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const result = nativeRotationEdit(object, degrees, nativeEdits);
       if (result.edit) nativeIncoming.push(result.edit); else if (result.blocked) blocked.push(`${nativeObjectLabel(object)}: ${result.blocked}`);
     }
-    if (overlayChanged) commitObjects("Rotate objects", nextObjects);
-    if (nativeIncoming.length) queueNativeEdits(nativeIncoming);
+    if (overlayChanged || nativeIncoming.length) {
+      commitEditorTransaction("Rotate objects", nextObjects, nativeIncoming.length ? mergeNativeEdits(nativeEdits, nativeIncoming) : nativeEdits);
+    }
     if (blocked.length) setWarnings((current) => [...current, ...blocked]);
   }
 
@@ -629,20 +638,19 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function deleteSelection(): void {
     if (processing) return;
-    let acted = false;
-    if (selectedIds.size) {
-      commitObjects("Delete objects", history.present.objects.filter((object) => !selectedIds.has(object.id)), undefined, new Set());
-      acted = true;
-    }
+    const nextObjects = selectedIds.size ? history.present.objects.filter((object) => !selectedIds.has(object.id)) : history.present.objects;
     const incoming: NativeEdit[] = [];
     const blocked: string[] = [];
     for (const object of selectedNativeObjects) {
       const result = nativeDeleteEdit(object, nativeEdits);
       if (result.edit) incoming.push(result.edit); else if (result.blocked) blocked.push(`${nativeObjectLabel(object)}: ${result.blocked}`);
     }
-    if (incoming.length) { queueNativeEdits(incoming); acted = true; }
+    const acted = nextObjects.length !== history.present.objects.length || incoming.length > 0;
+    if (acted) {
+      commitEditorTransaction("Delete selection", nextObjects, incoming.length ? mergeNativeEdits(nativeEdits, incoming) : nativeEdits, new Set());
+      setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined);
+    }
     if (blocked.length) setWarnings((current) => [...current, ...blocked]);
-    if (acted) { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
   }
 
   function duplicateSelection(): void {

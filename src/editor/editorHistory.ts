@@ -3,7 +3,10 @@ import type { NativeEdit } from "../types/nativeEditor";
 import { cloneObjects } from "./editorModel";
 
 function cloneNativeEdits(edits: NativeEdit[]): NativeEdit[] {
-  return structuredClone(edits);
+  // Native edit payloads are immutable after they enter history. Keep the edit
+  // objects (and potentially large embedded font bytes) structurally shared
+  // while snapshotting the array itself for Undo/Redo isolation.
+  return edits.slice();
 }
 
 function entry(label: string, objects: EditorObject[], nativeEdits: NativeEdit[], selectedIds: Iterable<string>, mergeKey?: string): EditorHistoryEntry {
