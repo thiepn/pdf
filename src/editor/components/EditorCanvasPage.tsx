@@ -23,6 +23,7 @@ interface Props {
   selectedNativeId?: string;
   selectedNativeIds?: Set<string>;
   nativeEffectiveBounds?: Map<string, NativeRect>;
+  nativeHiddenIds?: Set<string>;
   nativeTransformableIds?: Set<string>;
   showNativeContent?: boolean;
   onSelect: (id: string | null, additive: boolean) => void;
