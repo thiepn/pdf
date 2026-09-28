@@ -33,8 +33,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   await properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ }).click();
   await expect(page.locator(".native-queued-count")).toContainText("1 PDF edit ready");
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
-  const afterPreview = await page.locator(".editor-page-layers > canvas").screenshot();
-  expect(afterPreview.equals(beforePreview)).toBe(false);
+  await expect.poll(async () => !(await page.locator(".editor-page-layers > canvas").screenshot()).equals(beforePreview), { timeout: 20_000 }).toBe(true);
 
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   await expect(undo).toBeEnabled();
@@ -52,7 +51,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   await reopenDownload(page, download);
-  await expect.poll(async () => await searchDocument(page, "UNDO OK")).toContain("1 match");
+  expect(await searchDocument(page, "UNDO OK")).toContain("1 match");
 });
 
 test("hidden added objects stay out of exported PDF", async ({ page }) => {
@@ -79,5 +78,5 @@ test("hidden added objects stay out of exported PDF", async ({ page }) => {
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
   await reopenDownload(page, download);
-  await expect.poll(async () => await searchDocument(page, "HIDDEN EXPORT MARKER")).toContain("0 matches");
+  expect(await searchDocument(page, "HIDDEN EXPORT MARKER")).toContain("0 matches");
 });
