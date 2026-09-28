@@ -1,17 +1,11 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { chooseEditorTool, openSample } from "./helpers/taskFirst";
 
 async function reopenDownload(page: import("@playwright/test").Page, download: import("@playwright/test").Download) {
-  const path = await download.path();
-  if (!path) throw new Error("Downloaded PDF path is unavailable.");
-  const buffer = await readFile(path);
+  const tempPath = `/tmp/pdf-editor-reopen-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
+  await download.saveAs(tempPath);
   await page.goto("./#/tools/read-pdf");
-  await page.getByLabel("PDF file", { exact: true }).setInputFiles({
-    name: download.suggestedFilename() || "edited.pdf",
-    mimeType: "application/pdf",
-    buffer
-  });
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles(tempPath);
   await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible({ timeout: 20_000 });
 }
 
