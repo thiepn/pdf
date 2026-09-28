@@ -80,12 +80,17 @@ test("reader hydration and page jumps never scroll document actions out of the v
   const projectId = taskHash.match(/^#\/workspace\/([^/]+)\/viewer/)?.[1];
   expect(projectId).toBeTruthy();
   await page.goto(`./#/viewer/${projectId}`);
+  // Suspense temporarily retains the previous ready reader as a hidden tree.
+  // Wait for the new route's visible surface, not that stale ready attribute.
+  await expect(page.locator(".capability-gated-workspace")).toHaveCount(0);
+  await expect(page.locator(".viewer-app")).toBeVisible();
   await expect(page.locator(".viewer-app")).toHaveAttribute("data-preferences-ready", "true");
   const legacyHeight = await page.locator(".document-stage").evaluate(node => node.clientHeight);
   expect(legacyHeight).toBeGreaterThan(80);
   expect(legacyHeight).toBeLessThan(390);
   await page.goto(`./${taskHash}`);
-  await expect(page.locator(".viewer-app")).toHaveAttribute("data-preferences-ready", "true");
+  await expect(page.locator(".capability-gated-workspace .viewer-app")).toBeVisible();
+  await expect(page.locator(".capability-gated-workspace .viewer-app")).toHaveAttribute("data-preferences-ready", "true");
   expect(await page.locator(".document-stage").evaluate(node => node.clientHeight)).toBeGreaterThan(80);
   await actions.click();
   await expect(page.getByRole("dialog", { name: "Document actions", exact: true })).toBeVisible();
