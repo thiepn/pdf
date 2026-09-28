@@ -16,6 +16,7 @@ declare module "react" {
   export function useState<T = undefined>(): [T | undefined, Dispatch<SetStateAction<T | undefined>>];
   export function useEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void;
   export function useLayoutEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void;
+  export function useSyncExternalStore<T>(subscribe: (onStoreChange: () => void) => () => void, getSnapshot: () => T, getServerSnapshot?: () => T): T;
   export function useMemo<T>(factory: () => T, deps: readonly unknown[]): T;
   export function useCallback<T extends (...args: any[]) => any>(fn: T, deps: readonly unknown[]): T;
   export function useRef<T>(initial: T): { current: T };
