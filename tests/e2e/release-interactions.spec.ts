@@ -75,6 +75,9 @@ test("reader zoom keeps every button-selected scale visible", async ({ page }) =
   await page.getByRole("button", { name: "Zoom out", exact: true }).click();
   await expect(zoom.locator("option:checked")).toHaveText("25%");
   await zoom.selectOption("4");
-  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Zoom in", exact: true })).toBeDisabled();
   await expect(zoom.locator("option:checked")).toHaveText("400%");
+  await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+  await expect(zoom.locator("option:checked")).toHaveText("375%");
+  await expect(page.getByRole("button", { name: "Zoom in", exact: true })).toBeEnabled();
 });
