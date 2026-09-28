@@ -315,7 +315,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
     {leaseMode === "read-only" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
 
     <div className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"}>
-      <section aria-labelledby="workspace-document-title" className="workspace-mode-content" id="workspace-document-panel">
+      <section aria-labelledby="workspace-document-title" className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader" : "workspace-mode-content"} id="workspace-document-panel">
         {workspaceAcquiring ? <AcquiringMode mode={mode} /> : workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent taskId={taskId} mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
       </section>
       {session.preservationOpen && settings.showPreservationWarnings ? <aside className="workspace-insight-panel">

@@ -7,7 +7,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
 
   await page.goto("./#/release");
-  await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /PDF Studio 7.1.0/i })).toBeVisible();
 
   await page.goto("./#/validation");
   await expect(page.getByRole("button", { name: /Run validation/i })).toBeVisible();
@@ -51,7 +51,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.getByRole("button", { name: "Clean up PDF", exact: true })).toBeVisible();
 
   await page.goto("./#/diagnostics/system");
-  await expect(page.getByRole("heading", { name: /PDF Studio 7.0.0/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /PDF Studio 7.1.0/i })).toBeVisible();
 
   await page.goto("./#/diagnostics/viewer");
   await expect(page.getByRole("heading", { name: "PDF.js viewer baseline", exact: true })).toBeVisible();

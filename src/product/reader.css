@@ -43,3 +43,10 @@
 
 /* Legacy compact rules hid layout switches. Keep both direct choices available. */
 .product-app .reader-commandbar .view-toggle { display:inline-flex; align-items:center; justify-content:center; }
+
+/* A continuous document has unbounded intrinsic height. Remove it from the
+ * enclosing auto-grid sizing calculation, then fill the already bounded slot.
+ * Otherwise percentage heights can expand with every PDF page before scrolling. */
+.product-app .workspace-mode-content--reader { position:relative; overflow:hidden; contain:size; }
+.product-app .workspace-mode-content--reader > .viewer-app { position:absolute; inset:0; height:auto; min-height:0; }
+.product-app .viewer-layout { grid-template-rows:minmax(0,1fr); }

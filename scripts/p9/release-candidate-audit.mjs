@@ -1,6 +1,8 @@
 import { access, readFile } from "node:fs/promises";
 
-const VERSION = "7.0.0";
+const freeze = JSON.parse(await readFile("docs/p9/release-freeze.json", "utf8"));
+const VERSION = freeze.version;
+if (!/^7\.\d+\.\d+$/.test(VERSION) || freeze.stableTag !== `v${VERSION}` || freeze.channel !== "release-candidate") throw new Error("Invalid v7 candidate freeze identity.");
 const checks = [];
 function check(condition, name) {
   const passed = Boolean(condition);
@@ -27,28 +29,28 @@ const [packageText, lockText, releaseSource, readme, changelog, deploy, stable, 
 const packageJson = JSON.parse(packageText);
 const lock = JSON.parse(lockText);
 
-check(packageJson.version === VERSION, "package version is frozen at v7.0.0");
+check(packageJson.version === VERSION, `package version is frozen at v${VERSION}`);
 check(lock.version === VERSION && lock.packages?.[""]?.version === VERSION, "package-lock release identity matches package.json");
 check(releaseSource.includes(`APP_VERSION = "${VERSION}"`), "runtime APP_VERSION matches package metadata");
 check(releaseSource.includes("PROJECT_PACKAGE_VERSION = 9") && releaseSource.includes("DATABASE_SCHEMA_VERSION = 13"), "P9 does not silently change persistent project/database formats");
 check(packageJson.scripts?.["release:web"]?.includes("audit:p9:release-candidate") && packageJson.scripts?.["release:web"]?.includes("test:runtime:v7.0.0"), "release:web contains the P9 freeze and v7 runtime gates");
 check(packageJson.scripts?.["test:v7.0.0"] === "npm run release:web && npm run test:runtime:v7.0.0", "v7 qualification command is deterministic");
 
-check(readme.includes("v7.0.0 is the Universal Editing release candidate") && readme.includes("Qualified `v7.0.0` tag only"), "README exposes the v7 RC/stable boundary");
+check(readme.includes(`v${VERSION} is the task-first release candidate`) && readme.includes(`Qualified \`v${VERSION}\` tag only`), "README exposes the v7 RC/stable boundary");
 check(readme.includes("does not claim universal Word-like PDF text reflow"), "README retains explicit non-universal editing boundary");
-check(changelog.includes("## 7.0.0 — Universal Editing Release Candidate"), "changelog contains the frozen v7 capability summary");
+check(changelog.includes(`## ${VERSION} — Task-first PDF Tools & Release Candidate`), "changelog contains the frozen v7 capability summary");
 
-check(stable.includes('tags: ["v7.0.0"]') && stable.includes('test "$GITHUB_REF_NAME" = "v7.0.0"'), "Stable publication is bound to the exact v7 tag");
+check(stable.includes(`tags: ["v${VERSION}"]`) && stable.includes(`test "$GITHUB_REF_NAME" = "v${VERSION}"`), "Stable publication is bound to the exact v7 tag");
 check(stable.includes("VITE_RELEASE_CHANNEL: stable") && stable.includes("main history"), "Stable channel and ancestry provenance remain fail-closed");
 check(stable.includes("npm run audit:p9:release-candidate") && stable.includes("npm run release:web"), "Stable publication reruns P9 and the full frozen web gate");
 check(stable.includes("Rebuild and prove reproducibility") && stable.includes("Browser-qualify exact stable artifact") && stable.includes("High-severity dependency security gate"), "Stable publication retains reproducibility/browser/security qualification");
-check(stable.includes('"version": "7.0.0"') && stable.includes('"channel": "stable"'), "Stable artifact metadata is explicitly verified");
+check(stable.includes(`"version": "${VERSION}"`) && stable.includes('"channel": "stable"'), "Stable artifact metadata is explicitly verified");
 check(stable.includes("smoke-stable") && stable.includes("action-gh-release"), "GitHub Release publication stays downstream of deployed smoke validation");
 
 check(deploy.includes("VITE_RELEASE_CHANNEL: release-candidate") && deploy.includes("npm run audit:p9:release-candidate") && deploy.includes("npm run test:runtime:v7.0.0"), "candidate deployment is P9-gated and cannot masquerade as Stable");
 check(deploy.includes("Reproducible deployment build") && deploy.includes("Browser-qualify exact distribution before deployment"), "candidate Pages deployment retains exact-artifact reproducibility/browser qualification");
 const dynamicCandidateSmoke = deploy.includes("EXPECTED_VERSION: ${{ needs.deployment-policy.outputs.version }}") && deploy.includes('grep -F "${EXPECTED_VERSION}"');
-const frozenCandidateSmoke = deploy.includes("grep -F '7.0.0'");
+const frozenCandidateSmoke = deploy.includes(`grep -F '${VERSION}'`);
 check((dynamicCandidateSmoke || frozenCandidateSmoke) && deploy.includes('"channel": "release-candidate"'), "deployed candidate smoke test verifies v7 identity/channel");
 check(ci.includes("P9 release-candidate freeze audit") && ci.includes("Generate and validate P8 compatibility corpus") && ci.includes("Browser regression and privacy checks against verified dist"), "PR CI chains P8 compatibility, P9 freeze, and exact-dist browser regression");
 

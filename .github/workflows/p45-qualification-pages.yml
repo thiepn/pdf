@@ -206,9 +206,9 @@ jobs:
 
           curl --fail --location --retry 8 --retry-delay 5 "${qualification}"
           curl --fail --location --retry 8 --retry-delay 5 "${qualification}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${qualification}sw.js" | grep -F 'const RELEASE_VERSION = "7.0.0";' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}sw.js" | grep -F 'const RELEASE_VERSION = "7.1.0";' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${qualification}offline-assets.json" | grep -F 'assets' > /dev/null
-          curl --fail --location --retry 8 --retry-delay 5 "${qualification}release-metadata.json" | grep -F '"version": "7.0.0"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${qualification}release-metadata.json" | grep -F '"version": "7.1.0"' > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${qualification}field-host.json" | grep -F "$BASELINE_COMMIT" > /dev/null
           curl --fail --location --retry 8 --retry-delay 5 "${qualification}release-integrity.json" --output /tmp/qualification-release-integrity.json
           actual_qualification="$(sha256sum /tmp/qualification-release-integrity.json | awk '{print $1}')"

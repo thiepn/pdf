@@ -5,19 +5,19 @@ PDF Studio is a private, installable PDF workspace that processes documents insi
 **Site:** https://thiepn.github.io/pdf/  
 **Repository:** https://github.com/thiepn/pdf
 
-**v7.0.0 is the Universal Editing release candidate**: it promotes the P1–P8 existing-content engine, unified object manipulation, nested-content support, and fidelity certification into one feature-frozen release candidate.
+**v7.1.0 is the task-first release candidate**: choose a PDF task or drop your files, adjust a visual preview, and download the result. The redesign replaces document and workspace tabs while retaining the existing-content editing and output-validation engines.
 
 ## Release status
 
-- **Version:** `7.0.0`
+- **Version:** `7.1.0`
 - **Default source channel:** Release candidate
-- **Stable promotion:** Qualified `v7.0.0` tag only
+- **Stable promotion:** Qualified `v7.1.0` tag only
 - **Hosting:** Static GitHub Pages deployment
 - **Processing:** Browser-local
 - **Licence:** GNU AGPL-3.0-or-later
 - **Qualified CI toolchain:** Node 22.16.0 / npm 10.9.2
 
-Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.0.0 is the first release candidate built around direct editing of existing PDF content.** P1–P8 add exact text editing with layout-aware reflow, source image manipulation, vector and table reconstruction, unified mixed-object layout, reusable nested Form XObject editing, and source-vs-output fidelity certification. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.0.0` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
+Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.0.0 introduced the existing-content editing release line; v7.1.0 rebuilds its everyday workflows.** P1–P8 add exact text editing with layout-aware reflow, source image manipulation, vector and table reconstruction, unified mixed-object layout, reusable nested Form XObject editing, and source-vs-output fidelity certification. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.0` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
 ### v6.1.0 interface principles
 
@@ -30,16 +30,17 @@ Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 
 
 ## Core capabilities
 
-### Unified document workspace
+### Task-first tools and document editing
 
-- Persistent multi-document tabs with pin, close, restore, and drag reordering
-- One task-oriented mode rail for Read, Edit, Pages, Tools, Optimize, Forms & Protect, OCR, Accessibility, and Print & Advanced
-- Simple/Advanced tool levels, with Inspect, Repair, and Preservation demoted to a technical strip instead of competing with everyday workflows
-- Direct Batch automation entry
-- Per-mode preservation contracts
-- Project-scoped event, transaction, and checkpoint timeline
-- Full local `.lpsproject` checkpoints guaranteed to restore as independent projects
-- Workspace-aware command palette
+- Choose a task first or drop supported files and see compatible actions.
+- Twenty-one focused, download-first PDF tasks without requiring a saved project.
+- Visual mixed PDF/image assembly with output order, insert/replace, duplex interleaving, blank pages, and undo/redo.
+- Visual cropping, page extraction/removal/rotation, compression, password protection/removal, page numbers, watermarks, cleanup, and repair.
+- Image and text extraction plus editable **text-only DOCX** export; this is not layout-faithful Office conversion.
+- One document canvas with direct editing controls, contextual properties, and one searchable document-actions dialog; no document tabs or workspace mode rail.
+- Continue between tasks using a validated snapshot of current edits and form values rather than silently reopening the original.
+- Direct reader page fitting, page-number entry, find-in-document, downloads, and touch-sized light/dark controls.
+- Local projects, recovery checkpoints, and `.lpsproject` backups remain available when ongoing work needs them.
 
 ### Local workspace and recovery
 

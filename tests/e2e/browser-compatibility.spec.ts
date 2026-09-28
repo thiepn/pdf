@@ -51,11 +51,23 @@ test("rapid hash navigation and browser history keep the selected tool visible",
   await expect(page.getByLabel("PDF file", { exact: true })).toBeAttached();
 });
 
-test("reader hydration and page jumps never scroll document actions out of the viewport", async ({ page }) => {
+test("reader hydration and page jumps never scroll document actions out of the viewport", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await page.goto("./#/tools/read-pdf");
   await page.getByLabel("PDF file", { exact: true }).setInputFiles(`${corpus}/plain-text.pdf`);
   await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
+  const geometry = await page.locator(".document-stage").evaluate(stage => {
+    const nodes = [];
+    for (let node: HTMLElement | null = stage as HTMLElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+      nodes.push({ tag: node.tagName, class: node.className, top: rect.top, height: rect.height, clientHeight: node.clientHeight, scrollHeight: node.scrollHeight, display: style.display, overflow: style.overflow, rows: style.gridTemplateRows });
+    }
+    return nodes;
+  });
+  await testInfo.attach("reader-viewport-geometry", { body: JSON.stringify(geometry, null, 2), contentType: "application/json" });
+  expect(geometry[0].height).toBeGreaterThan(80);
+  expect(geometry[0].height).toBeLessThan(390);
+  expect(geometry[0].scrollHeight).toBeGreaterThan(geometry[0].clientHeight + 400);
   const actions = page.getByRole("button", { name: "Document actions", exact: true });
   expect((await actions.boundingBox())!.y).toBeGreaterThanOrEqual(0);
   await page.getByLabel("Current page", { exact: true }).fill("3");
