@@ -38,9 +38,12 @@ export async function chooseDocumentTask(page: Page, label: string): Promise<voi
 export async function openDocumentActions(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
   const action = page.getByRole("button", { name: "Document actions", exact: true });
-  if (!await action.isVisible()) {
-    await page.locator('.compact-document-bar button[aria-haspopup="dialog"]').click();
-  }
+  const compactMenu = page.locator('.compact-document-bar button[aria-haspopup="dialog"]');
+  // Reader/workspace hydration can briefly precede the responsive chrome. Wait
+  // for the actual desktop or compact entry point instead of guessing from one
+  // immediate visibility sample and then blocking on a control for the wrong mode.
+  await expect(action.or(compactMenu)).toBeVisible({ timeout: 10_000 });
+  if (!await action.isVisible()) await compactMenu.click();
   await action.click();
 }
 export async function openReaderOptions(page: Page): Promise<void> {
