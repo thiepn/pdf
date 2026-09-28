@@ -819,7 +819,6 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
-  const renderedDocument = nativePreviewDocument ?? document;
   const localSaveLabel = localSaveStatusLabel(localSave, lastReport, Boolean(editorState.dirty || nativeEdits.length));
   const detectedPdfItemCount = nativeInspection ? nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms : 0;
   const chooseMobileTool = (tool: EditorTool) => {
@@ -829,6 +828,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   if (!project) return <div className="viewer-loading"><span className="spinner" /><strong>{error ?? status}</strong></div>;
   if (!document) return <div className="editor-app"><div className="viewer-loading"><span className="spinner" /><strong>{status}</strong></div>{passwordRequired ? <PasswordDialog error={error} password={password} onChange={setPassword} onSubmit={() => void retryPassword()} projectId={projectId} /> : null}</div>;
+  const renderedDocument = nativePreviewDocument ?? document;
 
   const contextControls = <div className="editor-contextbar editor-selectionbar">
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !sidebarOpen; setSidebarOpen(next); if (next && isCompactViewport()) setPropertiesOpen(false); }} type="button" aria-expanded={sidebarOpen}>{sidebarOpen ? "Hide pages" : "Show pages"}</button>
