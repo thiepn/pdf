@@ -1,5 +1,5 @@
 export const APP_NAME = "PDF Studio";
-export const APP_VERSION = "7.1.0";
+export const APP_VERSION = "7.1.1";
 export type AppReleaseChannel = "release-candidate" | "stable";
 export const APP_CHANNEL: AppReleaseChannel = import.meta.env.VITE_RELEASE_CHANNEL === "stable" ? "stable" : "release-candidate";
 export const PROJECT_PACKAGE_VERSION = 9;
