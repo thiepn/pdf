@@ -14,9 +14,10 @@ env:
   NPM_VERSION: 10.9.2
   PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
   VITE_RELEASE_CHANNEL: stable
+  R8_EXTERNAL_CORPUS: "1"
 
 concurrency:
-  group: pages-stable
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -63,10 +64,8 @@ jobs:
           npm run audit:toolchain
           npm ci --no-audit --no-fund
           npm run audit:tree
-      - name: Generate and validate P8 compatibility corpus
-        run: |
-          python scripts/p8/generate_compatibility_corpus.py
-          python scripts/p8/validate_compatibility_corpus.py
+      - name: Generate and validate all release browser corpora
+        run: node scripts/releases/prepare-browser-corpora.mjs
       - name: Run P9 release-candidate freeze audit
         run: npm run audit:p9:release-candidate
       - name: Run frozen v7 web release gate
@@ -92,7 +91,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser-qualify exact stable artifact
-        run: npm run test:e2e
+        run: npm run test:e2e -- --workers=2 --retries=0
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
           VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
