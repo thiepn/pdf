@@ -172,28 +172,35 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-async function navigationResponse() {
-  const cache = await caches.open(CACHE_VERSION);
-  const shellUrl = absoluteAsset("./");
-  const cached = await cache.match(shellUrl);
-  if (cached) return cached;
-  const response = await fetch(shellUrl);
-  if (response.ok) await cache.put(shellUrl, response.clone());
+// Runtime cache persistence is best-effort, unlike atomic installation. A
+// successful download must not wait for cache.put to consume a large WASM body
+// or turn into a network error when browser storage is full or unavailable.
+async function cachedNetworkResponse(request, backgroundWrites) {
+  let cache;
+  try {
+    cache = await caches.open(CACHE_VERSION);
+    // Immutable scope-checked assets may carry different fetch metadata during
+    // installation and later requests; Vary must not invalidate that identity.
+    const cached = await cache.match(request, { ignoreVary: true });
+    if (cached) return cached;
+  } catch {
+    // Online tools remain usable even when Cache Storage itself is unavailable.
+  }
+  const response = await fetch(request);
+  if (response.ok && cache) {
+    const copy = response.clone();
+    backgroundWrites.push(Promise.resolve().then(() => cache.put(request, copy)).catch(() => undefined));
+  }
   return response;
 }
 
-async function assetResponse(request) {
-  const cache = await caches.open(CACHE_VERSION);
-  // Release assets are same-origin, scope-checked above, and content-addressed
-  // by the generated manifest. Ignore response Vary headers here because the
-  // install request and a later page subresource request can legitimately carry
-  // different fetch metadata while identifying the same immutable asset URL.
-  const cached = await cache.match(request, { ignoreVary: true });
-  if (cached) return cached;
+async function navigationResponse(backgroundWrites = []) {
+  return cachedNetworkResponse(absoluteAsset("./"), backgroundWrites);
+}
+
+async function assetResponse(request, backgroundWrites = []) {
   try {
-    const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
-    return response;
+    return await cachedNetworkResponse(request, backgroundWrites);
   } catch {
     return Response.error();
   }
@@ -241,12 +248,17 @@ self.addEventListener("fetch", (event) => {
   }
   if (event.request.method !== "GET" || event.request.headers.has("range")) return;
 
-  event.respondWith((async () => {
+  const backgroundWrites = [];
+  const response = (async () => {
     if (url.pathname.includes("/ocr-languages/") && url.pathname.endsWith(".traineddata.gz")) {
       const languageCache = await caches.open(OCR_LANGUAGE_CACHE);
       return (await languageCache.match(event.request)) ?? new Response("OCR language pack is not installed.", { status: 404 });
     }
-    if (event.request.mode === "navigate") return navigationResponse();
-    return assetResponse(event.request);
-  })());
+    if (event.request.mode === "navigate") return navigationResponse(backgroundWrites);
+    return assetResponse(event.request, backgroundWrites);
+  })();
+  event.respondWith(response);
+  // Register synchronously in the fetch event; keep writes alive independently
+  // of response delivery. Persistence errors must not reject a valid response.
+  event.waitUntil(response.then(() => Promise.allSettled(backgroundWrites)).catch(() => undefined));
 });
