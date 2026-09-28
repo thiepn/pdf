@@ -82,8 +82,30 @@ test("P6 aligns an added shape and existing PDF image as one mixed selection", a
   await expect(properties.getByText("2 selected objects", { exact: true })).toBeVisible();
   await expect(selectionCount(properties, "Existing PDF")).toHaveText("1");
   await expect(selectionCount(properties, "Added objects")).toHaveText("1");
+  const shape = page.locator(".editor-object--shape").last();
+  const beforeShape = await shape.boundingBox();
+  const beforeImage = await image.boundingBox();
+  expect(beforeShape).not.toBeNull();
+  expect(beforeImage).not.toBeNull();
+
   await properties.getByRole("button", { name: "Page center X", exact: true }).click();
   await expect(queuedEdits(page, 1)).toHaveCount(1);
+  const alignedShape = await shape.boundingBox();
+  const alignedImage = await image.boundingBox();
+  expect(Math.abs((alignedShape?.x ?? 0) - (beforeShape?.x ?? 0)) + Math.abs((alignedImage?.x ?? 0) - (beforeImage?.x ?? 0))).toBeGreaterThan(1);
+
+  // One user operation must be one history transaction across both the added
+  // object and the existing-PDF edit.
+  await page.keyboard.press("Control+z");
+  await expect(queuedEdits(page, 1)).toHaveCount(0);
+  await expect.poll(async () => {
+    const nextShape = await shape.boundingBox();
+    const nextImage = await image.boundingBox();
+    return Math.abs((nextShape?.x ?? 0) - (beforeShape?.x ?? 0)) + Math.abs((nextImage?.x ?? 0) - (beforeImage?.x ?? 0));
+  }).toBeLessThan(2);
+  await page.keyboard.press("Control+y");
+  await expect(queuedEdits(page, 1)).toHaveCount(1);
+
   await page.keyboard.press("Shift+ArrowDown");
   await expect(queuedEdits(page, 1)).toHaveCount(1);
 
