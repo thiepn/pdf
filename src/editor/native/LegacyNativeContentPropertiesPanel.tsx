@@ -118,6 +118,31 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
     });
   }
 
+  function queueDelete(): void {
+    if (unsupported || complex) return;
+    onQueue({
+      id: queued?.id ?? crypto.randomUUID(),
+      kind: "text",
+      objectId: object.id,
+      pageNumber: object.pageNumber,
+      originalText: object.text,
+      text: "",
+      bounds: object.bounds,
+      fontFamily: language ?? familyForObject(object),
+      fontSize: Math.max(1, object.size),
+      color: object.color ?? "#111111",
+      backgroundColor: "transparent",
+      align: object.align ?? "left",
+      mode: "replace",
+      wrap: false,
+      fontSource: cjk ? "built-in-cjk" : "built-in",
+      fontLanguage: language,
+      writingMode: object.writingMode,
+      fontWeight: object.weight,
+      fontStyle: object.style
+    });
+  }
+
   return <section className="property-section property-stack">
     <h3>{paragraph ? "Paragraph" : "Text"}</h3>
     {paragraph ? <dl className="native-object-facts"><dt>Source lines</dt><dd>{object.lineCount}</dd><dt>Detected font</dt><dd>{object.fontName || object.family}</dd><dt>Original size</dt><dd>{Number(object.size.toFixed(1))} pt</dd><dt>Line spacing</dt><dd>{object.lineHeight ? `${Number(object.lineHeight.toFixed(1))} pt` : "Detected"}</dd><dt>Direction</dt><dd>{object.direction ?? "ltr"}</dd></dl> : null}
@@ -129,7 +154,7 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
     <label className="property-field"><span>Alignment</span><select disabled={unsupported} value={align} onChange={(event) => setAlign(event.target.value as NativeTextEdit["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
     <label className="property-toggle"><input checked={wrap} disabled={unsupported} type="checkbox" onChange={(event) => setWrap(event.target.checked)} />{paragraph ? "Reflow paragraph inside detected box" : "Wrap inside existing box"}</label>
     {!complex ? fit.fits ? <p className="property-note">Complete text fits: {fit.lineCount} reflowed line{fit.lineCount === 1 ? "" : "s"} · capacity {fit.maxLines} at {Number(fontSize.toFixed(1))} pt. Export will not silently truncate this edit.</p> : <div className="warning-banner"><strong>Paragraph does not fit</strong><span>{fit.widthOverflow ? "The unwrapped text is wider than the detected box." : `${fit.lineCount} reflowed lines need more space than the ${fit.maxLines} lines available at this font size.`} Lower the font size or shorten the text before applying the change.</span>{fittingSize ? <button className="button button--secondary button--small" onClick={() => setFontSize(fittingSize)} type="button">Fit at {Number(fittingSize.toFixed(2))} pt</button> : null}</div> : null}
-    <button className="button" disabled={unsupported || fitBlocked || !text.trim()} onClick={queue} type="button">{queued ? `Update ${paragraph ? "paragraph" : "text"} change` : `Apply ${paragraph ? "paragraph" : "text"} change`}</button>
+    <div className="button-row"><button className="button" disabled={unsupported || fitBlocked || !text.trim()} onClick={queue} type="button">{queued ? `Update ${paragraph ? "paragraph" : "text"} change` : `Apply ${paragraph ? "paragraph" : "text"} change`}</button>{!complex && !unsupported ? <button className="button button--danger-ghost" onClick={queueDelete} type="button">Delete existing text</button> : null}</div>
   </section>;
 }
 
