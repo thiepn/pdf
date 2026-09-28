@@ -1,0 +1,189 @@
+name: Publish v7.1.0 stable release from immutable tag
+
+on:
+  push:
+    branches: [automation/publish-v7-1-0-stable]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+env:
+  NODE_VERSION: 22.16.0
+  NPM_VERSION: 10.9.2
+  PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
+  VITE_RELEASE_CHANNEL: stable
+  R8_EXTERNAL_CORPUS: "1"
+  RELEASE_COMMIT: 74c50a140d8424db7b2fb3f4667e6ece94f77b64
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v7.1.0
+          fetch-depth: 0
+      - name: Verify exact immutable stable tag
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          test "$(git describe --tags --exact-match HEAD)" = "v7.1.0"
+          test "$(node -p "require('./package.json').version")" = "7.1.0"
+      - name: Verify stable tag commit belongs to main history
+        run: |
+          set -euo pipefail
+          git fetch origin main:refs/remotes/origin/main --no-tags
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          if ! git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main; then
+            echo "::error::Stable release commit is not reachable from main."
+            exit 1
+          fi
+      - name: Require committed dependency lock
+        run: test -f package-lock.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install Unicode corpus font
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fonts-noto-core
+      - name: Pin npm toolchain
+        run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
+      - name: Resolve deterministic build metadata
+        run: echo "BUILD_TIMESTAMP=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
+      - name: Install external-reader validation tools
+        run: python -m pip install --requirement requirements-phase11.txt
+      - name: Audit lockfile and install exact graph
+        run: |
+          npm run audit:lockfile
+          npm run audit:toolchain
+          npm ci --no-audit --no-fund
+          npm run audit:tree
+      - name: Generate and validate all release browser corpora
+        run: node scripts/releases/prepare-browser-corpora.mjs
+      - name: Run P9 release-candidate freeze audit
+        run: npm run audit:p9:release-candidate
+      - name: Run frozen v7 web release gate
+        run: npm run release:web
+        env:
+          VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
+          VITE_SOURCE_URL: https://github.com/${{ github.repository }}
+          VITE_BUILD_TIMESTAMP: ${{ env.BUILD_TIMESTAMP }}
+          VITE_RELEASE_CHANNEL: stable
+      - name: Fingerprint first stable distribution
+        run: node scripts/phase27/dist-fingerprint.mjs dist > /tmp/dist-first.sha256
+      - name: Rebuild and prove reproducibility
+        run: |
+          rm -rf dist
+          npm run build:verified
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/dist-second.sha256
+          diff -u /tmp/dist-first.sha256 /tmp/dist-second.sha256
+        env:
+          VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
+          VITE_SOURCE_URL: https://github.com/${{ github.repository }}
+          VITE_BUILD_TIMESTAMP: ${{ env.BUILD_TIMESTAMP }}
+          VITE_RELEASE_CHANNEL: stable
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Browser-qualify exact stable artifact
+        run: npm run test:e2e -- --workers=2 --retries=0
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
+          VITE_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
+          PLAYWRIGHT_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
+          VITE_SOURCE_URL: https://github.com/${{ github.repository }}
+          VITE_RELEASE_CHANNEL: stable
+      - name: Verify stable build metadata
+        run: |
+          grep -q '"version": "7.1.0"' dist/release-metadata.json
+          grep -q '"channel": "stable"' dist/release-metadata.json
+      - name: High-severity dependency security gate
+        run: npm run audit:security
+      - name: Create release archives
+        run: |
+          mkdir -p release-assets
+          git archive --format=zip --output="release-assets/pdf-studio-v7.1.0-source.zip" HEAD
+          git archive --format=tar.gz --output="release-assets/pdf-studio-v7.1.0-source.tar.gz" HEAD
+          (cd dist && zip -qr "../release-assets/pdf-studio-v7.1.0-dist.zip" .)
+          cp docs/phase-11/corpus-validation-report.json "release-assets/pdf-studio-v7.1.0-corpus-validation.json"
+          cp docs/phase-28/adversarial-corpus-report.json "release-assets/pdf-studio-v7.1.0-adversarial-corpus-validation.json"
+          cp docs/p8/compatibility-corpus-report.json "release-assets/pdf-studio-v7.1.0-compatibility-corpus-validation.json"
+          cp docs/P9_RELEASE_CANDIDATE.md "release-assets/pdf-studio-v7.1.0-qualification.md"
+          (cd release-assets && sha256sum pdf-studio-* > pdf-studio-v7.1.0.sha256)
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: v7.1.0-release-assets
+          path: release-assets
+
+  deploy-stable:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: qualify
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy exact browser-qualified stable artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke-stable:
+    runs-on: ubuntu-latest
+    needs: deploy-stable
+    timeout-minutes: 10
+    steps:
+      - name: Verify deployed stable application
+        env:
+          PAGE_URL: ${{ needs.deploy-stable.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/"
+          curl --fail --location --retry 8 --retry-delay 5 "${base}"
+          curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}sw.js" | grep -F '7.1.0' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "stable"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "7.1.0"' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' > /dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'release-metadata.json' > /dev/null
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: smoke-stable
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: v7.1.0-release-assets
+          path: release-assets
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v7.1.0
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: release-assets/*
+
+  cleanup:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - uses: actions/checkout@v7
+      - name: Remove temporary stable-publication branch after successful publication
+        if: needs.publish.result == 'success'
+        run: git push origin --delete automation/publish-v7-1-0-stable
