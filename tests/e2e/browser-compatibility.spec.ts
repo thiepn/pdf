@@ -2,6 +2,15 @@ import { expect, test } from "@playwright/test";
 
 const corpus = "tests/corpus/generated";
 
+function contrastRatio(first: string, second: string): number {
+  const luminance = (color: string) => {
+    const values = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number).map(value => value / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2];
+  };
+  const a = luminance(first), b = luminance(second);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     Reflect.deleteProperty(Map.prototype, "getOrInsert");
@@ -57,4 +66,78 @@ test("reader hydration and page jumps never scroll document actions out of the v
   await expect(page.getByRole("dialog", { name: "Document actions", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit this PDF", exact: true }).click();
   await expect(page.locator(".editor-app")).toBeVisible();
+});
+
+test("reader fit, download and search controls remain usable on narrow and wide screens", async ({ page }, testInfo) => {
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).evaluate(element => {
+    element.addEventListener("change", () => { (window as unknown as { readerTestOriginal: File }).readerTestOriginal = (element as HTMLInputElement).files![0]; }, { once: true });
+  });
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles(`${corpus}/plain-text.pdf`);
+  await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
+  await page.getByRole("button", { name: "Single", exact: true }).click();
+  const closePanel = page.getByRole("button", { name: "Close panel", exact: true });
+  if (await closePanel.isVisible()) await closePanel.click();
+  for (const width of [320, 390, 834, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.getByRole("button", { name: "Fit width", exact: true }).click();
+    await expect.poll(async () => {
+      const stage = await page.locator(".document-stage").boundingBox();
+      const paper = await page.locator(".pdf-page-shell").boundingBox();
+      return !!stage && !!paper && paper.width <= stage.width && paper.x >= stage.x - 1 && paper.x + paper.width <= stage.x + stage.width + 1;
+    }).toBe(true);
+    await expect(page.getByRole("button", { name: "Download original PDF", exact: true })).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    const zoom = await page.getByLabel("Zoom", { exact: true }).evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
+    expect(contrastRatio(zoom.foreground, zoom.background)).toBeGreaterThanOrEqual(4.5);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Fit page", exact: true }).click();
+  await expect.poll(async () => (await page.locator(".pdf-page-shell").boundingBox())!.height <= (await page.locator(".document-stage").boundingBox())!.height).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("reader-phone.png") });
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await page.screenshot({ path: testInfo.outputPath("reader-phone-dark.png") });
+  const darkZoom = await page.getByLabel("Zoom", { exact: true }).evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
+  expect(contrastRatio(darkZoom.foreground, darkZoom.background)).toBeGreaterThanOrEqual(4.5);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download original PDF", exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("plain-text.pdf");
+  const stream = await file.createReadStream();
+  if (!stream) throw new Error("Downloaded PDF stream is unavailable.");
+  const actual: number[] = [];
+  for await (const chunk of stream) actual.push(...Array.from(chunk as Uint8Array));
+  const original = await page.evaluate(async () => Array.from(new Uint8Array(await (window as unknown as { readerTestOriginal: File }).readerTestOriginal.arrayBuffer())));
+  expect(actual).toEqual(original);
+});
+
+test("reader accepts a blank draft, multi-digit page entry, and invalid-number recovery", async ({ page }) => {
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/phase28/pages-50.pdf");
+  await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
+  await page.getByRole("button", { name: "Single", exact: true }).click();
+  const input = page.getByLabel("Current page", { exact: true });
+  await input.fill(""); await expect(input).toHaveValue("");
+  await input.fill("12"); await input.press("Enter");
+  await expect(page.locator('.pdf-page-shell[data-page-number="12"]')).toBeVisible();
+  await input.fill(""); await input.press("Escape"); await expect(input).toHaveValue("12"); await expect(input).toBeFocused();
+  await input.fill("-1"); await input.press("Enter"); await expect(input).toHaveValue("12");
+  await input.fill("999"); await input.press("Enter"); await expect(input).toHaveValue("50");
+  await expect(page.locator('.pdf-page-shell[data-page-number="50"]')).toBeVisible();
+});
+
+test("document search shortcut works and changing a query removes stale results", async ({ page }) => {
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles(`${corpus}/plain-text.pdf`);
+  await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
+  await page.keyboard.press("Control+f");
+  const search = page.getByRole("searchbox", { name: "Search document", exact: true });
+  await expect(search).toBeFocused();
+  await search.fill("PLAIN_PAGE"); await search.press("Enter");
+  await expect(page.locator(".search-results > button")).toHaveCount(3);
+  await search.fill("THIS_TEXT_DOES_NOT_EXIST");
+  await expect(page.locator(".search-results > button")).toHaveCount(0);
+  await expect(page.locator(".search-summary")).toHaveCount(0);
+  await search.press("Enter");
+  await expect(page.locator(".search-summary")).toContainText("0 matches");
 });

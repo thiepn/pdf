@@ -16,7 +16,7 @@ export function restoreViewerPreferences(
     ...merged,
     projectId: current.projectId,
     pageNumber: Math.max(1, Math.min(Math.max(1, pageCount), Math.round(Number.isFinite(merged.pageNumber) ? merged.pageNumber : 1))),
-    zoom: Math.max(0.25, Math.min(4, Number.isFinite(merged.zoom) ? merged.zoom : 1)),
+    zoom: Math.max(0.01, Math.min(4, Number.isFinite(merged.zoom) ? merged.zoom : 1)),
     viewMode: merged.viewMode === "single" ? "single" : "continuous",
     sidebarTab: ["pages", "outline", "search", "info"].includes(merged.sidebarTab) ? merged.sidebarTab : "pages",
     sidebarOpen: merged.sidebarOpen !== false
