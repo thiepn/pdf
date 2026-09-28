@@ -1,28 +1,21 @@
 import { expect, test } from "@playwright/test";
+import { openSample, switchMode, chooseDocumentTask } from "./helpers/taskFirst";
 
-test("workspace opens the sample with four stable document destinations", async ({ page }) => {
-  await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
-  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await expect(page.getByRole("tab", { name: /northstar-launch-review/i })).toBeVisible();
-
-  const navigation = page.getByRole("navigation", { name: "Document workspace" });
-  for (const destination of ["Read", "Edit", "Pages", "Tools"]) {
-    await expect(navigation.getByRole("button", { name: destination, exact: true })).toBeVisible();
-  }
-
-  await navigation.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page).toHaveURL(/\/editor$/);
-  await expect(page.getByRole("button", { name: /Text/ }).first()).toBeVisible();
-
-  const historyButton = page.getByRole("button", { name: "History", exact: true });
-  await historyButton.click();
+test("document-first workspace keeps reading, editing, history and task handoff available without tabs", async ({ page }) => {
+  await openSample(page);
+  await expect(page.getByRole("heading", { name: "northstar-launch-review", exact: true })).toBeVisible();
+  await expect(page.locator('[role="tablist"],.workspace-modebar,.workspace-mobile-nav')).toHaveCount(0);
+  await switchMode(page, "editor");
+  await expect(page.locator(".editor-app")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
+  const history = page.getByRole("button", { name: "History and checkpoints", exact: true });
+  await history.click();
   await expect(page.getByRole("heading", { name: "History & checkpoints" })).toBeVisible();
-  await historyButton.click();
-
-  await navigation.getByRole("button", { name: "Tools", exact: true }).click();
-  await expect(page).toHaveURL(/\/toolbox$/);
-  await expect(page.getByRole("heading", { name: /What do you want to do\?/i })).toBeVisible();
+  await history.click();
+  await chooseDocumentTask(page, "Extract pages");
+  await expect(page).toHaveURL(/#\/quick\/extract-pages/);
+  await expect(page.getByRole("textbox", { name: "Pages", exact: true })).toBeVisible();
+  await expect(page.locator(".task-canvas")).toBeVisible();
 });
 
 test("legacy document routes remain compatible", async ({ page }) => {

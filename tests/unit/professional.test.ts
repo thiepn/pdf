@@ -24,6 +24,17 @@ describe("Phase 7 professional helpers", () => {
     expect([...result.pages]).toEqual([1,3,4,5]);
   });
 
+  it("exports only document text with page breaks and valid XML characters", () => {
+    const bytes = buildSimpleDocx("Not body text", ["Café & 안녕하세요", "\f", "Second \u0000paragraph", "emoji 😀"], false);
+    const archive = new TextDecoder().decode(bytes);
+    const document = archive.match(/<w:document[\s\S]*?<\/w:document>/)?.[0] ?? "";
+    expect(document).not.toContain("Not body text");
+    expect(document).toContain("Café &amp; 안녕하세요");
+    expect(document).toContain('<w:br w:type="page"/>');
+    expect(document).not.toContain("\u0000");
+    expect(document).toContain("emoji 😀");
+  });
+
   it("routes professional project workspaces", () => {
     expect(readAppRoute("#/professional/project-7")).toEqual({ name: "professional", projectId: "project-7" });
     expect(routeHref({ name: "professional", projectId: "a b" })).toBe("#/workspace/a%20b/professional");

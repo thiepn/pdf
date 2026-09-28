@@ -1,0 +1,175 @@
+name: Release completion verification
+on:
+  push:
+    branches: [redesign/task-first-experience]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-completion-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [release-candidate, stable]
+    env:
+      VITE_RELEASE_CHANNEL: ${{ matrix.channel }}
+      VITE_BASE_PATH: /pdf/
+      VITE_SOURCE_URL: https://github.com/thiepn/pdf
+      PHASE11_CORPUS_REUSE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Resolve reproducible build identity
+        run: |
+          git rev-parse HEAD > /tmp/qualification-sha.txt
+          printf '%s\n' "$VITE_RELEASE_CHANNEL" > /tmp/qualification-channel.txt
+          sha256sum package-lock.json > /tmp/qualification-lock.sha256
+          echo "VITE_BUILD_TIMESTAMP=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Retain reproducible offline test dependencies
+        if: matrix.channel == 'release-candidate'
+        run: tar -czf /tmp/pdf-test-dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        if: matrix.channel == 'release-candidate'
+        with:
+          name: pdf-test-dependencies
+          path: |
+            /tmp/pdf-test-dependencies.tar.gz
+            /tmp/qualification-sha.txt
+            /tmp/qualification-lock.sha256
+          retention-days: 1
+      - name: Install external PDF validators and corpus fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-core
+          python -m pip install --requirement requirements-phase11.txt
+      - name: Generate and validate all release browser corpora
+        run: node scripts/releases/prepare-browser-corpora.mjs
+      - name: Test release-certificate and licence-packaging failure boundaries
+        run: node --test scripts/releases/*.test.mjs
+      - name: Complete non-browser release gate
+        run: npm run release:web
+      - name: Prove identical rebuild and verify channel metadata
+        run: |
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/qualification-dist.sha256
+          npm run build:verified
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/rebuilt-dist.sha256
+          diff -u /tmp/qualification-dist.sha256 /tmp/rebuilt-dist.sha256
+          node --input-type=module <<'NODE'
+          import {readFile} from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          const metadata = JSON.parse(await readFile('dist/release-metadata.json', 'utf8'));
+          const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+          assert.equal(metadata.version, pkg.version);
+          assert.equal(metadata.channel, process.env.VITE_RELEASE_CHANNEL);
+          NODE
+      - name: Retain full and production-only security reports
+        run: |
+          npm audit --json > /tmp/qualification-audit.json
+          npm audit --omit=dev --json > /tmp/qualification-production-audit.json
+      - name: Bundle the tested source and distribution
+        run: |
+          git archive HEAD | gzip > /tmp/pdf-release-source.tar.gz
+          tar -czf /tmp/pdf-release-runtime.tar.gz dist tests/corpus docs/phase-11/corpus-validation-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-runtime-${{ matrix.channel }}
+          path: |
+            /tmp/pdf-release-source.tar.gz
+            /tmp/pdf-release-runtime.tar.gz
+            /tmp/qualification-*.txt
+            /tmp/qualification-*.sha256
+            /tmp/qualification-*.json
+          retention-days: 14
+  browser:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [release-candidate, stable]
+        project: [chromium, firefox, webkit, mobile-chromium, tablet-webkit]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: pdf-runtime-${{ matrix.channel }}
+          path: /tmp/pdf-release-runtime
+      - name: Verify exact source, lockfile, channel and distribution identity
+        env:
+          EXPECTED_CHANNEL: ${{ matrix.channel }}
+        run: |
+          test "$(cat /tmp/pdf-release-runtime/qualification-sha.txt)" = "$GITHUB_SHA"
+          test "$(cat /tmp/pdf-release-runtime/qualification-channel.txt)" = "$EXPECTED_CHANNEL"
+          sha256sum --check /tmp/pdf-release-runtime/qualification-lock.sha256
+          tar -xzf /tmp/pdf-release-runtime/pdf-release-runtime.tar.gz
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/downloaded-dist.sha256
+          diff -u /tmp/pdf-release-runtime/qualification-dist.sha256 /tmp/downloaded-dist.sha256
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Complete application browser regression
+        run: npx playwright test --project=${{ matrix.project }} --workers=2 --retries=0 --reporter=html,json > /tmp/browser-results.json
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+          R8_EXTERNAL_CORPUS: '1'
+          PLAYWRIGHT_BASE_PATH: /pdf/
+          VITE_BASE_PATH: /pdf/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-browser-${{ matrix.channel }}-${{ matrix.project }}
+          path: |
+            playwright-report
+            test-results
+            /tmp/browser-results.json
+          retention-days: 14
+  certify:
+    if: always()
+    needs: [prepare, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Refuse failed or incomplete qualification jobs
+        env:
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          test "$PREPARE_RESULT" = success
+          test "$BROWSER_RESULT" = success
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pdf-browser-*
+          path: /tmp/release-evidence
+      - name: Certify every browser and channel from actual reports
+        run: node scripts/releases/certify-browser-matrix.mjs /tmp/release-evidence /tmp/release-certificate.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v7.1.0-release-certificate
+          path: /tmp/release-certificate.json
+          retention-days: 90

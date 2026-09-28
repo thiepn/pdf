@@ -29,7 +29,7 @@ const releaseWorkflow = await readFile(new URL(".github/workflows/release.yml", 
 check(/^[67]\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "historical v6 regression remains release-version synchronized on v6/v7");
 check(/hasFutureSettingsSchema/.test(settings) && /newer PDF Studio version/.test(settings) && /return \{ \.\.\.defaultSettings \}/.test(settings), "future settings remain untouched by older builds");
 rejects(() => migrateBatchRecipe({ schemaVersion: 4, id: "future", name: "Future", steps: [], outputSuffix: "x", updatedAt: 1 }), /newer PDF Studio/, "future Batch recipes are rejected rather than down-converted");
-check(/schemaVersion > CURRENT_BATCH_SCHEMA_VERSION/.test(batch), "Batch schema upper boundary is explicit");
+check(/schemaVersion > CURRENT_BATCH_SCHEMA_VERSION/.test(batch) && /newer PDF Studio version/.test(batch), "Batch schema upper boundary and upgrade guidance are explicit");
 rejects(() => assertReadableStateSchema(3, 2, "OCR job"), /newer PDF Studio/, "future OCR schema guard rejects newer jobs");
 check(/assertReadableOcrJob/.test(ocr) && /OCR_SCHEMA_VERSION/.test(ocr) && /jobs\.map\(assertReadableOcrJob\)/.test(ocr), "local OCR reads reject future job schemas");
 check(/CONSUMED_KEY/.test(inbox) && /acknowledgeSharedInboxFiles/.test(inbox) && /consumed\.has\(request\.url\)/.test(inbox), "Share Inbox uses durable consumed tombstones when cleanup fails");

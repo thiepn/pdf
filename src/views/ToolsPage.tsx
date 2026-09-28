@@ -1,107 +1,67 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, readAppRoute, routeHref } from "../core/appRouter";
 import { importPdfProject } from "../projects/projectRepository";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
+import { getTask, taskRoute } from "../ia/taskCatalog";
+import { createGenericTaskCapabilityContext, evaluateTaskCapability, isCapabilityBlocked } from "../capabilities/taskCapability";
 import { Icon } from "../components/Icon";
-import { getTask, pdfTasks, taskCategories, taskRoute, type PdfTask } from "../ia/taskCatalog";
-import { rankTasksByQuery } from "../ia/taskSearch";
-import { createGenericTaskCapabilityContext, evaluateTaskCapability, isCapabilityBlocked, type TaskCapability } from "../capabilities/taskCapability";
-import { TaskCapabilityChip } from "../capabilities/TaskCapabilityStatus";
-import "../ia/taskArchitecture.css";
+import { TaskDirectory, taskCopy } from "../product/TaskDirectory";
+import { TaskGlyph } from "../product/TaskGlyph";
+import { handOffTaskFiles, takeTaskTransfer, isPdfFile } from "../product/fileHandoff";
 
 export function ToolsPage() {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const taskRef = useRef<PdfTask | null>(null);
-  const initialRoute = readAppRoute();
-  const selectedTask = getTask(initialRoute.name === "tools" ? initialRoute.taskId : undefined);
+  const route = readAppRoute();
+  const task = getTask(route.name === "tools" ? route.taskId : undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [error, setError] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [pendingTask, setPendingTask] = useState<PdfTask | null>(null);
   const [password, setPassword] = useState("");
-  const genericContext = useMemo(() => createGenericTaskCapabilityContext(), []);
-  const capabilityFor = (task: PdfTask): TaskCapability => evaluateTaskCapability(task, genericContext);
-
-  function chooseTask(task: PdfTask): void {
-    setError(null);
-    const capability = capabilityFor(task);
-    if (isCapabilityBlocked(capability) || capability.state === "hidden") return;
-    if (task.target.kind === "route") {
-      navigateTo(task.target.route);
-      return;
-    }
-    taskRef.current = task;
-    inputRef.current?.click();
-  }
-
-  async function openWorkspace(file: File, task: PdfTask, suppliedPassword?: string): Promise<void> {
-    if (task.target.kind !== "workspace") return;
-    setBusy(true);
-    setError(null);
+  const [dragging, setDragging] = useState(false);
+  const alive = useRef(true);
+  const opening = useRef(false);
+  const context = useMemo(() => createGenericTaskCapabilityContext(), []);
+  const capability = task ? evaluateTaskCapability(task, context) : null;
+  const blocked = capability ? isCapabilityBlocked(capability) || capability.state === "hidden" : false;
+  async function openFile(file: File, suppliedPassword?: string): Promise<void> {
+    if (!task || blocked || opening.current) return;
+    const destination = taskRoute(task);
+    if (destination?.name === "quick") { handOffTaskFiles(task.id, [file], { passwords: [suppliedPassword] }); navigateTo(destination); return; }
+    if (task.target.kind !== "workspace") { navigateTo(task.target.route); return; }
+    if (!isPdfFile(file)) { setError("Choose a PDF for this tool. Images can be converted with Images to PDF."); return; }
+    opening.current = true; setBusy(true); setError("");
     try {
       const project = await importPdfProject(file, suppliedPassword);
+      if (!alive.current) return;
       if (suppliedPassword) rememberProjectSessionPassword(project.id, suppliedPassword);
       navigateTo({ name: "workspace", projectId: project.id, mode: task.target.mode, taskId: task.id });
     } catch (reason) {
+      if (!alive.current) return;
       const message = reason instanceof Error ? reason.message : String(reason);
-      if (/password|encrypted/i.test(message) && !suppliedPassword) {
-        setPendingFile(file);
-        setPendingTask(task);
-        setError("This PDF requires a password. It is used only for this local session and is not stored.");
-      } else setError(message);
-    } finally {
-      setBusy(false);
-    }
+      if (/password|encrypted/i.test(message)) { setPendingFile(file); setPassword(""); setError(suppliedPassword ? "That password did not open the PDF. Try again." : ""); }
+      else setError(message);
+    } finally { opening.current = false; if (alive.current) setBusy(false); }
   }
-
-  const searching = Boolean(query.trim());
-  const visibleTasks = useMemo(() => {
-    const needle = query.trim();
-    if (!needle) return pdfTasks.filter((task) => task.audience === "everyday");
-    return rankTasksByQuery(pdfTasks, needle);
-  }, [query]);
-  const advancedTasks = useMemo(() => pdfTasks.filter((task) => task.audience === "advanced"), []);
-
-  const selectedCapability = selectedTask ? capabilityFor(selectedTask) : undefined;
-
-  return <div className="tools-page task-browser">
-    <section className="tools-hero task-browser__hero"><div><p className="eyebrow">All PDF tools</p><h2>Choose what you want to do</h2><p>Start with the job, not a technical mode. Everyday tools are shown first; advanced and troubleshooting tools remain available when you need them.</p></div><label className="task-browser__search"><span className="visually-hidden">Search PDF tasks</span><input autoComplete="off" onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)} placeholder="Search: merge, edit, compress, sign…" type="search" value={query}/></label></section>
-
-    {selectedTask && selectedCapability ? <section className="task-focus" aria-label="Selected PDF task"><div><span className="task-focus__icon"><Icon name={selectedTask.icon} size={26}/></span><div><p className="eyebrow">Ready to start</p><h2>{selectedTask.label}</h2><p>{selectedTask.description}</p>{selectedCapability.state !== "available" ? <TaskCapabilityChip capability={selectedCapability}/> : null}{selectedCapability.reason && selectedCapability.state !== "available" ? <small className="task-capability-reason">{selectedCapability.reason}</small> : null}{selectedCapability.recovery && isCapabilityBlocked(selectedCapability) ? <small className="task-capability-recovery">{selectedCapability.recovery}</small> : null}</div></div><button className="button" disabled={busy || isCapabilityBlocked(selectedCapability)} onClick={() => chooseTask(selectedTask)} type="button">{selectedTask.target.kind === "workspace" ? "Choose PDF" : "Open tool"}</button></section> : null}
-
-    {error ? <div className="error-banner"><strong>Could not open the task</strong><span>{error}</span></div> : null}
-    {pendingFile && pendingTask ? <section className="password-panel"><div><strong>Password required</strong><span>{pendingFile.name} · {pendingTask.label}</span></div><input autoFocus autoComplete="off" onChange={(event) => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={!password || busy} onClick={() => void openWorkspace(pendingFile, pendingTask, password)} type="button">Continue to {pendingTask.label}</button><button className="button button--ghost" onClick={() => { setPendingFile(null); setPendingTask(null); setPassword(""); setError(null); }} type="button">Cancel</button></section> : null}
-
-    {searching && visibleTasks.length ? <section className="tool-category task-category task-category--search-results"><div className="section-heading"><div><p className="eyebrow">Search results</p><h2>Best matches for “{query.trim()}”</h2></div></div><div className="tool-grid task-grid">{visibleTasks.filter((task) => capabilityFor(task).state !== "hidden").map((task) => <TaskTile busy={busy} capability={capabilityFor(task)} key={task.id} onChoose={chooseTask} task={task}/>)}</div></section> : null}
-
-    {!searching ? taskCategories.map((category) => {
-      const tasks = visibleTasks.filter((task) => task.category === category.id).filter((task) => capabilityFor(task).state !== "hidden");
-      if (!tasks.length) return null;
-      return <section className="tool-category task-category" key={category.id}><div className="section-heading"><div><p className="eyebrow">{category.label}</p><h2>{category.description}</h2></div></div><div className="tool-grid task-grid">{tasks.map((task) => <TaskTile busy={busy} capability={capabilityFor(task)} key={task.id} onChoose={chooseTask} task={task}/>)}</div></section>;
-    }) : null}
-
-    {!searching && advancedTasks.length ? <details className="task-advanced-disclosure"><summary><span><strong>Advanced & specialist tools</strong><small>Accessibility, print preparation, archive checks, Batch automation, and less common document workflows.</small></span><span>{advancedTasks.length} tools</span></summary><div className="task-advanced-disclosure__body">{taskCategories.map((category) => {
-      const tasks = advancedTasks.filter((task) => task.category === category.id).filter((task) => capabilityFor(task).state !== "hidden");
-      if (!tasks.length) return null;
-      return <section className="tool-category task-category" key={category.id}><div className="section-heading"><div><p className="eyebrow">{category.label}</p><h2>{category.description}</h2></div></div><div className="tool-grid task-grid">{tasks.map((task) => <TaskTile busy={busy} capability={capabilityFor(task)} key={task.id} onChoose={chooseTask} task={task}/>)}</div></section>;
-    })}</div></details> : null}
-
-    {!visibleTasks.length ? <div className="empty-state"><strong>No matching PDF task</strong><p>Try a simple action such as edit, merge, pages, compress, sign, convert, OCR, repair, or accessibility.</p></div> : null}
-
-    {!searching ? <section className="phase2-scope"><strong>Troubleshooting stays out of the way</strong><p>Search for repair or technical details when a PDF is damaged or behaves unexpectedly. Those tools are not mixed into the everyday catalog.</p><a href={routeHref({ name: "help" })}>Open Help</a></section> : null}
-
-    <input ref={inputRef} hidden accept="application/pdf,.pdf" onChange={(event) => { const file = event.target.files?.[0]; const task = taskRef.current; if (file && task) void openWorkspace(file, task); event.target.value = ""; }} type="file"/>
+  function chooseFiles(files: File[]): void {
+    if (busy || !files.length) return;
+    if (files.length !== 1) { setError("Choose one PDF for this task. Merge PDFs combines several files first."); return; }
+    void openFile(files[0]);
+  }
+  useEffect(() => {
+    alive.current = true; let cancelled = false;
+    void Promise.resolve().then(() => { if (cancelled || !task) return; const transfer = takeTaskTransfer(task.id); if (transfer?.files.length === 1) void openFile(transfer.files[0], transfer.passwords[0]); });
+    return () => { cancelled = true; alive.current = false; };
+  }, [task?.id]);
+  if (!task) return <div className="product-tools"><header className="product-directory-heading"><span className="product-eyebrow">ONE PLACE. EVERYDAY TASKS.</span><h1>Find your next PDF tool.</h1><p>Start with what you want to do. The right controls follow.</p></header><TaskDirectory /></div>;
+  return <div className="product-tool-start">
+    <a className="product-back" href={routeHref({ name: "tools" })}><Icon name="arrow-left" size={17} />All PDF tools</a>
+    <header className="product-task-intro"><TaskGlyph task={task} large /><h1>{task.label}</h1><p>{taskCopy(task)}</p></header>
+    {blocked ? <div className="product-message" role="alert"><strong>{capability?.label}</strong><p>{capability?.reason}</p><p>{capability?.recovery}</p></div> : <section className={`product-dropzone${dragging ? " is-dragging" : ""}`} aria-label="Choose a PDF" onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFiles([...event.dataTransfer.files]); }}>
+      <Icon name="documents" size={44} /><h2>{busy ? "Opening your PDF…" : "Start with your PDF"}</h2><p>{busy ? "Preparing the document on this device." : "Drop a file here, or choose one from your device."}</p><button className="button" disabled={busy || Boolean(pendingFile)} onClick={() => inputRef.current?.click()} type="button">{busy ? "Opening…" : "Choose PDF"}<Icon name="plus" size={19} /></button><input ref={inputRef} hidden aria-label="PDF file" accept="application/pdf,.pdf" type="file" onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ""; chooseFiles(files); }} />
+    </section>}
+    {pendingFile ? <form className="product-password" onSubmit={(event) => { event.preventDefault(); void openFile(pendingFile, password); }}><h2>This PDF needs a password</h2><p>{pendingFile.name}</p><label>PDF password<input autoFocus type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} /></label><p>Used only to open this file. The password is not saved.</p><div><button className="button" disabled={!password || busy} type="submit">Open PDF</button><button className="button button--secondary" disabled={busy} onClick={() => { setPendingFile(null); setPassword(""); setError(""); }} type="button">Choose another file</button></div></form> : null}
+    {error ? <div className="error-banner" role="alert"><strong>Could not open the PDF</strong><span>{error}</span></div> : null}
+    <p className="product-tool-privacy"><Icon name="shield" size={17} /> Your file is not uploaded. This editor saves a local project so you can return to your work.</p>
+    <div className="product-how"><div><span>1</span><strong>Choose your PDF</strong><p>Your original stays unchanged.</p></div><div><span>2</span><strong>Work on the document</strong><p>Only the relevant tools, in one place.</p></div><div><span>3</span><strong>Download your copy</strong><p>Save the finished PDF to your device.</p></div></div>
   </div>;
-}
-
-function TaskTile({ task, busy, onChoose, capability }: { task: PdfTask; busy: boolean; onChoose: (task: PdfTask) => void; capability: TaskCapability }) {
-  if (capability.state === "hidden") return null;
-  const blocked = isCapabilityBlocked(capability);
-  const route = task.target.kind === "route" ? taskRoute(task) : null;
-  const audience = task.audience === "advanced" ? "Advanced" : task.audience === "recovery" ? "Troubleshooting" : null;
-  const content = <><span><Icon name={task.icon} size={24}/></span><div><strong>{task.label}</strong><p>{task.description}</p>{audience ? <small>{audience}</small> : null}{capability.state !== "available" ? <TaskCapabilityChip capability={capability}/> : null}{capability.reason && capability.state !== "available" ? <small className="task-capability-reason">{capability.reason}</small> : null}{capability.recovery && blocked ? <small className="task-capability-recovery">{capability.recovery}</small> : null}</div></>;
-  if (blocked) return <button aria-disabled="true" className="tool-tile task-tile tool-tile--blocked" disabled type="button">{content}</button>;
-  if (route) return <a className="tool-tile task-tile" href={routeHref(route)}>{content}</a>;
-  return <button aria-label={`Open ${task.label}`} className="tool-tile task-tile" disabled={busy} onClick={() => onChoose(task)} type="button">{content}</button>;
 }

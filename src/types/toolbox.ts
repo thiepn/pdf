@@ -8,6 +8,8 @@ export interface ToolboxMetadata {
 }
 
 export interface ToolboxCrop {
+  /** 1-based page numbers. Omitted means all pages. */
+  pageNumbers?: number[];
   enabled: boolean;
   topPt: number;
   rightPt: number;
@@ -26,6 +28,11 @@ export interface ToolboxBlankPages {
 export type ToolboxDecorationLanguage = "auto" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
 
 export interface ToolboxDecoration {
+  /** One-based page numbers, omitted means all pages. Numbering starts on the first selected page. */
+  pageNumbersToChange?: number[];
+  numberPosition?: "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
+  watermarkSize?: number;
+  watermarkGray?: number;
   enabled: boolean;
   watermarkText: string;
   headerText: string;

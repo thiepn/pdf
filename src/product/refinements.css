@@ -1,0 +1,77 @@
+/* Explicitly neutralize old canvas-shell layout rules, rather than letting the
+   previous mobile sheets and fixed inspectors leak into the new structure. */
+.product-app .editor-left-panel,
+.product-app .editor-properties { position:relative; inset:auto; width:auto; max-height:100%; border-radius:0; box-shadow:none; }
+.product-app .editor-commandbar__actions { border-top:0; overflow:visible; }
+.product-app .editor-save-options { overflow:visible; }
+.product-app .editor-layer-item,
+.product-app .editor-comment-list > button { background:var(--surface-subtle); color:var(--ink); border-color:var(--line); }
+.product-app .editor-layer-item.active { background:var(--accent-soft); border-color:var(--accent); }
+.product-app .editor-layer-item > button { color:var(--ink); }
+.product-app .editor-layer-item small,
+.product-app .editor-comment-list p,
+.product-app .editor-comment-list small { color:var(--muted); }
+.product-app .editor-tools-sheet__document { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.product-app .editor-tools-sheet__document h3 { flex-basis:100%; margin-bottom:4px; }
+.product-app .editor-tools-sheet__zoom { display:flex; margin-bottom:0; }
+.product-app .editor-tools-sheet__groups kbd { position:static; margin-left:5px; }
+.product-app .editor-tools-sheet__actions button:last-child { color:var(--ink); background:var(--surface-subtle); border-color:var(--line); }
+.product-app .editor-tools-sheet__actions button:first-child { color:var(--surface-strong); background:var(--accent); border-color:var(--accent); }
+@media (max-width:800px) {
+  .product-app .editor-left-panel,
+  .product-app .editor-properties { position:absolute; top:0; bottom:0; width:min(310px,82vw); height:100%; max-height:100%; box-shadow:var(--shadow); }
+  .product-app .editor-left-panel { left:0; right:auto; }
+  .product-app .editor-properties { left:auto; right:0; }
+}
+@media (max-width:520px) {
+  .product-app .editing-toolbar button { min-width:44px; min-height:52px; font-size:11px; padding:6px 4px; }
+  .product-app .editor-tools-sheet__groups button { min-height:48px; }
+  .product-app .editor-tools-sheet__groups button > span { font-size:12px; }
+  .product-app .editor-contextbar .editor-save-status { display:block; }
+}
+
+/* Keep the skip link off-canvas even during full-page capture and scrolling. */
+.product-app .skip-link:not(:focus) { clip-path:inset(50%); width:1px; height:1px; overflow:hidden; padding:0; white-space:nowrap; }
+.product-app .skip-link:focus { clip-path:none; color:white; }
+
+/* Release qualification: visible command discovery and usable touch panels. */
+.product-header .command-palette-trigger { min-height:44px; white-space:nowrap; }
+.product-app .viewer-sidebar-select { display:block; padding:12px; border-bottom:1px solid var(--line); }
+.product-app .viewer-sidebar-select select { width:100%; min-height:44px; }
+@media (max-width:1100px) {
+  .product-header .command-palette-trigger kbd { display:none; }
+  .product-header .product-private { display:none; }
+  .product-app .editor-layout,.product-app .editor-layout--no-sidebar,.product-app .editor-layout--no-properties,.product-app .editor-layout--no-sidebar.editor-layout--no-properties { display:block; }
+  .product-app .editor-stage { height:100%; }
+  .product-app .editor-left-panel,.product-app .editor-properties { position:absolute; z-index:35; top:0; bottom:0; width:min(310px,82vw); height:100%; box-shadow:var(--shadow); }
+  .product-app .editor-left-panel { left:0; }
+  .product-app .editor-properties { right:0; }
+  .product-app .editor-mobile-backdrop { position:absolute; z-index:30; inset:0; display:block; width:100%; height:100%; border:0; border-radius:0; background:rgb(12 15 30 / 25%); }
+  .product-app .editor-commandbar__actions .button,.product-app .editing-toolbar button { min-height:44px; min-width:44px; }
+}
+@media (max-width:680px) {
+  .product-header__links { display:none; }
+  .product-header .command-palette-trigger { padding:8px; font-size:11px; }
+}
+@media (max-width:360px) {
+  .product-app .product-tool-grid { grid-template-columns:minmax(0,1fr); }
+  .product-app .product-tool-card { min-height:0; }
+}
+
+/* Reader and feedback corrections verified against the release regression suite. */
+.product-app .viewer-sidebar { grid-template-rows:auto minmax(0,1fr); }
+.product-app .editor-runtime-status { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.product-app .editor-operation-status { margin:0; padding:8px 14px; font-size:13px; overflow-wrap:anywhere; }
+@media (max-width:1100px) {
+  .product-app .viewer-mobile-panel-toggle { display:inline-flex; align-items:center; min-height:44px; white-space:nowrap; }
+  .product-app .viewer-commandbar { grid-template-columns:minmax(0,1fr); }
+  .product-app .viewer-file-group { display:none; }
+  .product-app .viewer-commandbar__center { overflow-x:auto; max-width:100%; justify-content:flex-start; }
+  .product-app .viewer-commandbar__center > * { flex-shrink:0; }
+  .product-app .viewer-layout,.product-app .viewer-layout--collapsed { display:block; position:relative; }
+  .product-app .document-stage { height:100%; }
+  .product-app .viewer-sidebar { position:absolute; z-index:35; left:0; top:0; bottom:0; width:min(310px,82vw); height:100%; box-shadow:var(--shadow); }
+  .product-app .viewer-layout--collapsed .viewer-sidebar { display:none; }
+  .product-app .sidebar-collapse { display:none; }
+  .product-app .viewer-commandbar button,.product-app .viewer-commandbar select { min-height:44px; }
+}

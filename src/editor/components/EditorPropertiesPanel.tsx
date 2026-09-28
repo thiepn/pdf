@@ -27,6 +27,7 @@ export function EditorPropertiesPanel({ selected, onChange, onDelete, onDuplicat
     <aside className="editor-properties">
       <header><span>Properties</span><strong>{object.type}</strong></header>
       <div className="editor-properties__body">
+        {object.type === "text" ? <TextProperties object={object} patch={patch} /> : null}
         <section className="property-section">
           <h3>Position</h3>
           <div className="property-grid property-grid--two">
@@ -43,7 +44,6 @@ export function EditorPropertiesPanel({ selected, onChange, onDelete, onDuplicat
           <label className="property-toggle"><input checked={object.locked} onChange={(event) => patch({ locked: event.target.checked } as Partial<typeof object>, event.target.checked ? "Lock object" : "Unlock object", undefined)} type="checkbox" />Locked</label>
         </section>
 
-        {object.type === "text" ? <TextProperties object={object} patch={patch} /> : null}
         {object.type === "image" ? <ImageProperties object={object} patch={patch} /> : null}
         {object.type === "shape" ? <ShapeProperties object={object} patch={patch} /> : null}
         {object.type === "ink" ? <InkProperties object={object} patch={patch} /> : null}
@@ -65,7 +65,7 @@ export function EditorPropertiesPanel({ selected, onChange, onDelete, onDuplicat
 
 function TextProperties({ object, patch }: { object: Extract<EditorObject, { type: "text" }>; patch: PatchFn<typeof object> }) {
   return <section className="property-section"><h3>Text</h3>
-    <label className="property-field"><span>Content</span><textarea onChange={(event) => patch({ text: event.target.value }, "Edit text", `text:${object.id}`)} rows={5} value={object.text} /></label>
+    <label className="property-field"><span>Content</span><textarea aria-label="Content" onChange={(event) => patch({ text: event.target.value }, "Edit text", `text:${object.id}`)} rows={5} value={object.text} /></label>
     <label className="property-field"><span>Font</span><select onChange={(event) => patch({ fontFamily: event.target.value as typeof object.fontFamily })} value={object.fontFamily}><option>Helvetica</option><option>Times-Roman</option><option>Courier</option></select></label>
     <div className="property-grid property-grid--two"><NumberField label="Size" min={4} max={144} value={object.fontSize} onChange={(fontSize) => patch({ fontSize })} /><NumberField label="Line height" min={0.8} max={3} step={0.05} value={object.lineHeight} onChange={(lineHeight) => patch({ lineHeight })} /></div>
     <div className="property-segmented"><button className={object.fontWeight === "bold" ? "active" : ""} onClick={() => patch({ fontWeight: object.fontWeight === "bold" ? "normal" : "bold" })} type="button">Bold</button><button className={object.fontStyle === "italic" ? "active" : ""} onClick={() => patch({ fontStyle: object.fontStyle === "italic" ? "normal" : "italic" })} type="button">Italic</button>{(["left", "center", "right"] as const).map((align) => <button className={object.textAlign === align ? "active" : ""} key={align} onClick={() => patch({ textAlign: align })} type="button">{align}</button>)}</div>

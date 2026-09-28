@@ -1,13 +1,13 @@
-# P9 — v7.0.0 Release Candidate
+# P9 — v7.1.0 Task-first Release Candidate
 
 P9 is the final phase of the Universal Editing roadmap. It is a release freeze and certification phase, not a feature-expansion phase.
 
 ## Release identity
 
 - Product: PDF Studio
-- Candidate version: `7.0.0`
+- Candidate version: `7.1.0`
 - Source/default channel: `release-candidate`
-- Stable channel: exact future `v7.0.0` tag only
+- Stable channel: exact future `v7.1.0` tag only
 - Stable tag must be reachable from `main`
 - Project package format: v9 (unchanged)
 - Database schema: v13 (unchanged)
@@ -31,27 +31,30 @@ A v7 RC is acceptable only when all of the following are green on the exact cand
 - P9 release-candidate source audit (`RC_FREEZE_PASS`).
 - Historical Phase 11–30 stability/runtime/migration/security gates.
 - Historical v6.0.1–v6.1.0 maintenance regressions, widened only so they continue to protect v7 without forcing a v6 version number.
-- Dedicated v7.0.0 universal-editing runtime regression.
+- Dedicated v7.0.0 universal-editing regression retained across the v7 release line.
 - P8 compatibility corpus independently opened by PyMuPDF and pypdf.
-- Source audit, Pages readiness, dependency policy, lockfile/toolchain/tree audits, and high-severity npm security gate.
+- Source audit, Pages readiness, dependency policy, lockfile/toolchain/tree audits, and moderate-or-higher npm security gate.
 - TypeScript qualification and complete unit suite.
 - Verified production build and distribution audit.
 - Same-commit reproducibility fingerprint comparison.
+- Both release-candidate and stable build channels qualified by the ten-job browser matrix; passes, skips and their reasons are retained separately.
+- Full and production-only dependency audit reports with no reported vulnerabilities.
+- Application and upstream licence texts packaged deterministically, verified against the lock and installed packages, and readable offline.
 - Playwright regression against the exact verified distribution, including Chromium, Firefox, WebKit, mobile Chromium, and tablet WebKit projects already defined by the repository.
 - P1–P8 browser regressions, including the mixed P6 overlay/native export path and P8 rotated/cropped + incremental-revision editor exports.
 
 ## Publication contract
 
-Merging the P9 PR into the integration branch does **not** publish Stable. The release candidate may later be promoted by merging the accepted integration state into `main`, where the candidate Pages workflow rebuilds and requalifies it with `VITE_RELEASE_CHANNEL=release-candidate`.
+The task-first release PR targets `main` directly. Merging it does **not** publish Stable: the candidate Pages workflow rebuilds and requalifies the merged commit with `VITE_RELEASE_CHANNEL=release-candidate`, unless a same-version Stable tag already exists. Existing Stable tags are never moved or replaced.
 
-Stable publication requires an exact `v7.0.0` tag on a commit reachable from `main`. The Stable workflow must then independently:
+Stable publication requires an exact `v7.1.0` tag on a commit reachable from `main`. The Stable workflow must then independently:
 
 1. verify exact tag identity and main-history ancestry;
 2. install the committed exact dependency graph;
 3. rerun P9 plus the frozen full release gate;
 4. reproducibly rebuild the distribution;
 5. browser-qualify that exact artifact;
-6. verify `release-metadata.json` says `7.0.0` + `stable`;
+6. verify `release-metadata.json` says `7.1.0` + `stable`;
 7. deploy that already-qualified artifact;
 8. smoke-test the deployed application/PWA identity;
 9. only then publish the GitHub Release and checksums.

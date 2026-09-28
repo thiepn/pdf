@@ -1,5 +1,16 @@
 # Changelog
 
+## 7.1.0 — Task-first PDF Tools & Release Candidate
+
+- Rebuilt the homepage, focused tools, document shell, and mobile navigation around tasks rather than document/workspace tabs.
+- Added twenty-one download-first tasks, compatible file-first routing, and validated edited-document handoff between tools.
+- Added native-page/mixed-image assembly with insertion, replacement, duplex interleaving, blank pages, output-order previews, and undo/redo; added visual cropping and batch outputs.
+- Added editable text-only DOCX export while keeping full-layout Office conversion explicitly unsupported.
+- Completed direct reader fit-width/fit-page, search, page entry, layout, and original-download controls with light/dark and touch layouts.
+- Fixed lost hash navigation, stale automatic project reopening, reading-position restoration, viewport containment, hidden compact-layout controls, and stale search results.
+- Expanded real-PDF browser coverage across Chromium, Firefox, WebKit, phone, and tablet profiles, including downloaded bytes, edited handoff, form values, and output geometry.
+- Preserved existing project/database/native-editor schemas and the exact dependency graph. Stable v7.0.0 is not overwritten or retagged; v7.1.0 must pass its own release, deployment, and smoke gates.
+
 ## 7.0.0 — Universal Editing Release Candidate
 
 - Promoted P1–P8 into one feature-frozen existing-content editing architecture.

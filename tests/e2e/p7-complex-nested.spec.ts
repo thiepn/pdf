@@ -1,11 +1,12 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openNestedGroupEditor(page: import("@playwright/test").Page): Promise<import("@playwright/test").Locator> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page).toHaveURL(/\/editor$/);
+  await switchMode(page, "editor");
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   const nested = page.getByRole("button", { name: /Select existing nested group:/ }).first();
   await expect(nested).toBeVisible({ timeout: 20_000 });
   await nested.click();

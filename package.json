@@ -1,7 +1,7 @@
 {
   "name": "pdf-studio",
   "private": true,
-  "version": "7.0.0",
+  "version": "7.1.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0",
@@ -71,7 +71,7 @@
     "audit:lockfile": "node scripts/phase27/lockfile-audit.mjs",
     "audit:toolchain": "node scripts/phase27/toolchain-audit.mjs",
     "audit:tree": "npm ls --all",
-    "audit:security": "npm audit --audit-level=high",
+    "audit:security": "npm audit --audit-level=moderate",
     "test:runtime:phase27": "node scripts/phase27/runtime-regression.mjs",
     "test:phase27": "npm run gate:phase11 && npm run test:runtime:phase16 && npm run test:runtime:phase17 && npm run test:runtime:phase18 && npm run test:runtime:phase19 && npm run test:runtime:phase20 && npm run test:runtime:phase21 && npm run test:runtime:phase22 && npm run test:runtime:phase23 && npm run test:runtime:phase24 && npm run test:runtime:phase25 && npm run test:runtime:phase26 && npm run test:runtime:phase27 && npm run audit:lockfile && npm run audit:toolchain && npm run audit:dependencies && npm run audit:source && npm run audit:pages && npm run typecheck && npm run test && npm run build:verified",
     "generate:corpus:phase28": "python scripts/phase28/generate_adversarial_corpus.py",
@@ -118,7 +118,7 @@
     "jsdom": "29.1.1",
     "typescript": "5.9.2",
     "vite": "8.1.5",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "packageManager": "npm@10.9.2"
 }

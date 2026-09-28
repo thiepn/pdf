@@ -1,92 +1,52 @@
 import { expect, test } from "@playwright/test";
+import { openSample } from "./helpers/taskFirst";
 
-async function contrastRatio(locator: import("@playwright/test").Locator): Promise<number> {
+async function contrast(locator: import("@playwright/test").Locator): Promise<number> {
   return locator.evaluate((element) => {
-    const parse = (value: string) => {
-      const numbers = value.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0];
-      return numbers.map((channel) => {
-        const normalized = channel / 255;
-        return normalized <= .04045 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
-      });
-    };
-    const luminance = (rgb: number[]) => .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
-    const style = getComputedStyle(element);
-    const foreground = luminance(parse(style.color));
-    const background = luminance(parse(getComputedStyle(element.closest(".app-topbar") ?? element).backgroundColor));
+    const rgb = (value: string) => (value.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0]).map((n) => n / 255 <= .04045 ? n / 255 / 12.92 : ((n / 255 + .055) / 1.055) ** 2.4);
+    const luminance = (value: string) => { const [r, g, b] = rgb(value); return .2126 * r + .7152 * g + .0722 * b; };
+    const foreground = luminance(getComputedStyle(element).color), background = luminance(getComputedStyle(element.closest(".product-header")!).backgroundColor);
     return (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05);
   });
 }
-
-test("professional shell uses vector icons and quiet route focus", async ({ page, browserName }) => {
+test("application menu is keyboard accessible and routing focuses the new main content", async ({ page }) => {
   await page.goto("./#/home");
-  const primaryNavigation = page.getByRole("navigation", { name: "Application navigation" });
-  await expect(primaryNavigation.locator("svg.studio-icon")).toHaveCount(5);
-
-  await primaryNavigation.getByRole("link", { name: "Documents" }).click();
-  const routeHeading = page.locator("[data-route-heading='true']");
-  await expect(routeHeading).toHaveText("Local projects");
-  await expect(routeHeading).toBeFocused();
-  await expect(routeHeading).toHaveCSS("outline-style", "none");
-
-  const settingsLink = primaryNavigation.getByRole("link", { name: "Settings" });
-  await settingsLink.focus();
-  const helpLink = primaryNavigation.getByRole("link", { name: "Help" });
-  if (browserName === "webkit") await helpLink.focus();
-  else await page.keyboard.press("Tab");
-  await expect(helpLink).toBeFocused();
-  if (browserName !== "webkit") expect(await helpLink.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
+  const trigger = page.getByRole("button", { name: "Open app menu" });
+  await trigger.click();
+  const menu = page.getByRole("dialog", { name: "PDF Studio", exact: true });
+  await expect(menu.getByRole("navigation", { name: "App menu" }).locator("svg")).toHaveCount(6);
+  await menu.getByRole("link", { name: "Saved documents", exact: true }).click();
+  await expect(page.locator("main")).toBeFocused();
+  await expect(menu).toHaveCount(0);
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
 });
-
-test("core journeys remain composed across theme and density modes", async ({ page }) => {
+test("core journeys fit light/dark and compact/comfortable layouts", async ({ page }) => {
   await page.goto("./#/home");
-  await expect(page.locator(".consumer-home-hero")).toBeVisible();
-  await expect(page.locator(".home-trust-note")).toBeVisible();
-
-  for (const theme of ["light", "dark"] as const) {
-    for (const density of ["comfortable", "compact"] as const) {
-      await page.locator("html").evaluate((element, values) => {
-        element.dataset.theme = values.theme;
-        element.dataset.density = values.density;
-      }, { theme, density });
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      expect(overflow).toBeLessThanOrEqual(1);
-      await expect(page.getByRole("button", { name: "Open PDF" })).toBeVisible();
-    }
+  for (const theme of ["light", "dark"]) for (const density of ["comfortable", "compact"]) {
+    await page.locator("html").evaluate((element, values) => { element.dataset.theme = values.theme; element.dataset.density = values.density; }, { theme, density });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    await expect(page.getByRole("button", { name: "Choose files", exact: true })).toBeVisible();
   }
-
-  await page.getByRole("button", { name: "Open sample" }).click();
-  await expect(page.locator(".workspace-mode--active svg.studio-icon")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Previous page" }).locator("svg.studio-icon")).toBeVisible();
+  await openSample(page);
+  await expect(page.getByRole("button", { name: "Previous page", exact: true }).locator("svg")).toBeVisible();
   await expect(page.locator(".workspace-mode-content")).toBeVisible();
 });
-
-test("top chrome keeps paired accessible colors in every theme", async ({ page }) => {
+test("header text retains accessible contrast in every theme", async ({ page }) => {
   await page.goto("./#/home");
-  for (const theme of ["light", "dark", "system"] as const) {
-    await page.locator("html").evaluate((element, nextTheme) => { element.dataset.theme = nextTheme; }, theme);
-    const topbar = page.locator(".app-topbar");
-    await expect(topbar).toBeVisible();
-    expect(await contrastRatio(topbar.locator("h1"))).toBeGreaterThanOrEqual(4.5);
-    expect(await contrastRatio(topbar.locator(".topbar__subtitle"))).toBeGreaterThanOrEqual(4.5);
-    const background = await topbar.evaluate((element) => getComputedStyle(element).backgroundColor);
-    expect(background).not.toBe("rgba(0, 0, 0, 0)");
+  for (const theme of ["light", "dark", "system"]) {
+    await page.locator("html").evaluate((element, value) => { element.dataset.theme = value; }, theme);
+    expect(await contrast(page.locator(".product-brand"))).toBeGreaterThanOrEqual(4.5);
+    expect(await contrast(page.getByRole("navigation", { name: "Main navigation" }).getByRole("link").first())).toBeGreaterThanOrEqual(4.5);
   }
 });
-
-test("task browser uses visible typed SVG icons", async ({ page }) => {
+test("every listed tool has a visible SVG and appears only once", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /Choose what you want to do/i })).toBeVisible();
-  await page.getByText("Advanced & specialist tools", { exact: true }).click();
-  const tiles = page.locator(".task-tile");
-  await expect(tiles.first()).toBeVisible();
-  const count = await tiles.count();
-  expect(count).toBeGreaterThan(10);
-  await expect(tiles.locator("svg.studio-icon")).toHaveCount(count);
-  for (const theme of ["light", "dark"] as const) {
-    await page.locator("html").evaluate((element, value) => { element.dataset.theme = value; }, theme);
-    for (const icon of await tiles.locator("svg.studio-icon").all()) {
-      await expect(icon).toBeVisible();
-      expect(await icon.evaluate((element) => getComputedStyle(element).color)).not.toBe("rgba(0, 0, 0, 0)");
-    }
-  }
+  await page.locator(".product-advanced summary").click();
+  const cards = page.locator(".product-tool-card");
+  expect(await cards.count()).toBeGreaterThan(30);
+  await expect(cards.locator("svg")).toHaveCount(await cards.count());
+  const labels = await cards.locator("strong").allTextContents(); expect(new Set(labels).size).toBe(labels.length);
+  for (const card of await cards.all()) { await card.scrollIntoViewIfNeeded(); await expect(card.locator("svg")).toBeVisible(); }
 });

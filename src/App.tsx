@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { AppShell } from "./app/AppShell";
 import { navigateTo, readAppRoute, type AppRoute } from "./core/appRouter";
+import { useAppRoute } from "./core/useAppRoute";
 import { HomePage } from "./views/HomePage";
 import { applySettings, readSettings } from "./settings/settingsStore";
 import { getLastOpenedProjectId, getProject } from "./projects/projectRepository";
@@ -12,6 +13,7 @@ const ProjectsPage = lazy(() => import("./views/ProjectsPage").then(({ ProjectsP
 const SettingsPage = lazy(() => import("./views/SettingsPage").then(({ SettingsPage }) => ({ default: SettingsPage })));
 const StoragePage = lazy(() => import("./views/StoragePage").then(({ StoragePage }) => ({ default: StoragePage })));
 const DiagnosticsPage = lazy(() => import("./views/DiagnosticsPage").then(({ DiagnosticsPage }) => ({ default: DiagnosticsPage })));
+const QuickToolPage = lazy(() => import("./views/QuickToolPage").then(({ QuickToolPage }) => ({ default: QuickToolPage })));
 const ToolsPage = lazy(() => import("./views/ToolsPage").then(({ ToolsPage }) => ({ default: ToolsPage })));
 const MergeToolPage = lazy(() => import("./views/MergeToolPage").then(({ MergeToolPage }) => ({ default: MergeToolPage })));
 const ScanPage = lazy(() => import("./views/ScanPage").then(({ ScanPage }) => ({ default: ScanPage })));
@@ -25,12 +27,7 @@ const MaintenancePage = lazy(() => import("./views/MaintenancePage").then(({ Mai
 const HelpPage = lazy(() => import("./views/HelpPage").then(({ HelpPage }) => ({ default: HelpPage })));
 const UnifiedWorkspace = lazy(() => import("./workspace/UnifiedWorkspace").then(({ UnifiedWorkspace }) => ({ default: UnifiedWorkspace })));
 const CapabilityGatedWorkspace = lazy(() => import("./capabilities/CapabilityGatedWorkspace").then(({ CapabilityGatedWorkspace }) => ({ default: CapabilityGatedWorkspace })));
-
-interface HeaderState {
-  title: string;
-  subtitle?: string;
-}
-
+interface HeaderState { title: string; subtitle?: string }
 function headerForRoute(route: AppRoute): HeaderState {
   switch (route.name) {
     case "projects": return { title: "Local projects", subtitle: "Open, back up, rename, or remove browser-local workspaces." };
@@ -56,6 +53,7 @@ function headerForRoute(route: AppRoute): HeaderState {
     case "compliance": return { title: "Accessibility", subtitle: "Check accessibility, apply supported fixes, and open standards details when needed." };
     case "organizer": return { title: "Pages", subtitle: "Reorder, rotate, duplicate, delete, reverse, and extract pages locally." };
     case "toolbox": return { title: "PDF tasks", subtitle: "Find document actions by outcome, with utilities grouped under one disclosure." };
+    case "quick": return { title: "PDF tools", subtitle: "Choose files, complete your task, and download. No saved project required." };
     case "tools": return { title: "PDF tasks", subtitle: "Search by what you want to accomplish instead of by internal tool or engine name." };
     case "merge": return { title: "Merge PDFs", subtitle: "Combine local PDF files without uploading them." };
     case "scan": return { title: "Scan to PDF", subtitle: "Turn images or camera captures into local PDFs." };
@@ -65,50 +63,48 @@ function headerForRoute(route: AppRoute): HeaderState {
     default: return { title: "PDF Studio", subtitle: "A private, installable PDF workspace running entirely in your browser." };
   }
 }
-
-function RouteLoading() {
-  return <div className="viewer-loading" role="status" aria-live="polite"><span className="spinner" /><strong>Opening tool…</strong></div>;
-}
-
+function RouteLoading() { return <div className="viewer-loading" role="status" aria-live="polite"><span className="spinner" /><strong>Opening tool…</strong></div>; }
 export function App() {
-  const [route, setRoute] = useState<AppRoute>(() => readAppRoute());
-  const [header, setHeader] = useState<HeaderState>(() => headerForRoute(readAppRoute()));
-
+  const route = useAppRoute();
+  const [customHeader, setCustomHeader] = useState<{ route: AppRoute; value: HeaderState } | null>(null);
+  const header = customHeader?.route === route ? customHeader.value : headerForRoute(route);
   useEffect(() => {
     initializeRuntimePerformanceMonitoring();
-    noteNavigationStart(route.name);
     const settings = readSettings();
     applySettings(settings);
-    try {
-      if (!isSafeMode() && settings.reopenLastProject && route.name === "home" && !sessionStorage.getItem("local-pdf-studio-reopen-attempted")) {
-        sessionStorage.setItem("local-pdf-studio-reopen-attempted", "1");
-        const projectId = getLastOpenedProjectId();
-        if (projectId) void getProject(projectId).then((project) => { if (project) navigateTo({ name: "viewer", projectId }); });
-      }
-    } catch { /* Session storage may be unavailable. */ }
-    const onHashChange = () => {
-      const next = readAppRoute();
-      noteNavigationStart(next.name);
-      setRoute(next);
-      setHeader(headerForRoute(next));
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
-
-  useEffect(() => {
-    let secondFrame = 0;
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => noteNavigationPaint(route.name));
+    const launchHash = window.location.hash;
+    let cancelled = false;
+    const cancelReopen = () => { cancelled = true; };
+    window.addEventListener("hashchange", cancelReopen);
+    window.addEventListener("popstate", cancelReopen);
+    // Defer one microtask so StrictMode's discarded mount cannot consume the
+    // once-per-session reopen attempt before its live mount can use it.
+    void Promise.resolve().then(() => {
+      if (cancelled || window.location.hash !== launchHash) return;
+      try {
+        if (!isSafeMode() && settings.reopenLastProject && readAppRoute(launchHash).name === "home" && !sessionStorage.getItem("local-pdf-studio-reopen-attempted")) {
+          sessionStorage.setItem("local-pdf-studio-reopen-attempted", "1");
+          const projectId = getLastOpenedProjectId();
+          if (projectId) void getProject(projectId).then((project) => {
+            // A slow storage read must never override a task the user just chose.
+            if (project && !cancelled && window.location.hash === launchHash) navigateTo({ name: "viewer", projectId });
+          }).catch(() => { /* The homepage remains usable when local storage fails. */ });
+        }
+      } catch { /* Session storage may be unavailable. */ }
     });
     return () => {
-      window.cancelAnimationFrame(firstFrame);
-      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+      cancelled = true;
+      window.removeEventListener("hashchange", cancelReopen);
+      window.removeEventListener("popstate", cancelReopen);
     };
+  }, []);
+  useEffect(() => {
+    noteNavigationStart(route.name);
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => { secondFrame = window.requestAnimationFrame(() => noteNavigationPaint(route.name)); });
+    return () => { window.cancelAnimationFrame(firstFrame); if (secondFrame) window.cancelAnimationFrame(secondFrame); };
   }, [route]);
-
-  const handleViewerTitle = useCallback((title: string, subtitle?: string) => setHeader({ title, subtitle }), []);
-
+  const handleViewerTitle = useCallback((title: string, subtitle?: string) => setCustomHeader({ route, value: { title, subtitle } }), [route]);
   const content = route.name === "home" ? <HomePage />
     : route.name === "projects" ? <ProjectsPage />
       : route.name === "settings" ? <SettingsPage />
@@ -119,26 +115,20 @@ export function App() {
                 : route.name === "activity" ? <ActivityPage />
                   : route.name === "maintenance" ? <MaintenancePage />
                     : route.name === "help" ? <HelpPage />
-                      : route.name === "tools" ? <ToolsPage />
+                      : route.name === "quick" ? <QuickToolPage key={`${route.taskId}:${route.projectId ?? ""}`} taskId={route.taskId} projectId={route.projectId} />
+                      : route.name === "tools" ? <ToolsPage key={route.taskId ?? "directory"} />
                         : route.name === "merge" ? <MergeToolPage />
                           : route.name === "scan" ? <ScanPage />
                             : route.name === "batch" ? <BatchPage />
                               : route.name === "compare" ? <ComparePage />
                                 : route.name === "create" ? <CreatePdfPage />
-                                  : route.name === "workspace" ? <CapabilityGatedWorkspace mode={route.mode} onTitleChange={handleViewerTitle} projectId={route.projectId} taskId={route.taskId} />
-                                    : isDocumentRoute(route) ? <UnifiedWorkspace mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
+                                  : route.name === "workspace" ? <CapabilityGatedWorkspace key={route.projectId} mode={route.mode} onTitleChange={handleViewerTitle} projectId={route.projectId} taskId={route.taskId} />
+                                    : isDocumentRoute(route) ? <UnifiedWorkspace key={route.projectId} mode={documentRouteMode(route)} onTitleChange={handleViewerTitle} projectId={route.projectId} />
                                       : <HomePage />;
-
   const unified = isDocumentRoute(route);
-  return <AppShell fullBleed={unified} hideTopbar={unified} route={route} subtitle={header.subtitle} title={header.title}>
-    <Suspense fallback={<RouteLoading />}>{content}</Suspense>
-  </AppShell>;
+  return <AppShell fullBleed={unified} hideTopbar={unified} route={route} subtitle={header.subtitle} title={header.title}><Suspense fallback={<RouteLoading />}>{content}</Suspense></AppShell>;
 }
-
 function isDocumentRoute(route: AppRoute): route is Extract<AppRoute, { projectId: string }> {
   return ["workspace", "viewer", "editor", "organizer", "secure", "ocr", "compress", "inspector", "repair", "professional", "preservation", "native", "compliance", "toolbox"].includes(route.name);
 }
-
-function documentRouteMode(route: Extract<AppRoute, { projectId: string }>): WorkspaceMode {
-  return route.name === "workspace" ? route.mode : route.name;
-}
+function documentRouteMode(route: Extract<AppRoute, { projectId: string }>): WorkspaceMode { return route.name === "workspace" ? route.mode : route.name; }

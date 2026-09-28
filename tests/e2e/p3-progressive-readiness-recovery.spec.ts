@@ -1,3 +1,4 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function readinessNames(page: import("@playwright/test").Page): Promise<string[]> {
@@ -11,7 +12,7 @@ test.describe("Recovery P3 progressive readiness", () => {
     test.setTimeout(45_000);
     await page.goto("./#/home");
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
-    await page.getByRole("button", { name: "Open sample" }).click();
+    await openSample(page);
 
     await expect(page.locator(".viewer-app")).toBeVisible();
     await expect(page.getByRole("button", { name: "Next page" })).toBeVisible();
@@ -25,13 +26,13 @@ test.describe("Recovery P3 progressive readiness", () => {
   test("editor exposes overlay tools before native PDF inspection hydration", async ({ page }) => {
     test.setTimeout(45_000);
     await page.goto("./#/home");
-    await page.getByRole("button", { name: "Open sample" }).click();
+    await openSample(page);
     await expect(page.locator(".viewer-app")).toBeVisible();
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
 
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await switchMode(page, "editor");
     await expect(page.locator(".editor-app")).toBeVisible();
-    await expect(page.locator(".editor-toolrail").getByRole("button", { name: "Text", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: "Add text", exact: true })).toBeVisible();
     await expect.poll(async () => (await readinessNames(page)).includes("readiness.editor.interactive")).toBe(true);
     await expect.poll(async () => (await readinessNames(page)).includes("readiness.editor.nativeHydrated"), { timeout: 30_000 }).toBe(true);
 

@@ -1,3 +1,4 @@
+import { switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const generatedCorpus = "tests/corpus/generated";
@@ -6,7 +7,7 @@ const p0Corpus = "tests/corpus/p0";
 test.describe("Recovery P0 responsiveness qualification", () => {
   test("runtime instrumentation is local and observable", async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "P0 timing qualification uses Chromium's Long Task/Event Timing APIs.");
-    await page.goto("./#/home");
+    await page.goto("./#/tools/read-pdf");
     const available = await page.evaluate(() => Boolean(window.__PDF_STUDIO_PERFORMANCE__));
     expect(available).toBe(true);
 
@@ -28,7 +29,7 @@ test.describe("Recovery P0 responsiveness qualification", () => {
     const uncaught: string[] = [];
     page.on("pageerror", (error) => uncaught.push(error.message));
 
-    await page.goto("./#/home");
+    await page.goto("./#/tools/read-pdf");
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
     const started = Date.now();
     await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${generatedCorpus}/plain-text.pdf`);
@@ -50,7 +51,7 @@ test.describe("Recovery P0 responsiveness qualification", () => {
     const uncaught: string[] = [];
     page.on("pageerror", (error) => uncaught.push(error.message));
 
-    await page.goto("./#/home");
+    await page.goto("./#/tools/read-pdf");
     await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${p0Corpus}/dense-vectors.pdf`);
     await expect(page.getByText("P0_DENSE_VECTOR_MARKER", { exact: true })).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => {
@@ -60,9 +61,9 @@ test.describe("Recovery P0 responsiveness qualification", () => {
       window.__PDF_STUDIO_PERFORMANCE__?.clear();
     });
 
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await switchMode(page, "editor");
     await expect(page.locator(".editor-app")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: /Hide sidebar|Pages \/ layers/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Hide pages|Show pages/ })).toBeVisible();
     await page.waitForTimeout(2_000);
 
     const heartbeat = await page.evaluate(() => {
@@ -83,7 +84,7 @@ test.describe("Recovery P0 responsiveness qualification", () => {
   test("1000-page document reaches page one with bounded live canvases", async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "P0 large-document timing qualification is pinned to Chromium.");
     test.setTimeout(60_000);
-    await page.goto("./#/home");
+    await page.goto("./#/tools/read-pdf");
     await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
 
     const started = Date.now();

@@ -15,15 +15,16 @@ describe("canonical task intent focus", () => {
 
   it("routes high-risk task intents to the exact control instead of a default tab", () => {
     expect(TASK_INTENT_FOCUS_PLANS["visual-signature"].primary.selector).toContain('aria-label="Signature"');
-    expect(TASK_INTENT_FOCUS_PLANS["apply-redactions"].primary.label).toBe("Redaction");
-    expect(TASK_INTENT_FOCUS_PLANS["password-protect"].primary.label).toBe("Protect");
+    expect(TASK_INTENT_FOCUS_PLANS["apply-redactions"].primary.selector).toContain('data-security-task="redaction"');
+    expect(TASK_INTENT_FOCUS_PLANS["password-protect"].primary.selector).toContain('data-security-task="protect"');
     expect(TASK_INTENT_FOCUS_PLANS["print-layout"].primary.label).toBe("Print layout");
     expect(TASK_INTENT_FOCUS_PLANS["accessibility-check"].primary.label).toBe("Accessibility");
   });
 
   it("focuses flattening controls without enabling destructive options automatically", () => {
     const plan = TASK_INTENT_FOCUS_PLANS["flatten-pdf"];
-    expect(plan.primary.label).toBe("Sanitize");
+    expect(plan.primary.selector).toContain('data-security-task="sanitize"');
+    expect(plan.primary.action).toBe("focus");
     expect(plan.followUp).toEqual(expect.objectContaining({ label: "Flatten form fields", action: "focus" }));
   });
 });

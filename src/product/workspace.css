@@ -1,0 +1,5 @@
+/* Capability checks wrap every task-based document route. They must preserve
+ * the bounded viewport while a check/notice occupies its own natural-height row. */
+.product-app .capability-gated-workspace { display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; }
+.product-app .capability-gated-workspace > .document-workspace { flex:1 1 0%; height:auto; min-height:0; }
+.product-app .capability-gated-workspace > :is(.task-capability-notice,.task-capability-loading) { flex:0 0 auto; max-height:30%; overflow:auto; }

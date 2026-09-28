@@ -21,6 +21,7 @@ function contrast(a, b) {
 const styles = await readFile(resolve(root, "src/styles.css"), "utf8");
 const shell = await readFile(resolve(root, "src/app/AppShell.tsx"), "utf8");
 const viewer = await readFile(resolve(root, "src/views/ViewerPage.tsx"), "utf8");
+const readerToolbar = await readFile(resolve(root, "src/viewer/ReaderToolbar.tsx"), "utf8");
 const workspace = await readFile(resolve(root, "src/workspace/UnifiedWorkspace.tsx"), "utf8");
 const palette = await readFile(resolve(root, "src/components/CommandPalette.tsx"), "utf8");
 const modal = await readFile(resolve(root, "src/accessibility/modalFocus.ts"), "utf8");
@@ -36,11 +37,11 @@ check("dark hero accent contrast", contrast("#ff8276", "#15191e") >= 4.5, `contr
 check("warning text contrast", contrast("#87580f", "#f7f5f0") >= 4.5, `contrast=${contrast("#87580f", "#f7f5f0").toFixed(2)}`);
 check("light muted contrast", contrast("#66707c", "#f7f5f0") >= 4.5, `contrast=${contrast("#66707c", "#f7f5f0").toFixed(2)}`);
 check("route focus", /focus\(\{ preventScroll: true \}\)/.test(shell) && /aria-live="polite"/.test(shell), "SPA route changes focus and announce the new surface");
-check("settings in mobile nav", /\["home", "projects", "tools", "settings", "help"\]/.test(shell), "mobile global navigation exposes Settings instead of Activity");
+check("settings in mobile app menu", /aria-label="Open app menu"/.test(shell) && /name: "settings"/.test(shell) && /Settings & appearance/.test(shell) && /useModalFocus\(menuOpen/.test(shell), "Settings remains reachable in a focus-managed app menu on narrow screens");
 check("modal focus trap", /event\.key !== "Tab"/.test(modal) && /event\.key === "Escape"/.test(modal) && /previous\?\.isConnected/.test(modal), "modal focus traps Tab, closes on Escape, and restores origin focus");
 check("command dialog semantics", /aria-modal="true"/.test(palette) && /aria-labelledby="command-palette-title"/.test(palette), "command palette is a labelled modal dialog");
-check("viewer semantics", /aria-label="Previous page"/.test(viewer) && /role="tabpanel"/.test(viewer) && /role="alert"/.test(viewer), "viewer toolbar/sidebar/error semantics are explicit");
-check("workspace keyboard tabs", /ArrowLeft/.test(workspace) && /ArrowRight/.test(workspace) && /tabIndex=\{tab\.projectId === projectId \? 0 : -1\}/.test(workspace), "document tabs implement roving keyboard navigation");
+check("viewer semantics", /<ReaderToolbar/.test(viewer) && /onPage=\{jumpToPage\}/.test(viewer) && /aria-label="Previous page"/.test(readerToolbar) && /aria-label="Next page"/.test(readerToolbar) && /className="viewer-sidebar-select"/.test(viewer) && /Reader panel<\/span>/.test(viewer) && /aria-controls="viewer-sidebar-panel"/.test(viewer) && /id="viewer-sidebar-panel" role="region"/.test(viewer) && !/role="tablist"/.test(viewer) && /role="alert"/.test(viewer), "viewer toolbar, labelled tab-free panel selector, controlled region and error semantics are explicit");
+check("workspace keyboard document actions", /useModalFocus\(mobileToolsOpen/.test(workspace) && /aria-modal="true"/.test(workspace) && /Document actions/.test(workspace) && !/role="tablist"/.test(workspace), "A focus-managed document-actions dialog replaces document tabs without trapping keyboard users");
 check("coarse pointer targets", /@media \(pointer: coarse\)/.test(styles) && /min-height: 44px/.test(styles), "coarse-pointer controls enforce 44px targets");
 check("200 percent zoom layout", /@media \(max-width: 640px\)/.test(styles) && /grid-template-columns: 1fr !important/.test(styles), "compressed CSS widths collapse multi-column content");
 check("contrast preferences", /prefers-contrast: more/.test(styles) && /forced-colors: active/.test(styles), "higher-contrast and forced-colors modes have explicit support");

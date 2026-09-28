@@ -1,14 +1,17 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 test("advanced workspace exposes one unified editor and source content is directly selectable", async ({ page }) => {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
 
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page).toHaveURL(/\/editor$/);
+  await switchMode(page, "editor");
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   await expect(page.getByRole("button", { name: "Legacy native edit", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: /northstar-launch-review Edit/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "northstar-launch-review", exact: true })).toBeVisible();
+  await expect(page.locator(".workspace-tabs")).toHaveCount(0);
+  await page.locator(".editor-guides summary").click();
   await expect(page.getByRole("checkbox", { name: "PDF content", exact: true })).toBeChecked();
 
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
@@ -24,11 +27,11 @@ test("advanced workspace exposes one unified editor and source content is direct
 
 test("legacy native workspace route redirects to the unified editor", async ({ page }) => {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   const id = page.url().match(/workspace\/([^/]+)\/viewer/)?.[1];
   expect(id).toBeTruthy();
   await page.goto(`./#/workspace/${id}/native`);
   await expect(page).toHaveURL(new RegExp(`/workspace/${id}/editor$`));
-  await expect(page.getByRole("button", { name: /Text$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
 });

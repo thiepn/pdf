@@ -23,7 +23,7 @@ const complex = await read("src/workers/native-complex.worker.ts");
 const fidelity = await read("src/fidelity/pdfFidelityClient.ts");
 const releaseWorkflow = await read(".github/workflows/release.yml");
 
-check(packageJson.version === "7.0.0" && release.includes('APP_VERSION = "7.0.0"'), "v7 release identity is synchronized");
+check(/^7\.\d+\.\d+$/.test(packageJson.version) && release.includes(`APP_VERSION = "${packageJson.version}"`), "v7 release identity is synchronized");
 check(release.includes("PROJECT_PACKAGE_VERSION = 9") && release.includes("DATABASE_SCHEMA_VERSION = 13"), "v7 retains qualified persistent formats");
 check(/reconstructInspectionTextParagraphs/.test(model) && /layout-aware/i.test(await read("docs/P2_LAYOUT_AWARE_REFLOW_FONT_FIDELITY.md")), "P1/P2 existing text and reflow architecture remains present");
 check(/APPLY_IMAGES/.test(image) && /sourceImageObject/.test(image), "P3 source image editing remains qualified");
@@ -35,6 +35,6 @@ check(/validatePdfFidelity/.test(fidelity) && fidelity.includes("const affectedS
 check(/applyNativeEdits/.test(nativeClientArchitecture) && /takeNativeExportReplay/.test(nativeClientArchitecture), "mixed overlay/native export replay architecture remains present");
 check(/validatePdfFidelity/.test(editor) || /exportEditorPdf/.test(editor), "unified editor exports through qualified validation path");
 check(packageJson.scripts?.["release:web"]?.includes("audit:p9:release-candidate"), "P9 freeze audit is part of the full release gate");
-check(releaseWorkflow.includes('tags: ["v7.0.0"]') && releaseWorkflow.includes("Browser-qualify exact stable artifact"), "Stable publication is exact-tag and browser-qualified");
+check(releaseWorkflow.includes(`tags: ["v${packageJson.version}"]`) && releaseWorkflow.includes("Browser-qualify exact stable artifact"), "Stable publication is exact-tag and browser-qualified");
 
 console.log(JSON.stringify({ name: "v7.0.0 Universal Editing release regression", passed: checks.length, total: checks.length, checks }, null, 2));

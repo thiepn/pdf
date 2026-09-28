@@ -1,3 +1,4 @@
+import { writeLicenseBundle } from "./releases/license-bundle.mjs";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
 
@@ -32,6 +33,7 @@ function shouldPrecacheByDefault(asset, htmlReferences) {
   const normalized = asset.toLowerCase();
   const extension = extname(normalized);
   if (htmlReferences.has(asset)) return true;
+  if (["./license.txt", "./third_party_notices.txt", "./license-inventory.json"].includes(normalized)) return true;
   if ([".css", ".woff", ".woff2"].includes(extension)) return true;
   if (normalized.includes("pdf.worker")) return true;
   if (normalized.includes("/icons/") || normalized.includes("/color/")) return true;
@@ -40,6 +42,7 @@ function shouldPrecacheByDefault(asset, htmlReferences) {
 }
 
 await stat(dist);
+await writeLicenseBundle(process.cwd(), dist);
 const packageJson = JSON.parse(await readFile(resolve(process.cwd(), "package.json"), "utf8"));
 const releaseChannel = process.env.VITE_RELEASE_CHANNEL === "stable" ? "stable" : "release-candidate";
 const generatedAt = process.env.VITE_BUILD_TIMESTAMP || new Date().toISOString();

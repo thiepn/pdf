@@ -1,19 +1,17 @@
 # Third-party notices
 
-This Phase 7 professional-suite candidate declares the following pinned direct dependencies. A release build must retain applicable licence texts and verify the complete transitive dependency tree after installation.
+Dependency versions are pinned in `package.json` and `package-lock.json`. Every production build generates `license-inventory.json` from the installed, lock-verified packages, instead of maintaining a second version list here.
 
-| Package | Version | Licence |
-|---|---:|---|
-| React | 19.2.8 | MIT |
-| React DOM | 19.2.8 | MIT |
-| Vite | 8.1.5 | MIT |
-| PDF.js / pdfjs-dist | 6.2.108 | Apache-2.0 |
-| MuPDF.js | 1.28.0 | AGPL-3.0-or-later or commercial licence |
-| Tesseract.js | 7.0.0 | Apache-2.0 |
-| Tesseract.js Core | 7.0.0 | Apache-2.0 |
-| TypeScript | 5.9.2 | Apache-2.0 |
-| Vitest | 4.1.10 | MIT |
-| Playwright | 1.62.0 | Apache-2.0 |
+The distribution includes the application licence in `LICENSE.txt` and verbatim upstream licence/notice texts in `THIRD_PARTY_NOTICES.txt`. The inventory records package versions and SHA-256 hashes of the upstream texts. It includes the direct browser libraries, their browser-side helpers, and the attribution files supplied with the prebuilt Tesseract client and worker. Node-only and optional native dependency packages are not represented as browser runtime libraries.
+
+| Library | Upstream licence |
+|---|---|
+| React, React DOM and Scheduler | MIT |
+| PDF.js / pdfjs-dist | Apache-2.0 |
+| MuPDF.js | AGPL-3.0-or-later or a separately obtained commercial licence |
+| Tesseract.js and Tesseract.js Core | Apache-2.0 |
+
+MuPDF licensing covers its JavaScript wrapper and underlying WebAssembly library. The application remains distributed under the repository's AGPL licence; corresponding source and build instructions are available in this public repository and its source release archives. No commercial MuPDF licence is implied.
 
 OCR language data is not bundled in the source archive. Users may explicitly download compatible `.traineddata.gz` files from the configured Project Naptha tessdata host or import their own local language pack. Redistributors who prebundle language files must review and retain the applicable tessdata licence and attribution for each included file.
 

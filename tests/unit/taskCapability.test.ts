@@ -38,20 +38,20 @@ function task(id: string) {
 }
 
 describe("R4 task capability preflight", () => {
-  it("blocks form filling when the PDF has no form widgets", () => {
+  it("offers the text-placement fallback when the PDF has no form widgets", () => {
     const capability = evaluateTaskCapability(task("fill-forms"), context());
-    expect(capability.state).toBe("unsupported-for-document");
+    expect(capability.state).toBe("available-with-warning");
     expect(capability.alternativeTaskId).toBe("edit-pdf");
-    expect(canStartTask(capability)).toBe(false);
+    expect(canStartTask(capability)).toBe(true);
   });
 
-  it("blocks form filling when widgets exist but deep inspection finds nothing writable", () => {
+  it("offers text placement when widgets exist but nothing is writable", () => {
     const capability = evaluateTaskCapability(task("fill-forms"), context({
       project: project(1, 3),
       securityEvidenceChecked: true,
       securityEvidence: { fillableFormFieldCount: 0, redactionMarkCount: 0, flattenableObjectCount: 2 }
     }));
-    expect(capability.state).toBe("unsupported-for-document");
+    expect(capability.state).toBe("available-with-warning");
     expect(capability.reason).toMatch(/none are supported writable fields/i);
   });
 

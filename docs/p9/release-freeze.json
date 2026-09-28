@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "phase": "P9",
-  "version": "7.0.0",
+  "version": "7.1.0",
   "channel": "release-candidate",
-  "stableTag": "v7.0.0",
+  "stableTag": "v7.1.0",
   "projectPackageVersion": 9,
   "databaseSchemaVersion": 13,
   "nativeEditorSchemaVersion": 6,

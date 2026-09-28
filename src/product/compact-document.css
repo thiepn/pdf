@@ -1,0 +1,51 @@
+/* One mobile row, including the former document header. Secondary actions live
+ * in labelled dialogs; targets stay 44px instead of shrinking to fit. */
+.product-app .compact-options-backdrop { align-items:flex-start; justify-content:flex-end; padding:calc(60px + env(safe-area-inset-top,0px)) 8px max(8px,env(safe-area-inset-bottom,0px)); }
+.product-app .compact-options { width:min(360px,100%); max-height:calc(var(--app-viewport-height,100dvh) - 76px - env(safe-area-inset-top,0px)); padding:18px; border-radius:16px; }
+.product-app .compact-options > header { align-items:flex-start; gap:12px; margin-bottom:16px; }
+.product-app .compact-options h2 { font-size:19px; }
+.product-app .compact-options h3 { margin:16px 0 8px; font-size:12px; color:var(--muted); }
+.product-app .compact-document-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; margin:6px 0 0; color:var(--muted); }
+.product-app .compact-options header > div { min-width:0; flex:1; }
+.product-app .compact-options header small { color:var(--muted); }
+.product-app .compact-options :is(button,select),.product-app .compact-editor-options button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; color:var(--ink); background:var(--surface-strong); border:1px solid var(--line); padding:8px 10px; font-size:14px; }
+.product-app .compact-options :is(button,select):hover { background:var(--surface-subtle); }
+.product-app .compact-options [aria-pressed="true"] { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+.product-app .compact-options-row { display:flex; gap:8px; align-items:center; margin:8px 0; }
+.product-app .compact-options-row > :not(.icon-button) { flex:1; min-width:0; }
+.product-app .compact-document-actions { display:grid; gap:8px; margin:16px 0 8px; border-top:1px solid var(--line); padding-top:14px; }
+.product-app .compact-document-actions button { justify-content:flex-start; }
+.product-app .compact-editor-options { border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:16px; }
+.product-app .compact-editor-options .editor-contextbar { padding:8px 0; margin:0; border:0; }
+.product-app .compact-editor-options .editor-contextbar > span { display:none; }
+.product-app .compact-editor-options .editor-save-status { flex-basis:100%; font-size:12px; margin:4px 0; }
+.product-app .compact-editor-pages .page-input { display:flex; align-items:center; gap:6px; font-size:13px; }
+.product-app .compact-editor-pages input { width:56px; min-height:44px; font-size:16px; text-align:center; }
+@media (max-width:680px), (max-width:1100px) and (max-height:520px) {
+  .product-app .compact-document-bar { display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; flex-shrink:0; gap:2px; margin:0; padding:4px max(4px,env(safe-area-inset-right,0px)) 3px max(4px,env(safe-area-inset-left,0px)); padding-top:calc(4px + env(safe-area-inset-top,0px)); height:calc(52px + env(safe-area-inset-top,0px)); min-height:52px; max-width:100%; border:0; border-bottom:1px solid var(--line); box-sizing:border-box; background:var(--surface-strong); }
+  .product-app .compact-document-bar > .icon-button { display:inline-flex; align-items:center; justify-content:center; flex:0 0 44px; width:44px; height:44px; min-width:44px; min-height:44px; padding:8px; border:1px solid transparent; border-radius:9px; color:var(--ink); background:transparent; text-decoration:none; }
+  .product-app .compact-document-bar > .icon-button:hover { background:var(--surface-subtle); }
+  .product-app .compact-document-bar > .compact-download { background:var(--accent); color:var(--surface-strong); }
+  .product-app .compact-document-bar > .icon-button[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  .product-app .compact-document-bar .page-input { display:flex; flex:1; align-items:center; justify-content:center; gap:2px; min-width:0; margin:0; color:var(--muted); font-size:12px; white-space:nowrap; }
+  .product-app .compact-document-bar .page-input input { flex:0 0 44px; width:44px; height:44px; min-height:44px; padding:2px; font-size:16px; text-align:center; appearance:textfield; background:var(--surface-subtle); border-color:transparent; }
+  .product-app .compact-document-bar .page-input input::-webkit-inner-spin-button,.product-app .compact-document-bar .page-input input::-webkit-outer-spin-button { appearance:none; margin:0; }
+  .product-app .compact-document-bar .page-input > span:not(.visually-hidden) { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .product-app .compact-editor-bar { gap:0; }
+  /* Update availability is a transient toast, not a second mobile toolbar row. */
+  .product-app .update-banner { position:fixed; z-index:90; inset:calc(60px + env(safe-area-inset-top,0px)) 8px auto 8px; width:auto; max-width:420px; margin-left:auto; padding:10px 12px; border:1px solid #8ca9cd; border-radius:12px; box-shadow:0 12px 32px rgb(0 0 0 / 20%); }
+  .product-app .update-banner > span { min-width:0; font-size:13px; line-height:1.35; }
+  .product-app .update-banner > div { flex:0 0 auto; align-items:center; }
+  .product-app .update-banner .button { min-height:40px; justify-content:center; text-align:center; }
+  /* Compact menus use centered labels consistently; no action should read as an accidentally left-aligned list item. */
+  .product-app .compact-options button,
+  .product-app .compact-editor-options button,
+  .product-app .editor-tools-sheet__groups button,
+  .product-app .editor-tools-sheet__document > button,
+  .product-app .editor-tools-sheet__actions button { justify-content:center; text-align:center; }
+  .product-app .compact-document-actions button { justify-content:center; text-align:center; }
+  .product-app .compact-options > button { width:100%; }
+  .product-app .editor-tools-sheet { max-height:calc(var(--app-viewport-height,100dvh) - 20px); }
+  .product-app .compact-editor-options .editor-guides { display:block; }
+  .product-app .compact-editor-options .editor-guides > div { position:static; width:auto; box-shadow:none; }
+}

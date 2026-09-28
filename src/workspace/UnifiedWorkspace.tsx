@@ -1,6 +1,13 @@
+import { DocumentControlsContext, useCompactDocumentControls } from "../product/CompactDocumentControls";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
-import { getProject } from "../projects/projectRepository";
+import { TaskDirectory } from "../product/TaskDirectory";
+import { handOffTaskFiles } from "../product/fileHandoff";
+import { rememberProjectSessionPassword } from "../security/sessionPasswords";
+import { prepareDocumentSnapshot } from "../product/documentSnapshot";
+import { registerDocumentTaskLauncher } from "../product/documentTaskLauncher";
+import { taskRoute, getTask, type PdfTask } from "../ia/taskCatalog";
+import { getProject, createDerivedProjectFromBytes } from "../projects/projectRepository";
 import { createProjectLease, type ProjectLease, type ProjectLeaseMode } from "../projects/projectLease";
 import { readSettings, SETTINGS_CHANGED_EVENT } from "../settings/settingsStore";
 import type { ProjectManifest } from "../types/project";
@@ -8,22 +15,18 @@ import type { AppSettings } from "../types/settings";
 import type { WorkspaceCheckpoint, WorkspaceEvent, WorkspaceMode, WorkspaceSession } from "../types/workspace";
 import type { DocumentRevision, DocumentTransaction } from "../types/revision";
 import { listDocumentLineage, listDocumentTransactions, reconcileInterruptedTransactions } from "../revisions/revisionRepository";
-import { Icon, type IconName } from "../components/Icon";
+import { Icon } from "../components/Icon";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { getPreservationContract } from "./preservationContracts";
 import { beginWorkspaceHeartbeat, readInterruptedWorkspaceSession, type InterruptedWorkspaceSession } from "../recovery/sessionHeartbeat";
 import { cancelProjectOperation, runProjectOperation, subscribeProjectOperation, type ProjectOperationSnapshot } from "../operations/projectOperationCoordinator";
 import {
   activateWorkspaceProject,
-  closeWorkspaceTab,
   createWorkspaceCheckpoint,
   deleteWorkspaceCheckpoint,
   listWorkspaceCheckpoints,
   listWorkspaceEvents,
-  reorderWorkspaceTabs,
-  restoreClosedWorkspaceTab,
   restoreWorkspaceCheckpoint,
-  setTabPinned,
   setWorkspacePanelState,
   updateWorkspaceMode,
   workspaceModeLabel
@@ -46,20 +49,12 @@ const DocumentToolsPage = lazy(() => import("../views/DocumentToolsPage").then((
 interface UnifiedWorkspaceProps {
   projectId: string;
   mode: WorkspaceMode;
+  taskId?: string;
   onTitleChange?: (title: string, subtitle?: string) => void;
 }
 
-const primaryModes: WorkspaceMode[] = ["viewer", "editor", "organizer", "toolbox"];
-const primaryModeItems: Array<{ mode: WorkspaceMode; label: string; icon: IconName }> = [
-  { mode: "viewer", label: "Read", icon: "read" },
-  { mode: "editor", label: "Edit", icon: "edit" },
-  { mode: "organizer", label: "Pages", icon: "pages" },
-  { mode: "toolbox", label: "Tools", icon: "toolbox" }
-];
-
-export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWorkspaceProps) {
+export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: UnifiedWorkspaceProps) {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
-  const [projects, setProjects] = useState<Record<string, ProjectManifest>>({});
   const [project, setProject] = useState<ProjectManifest | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => readSettings());
   const [events, setEvents] = useState<WorkspaceEvent[]>([]);
@@ -72,30 +67,19 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   const [checkpointBusy, setCheckpointBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childSubtitle, setChildSubtitle] = useState<string | undefined>();
-  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
   const [leaseMode, setLeaseMode] = useState<ProjectLeaseMode>("acquiring");
   const [leaseHandle, setLeaseHandle] = useState<ProjectLease | null>(null);
   const [interruptedSession, setInterruptedSession] = useState<InterruptedWorkspaceSession | null>(() => readInterruptedWorkspaceSession(projectId));
   const [activeOperation, setActiveOperation] = useState<ProjectOperationSnapshot | null>(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const handoffRef = useRef(false);
+  const compactControls = useCompactDocumentControls();
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const mobileSheetRef = useRef<HTMLElement | null>(null);
   const modeRef = useRef(mode);
-  const projectCacheRef = useRef<Record<string, ProjectManifest>>({});
   modeRef.current = mode;
   const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
   useModalFocus(mobileToolsOpen, mobileSheetRef, closeMobileTools);
-
-  const hydrateTabProjects = useCallback(async (nextSession: WorkspaceSession) => {
-    const missingIds = nextSession.tabs.map((tab) => tab.projectId).filter((id) => !projectCacheRef.current[id]);
-    if (missingIds.length) {
-      const manifests = await Promise.all(missingIds.map((id) => getProject(id)));
-      for (const manifest of manifests) if (manifest) projectCacheRef.current[manifest.id] = manifest;
-    }
-    const visibleIds = new Set(nextSession.tabs.map((tab) => tab.projectId));
-    const visible: Record<string, ProjectManifest> = {};
-    for (const [id, manifest] of Object.entries(projectCacheRef.current)) if (visibleIds.has(id)) visible[id] = manifest;
-    setProjects(visible);
-  }, []);
 
   const refreshTimeline = useCallback(async (manifest: ProjectManifest) => {
     const rootProjectId = manifest.lineage?.rootProjectId ?? projectId;
@@ -141,17 +125,14 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
         if (!manifest) throw new Error("Project not found. It may have been deleted or browser storage may have been cleared.");
         const nextSession = await activateWorkspaceProject(projectId, modeRef.current);
         if (cancelled) return;
-        projectCacheRef.current[manifest.id] = manifest;
         setProject(manifest);
         setSession(nextSession);
-        setProjects((current) => ({ ...current, [manifest.id]: manifest }));
-        void hydrateTabProjects(nextSession);
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
       }
     })();
     return () => { cancelled = true; };
-  }, [hydrateTabProjects, projectId]);
+  }, [projectId]);
 
   useEffect(() => {
     if (!project || project.id !== projectId || !session) return;
@@ -231,93 +212,6 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   const workspaceLocked = leaseMode === "read-only" && modeRequiresOwnership;
   const workspaceAcquiring = leaseMode === "acquiring" && modeRequiresOwnership;
 
-  function optimisticMode(nextMode: WorkspaceMode): void {
-    const now = Date.now();
-    setSession((current) => current ? {
-      ...current,
-      activeProjectId: projectId,
-      tabs: current.tabs.map((tab) => tab.projectId === projectId ? { ...tab, lastMode: nextMode, lastActivatedAt: now } : tab),
-      updatedAt: now
-    } : current);
-  }
-
-  function switchMode(nextMode: WorkspaceMode): void {
-    closeMobileTools();
-    if (nextMode === mode) return;
-    if (activeOperation) { setError(`Finish or cancel “${activeOperation.label}” before switching tools.`); return; }
-    setError(null);
-    setChildSubtitle(undefined);
-    optimisticMode(nextMode);
-    navigateTo({ name: "workspace", projectId, mode: nextMode });
-    void updateWorkspaceMode(projectId, nextMode).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-  }
-
-  function activateTab(targetProjectId: string): void {
-    const tab = session?.tabs.find((item) => item.projectId === targetProjectId);
-    navigateTo({ name: "workspace", projectId: targetProjectId, mode: tab?.lastMode ?? "viewer" });
-  }
-
-  function handleTabKeyDown(event: import("react").KeyboardEvent<HTMLButtonElement>, targetProjectId: string): void {
-    if (!session || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const index = session.tabs.findIndex((tab) => tab.projectId === targetProjectId);
-    if (index < 0) return;
-    const nextIndex = event.key === "Home" ? 0
-      : event.key === "End" ? session.tabs.length - 1
-        : event.key === "ArrowLeft" ? (index - 1 + session.tabs.length) % session.tabs.length
-          : (index + 1) % session.tabs.length;
-    const next = session.tabs[nextIndex];
-    if (next) activateTab(next.projectId);
-  }
-
-  async function closeTab(targetProjectId: string): Promise<void> {
-    if (targetProjectId === projectId && activeOperation) { setError(`Finish or cancel “${activeOperation.label}” before closing this document.`); return; }
-    const next = await closeWorkspaceTab(targetProjectId);
-    setSession(next);
-    delete projectCacheRef.current[targetProjectId];
-    setProjects((current) => {
-      const updated = { ...current };
-      delete updated[targetProjectId];
-      return updated;
-    });
-    if (targetProjectId !== projectId) return;
-    const nextId = next.activeProjectId ?? next.tabs.at(-1)?.projectId;
-    if (!nextId) {
-      navigateTo({ name: "projects" });
-      return;
-    }
-    const nextTab = next.tabs.find((item) => item.projectId === nextId);
-    navigateTo({ name: "workspace", projectId: nextId, mode: nextTab?.lastMode ?? "viewer" });
-  }
-
-  async function restoreClosed(): Promise<void> {
-    const next = await restoreClosedWorkspaceTab();
-    setSession(next);
-    void hydrateTabProjects(next);
-    const restoredId = next.activeProjectId;
-    if (!restoredId) return;
-    const tab = next.tabs.find((item) => item.projectId === restoredId);
-    navigateTo({ name: "workspace", projectId: restoredId, mode: tab?.lastMode ?? "viewer" });
-  }
-
-  async function togglePin(targetProjectId: string): Promise<void> {
-    const tab = session?.tabs.find((item) => item.projectId === targetProjectId);
-    if (!tab) return;
-    setSession(await setTabPinned(targetProjectId, !tab.pinned));
-  }
-
-  async function dropTab(targetProjectId: string): Promise<void> {
-    if (!draggedProjectId || draggedProjectId === targetProjectId || !session) return;
-    const ids = session.tabs.map((tab) => tab.projectId);
-    const from = ids.indexOf(draggedProjectId);
-    const to = ids.indexOf(targetProjectId);
-    if (from < 0 || to < 0) return;
-    ids.splice(from, 1);
-    ids.splice(to, 0, draggedProjectId);
-    setSession(await reorderWorkspaceTabs(ids));
-    setDraggedProjectId(null);
-  }
-
   async function createCheckpoint(): Promise<void> {
     if (!project) return;
     setCheckpointBusy(true);
@@ -367,6 +261,35 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
     if (panel === "timelineOpen" && opening && !timelineLoaded) void ensureTimeline();
   }
 
+  async function chooseDocumentTask(task: PdfTask, readOnly = false): Promise<void> {
+    if (activeOperation || handoffRef.current) { setError("Finish or cancel the current operation before choosing another task."); return; }
+    const route = readOnly ? { name: "workspace" as const, projectId, mode: "viewer" as const } : taskRoute(task, projectId); if (!route) return;
+    // Same editor: preserve editable objects, selections, and undo history in place.
+    if (route.name === "workspace" && route.mode === mode && route.projectId === projectId) { closeMobileTools(); navigateTo(route); return; }
+    handoffRef.current = true; setHandoffBusy(true); setError(null);
+    try {
+      await runProjectOperation(projectId, { label: "Preparing your current document" }, async ({ signal, update }) => {
+        update({ detail: "Including and verifying your latest edits…" });
+        const snapshot = await prepareDocumentSnapshot(projectId, signal);
+        if (route.name === "quick" || task.id === "compare-pdfs") {
+          handOffTaskFiles(task.id, [snapshot.file], { passwords: [snapshot.password], warnings: snapshot.warnings });
+          closeMobileTools(); navigateTo(taskRoute(task)!); return;
+        }
+        if (route.name === "workspace" && snapshot.changed) {
+          const derived = await createDerivedProjectFromBytes(projectId, snapshot.bytes, snapshot.file.name, "tool-handoff", "application/pdf", snapshot.password);
+          if (snapshot.password) rememberProjectSessionPassword(derived.id, snapshot.password);
+          closeMobileTools(); navigateTo({ ...route, projectId: derived.id }); return;
+        }
+        closeMobileTools(); navigateTo(route);
+      });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { handoffRef.current = false; setHandoffBusy(false); }
+  }
+
+  const taskLauncherRef = useRef(chooseDocumentTask);
+  taskLauncherRef.current = chooseDocumentTask;
+  useEffect(() => registerDocumentTaskLauncher(projectId, (task) => taskLauncherRef.current(task)), [projectId]);
+
   async function retryOwnership(): Promise<void> {
     if (!leaseHandle) return;
     setLeaseMode("acquiring");
@@ -377,70 +300,30 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
   if (error && (!project || project.id !== projectId)) return <div className="workspace-fatal"><strong>Workspace unavailable</strong><p>{error}</p><a className="button" href={routeHref({ name: "projects" })}>Open projects</a></div>;
   if (!project || project.id !== projectId || !session) return <div className="viewer-loading"><span className="spinner" /><strong>Opening document…</strong></div>;
 
-  const activePrimaryMode = primaryModes.includes(mode) ? mode : "toolbox";
 
-  return <div className="unified-workspace">
-    <div className="workspace-tabs" role="tablist" aria-label="Open PDF documents">
-      <div className="workspace-tabs__scroll">
-        {session.tabs.map((tab) => {
-          const manifest = projects[tab.projectId] ?? (tab.projectId === project.id ? project : undefined);
-          return <div
-            className={tab.projectId === projectId ? "workspace-tab workspace-tab--active" : "workspace-tab"}
-            draggable
-            key={tab.projectId}
-            onDragOver={(event) => event.preventDefault()}
-            onDragStart={() => setDraggedProjectId(tab.projectId)}
-            onDrop={() => void dropTab(tab.projectId)}
-            role="presentation"
-          >
-            <button aria-controls="workspace-document-panel" aria-selected={tab.projectId === projectId} className="workspace-tab__main" id={`workspace-tab-${tab.projectId}`} onClick={() => activateTab(tab.projectId)} onKeyDown={(event) => handleTabKeyDown(event, tab.projectId)} role="tab" tabIndex={tab.projectId === projectId ? 0 : -1} type="button">
-              <span className="workspace-tab__document" aria-hidden="true">PDF</span>
-              <span><strong>{manifest?.name ?? "Loading project…"}</strong><small>{workspaceModeLabel(tab.lastMode)}</small></span>
-              {manifest?.recovery.dirty ? <i title="Local edits">●</i> : null}
-            </button>
-            <button aria-label={tab.pinned ? "Unpin tab" : "Pin tab"} className={tab.pinned ? "workspace-tab__icon workspace-tab__icon--active" : "workspace-tab__icon"} onClick={() => void togglePin(tab.projectId)} title={tab.pinned ? "Unpin" : "Pin"} type="button">⌖</button>
-            {!tab.pinned ? <button aria-label={`Close ${manifest?.name ?? "tab"}`} className="workspace-tab__icon" onClick={() => void closeTab(tab.projectId)} title="Close tab" type="button">×</button> : null}
-          </div>;
-        })}
+  const compactToolbar = compactControls && (mode === "viewer" || mode === "editor") && !workspaceAcquiring && !workspaceLocked;
+  return <DocumentControlsContext.Provider value={{ title: project.name, summary: `${project.summary.pageCount} pages · ${formatBytes(project.byteLength)}`, busy: Boolean(activeOperation),
+    onHomeClick: (event) => { if (activeOperation) { event.preventDefault(); setError("Finish or cancel the current operation before leaving this document."); } },
+    openActions: () => { if (!activeOperation) setMobileToolsOpen(true); }, openHistory: () => void togglePanel("timelineOpen") }}>
+  <div className="document-workspace unified-workspace" data-compact-toolbar={compactToolbar ? "true" : undefined}>
+    {compactToolbar ? <h1 className="visually-hidden" id="workspace-document-title">{project.name}</h1> : <header className="document-topbar">
+      <a className="document-home" aria-disabled={Boolean(activeOperation)} onClick={(event) => { if (activeOperation) { event.preventDefault(); setError("Finish or cancel the current operation before leaving this document."); } }} href={routeHref({ name: "home" })} aria-label="Back to PDF tools"><Icon name="arrow-left" size={20}/><span>All tools</span></a>
+      <div className="document-identity"><h1 id="workspace-document-title" title={project.name}>{project.name}</h1><span>{project.summary.pageCount} pages · {formatBytes(project.byteLength)}{project.summary.encrypted ? " · Protected" : ""}{leaseMode === "read-only" ? " · Read only" : ""}</span></div>
+      <div className="document-actions">
+        <button aria-label="Document actions" aria-controls="document-actions-dialog" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="button button--secondary" disabled={Boolean(activeOperation)} onClick={() => setMobileToolsOpen(true)} type="button"><Icon name="tools" size={18}/><span>Document actions</span></button>
+        <button aria-label="History and checkpoints" aria-expanded={session.timelineOpen} className="icon-button" onClick={() => void togglePanel("timelineOpen")} title="History and checkpoints" type="button"><Icon name="undo" size={19}/></button>
+        {settings.showPreservationWarnings ? <button aria-label="What changes in this PDF?" aria-expanded={session.preservationOpen} className="icon-button document-integrity" onClick={() => void togglePanel("preservationOpen")} title="What changes in this PDF?" type="button"><Icon name="shield" size={19}/></button> : null}
       </div>
-      <div className="workspace-tabs__actions">
-        {session.recentlyClosed.length ? <button aria-label="Restore last closed tab" className="icon-button" onClick={() => void restoreClosed()} title="Restore last closed tab" type="button">↶</button> : null}
-        <a aria-label="Open another project" className="icon-button" href={routeHref({ name: "projects" })} title="Open another project">＋</a>
-      </div>
-    </div>
-
-    <header className="workspace-commandbar">
-      <div className="workspace-commandbar__identity">
-        <div><p className="eyebrow">{workspaceModeLabel(mode)}</p><h1 id="workspace-document-title">{project.name}</h1></div>
-        <div className="workspace-document-facts">
-          <span>{project.summary.pageCount} pages</span>
-          <span>{formatBytes(project.byteLength)}</span>
-          {project.summary.encrypted ? <span className="warning-chip">Protected</span> : null}
-          {leaseMode === "owner" ? <span className="workspace-lease-chip">Editing</span> : leaseMode === "acquiring" ? <span className="workspace-lease-chip">Getting edit access…</span> : <span className="warning-chip">Read only</span>}
-          {project.summary.formFieldCount ? <span>{project.summary.formFieldCount} form fields</span> : null}
-        </div>
-      </div>
-      <div className="workspace-commandbar__actions">
-        <a className="button button--secondary button--small" href={routeHref({ name: "tools" })}>All PDF tasks</a>
-        {settings.showPreservationWarnings ? <button className={session.preservationOpen ? "button button--secondary button--small active" : "button button--secondary button--small"} onClick={() => void togglePanel("preservationOpen")} type="button">What changes?</button> : null}
-        <button className={session.timelineOpen ? "button button--secondary button--small active" : "button button--secondary button--small"} onClick={() => void togglePanel("timelineOpen")} type="button">History</button>
-      </div>
-    </header>
-
-    <nav className="workspace-modes workspace-modes--primary" aria-label="Document workspace">
-      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "workspace-mode workspace-mode--active" : "workspace-mode"} key={item.mode} onClick={() => switchMode(item.mode)} type="button"><Icon name={item.icon}/><span>{item.label}</span></button>)}
-    </nav>
-
-    {contextActions.length ? <div className="workspace-contextbar"><strong>Suggested</strong>{contextActions.map((action) => <button key={`${action.mode}-${action.label}`} onClick={() => switchMode(action.mode)} type="button">{action.label}</button>)}</div> : null}
+    </header>}
     {error ? <div aria-live="assertive" className="error-banner" role="alert"><strong>Workspace action failed</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
     {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
     {activeOperation ? <div className="workspace-operation-banner" role="status" aria-live="polite"><div><strong>{activeOperation.label}</strong><span>{activeOperation.detail ?? operationStageLabel(activeOperation.stage)}</span>{activeOperation.progress !== undefined ? <progress max="1" value={activeOperation.progress} /> : null}</div><div><small>{formatElapsed(Date.now() - activeOperation.startedAt)}</small>{activeOperation.cancellable ? <button className="button button--small button--secondary" onClick={() => cancelProjectOperation(projectId)} type="button">Cancel</button> : null}</div></div> : null}
     {leaseMode === "read-only" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
 
     <div className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"}>
-      <main aria-labelledby="workspace-document-title" className="workspace-mode-content" id="workspace-document-panel" role="tabpanel">
-        {workspaceAcquiring ? <AcquiringMode mode={mode} /> : workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
-      </main>
+      <section aria-labelledby="workspace-document-title" className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader" : "workspace-mode-content"} id="workspace-document-panel">
+        {workspaceAcquiring ? <AcquiringMode mode={mode} /> : workspaceLocked ? <LockedMode mode={mode} onRetry={() => void retryOwnership()} /> : <ModeContent taskId={taskId} mode={mode} projectId={projectId} readOnly={leaseMode !== "owner"} onSubtitle={setChildSubtitle} />}
+      </section>
       {session.preservationOpen && settings.showPreservationWarnings ? <aside className="workspace-insight-panel">
         <div className="workspace-insight-panel__header"><div><p className="eyebrow">What this tool changes</p><h2>{workspaceModeLabel(mode)}</h2></div><button aria-label="Close what-changes panel" onClick={() => void togglePanel("preservationOpen")} type="button">×</button></div>
         <p>{contract.summary}</p>
@@ -459,16 +342,15 @@ export function UnifiedWorkspace({ projectId, mode, onTitleChange }: UnifiedWork
       </aside> : null}
     </div>
 
-    <nav className="workspace-mobile-nav" aria-label="Document workspace">
-      {primaryModeItems.map((item) => <button aria-current={activePrimaryMode === item.mode ? "page" : undefined} className={activePrimaryMode === item.mode ? "active" : ""} key={item.mode} onClick={() => switchMode(item.mode)} type="button"><Icon name={item.icon}/><small>{item.label}</small></button>)}
-      <button aria-controls="workspace-mobile-tools" aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className={mobileToolsOpen ? "active" : ""} onClick={() => setMobileToolsOpen((open) => !open)} type="button"><Icon name="more" /><small>More</small></button>
-    </nav>
-    {mobileToolsOpen ? <div className="workspace-mobile-sheet-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="More document tools" aria-modal="true" className="workspace-mobile-sheet" id="workspace-mobile-tools" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
-      <div className="workspace-mobile-sheet__handle" aria-hidden="true" />
-      <header><div><p className="eyebrow">Document</p><h2>More</h2></div><button aria-label="Close more actions" onClick={closeMobileTools} type="button">×</button></header>
-      <div className="workspace-mobile-sheet__actions"><button onClick={() => switchMode("toolbox")} type="button">Find a PDF task</button><button onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes?</button> : null}<a href={routeHref({ name: "batch" })}>Batch automation</a><a href={routeHref({ name: "projects" })}>Documents</a><a href={routeHref({ name: "help" })}>Help</a></div>
+    {mobileToolsOpen ? <div className="product-modal-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="Document actions" aria-modal="true" className="product-modal document-task-dialog" id="document-actions-dialog" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
+      <header><div><p className="eyebrow">WORK WITH THIS DOCUMENT</p><h2>What would you like to do?</h2></div><button className="icon-button" aria-label="Close document actions" onClick={closeMobileTools} type="button"><Icon name="close"/></button></header>
+      <p className="product-muted">{project.name}</p>{handoffBusy ? <p role="status">Preparing and checking your latest edits…</p> : null}{error ? <p role="alert">{error}</p> : null}
+      <div className="document-action-shortcuts"><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("edit-pdf")!)} type="button"><Icon name="edit"/>Edit this PDF</button><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("edit-pdf")!, true)} type="button"><Icon name="read"/>Read PDF</button><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("organize-pages")!)} type="button"><Icon name="pages"/>Arrange pages</button></div>
+      <div className="document-action-shortcuts"><button className="button button--secondary" onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button className="button button--secondary" onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes in this PDF?</button> : null}</div>
+      <fieldset className="document-task-options" disabled={handoffBusy}><legend className="visually-hidden">Choose the next task</legend><TaskDirectory compact projectId={projectId} kind="pdf" fileCount={1} onChoose={(task) => void chooseDocumentTask(task)} /></fieldset>
+      <p className="product-fineprint">Your latest editor changes are included and checked before the next tool opens. The original and editable project remain unchanged.</p>
     </section></div> : null}
-  </div>;
+  </div></DocumentControlsContext.Provider>;
 }
 
 function AcquiringMode({ mode }: { mode: WorkspaceMode }) {
@@ -479,13 +361,13 @@ function LockedMode({ mode, onRetry }: { mode: WorkspaceMode; onRetry: () => voi
   return <div className="workspace-locked-mode"><div><p className="eyebrow">Write protection</p><h2>{workspaceModeLabel(mode)} is locked in this tab</h2><p>Only the tab that owns this local project may change document state. This prevents two tabs from silently overwriting each other.</p><button className="button" onClick={onRetry} type="button">Try editing here</button></div></div>;
 }
 
-function ModeContent({ mode, projectId, readOnly, onSubtitle }: { mode: WorkspaceMode; projectId: string; readOnly: boolean; onSubtitle: (value?: string) => void }) {
+function ModeContent({ mode, projectId, taskId, readOnly, onSubtitle }: { taskId?: string; mode: WorkspaceMode; projectId: string; readOnly: boolean; onSubtitle: (value?: string) => void }) {
   const onTitleChange = (_title: string, subtitle?: string) => onSubtitle(subtitle);
   let content;
   if (mode === "viewer") content = <ViewerPage onTitleChange={onTitleChange} projectId={projectId} readOnly={readOnly} />;
   else if (mode === "editor") content = <EditorPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "organizer") content = <OrganizerPage onTitleChange={onTitleChange} projectId={projectId} />;
-  else if (mode === "secure") content = <SecurePage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "secure") content = <SecurePage taskId={taskId} onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "ocr") content = <OcrPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "compress") content = <CompressionPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "inspector") content = <InspectorPage onTitleChange={onTitleChange} projectId={projectId} />;

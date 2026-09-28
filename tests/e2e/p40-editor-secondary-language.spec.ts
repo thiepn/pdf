@@ -1,16 +1,17 @@
+import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openEditor(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page).toHaveURL(/\/editor$/);
+  await switchMode(page, "editor");
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   await expect(page.getByRole("button", { name: /Select existing image:/ }).first()).toBeVisible({ timeout: 20_000 });
 }
 
 async function addRectangle(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await chooseEditorTool(page, "Rectangle");
   const canvas = page.locator(".editor-page-layers");
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
@@ -35,6 +36,6 @@ test("editor status and secondary surfaces use product language", async ({ page 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF" }).click();
   await downloadPromise;
-  await expect(fileGroup).toContainText("Edited PDF downloaded");
+  await expect(page.getByRole("status", { name: "Document status", exact: true })).toHaveText("Edited PDF downloaded");
   await expect(page.locator(".editor-contextbar strong")).toContainText(/0 PDF content edits · 1 added object · /);
 });

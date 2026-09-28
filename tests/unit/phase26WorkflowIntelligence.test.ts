@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignPageFingerprints, hybridPageSimilarity } from "../../src/comparison/alignment";
+import { MAX_ALIGNMENT_CELLS, alignPageFingerprints, hybridPageSimilarity } from "../../src/comparison/alignment";
 import { visualFingerprintSimilarity, type VisualPageFingerprint } from "../../src/comparison/visualFingerprint";
 import { layoutCreatorDocument } from "../../src/creator/layout";
 import { parseMarkdownBlocks, parseMarkdownInline } from "../../src/creator/markdown";
@@ -8,6 +8,9 @@ import { parseBatchRecipeJson, serializeBatchRecipe } from "../../src/processing
 
 const visual=(bits:string,inkRatio=.2,aspectRatio=1):VisualPageFingerprint=>({bits,inkRatio,aspectRatio});
 describe("Phase 26 workflow intelligence",()=>{
+  it("does not label different short text as unchanged when image fingerprints collide",()=>{const image=visual("0".repeat(64),.1);const rows=alignPageFingerprints([{text:"Before 1",visual:image}],[{text:"After 1",visual:image}]);expect(rows[0].status).toBe("modified");});
+  it("detects case, punctuation and text edits beyond the matching prefix",()=>{for(const [a,b] of [["A sufficiently long page.","A sufficiently long page!"],["Full text content repeated.","FULL text content repeated."],["Long text ".repeat(700)+"old","Long text ".repeat(700)+"new"]]) expect(alignPageFingerprints([{text:a}],[{text:b}])[0].status).toBe("modified");});
+  it("bounds the alignment matrix before allocation",()=>{expect(MAX_ALIGNMENT_CELLS).toBeGreaterThan(0);expect(()=>alignPageFingerprints(Array(1000).fill({text:"A"}),Array(1000).fill({text:"B"}))).toThrow(/matching limit/);});
   it("uses visual fingerprints for image-only page alignment",()=>{const a=visual("0".repeat(64),.1),b=visual("01".repeat(32),.35),c=visual("1".repeat(64),.6);const rows=alignPageFingerprints([{text:"",visual:a},{text:"",visual:c}],[{text:"",visual:a},{text:"",visual:b},{text:"",visual:c}]);expect(rows.map(row=>row.status)).toEqual(["same","inserted","same"]);expect(rows[0].basis).toBe("visual");});
   it("keeps text dominant when reliable text exists",()=>{const result=hybridPageSimilarity({text:"A sufficiently long stable paragraph about local document processing.",visual:visual("0".repeat(64))},{text:"A sufficiently long stable paragraph about local document processing.",visual:visual("1".repeat(64))});expect(result.basis).toBe("hybrid");expect(result.similarity).toBeGreaterThan(.7);});
   it("scores identical visual fingerprints as identical",()=>expect(visualFingerprintSimilarity(visual("01".repeat(32)),visual("01".repeat(32)))).toBe(1));

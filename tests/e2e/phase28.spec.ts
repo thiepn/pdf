@@ -1,9 +1,10 @@
+import { openSample } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const corpus = "tests/corpus/phase28";
 
 async function uploadPdf(page: import("@playwright/test").Page, filename: string): Promise<void> {
-  await page.goto("./#/home");
+  await page.goto("./#/tools/read-pdf");
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles(`${corpus}/${filename}`);
 }
 
@@ -18,7 +19,7 @@ test("Phase 28 opens a 1,000-page adversarial document progressively", async ({ 
 
 test("Phase 28 recovery heartbeat remains isolated per project/session", async ({ page }) => {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
   const projectId = page.url().match(/workspace\/([^/]+)\/viewer/)?.[1];
   expect(projectId).toBeTruthy();

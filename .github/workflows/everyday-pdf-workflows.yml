@@ -1,0 +1,52 @@
+name: Everyday PDF workflow verification
+on:
+  push:
+    branches: [fix/everyday-pdf-workflows]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: everyday-pdf-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Export review source
+        run: git archive --format=tar HEAD > /tmp/pdf-review-source.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-review-source
+          path: /tmp/pdf-review-source.tar
+          retention-days: 2
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Production build
+        run: npm run build
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Everyday workflow browser tests
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+        run: npx playwright test tests/e2e/everyday-workflows.spec.mjs tests/e2e/r8-release-qualification.spec.ts --project=chromium --project=firefox --project=webkit --workers=2 --retries=0 --max-failures=3 --trace=retain-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: everyday-pdf-test-results
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7

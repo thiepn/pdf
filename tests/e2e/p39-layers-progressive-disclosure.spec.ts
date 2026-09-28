@@ -1,16 +1,17 @@
+import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openEditor(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page).toHaveURL(/\/editor$/);
+  await switchMode(page, "editor");
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
   await expect(page.getByRole("button", { name: /Select existing image:/ }).first()).toBeVisible({ timeout: 20_000 });
 }
 
 async function addRectangle(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await chooseEditorTool(page, "Rectangle");
   const canvas = page.locator(".editor-page-layers");
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
@@ -24,7 +25,8 @@ async function addRectangle(page: import("@playwright/test").Page): Promise<void
 test("Layers hides implementation metadata until explicitly requested", async ({ page }) => {
   await openEditor(page);
   await addRectangle(page);
-  await page.getByRole("button", { name: "layers", exact: true }).click();
+  if (!await page.getByRole("combobox", { name: "Sidebar content" }).isVisible()) await page.getByRole("button", { name: "Show pages", exact: true }).click();
+  await page.getByRole("combobox", { name: "Sidebar content" }).selectOption("layers");
 
   const layers = page.locator(".editor-layer-list");
   const technical = layers.locator(".editor-layer-technical");

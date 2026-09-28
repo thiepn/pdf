@@ -76,6 +76,7 @@ function getPath(object: any, ...path: Array<string | number>): any {
   for (const key of path) {
     if (!current?.get) return null;
     current = current.get(key);
+    if (current == null || current.isNull?.()) return null;
   }
   return current;
 }
@@ -86,7 +87,7 @@ function objectExists(object: any, ...path: Array<string | number>): boolean {
 
 function deletePath(object: any, key: string): boolean {
   try {
-    if (!object?.get?.(key)) return false;
+    if (!objectExists(object, key)) return false;
     object.delete?.(key);
     return true;
   } catch { return false; }
@@ -97,8 +98,43 @@ function countNameTreeEntries(root: any, key: string): number {
     const tree = getPath(root, "Names", key);
     const names = tree?.get?.("Names");
     if (names && typeof names.length === "number") return Math.floor(names.length / 2);
-    return tree ? 1 : 0;
+    return tree && !tree.isNull?.() ? 1 : 0;
   } catch { return 0; }
+}
+
+/** Inspect action dictionaries without executing scripts. Missing PDF values are
+ * wrapper objects, not JavaScript null; bounded traversal rejects pathological graphs. */
+function inspectActions(value: any, removeJavaScript = false, depth = 0, visited = new Set<number>(), budget = { remaining: 10000 }): boolean {
+  if (!value || value.isNull?.()) return false;
+  if (--budget.remaining < 0 || depth > 128) throw new Error("The PDF action graph exceeds safe inspection limits.");
+  if (value.isIndirect?.()) {
+    const reference = value.asIndirect();
+    if (visited.has(reference)) return false;
+    visited.add(reference);
+  }
+  let found = safeCall(() => value.get("S").asName(), "") === "JavaScript" || objectExists(value, "JS");
+  if (found && removeJavaScript) { deletePath(value, "S"); deletePath(value, "JS"); }
+  if (value.isDictionary?.() || value.isArray?.()) {
+    value.forEach((child: any) => { if (inspectActions(child, removeJavaScript, depth + 1, visited, budget)) found = true; });
+  }
+  return found;
+}
+function inspectPageActions(page: any, options?: SecurityExportOptions["sanitization"]): { javascript: boolean; additional: boolean } {
+  const object = page.getObject();
+  let javascript = false, additional = objectExists(object, "AA");
+  javascript = inspectActions(getPath(object, "AA"), options?.removeJavaScript) || javascript;
+  if (options?.removeOpenActions) deletePath(object, "AA");
+  const annotations = getPath(object, "Annots");
+  if (annotations?.isArray?.()) for (let index = 0; index < annotations.length; index++) {
+    const annotation = annotations.get(index);
+    try {
+      additional = objectExists(annotation, "AA") || additional;
+      javascript = inspectActions(getPath(annotation, "A"), options?.removeJavaScript) || javascript;
+      javascript = inspectActions(getPath(annotation, "AA"), options?.removeJavaScript) || javascript;
+      if (options?.removeOpenActions) deletePath(annotation, "AA");
+    } finally { annotation.destroy?.(); }
+  }
+  return { javascript, additional };
 }
 
 function widgetType(widget: any): FormFieldType {
@@ -180,11 +216,15 @@ function inspectDocument(document: any, authentication: SecurityInspectionReport
   let annotationCount = 0;
   let redactionMarkCount = 0;
   let linkCount = 0;
+  let pageJavaScript = false, pageAdditionalActions = false;
 
   for (let pageIndex = 0; pageIndex < pdf.countPages(); pageIndex += 1) {
     assertActive(requestId);
     const page = pdf.loadPage(pageIndex);
     try {
+      const actions = inspectPageActions(page);
+      pageJavaScript = actions.javascript || pageJavaScript;
+      pageAdditionalActions = actions.additional || pageAdditionalActions;
       const transform = page.getTransform() as AffineMatrix;
       const widgets = safeCall(() => page.getWidgets(), [] as any[]);
       widgets.forEach((widget: any, widgetIndex: number) => {
@@ -207,7 +247,7 @@ function inspectDocument(document: any, authentication: SecurityInspectionReport
 
   return {
     pageCount: pdf.countPages(),
-    encrypted: document.needsPassword() || Boolean(safeCall(() => document.getMetaData("encryption"), "")),
+    encrypted: objectExists(trailer, "Encrypt"),
     authentication,
     encryptionDescription: safeString(safeCall(() => document.getMetaData("encryption"), "")) || "None",
     permissions: {
@@ -229,9 +269,9 @@ function inspectDocument(document: any, authentication: SecurityInspectionReport
     redactionMarkCount,
     linkCount,
     attachmentCount: countNameTreeEntries(root, "EmbeddedFiles"),
-    hasJavaScript: objectExists(root, "Names", "JavaScript") || objectExists(root, "JavaScript"),
+    hasJavaScript: pageJavaScript || objectExists(root, "Names", "JavaScript") || objectExists(root, "JavaScript") || inspectActions(getPath(root, "OpenAction")) || inspectActions(getPath(root, "AA")),
     hasOpenAction: objectExists(root, "OpenAction"),
-    hasAdditionalActions: objectExists(root, "AA"),
+    hasAdditionalActions: pageAdditionalActions || objectExists(root, "AA"),
     metadata,
     warnings: [
       ...(formFields.some((field) => field.type === "unknown") ? ["Some form widgets use field types this browser build could not classify."] : []),
@@ -340,6 +380,7 @@ function removePageContent(pdf: any, options: SecurityExportOptions["sanitizatio
   for (let pageIndex = 0; pageIndex < pdf.countPages(); pageIndex += 1) {
     const page = pdf.loadPage(pageIndex);
     try {
+      inspectPageActions(page, options);
       if (options.removeLinks) {
         const pageLinks = safeCall(() => page.getLinks(), [] as any[]);
         for (const link of pageLinks) { page.deleteLink(link); links += 1; }
@@ -372,11 +413,17 @@ function sanitizeCatalog(pdf: any, options: SecurityExportOptions["sanitization"
     metadataRemoved = true;
   }
   if (options.removeJavaScript) {
+    inspectActions(getPath(root, "OpenAction"), true);
+    inspectActions(getPath(root, "AA"), true);
     const names = safeCall(() => root?.get?.("Names"), null);
-    javascriptRemoved = deletePath(names, "JavaScript") || deletePath(root, "JavaScript") || javascriptRemoved;
+    const named = deletePath(names, "JavaScript");
+    const catalog = deletePath(root, "JavaScript");
+    javascriptRemoved = named || catalog || javascriptRemoved;
   }
   if (options.removeOpenActions) {
-    javascriptRemoved = deletePath(root, "OpenAction") || deletePath(root, "AA") || javascriptRemoved;
+    const open = deletePath(root, "OpenAction");
+    const automatic = deletePath(root, "AA");
+    javascriptRemoved = open || automatic || javascriptRemoved;
   }
   if (options.removeAttachments) {
     const names = safeCall(() => root?.get?.("Names"), null);
@@ -387,7 +434,7 @@ function sanitizeCatalog(pdf: any, options: SecurityExportOptions["sanitization"
   return { metadataRemoved, javascriptRemoved, attachmentsRemoved };
 }
 
-function saveOptions(options: SecurityExportOptions): string {
+function saveOptions(options: SecurityExportOptions): Record<string, string | number | boolean> {
   const write: Record<string, string | number | boolean> = {
     garbage: options.sanitization.collapseRevisionHistory || options.redaction.enabled ? "deduplicate" : "compact",
     compress: true,
@@ -397,12 +444,19 @@ function saveOptions(options: SecurityExportOptions): string {
   if (options.encryption.mode === "remove") write.encrypt = "none";
   else if (options.encryption.mode === "aes-256") {
     if (!options.encryption.ownerPassword) throw new Error("An owner password is required for AES-256 protection.");
+    // The installed MuPDF JS options encoder rewrites commas to colons. Refuse
+    // passwords it cannot represent exactly rather than silently changing them.
+    for (const password of [options.encryption.userPassword, options.encryption.ownerPassword]) {
+      if (/[,\x00]/.test(password) || new TextEncoder().encode(password).length > 127) {
+        throw new Error("Use a PDF password without commas or null characters and no longer than 127 UTF-8 bytes.");
+      }
+    }
     write.encrypt = "aes-256";
     write["user-password"] = options.encryption.userPassword;
     write["owner-password"] = options.encryption.ownerPassword;
     write.permissions = permissionMask(options.encryption.permissions);
   } else write.encrypt = "keep";
-  return JSON.stringify(write);
+  return write;
 }
 
 function countSignedFields(pdf: any): number {
@@ -455,7 +509,7 @@ function applySecurity(document: any, options: SecurityExportOptions): { bytes: 
         formValuesCleared,
         formsFlattened: options.sanitization.flattenForms,
         annotationsFlattened: options.sanitization.flattenAnnotations,
-        encrypted: options.encryption.mode === "aes-256" || (options.encryption.mode === "keep" && document.needsPassword()),
+        encrypted: options.encryption.mode === "aes-256" || (options.encryption.mode === "keep" && objectExists(pdf.getTrailer(), "Encrypt")),
         warnings: [
           ...(signaturesDetected ? ["Saving or sanitizing a signed document may invalidate existing cryptographic signatures."] : []),
           ...(options.sanitization.removeComments ? ["Comment removal deletes all non-redaction page annotations, including visual editor annotations."] : []),

@@ -116,7 +116,7 @@ jobs:
           R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: P9 release-candidate freeze audit
         run: npm run audit:p9:release-candidate
-      - name: v7.0.0 non-browser release qualification
+      - name: v7 release-line non-browser qualification
         run: npm run release:web
         env:
           PHASE11_CORPUS_REUSE: "1"

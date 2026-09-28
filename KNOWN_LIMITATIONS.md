@@ -31,7 +31,7 @@
 
 ## Phase 11 stable-release gate
 
-- The packaged source has no committed `package-lock.json` because the current execution environment cannot access the official npm registry. Stable tags are configured to fail until a lockfile is generated and committed.
+- The repository now includes a committed exact-version `package-lock.json`. Stable release still requires the dependency audit, reproducible build, full browser matrix and deployed checks on the actual release commit; historical Phase 11 evidence is not a substitute.
 - The dependency-independent semantic check uses intentionally broad declarations and does not replace official package typings.
 - PyMuPDF and pypdf validation proves corpus-level structural behavior, not browser execution of PDF.js, MuPDF WebAssembly, or Tesseract.
 - Adobe Reader, PDF24, macOS Preview, mobile readers, and physical print output still require recorded external validation.

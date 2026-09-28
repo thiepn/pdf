@@ -44,3 +44,8 @@ it("parses production editor and tool routes", () => {
   expect(readAppRoute("#/help")).toEqual({ name: "help" });
   expect(routeHref({ name: "maintenance" })).toBe("#/maintenance");
 });
+
+it("recovers from malformed encoded deep links without crashing the app", () => {
+  expect(readAppRoute("#/quick/%E0%A4%A")).toEqual({ name: "home" });
+  expect(readAppRoute("#/workspace/%broken/editor")).toEqual({ name: "home" });
+});

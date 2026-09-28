@@ -13,9 +13,15 @@ test("Phase 26 creator previews rich inline Markdown", async ({ page }) => {
 
 test("Phase 26 exposes hybrid Compare 3.0", async ({ page }) => {
   await page.goto("./#/compare");
-  await expect(page.getByRole("heading", { name: /Compare text PDFs and scanned documents page by page/i })).toBeVisible();
-  await expect(page.getByLabel("Mode").locator('option[value="visual"]')).toHaveText("Visual pixels");
-  await expect(page.getByLabel("Mode").locator('option[value="text"]')).toHaveText("Extracted text");
+  await expect(page.getByRole("heading", { name: /Compare PDFs/i })).toBeVisible();
+  const inputs = page.locator('.compare-inputs input[type="file"]');
+  const fixture = "tests/corpus/phase28/dense-text-01.pdf";
+  await inputs.nth(0).setInputFiles(fixture);
+  await expect(page.locator(".compare-inputs .file-slot").nth(0)).toContainText("dense-text-01.pdf");
+  await inputs.nth(1).setInputFiles(fixture);
+  await expect(page.getByLabel("Mode")).toBeVisible();
+  await expect(page.getByLabel("Mode").locator('option[value="visual"]')).toHaveText("Page appearance");
+  await expect(page.getByLabel("Mode").locator('option[value="text"]')).toHaveText("Text changes");
 });
 
 test("Phase 26 Batch 3.0 exposes terminal multi-output steps", async ({ page }) => {

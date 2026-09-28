@@ -148,8 +148,8 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
 
   if (task.id === "fill-forms" && project?.summary.formFieldCount === 0) {
     return {
-      state: "unsupported-for-document",
-      label: "Not available for this PDF",
+      state: "available-with-warning",
+      label: "Fill with ordinary text",
       reason: "No supported interactive form fields were detected in this PDF.",
       recovery: "If the form is visually flat, use Edit to place ordinary text and marks instead.",
       alternativeTaskId: "edit-pdf"
@@ -158,8 +158,8 @@ export function evaluateTaskCapability(task: PdfTask, context: TaskCapabilityCon
 
   if (task.id === "fill-forms" && project && context.securityEvidenceChecked && context.securityEvidence?.fillableFormFieldCount === 0) {
     return {
-      state: "unsupported-for-document",
-      label: "No fillable fields",
+      state: "available-with-warning",
+      label: "Fill with ordinary text",
       reason: "This PDF contains form widgets, but none are supported writable fields. They are read-only, signature/button fields, or otherwise non-fillable here.",
       recovery: "Use Edit for appearance-only text and marks, or choose a PDF with writable AcroForm fields.",
       alternativeTaskId: "edit-pdf"

@@ -1,11 +1,12 @@
+import { openSample, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 test("P2 exposes font-fidelity evidence and exports through the layout-aware text path", async ({ page }) => {
   await page.goto("./#/home");
-  await page.getByRole("button", { name: "Open sample" }).click();
+  await openSample(page);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer/);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page).toHaveURL(/\/editor$/);
+  await switchMode(page, "editor");
+  await expect(page).toHaveURL(/\/editor(?:\/edit-pdf)?$/);
 
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
   await expect(sourceText).toBeVisible({ timeout: 20_000 });

@@ -114,7 +114,7 @@ export function CapabilityGatedWorkspace({ projectId, mode, taskId, onTitleChang
       : task && capability
         ? <TaskCapabilityNotice capability={capability} key="gate-status" />
         : <span aria-hidden="true" hidden key="gate-status" />}
-    <UnifiedWorkspace key="workspace" mode={checking ? "viewer" : mode} onTitleChange={onTitleChange} projectId={projectId} />
+    <UnifiedWorkspace key="workspace" taskId={checking ? undefined : taskId} mode={checking ? "viewer" : mode} onTitleChange={onTitleChange} projectId={projectId} />
     {!checking && task ? <TaskIntentFocusBridge key="task-intent" taskId={task.id} /> : null}
   </div>;
 }
