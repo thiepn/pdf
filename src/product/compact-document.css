@@ -32,6 +32,14 @@
   .product-app .compact-document-bar .page-input input::-webkit-inner-spin-button,.product-app .compact-document-bar .page-input input::-webkit-outer-spin-button { appearance:none; margin:0; }
   .product-app .compact-document-bar .page-input > span:not(.visually-hidden) { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .product-app .compact-editor-bar { gap:0; }
+  /* Compact menus use centered labels consistently; no action should read as an accidentally left-aligned list item. */
+  .product-app .compact-options button,
+  .product-app .compact-editor-options button,
+  .product-app .editor-tools-sheet__groups button,
+  .product-app .editor-tools-sheet__document > button,
+  .product-app .editor-tools-sheet__actions button { justify-content:center; text-align:center; }
+  .product-app .compact-document-actions button { justify-content:center; text-align:center; }
+  .product-app .compact-options > button { width:100%; }
   .product-app .editor-tools-sheet { max-height:calc(var(--app-viewport-height,100dvh) - 20px); }
   .product-app .compact-editor-options .editor-guides { display:block; }
   .product-app .compact-editor-options .editor-guides > div { position:static; width:auto; box-shadow:none; }
