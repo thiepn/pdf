@@ -40,6 +40,23 @@ const complex: NativeComplexObject = {
   editability: "instance-transform",
   capability
 };
+const editableText: NativeTextObject = {
+  id: "text-1",
+  type: "text",
+  pageNumber: 1,
+  bounds: { x: 80, y: 120, w: 180, h: 28 },
+  text: "Delete me",
+  fontName: "Helvetica",
+  family: "sans-serif",
+  size: 14,
+  weight: "normal",
+  style: "normal",
+  writingMode: 0,
+  script: "latin",
+  editability: "fixed-box",
+  reason: "Safe source text.",
+  capability
+};
 const appearanceOnlyText: NativeTextObject = {
   id: "text-rtl-1",
   type: "text",
@@ -133,6 +150,13 @@ describe("P6 qualified native adapters", () => {
     expect(result.blocked).toMatch(/cannot be moved or resized/i);
   });
   it("only exposes source-safe deletion for qualified native object types", () => {
+    const deletedText = nativeDeleteEdit(editableText, []);
+    expect(deletedText.edit?.kind).toBe("text");
+    if (deletedText.edit?.kind !== "text") throw new Error("Expected text edit");
+    expect(deletedText.edit.text).toBe("");
+    expect(deletedText.edit.mode).toBe("replace");
+    expect(deletedText.edit.backgroundColor).toBe("transparent");
+    expect(nativeDeleteEdit(appearanceOnlyText, []).edit).toBeUndefined();
     expect(nativeDeleteEdit(image, []).edit?.kind).toBe("image");
     expect(nativeDeleteEdit(vector, []).edit?.kind).toBe("vector");
     expect(nativeDeleteEdit(complex, []).edit?.kind).toBe("complex");
