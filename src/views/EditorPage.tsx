@@ -109,6 +109,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [editorState, setEditorState] = useState<EditorDocumentState>(() => createEditorState(projectId));
   const [history, setHistory] = useState<EditorHistoryState>(() => createHistory());
+  const nativeEdits = history.present.nativeEdits;
   const [previewObject, setPreviewObject] = useState<EditorObject | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [assetUrls, setAssetUrls] = useState<Map<string, string>>(new Map());
@@ -125,7 +126,6 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [password, setPassword] = useState("");
   const [lastReport, setLastReport] = useState<string | null>(null);
   const [nativeInspection, setNativeInspection] = useState<NativeInspection | null>(null);
-  const [nativeEdits, setNativeEdits] = useState<NativeEdit[]>([]);
   const [selectedNativeId, setSelectedNativeId] = useState<string | undefined>();
   const [selectedNativeIds, setSelectedNativeIds] = useState<Set<string>>(new Set());
   const [showNativeContent, setShowNativeContent] = useState(true);
@@ -213,8 +213,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         if (cancelled) return;
         sourceBytesRef.current = bytes;
         setEditorState({ ...storedState, currentPage: Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage)) });
-        setHistory(createHistory(storedState.objects));
-        setNativeEdits(storedNativeState.queuedEdits);
+        setHistory(createHistory(storedState.objects, storedNativeState.queuedEdits));
         await openDocument(manifest, bytes);
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
     })();
@@ -388,13 +387,20 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function queueNativeEdits(edits: NativeEdit[]): void {
     if (!edits.length) return;
-    setNativeEdits((current) => mergeNativeEdits(current, edits));
+    setHistory((current) => {
+      const nextNativeEdits = mergeNativeEdits(current.present.nativeEdits, edits);
+      return commitHistory(current, "Edit existing PDF content", current.present.objects, current.present.selectedIds, undefined, nextNativeEdits);
+    });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
   }
 
   function removeNativeEdits(objectId: string): void {
-    setNativeEdits((current) => discardNativeObjectEdits(current, objectId));
+    setHistory((current) => {
+      const nextNativeEdits = discardNativeObjectEdits(current.present.nativeEdits, objectId);
+      if (nextNativeEdits.length === current.present.nativeEdits.length) return current;
+      return commitHistory(current, "Discard existing PDF edit", current.present.objects, current.present.selectedIds, undefined, nextNativeEdits);
+    });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
   }
 
@@ -532,7 +538,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   function undo(): void {
     setHistory((current) => {
       const next = undoHistory(current);
+      if (next === current) return current;
       setSelectedIds(new Set(next.present.selectedIds));
+      setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -541,7 +549,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   function redo(): void {
     setHistory((current) => {
       const next = redoHistory(current);
+      if (next === current) return current;
       setSelectedIds(new Set(next.present.selectedIds));
+      setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -679,7 +689,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         nativeReport = nativeResult.report;
       }
       const result = visibleObjects.length
-        ? await exportEditorPdf(workingBytes, history.present.objects, assets, signal, passwordRef.current)
+        ? await exportEditorPdf(workingBytes, visibleObjects, assets, signal, passwordRef.current)
         : { bytes: workingBytes, report: { objectCount: 0, annotationCount: 0, linkCount: 0, imageCount: 0, pageCount: document?.numPages ?? 0, outputBytes: workingBytes.byteLength, durationMs: 0, warnings: [] } };
       setStatus("Checking edited PDF…");
       update({ stage: "validating", detail: "Checking the edited PDF before saving…", progress: 0.82 });

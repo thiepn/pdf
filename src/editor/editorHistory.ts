@@ -1,12 +1,17 @@
 import type { EditorHistoryEntry, EditorHistoryState, EditorObject } from "../types/editor";
+import type { NativeEdit } from "../types/nativeEditor";
 import { cloneObjects } from "./editorModel";
 
-function entry(label: string, objects: EditorObject[], selectedIds: Iterable<string>, mergeKey?: string): EditorHistoryEntry {
-  return { label, objects: cloneObjects(objects), selectedIds: [...selectedIds], timestamp: Date.now(), mergeKey };
+function cloneNativeEdits(edits: NativeEdit[]): NativeEdit[] {
+  return structuredClone(edits);
 }
 
-export function createHistory(objects: EditorObject[] = []): EditorHistoryState {
-  return { past: [], present: entry("Initial state", objects, []), future: [] };
+function entry(label: string, objects: EditorObject[], nativeEdits: NativeEdit[], selectedIds: Iterable<string>, mergeKey?: string): EditorHistoryEntry {
+  return { label, objects: cloneObjects(objects), nativeEdits: cloneNativeEdits(nativeEdits), selectedIds: [...selectedIds], timestamp: Date.now(), mergeKey };
+}
+
+export function createHistory(objects: EditorObject[] = [], nativeEdits: NativeEdit[] = []): EditorHistoryState {
+  return { past: [], present: entry("Initial state", objects, nativeEdits, []), future: [] };
 }
 
 export function commitHistory(
@@ -14,9 +19,10 @@ export function commitHistory(
   label: string,
   objects: EditorObject[],
   selectedIds: Iterable<string>,
-  mergeKey?: string
+  mergeKey?: string,
+  nativeEdits: NativeEdit[] = state.present.nativeEdits
 ): EditorHistoryState {
-  const next = entry(label, objects, selectedIds, mergeKey);
+  const next = entry(label, objects, nativeEdits, selectedIds, mergeKey);
   const canMerge = mergeKey && state.present.mergeKey === mergeKey && next.timestamp - state.present.timestamp < 800;
   if (canMerge) return { ...state, present: next, future: [] };
   return { past: [...state.past.slice(-79), state.present], present: next, future: [] };

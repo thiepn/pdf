@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { commitHistory, createHistory, redoHistory, undoHistory } from "../../src/editor/editorHistory";
 import { createObjectForTool } from "../../src/editor/editorModel";
+import type { NativeEdit } from "../../src/types/nativeEditor";
 
 describe("editor history", () => {
   it("undoes and redoes object additions", () => {
@@ -12,6 +13,59 @@ describe("editor history", () => {
     const undone = undoHistory(committed);
     expect(undone.present.objects).toHaveLength(0);
     expect(redoHistory(undone).present.objects).toHaveLength(1);
+  });
+
+  it("undoes and redoes existing-PDF edits in the same history", () => {
+    const nativeEdit: NativeEdit = {
+      id: "native-text-1",
+      kind: "text",
+      objectId: "source-text-1",
+      pageNumber: 1,
+      originalText: "Before",
+      text: "After",
+      bounds: { x: 10, y: 20, w: 100, h: 20 },
+      fontFamily: "Helvetica",
+      fontSize: 12,
+      color: "#000000",
+      backgroundColor: "#ffffff",
+      align: "left",
+      mode: "replace",
+      wrap: true,
+      fontSource: "built-in"
+    };
+    const initial = createHistory();
+    const committed = commitHistory(initial, "Edit existing PDF content", [], [], undefined, [nativeEdit]);
+    expect(committed.present.nativeEdits).toHaveLength(1);
+    expect(undoHistory(committed).present.nativeEdits).toHaveLength(0);
+    expect(redoHistory(undoHistory(committed)).present.nativeEdits[0].text).toBe("After");
+  });
+
+  it("keeps native edits while overlay edits are committed and undone", () => {
+    const nativeEdit: NativeEdit = {
+      id: "native-text-1",
+      kind: "text",
+      objectId: "source-text-1",
+      pageNumber: 1,
+      originalText: "Before",
+      text: "After",
+      bounds: { x: 10, y: 20, w: 100, h: 20 },
+      fontFamily: "Helvetica",
+      fontSize: 12,
+      color: "#000000",
+      backgroundColor: "#ffffff",
+      align: "left",
+      mode: "replace",
+      wrap: true,
+      fontSource: "built-in"
+    };
+    const object = createObjectForTool({ tool: "text", pageNumber: 1, bounds: { x0: 0, y0: 0, x1: 100, y1: 40 }, author: "Test", zIndex: 1 });
+    if (!object) throw new Error("Fixture creation failed");
+    const withNative = commitHistory(createHistory(), "Edit existing PDF content", [], [], undefined, [nativeEdit]);
+    const withOverlay = commitHistory(withNative, "Add text", [object], [object.id]);
+    expect(withOverlay.present.nativeEdits).toHaveLength(1);
+    const undone = undoHistory(withOverlay);
+    expect(undone.present.objects).toHaveLength(0);
+    expect(undone.present.nativeEdits).toHaveLength(1);
   });
 
   it("merges rapid property edits into one undo step", () => {
