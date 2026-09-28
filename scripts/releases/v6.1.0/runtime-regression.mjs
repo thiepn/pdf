@@ -12,6 +12,7 @@ const workspace = await read("src/workspace/workspaceRepository.ts");
 const unifiedWorkspace = await read("src/workspace/UnifiedWorkspace.tsx");
 const shell = await read("src/app/AppShell.tsx");
 const viewer = await read("src/views/ViewerPage.tsx");
+const readerToolbar = await read("src/viewer/ReaderToolbar.tsx");
 const editor = await read("src/views/EditorPage.tsx");
 const nativePropsEntry = await read("src/editor/native/NativeContentPropertiesPanel.tsx");
 const nativePropsLegacy = await read("src/editor/native/LegacyNativeContentPropertiesPanel.tsx");
@@ -42,7 +43,7 @@ check(/<details className="product-advanced">/.test(taskDirectory) && /More tool
 check(!/route:\s*\{ name: "diagnostics" \}/.test(shell) && !/route:\s*\{ name: "validation" \}/.test(shell) && !/route:\s*\{ name: "storage" \}/.test(shell), "engineering and release destinations stay out of normal support navigation");
 check(/Document actions/.test(unifiedWorkspace) && /TaskDirectory/.test(unifiedWorkspace) && /prepareDocumentSnapshot/.test(unifiedWorkspace) && /useModalFocus/.test(unifiedWorkspace) && /editing-toolbar/.test(editor) && !/role="tablist"/.test(unifiedWorkspace), "document tasks use one focus-managed command surface and preserve current edits, without mode tabs");
 check(!/simpleModes|technicalModes|Show advanced tools|Simple workspace|Advanced workspace/.test(unifiedWorkspace), "workspace no longer exposes competing simple advanced or technical mode navigation");
-check(/viewer-document-actions/.test(viewer) && /Download original PDF/.test(viewer) && /Back up project/.test(viewer) && /Search options/.test(viewer) && /Technical details/.test(viewer) && !/viewer-performance-badge/.test(viewer), "Read keeps document administration and technical details secondary");
+check(/<ReaderToolbar/.test(viewer) && /onDownload=\{downloadOriginal\}/.test(viewer) && /onBackup=\{/.test(viewer) && /viewer-document-actions/.test(readerToolbar) && /aria-label="Download original PDF"/.test(readerToolbar) && /onClick=\{onDownload\}/.test(readerToolbar) && /Back up project/.test(readerToolbar) && /onClick=\{onBackup\}/.test(readerToolbar) && /Search options/.test(viewer) && /Technical details/.test(viewer) && !/viewer-performance-badge/.test(viewer), "Read keeps document administration and technical details secondary");
 check(/toolGroups/.test(editor) && /Insert/.test(editor) && /Shapes/.test(editor) && /Markup/.test(editor) && /Mark redaction/.test(editor), "editor tools are grouped and redaction is clearly staged");
 check(/not permanent yet/i.test(editor) && /Document actions → Apply permanent redactions/.test(editor), "redaction permanence warning remains visible");
 check(/LegacyNativeContentPropertiesPanel/.test(nativePropsEntry) && /Technical details/.test(nativeProps) && /Directly editable/.test(nativeProps) && /pending change/.test(nativeProps), "existing-content editor uses plain capability language with technical details disclosed");
