@@ -122,14 +122,14 @@ test("phone editor uses one row and keeps tools, undo, properties and download w
   const canvas=page.locator(".editor-page-layers"); await expect(canvas).toBeVisible();
   const rect=(await canvas.boundingBox())!; await page.mouse.click(rect.x+100,rect.y+120);
   await expect(page.getByRole("button",{name:"Undo",exact:true})).toBeEnabled();
-  if(await page.getByRole("button",{name:"Close editor panel",exact:true}).isVisible()) await page.getByRole("button",{name:"Close editor panel",exact:true}).click();
+  if(await page.getByRole("button",{name:"Close editor panel",exact:true}).isVisible()) await page.getByRole("button",{name:"Close editor panel",exact:true}).click({position:{x:12,y:12}});
   await page.getByRole("button",{name:"Undo",exact:true}).click();
   await expect(page.getByRole("button",{name:"Undo",exact:true})).toBeDisabled();
   await page.getByRole("button",{name:"More tools",exact:true}).click();
   const tools=page.getByRole("dialog",{name:"Editor tools"});
   await tools.getByRole("button",{name:"Properties",exact:true}).click();
   await expect(tools).toHaveCount(0); await expect(page.locator(".editor-properties")).toBeVisible();
-  await page.getByRole("button",{name:"Close editor panel",exact:true}).click();
+  await page.getByRole("button",{name:"Close editor panel",exact:true}).click({position:{x:12,y:12}});
   const download=page.waitForEvent("download");
   await page.getByRole("button",{name:"Download PDF",exact:true}).click();
   expect((await download).suggestedFilename()).toMatch(/\.pdf$/i);
@@ -137,13 +137,18 @@ test("phone editor uses one row and keeps tools, undo, properties and download w
 });
 
 test("compact options restore focus, preserve state on rotation and do not leave invisible modal traps", async ({page}) => {
-  await page.setViewportSize({width:390,height:844}); await openSample(page);
+  await page.setViewportSize({width:390,height:844});
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file",{exact:true}).setInputFiles("tests/corpus/generated/plain-text.pdf");
+  await expect(page.locator('.viewer-app[data-preferences-ready="true"]')).toBeVisible();
+  await readerCommand(page,"Single");
   const trigger=page.getByRole("button",{name:"More reader actions",exact:true});
   await trigger.click();
   const dialog=page.getByRole("dialog",{name:"Reading options",exact:true});
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0); await expect(trigger).toBeFocused();
   await page.getByLabel("Current page",{exact:true}).fill("2");
+  await expect(page.getByLabel("Current page",{exact:true})).toHaveValue("2");
   await trigger.click();
   await page.getByLabel("Zoom",{exact:true}).selectOption("0.75");
   await page.setViewportSize({width:1366,height:900});
