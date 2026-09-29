@@ -54,6 +54,34 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   expect(await searchDocument(page, "UNDO OK")).toContain("1 match");
 });
 
+test("Undo back to the last exported checkpoint clears dirty state", async ({ page }) => {
+  await openSample(page, "editor");
+  const app = page.locator(".editor-app");
+  await expect(app).toHaveAttribute("data-dirty", "false");
+
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 110, box.y + 130);
+  await expect(app).toHaveAttribute("data-dirty", "true");
+
+  const firstDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+  await firstDownload;
+  await expect(app).toHaveAttribute("data-dirty", "false", { timeout: 20_000 });
+
+  await chooseEditorTool(page, "Add text");
+  await page.mouse.click(box.x + 230, box.y + 240);
+  await expect(app).toHaveAttribute("data-dirty", "true");
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(app).toHaveAttribute("data-dirty", "false");
+
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(app).toHaveAttribute("data-dirty", "true");
+});
+
 test("hidden added objects stay out of exported PDF", async ({ page }) => {
   await openSample(page, "editor");
   await chooseEditorTool(page, "Add text");
