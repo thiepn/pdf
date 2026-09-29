@@ -54,7 +54,9 @@ describe("native edit queue", () => {
       objectId: "image-1",
       pageNumber: 1,
       action: "delete",
-      bounds: { x: 0, y: 0, w: 10, h: 10 }
+      bounds: { x: 0, y: 0, w: 10, h: 10 },
+      removeUnderlying: true,
+      fit: "contain"
     };
     const visibleText = text("keep-text", "text-2");
     expect([...hiddenNativeObjectIds([deletedText, deletedImage, visibleText])].sort()).toEqual(["image-1", "text-1"]);
