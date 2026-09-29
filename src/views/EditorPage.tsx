@@ -106,7 +106,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const localSaveRevisionRef = useRef(0);
   const localSaveQueuedRevisionRef = useRef(0);
   const localSaveCompletedRevisionRef = useRef(0);
-  const cleanHistoryContentIdRef = useRef<string | null>(null);
+  const [cleanHistoryContentId, setCleanHistoryContentId] = useState<string | null>(null);
   const latestLocalSaveRef = useRef<{ revision: number; snapshot: LocalSaveSnapshot } | null>(null);
   const editorMountedRef = useRef(true);
   const [project, setProject] = useState<ProjectManifest | null>(null);
@@ -203,6 +203,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const unifiedSelectionCount = selectedIds.size + selectedNativeIds.size;
   const primaryUnifiedKey = selectedNativeId && selectedNativeIds.has(selectedNativeId) ? `native:${selectedNativeId}` : selectedSourceObjects.length ? `editor:${selectedSourceObjects[selectedSourceObjects.length - 1].id}` : undefined;
   const changeCount = history.present.objects.length + nativeEdits.length;
+  const contentDirty = historyContentIsDirty(history, cleanHistoryContentId);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,7 +222,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         sourceBytesRef.current = bytes;
         const hydratedPage = Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage));
         const hydratedHistory = createHistory(storedState.objects, storedNativeState.queuedEdits, hydratedPage);
-        cleanHistoryContentIdRef.current = storedState.dirty ? null : hydratedHistory.present.contentId;
+        setCleanHistoryContentId(storedState.dirty ? null : hydratedHistory.present.contentId);
         setEditorState({ ...storedState, currentPage: hydratedPage });
         setHistory(hydratedHistory);
         await openDocument(manifest, bytes);
@@ -308,7 +309,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (!project || !document) return;
     const revision = ++localSaveRevisionRef.current;
     const now = Date.now();
-    const state: EditorDocumentState = { ...editorState, objects: cloneObjects(history.present.objects), updatedAt: now };
+    const state: EditorDocumentState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: contentDirty, updatedAt: now };
     const snapshot: LocalSaveSnapshot = {
       editor: state,
       native: { projectId, schemaVersion: NATIVE_EDITOR_SCHEMA_VERSION, pageNumber: editorState.currentPage, queuedEdits: nativeEdits, updatedAt: now },
@@ -318,7 +319,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setLocalSave({ phase: "pending", revision });
     const timer = window.setTimeout(() => enqueueLocalSave(revision, snapshot), 500);
     return () => clearTimeout(timer);
-  }, [document, editorState, enqueueLocalSave, history.present.objects, nativeEdits, project, projectId]);
+  }, [contentDirty, document, editorState, enqueueLocalSave, history.present.objects, nativeEdits, project, projectId]);
 
   useEffect(() => {
     if (!localSaveNeedsUnloadGuard(localSave)) return;
@@ -356,7 +357,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing]);
+  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
     hydrationRef.current?.cancel();
@@ -679,7 +680,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
-      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentIdRef.current), updatedAt: Date.now() }));
+      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentId), updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -692,7 +693,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
-      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentIdRef.current), updatedAt: Date.now() }));
+      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentId), updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -873,7 +874,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         // synchronously before the UI can expose a clean state; do not hide the
         // checkpoint assignment inside React's deferred state updater.
         const exportedContentId = history.present.contentId;
-        cleanHistoryContentIdRef.current = exportedContentId;
+        setCleanHistoryContentId(exportedContentId);
         setHistory((current) => sealHistoryMergeBoundary(current));
         setEditorState((current) => ({ ...current, dirty: false, lastSavedAt: savedAt, updatedAt: savedAt }));
         setStatus("Edited PDF downloaded");
@@ -908,7 +909,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
-  const localSaveLabel = localSaveStatusLabel(localSave, lastReport, editorState.dirty);
+  const localSaveLabel = localSaveStatusLabel(localSave, lastReport, contentDirty);
   const detectedPdfItemCount = nativeInspection ? nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms : 0;
   const chooseMobileTool = (tool: EditorTool) => {
     activateTool(tool);
@@ -932,7 +933,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>;
 
   return (
-    <div className="editor-app" data-editor-dirty={editorState.dirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
+    <div className="editor-app" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
       {!compactControls ? <header className="editor-commandbar">
         <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
         <div className="editor-commandbar__center" inert={processing ? true : undefined}>
