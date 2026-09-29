@@ -118,6 +118,23 @@ describe("editor history", () => {
     expect(redone.present.pageNumber).toBe(2);
   });
 
+  it("keeps content checkpoints stable across selection changes and restores them with Undo/Redo", () => {
+    const object = createObjectForTool({ tool: "text", pageNumber: 1, bounds: { x0: 0, y0: 0, x1: 100, y1: 40 }, author: "Test", zIndex: 1 });
+    if (!object) throw new Error("Fixture creation failed");
+    const initial = createHistory();
+    const initialContentId = initial.present.contentId;
+    const selected = withHistorySelection(initial, [], ["native-image-1"], "native-image-1", 2);
+    expect(selected.present.contentId).toBe(initialContentId);
+
+    const committed = commitHistory(selected, "Add text", [object], [object.id]);
+    expect(committed.present.contentId).not.toBe(initialContentId);
+    const changedContentId = committed.present.contentId;
+
+    const undone = undoHistory(committed);
+    expect(undone.present.contentId).toBe(initialContentId);
+    expect(redoHistory(undone).present.contentId).toBe(changedContentId);
+  });
+
   it("merges rapid property edits into one undo step", () => {
     const object = createObjectForTool({ tool: "text", pageNumber: 1, bounds: { x0: 0, y0: 0, x1: 100, y1: 40 }, author: "Test", zIndex: 1 });
     if (!object || object.type !== "text") throw new Error("Fixture creation failed");
