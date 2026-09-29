@@ -66,6 +66,8 @@ jobs:
           npm run audit:tree
       - name: Generate and validate all release browser corpora
         run: node scripts/releases/prepare-browser-corpora.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Run P9 release-candidate freeze audit
         run: npm run audit:p9:release-candidate
       - name: Run frozen v7 web release gate

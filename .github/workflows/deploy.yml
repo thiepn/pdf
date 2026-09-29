@@ -78,6 +78,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Generate and validate all release browser corpora
         run: node scripts/releases/prepare-browser-corpora.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Validate dependency tree and source
         run: npm run audit:tree && npm run audit:dependencies && npm run audit:source && npm run audit:pages
       - name: Dependency-independent stability and release regressions
