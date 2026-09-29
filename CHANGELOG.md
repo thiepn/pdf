@@ -1,6 +1,6 @@
 # Changelog
 
-## 7.1.2 — Editor History Reliability
+## 7.1.2 — Task-first PDF Tools & Release Candidate
 
 - Restores existing-PDF selection state through Undo/Redo alongside objects added in PDF Studio.
 - Restores the transaction page through Undo/Redo so recovered selections are visible instead of remaining selected off-screen on another page.
