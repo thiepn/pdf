@@ -133,3 +133,45 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
   await reopenDownload(page, download);
   expect(await searchDocument(page, "SAMPLE BRIEF")).toContain("0 matches");
 });
+
+
+test("manual page navigation clears stale source selection before destructive shortcuts", async ({ page }) => {
+  await openSample(page, "editor");
+  const source = page.getByRole("button", { name: /Select existing (?:text|paragraph|image):/ }).first();
+  await expect(source).toBeVisible({ timeout: 20_000 });
+  const sourceId = await source.getAttribute("data-native-object-id");
+  expect(sourceId).toBeTruthy();
+  await source.click();
+  await expect(source).toHaveClass(/active/);
+
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("2");
+  await expect(page.locator(".native-unified-properties")).toHaveCount(0);
+
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Previous page", exact: true }).click();
+  const restored = page.locator(`[data-native-object-id="${sourceId}"]`);
+  await expect(restored).toBeVisible();
+  await expect(restored).not.toHaveClass(/active/);
+});
+
+test("page-number entry clears stale added-object selection", async ({ page }) => {
+  await openSample(page, "editor");
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 120, box.y + 160);
+  const object = page.locator(".editor-object").last();
+  await expect(object).toBeVisible();
+
+  const pageInput = page.getByLabel("Current page", { exact: true });
+  await pageInput.fill("2");
+  await expect(pageInput).toHaveValue("2");
+  await page.keyboard.press("Delete");
+
+  await pageInput.fill("1");
+  await expect(object).toBeVisible();
+});
