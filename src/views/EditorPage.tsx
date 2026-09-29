@@ -335,10 +335,13 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     const handler = (event: KeyboardEvent) => {
       if (processing) return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       const command = event.ctrlKey || event.metaKey;
+      // Undo/Redo are document transactions, including when a properties field
+      // still owns focus. Letting the browser perform a native field undo would
+      // change the controlled input without moving PDF Studio's history/checkpoint.
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
+      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       if (command && event.key.toLowerCase() === "c") { event.preventDefault(); void copySelection(); return; }
       if (command && event.key.toLowerCase() === "v") { event.preventDefault(); void pasteSelection(); return; }
       if (command && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateSelection(); return; }
