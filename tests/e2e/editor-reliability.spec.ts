@@ -1,12 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
 
-async function openMultiPageEditor(page: import("@playwright/test").Page) {
+async function openEditorFile(page: import("@playwright/test").Page, path: string) {
   await page.goto("./#/tools/read-pdf");
-  await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/generated/plain-text.pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles(path);
   await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
   await switchMode(page, "editor");
   await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("1");
+}
+
+async function openMultiPageEditor(page: import("@playwright/test").Page) {
+  await openEditorFile(page, "tests/corpus/generated/plain-text.pdf");
 }
 
 async function reopenDownload(page: import("@playwright/test").Page, download: import("@playwright/test").Download) {
@@ -166,7 +170,7 @@ test("manual page navigation clears stale source selection before destructive sh
 });
 
 test("page-number entry clears stale added-object selection", async ({ page }) => {
-  await openSample(page, "editor");
+  await openMultiPageEditor(page);
   await chooseEditorTool(page, "Add text");
   const canvas = page.locator(".editor-page-layers");
   const box = await canvas.boundingBox();
@@ -182,4 +186,26 @@ test("page-number entry clears stale added-object selection", async ({ page }) =
 
   await pageInput.fill("1");
   await expect(object).toBeVisible();
+});
+
+
+test("desktop editor page input supports blank drafts, multi-digit pages, escape and bounds", async ({ page }) => {
+  await openEditorFile(page, "tests/corpus/phase28/pages-50.pdf");
+  const input = page.getByLabel("Current page", { exact: true });
+  await input.fill("");
+  await expect(input).toHaveValue("");
+
+  await input.fill("12");
+  await input.press("Enter");
+  await expect(input).toHaveValue("12");
+  await expect(page.locator(".editor-page-label")).toHaveText("Page 12");
+
+  await input.fill("");
+  await input.press("Escape");
+  await expect(input).toHaveValue("12");
+
+  await input.fill("999");
+  await input.press("Enter");
+  await expect(input).toHaveValue("50");
+  await expect(page.locator(".editor-page-label")).toHaveText("Page 50");
 });
