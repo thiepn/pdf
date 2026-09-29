@@ -133,3 +133,44 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
   await reopenDownload(page, download);
   expect(await searchDocument(page, "SAMPLE BRIEF")).toContain("0 matches");
 });
+
+
+test("page navigation clears stale selections before off-screen edits can run", async ({ page }) => {
+  await openSample(page, "editor");
+
+  const nativeImage = page.getByRole("button", { name: /Select existing image:/ }).first();
+  await expect(nativeImage).toBeVisible({ timeout: 20_000 });
+  const nativeId = await nativeImage.getAttribute("data-native-object-id");
+  expect(nativeId).toBeTruthy();
+  await nativeImage.click();
+
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("2");
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Previous page", exact: true }).click();
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).not.toHaveClass(/active/);
+
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 140, box.y + 190);
+  const added = page.locator(".editor-object").last();
+  await expect(added).toBeVisible();
+  const addedId = await added.getAttribute("data-object-id");
+  expect(addedId).toBeTruthy();
+  await expect(added).toHaveClass(/editor-object--selected/);
+
+  const pageInput = page.getByLabel("Current page", { exact: true });
+  await pageInput.fill("2");
+  await expect(pageInput).toHaveValue("2");
+  await page.keyboard.press("Delete");
+  await pageInput.fill("1");
+
+  const restoredAdded = page.locator(`[data-object-id="${addedId}"]`);
+  await expect(restoredAdded).toBeVisible();
+  await expect(restoredAdded).not.toHaveClass(/editor-object--selected/);
+});
