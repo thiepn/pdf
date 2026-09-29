@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { discardNativeObjectEdits, findNativeReflowQueueConflict, mergeNativeEdits, nativeChangedPages } from "../../src/native/nativeEditQueue";
+import { discardNativeObjectEdits, findNativeReflowQueueConflict, hiddenNativeObjectIds, mergeNativeEdits, nativeChangedPages } from "../../src/native/nativeEditQueue";
 import type { NativeEdit } from "../../src/types/nativeEditor";
 
 function cell(id: string, objectId: string, cellId: string, text: string): NativeEdit {
@@ -44,6 +44,20 @@ describe("native edit queue", () => {
   it("discards all edits belonging to one detected object", () => {
     const current = [cell("a", "table-1", "c1", "one"), cell("b", "table-1", "c2", "two"), cell("c", "table-2", "c1", "three")];
     expect(discardNativeObjectEdits(current, "table-1").map((edit) => edit.id)).toEqual(["c"]);
+  });
+
+  it("identifies native objects hidden by queued deletion edits", () => {
+    const deletedText = { ...text("delete-text", "text-1"), text: "", mode: "replace" as const };
+    const deletedImage: NativeEdit = {
+      id: "delete-image",
+      kind: "image",
+      objectId: "image-1",
+      pageNumber: 1,
+      action: "delete",
+      bounds: { x: 0, y: 0, w: 10, h: 10 }
+    };
+    const visibleText = text("keep-text", "text-2");
+    expect([...hiddenNativeObjectIds([deletedText, deletedImage, visibleText])].sort()).toEqual(["image-1", "text-1"]);
   });
 
   it("returns sorted unique changed pages", () => {

@@ -93,6 +93,7 @@ test("deleted existing objects leave no stale canvas hitbox and return on Undo",
   await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
   await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
+  await expect(page.locator(".native-unified-properties")).toHaveCount(0);
 
   await page.keyboard.press("Control+z");
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
@@ -122,7 +123,10 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
 
   await page.keyboard.press("Control+z");
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
-  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
+  const restoredText = page.locator(`[data-native-object-id="${nativeId}"]`);
+  await expect(restoredText).toBeVisible();
+  await expect(restoredText).toHaveClass(/active/);
+  await expect(page.locator(".native-unified-properties")).toBeVisible();
   await page.keyboard.press("Control+y");
   await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
