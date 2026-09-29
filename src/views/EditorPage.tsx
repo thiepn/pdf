@@ -39,7 +39,7 @@ import {
   type UnifiedLayoutItem
 } from "../editor/unifiedLayout";
 import { applyNativeEdits, inspectNativePdf } from "../native/nativeClient";
-import { discardNativeObjectEdits, mergeNativeEdits } from "../native/nativeEditQueue";
+import { discardNativeObjectEdits, hiddenNativeObjectIds, mergeNativeEdits } from "../native/nativeEditQueue";
 import { readNativeState, writeNativeState } from "../native/nativeRepository";
 import { downloadBlob } from "../projects/download";
 import { createDerivedProjectFromBytes, getProject, loadProjectBytes, updateProject } from "../projects/projectRepository";
@@ -189,10 +189,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const redactionCount = useMemo(() => displayObjects.filter((object) => object.type === "redaction").length, [displayObjects]);
   const currentNativePage = useMemo(() => nativeInspection?.pages.find((page) => page.pageNumber === editorState.currentPage), [nativeInspection, editorState.currentPage]);
   const currentNativeObjects = currentNativePage?.objects ?? [];
-  const nativeHiddenIds = useMemo(() => new Set(nativeEdits.filter((edit) =>
-    (edit.kind === "text" && edit.mode === "replace" && edit.text === "")
-    || ((edit.kind === "image" || edit.kind === "vector" || edit.kind === "table" || edit.kind === "complex") && edit.action === "delete")
-  ).map((edit) => edit.objectId)), [nativeEdits]);
+  const nativeHiddenIds = useMemo(() => hiddenNativeObjectIds(nativeEdits), [nativeEdits]);
   const selectedNativeObjects = useMemo(() => currentNativeObjects.filter((object) => selectedNativeIds.has(object.id)), [currentNativeObjects, selectedNativeIds]);
   const selectedNativeObject = useMemo(() => nativeInspection?.pages.flatMap((page) => page.objects).find((object) => object.id === selectedNativeId), [nativeInspection, selectedNativeId]);
   const nativeEffectiveBounds = useMemo(() => new Map(currentNativeObjects.map((object) => [object.id, effectiveNativeBounds(object, nativeEdits)])), [currentNativeObjects, nativeEdits]);
@@ -461,11 +458,25 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function queueNativeEdits(edits: NativeEdit[]): void {
     if (processing || !edits.length) return;
+    const beforeNativeSelection = new Set(selectedNativeIds);
+    const beforeNativePrimary = selectedNativeId;
     setHistory((current) => {
       const nextNativeEdits = mergeNativeEdits(current.present.nativeEdits, edits);
-      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
-      return commitHistory(base, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits, selectedNativeIds, selectedNativeId);
+      const hiddenIds = hiddenNativeObjectIds(nextNativeEdits);
+      const nextNativeSelection = new Set([...beforeNativeSelection].filter((id) => !hiddenIds.has(id)));
+      const nextNativePrimary = beforeNativePrimary && nextNativeSelection.has(beforeNativePrimary)
+        ? beforeNativePrimary
+        : nextNativeSelection.values().next().value as string | undefined;
+      const base = withHistorySelection(current, selectedIds, beforeNativeSelection, beforeNativePrimary, editorState.currentPage);
+      return commitHistory(base, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits, nextNativeSelection, nextNativePrimary);
     });
+    const nextNativeEdits = mergeNativeEdits(nativeEdits, edits);
+    const hiddenIds = hiddenNativeObjectIds(nextNativeEdits);
+    const nextSelection = new Set([...beforeNativeSelection].filter((id) => !hiddenIds.has(id)));
+    setSelectedNativeIds(nextSelection);
+    setSelectedNativeId(beforeNativePrimary && nextSelection.has(beforeNativePrimary)
+      ? beforeNativePrimary
+      : nextSelection.values().next().value as string | undefined);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
   }

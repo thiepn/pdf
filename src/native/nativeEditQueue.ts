@@ -50,3 +50,11 @@ export function discardNativeObjectEdits(current: NativeEdit[], objectId: string
 export function nativeChangedPages(edits: NativeEdit[]): number[] {
   return [...new Set(edits.map((edit) => edit.pageNumber))].sort((left, right) => left - right);
 }
+
+
+export function hiddenNativeObjectIds(edits: NativeEdit[]): Set<string> {
+  return new Set(edits.filter((edit) =>
+    (edit.kind === "text" && edit.mode === "replace" && edit.text === "")
+    || ((edit.kind === "image" || edit.kind === "vector" || edit.kind === "table" || edit.kind === "complex") && edit.action === "delete")
+  ).map((edit) => edit.objectId));
+}
