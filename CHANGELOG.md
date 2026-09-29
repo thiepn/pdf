@@ -1,5 +1,16 @@
 # Changelog
 
+## 7.1.1 — Task-first PDF Tools & Release Candidate
+
+- Fixed Undo/Redo so edits to existing PDF text, images, vectors, tables, and complex page content share the same history as objects added in PDF Studio.
+- Added live rendered previews for queued existing-content edits so the canvas reflects the PDF that will actually be exported.
+- Made mixed native-and-added-object operations atomic, including move, alignment, rotation, and deletion, while avoiding duplicate embedded font bytes in history snapshots.
+- Added safe deletion for editable source text from both the properties panel and the Delete key, while continuing to block unsafe appearance-only text removal.
+- Removed stale selection hitboxes after deleting existing PDF content and restored them correctly on Undo.
+- Excluded hidden added objects from exported PDFs and locked editor mutations during export so the downloaded file matches the visible transaction snapshot.
+- Added browser regressions that edit, preview, Undo/Redo, export, reopen, and inspect the resulting PDF across the qualified browser matrix.
+- Preserved project package v9, database schema v13, and native-editor schema v6; this is a reliability hotfix, not a storage migration.
+
 ## 7.1.0 — Task-first PDF Tools & Release Candidate
 
 - Rebuilt the homepage, focused tools, document shell, and mobile navigation around tasks rather than document/workspace tabs.

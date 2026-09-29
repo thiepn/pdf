@@ -158,6 +158,35 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
     onQueue([primary, ...followers]);
   }
 
+  function queueDelete(): void {
+    if (unsupported || complex || selectedMovedByOtherReflow) return;
+    onQueue([{
+      id: queued?.id ?? crypto.randomUUID(),
+      kind: "text",
+      objectId: object.id,
+      pageNumber: object.pageNumber,
+      originalText: object.text,
+      text: "",
+      sourceBounds: object.bounds,
+      bounds: object.bounds,
+      fontFamily: sourceFamily,
+      fontSize: Math.max(1, object.size),
+      color: colorValue(object.color),
+      backgroundColor: "transparent",
+      align: object.align ?? "left",
+      mode: "replace",
+      wrap: false,
+      fontSource: language ? "built-in-cjk" : "built-in",
+      fontLanguage: language,
+      writingMode: object.writingMode,
+      fontWeight: object.weight,
+      fontStyle: object.style,
+      lineHeight: object.lineHeight,
+      layoutMode: "fixed-box",
+      preserveSourceStyle: false
+    }]);
+  }
+
   const support = object.capability.level === "safe-reconstruction" ? "Editable with reconstruction" : object.capability.level === "appearance-only" ? "Limited editing" : "Editing unavailable";
 
   return <aside className="editor-properties native-unified-properties p2-text-properties">
@@ -202,7 +231,10 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
     </section>
 
     <section className="property-section property-stack">
-      <button className="button" disabled={queueBlocked || !text.trim()} onClick={queue} type="button">{queued ? "Update layout-aware text change" : "Apply layout-aware text change"}</button>
+      <div className="button-row">
+        <button className="button" disabled={queueBlocked || !text.trim()} onClick={queue} type="button">{queued ? "Update layout-aware text change" : "Apply layout-aware text change"}</button>
+        {!complex && !unsupported && !selectedMovedByOtherReflow ? <button className="button button--danger-ghost" onClick={queueDelete} type="button">Delete existing text</button> : null}
+      </div>
     </section>
   </aside>;
 }

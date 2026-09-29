@@ -1,4 +1,5 @@
 import type { Rect } from "../core/coordinates";
+import type { NativeEdit } from "./nativeEditor";
 
 export const EDITOR_SCHEMA_VERSION = 3;
 
@@ -191,6 +192,7 @@ export interface EditorAssetRecord {
 export interface EditorHistoryEntry {
   label: string;
   objects: EditorObject[];
+  nativeEdits: NativeEdit[];
   selectedIds: string[];
   timestamp: number;
   mergeKey?: string;

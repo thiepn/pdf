@@ -23,6 +23,7 @@ interface Props {
   selectedNativeId?: string;
   selectedNativeIds?: Set<string>;
   nativeEffectiveBounds?: Map<string, NativeRect>;
+  nativeHiddenIds?: Set<string>;
   nativeTransformableIds?: Set<string>;
   showNativeContent?: boolean;
   onSelect: (id: string | null, additive: boolean) => void;
@@ -352,6 +353,7 @@ export function EditorCanvasPage(props: Props) {
           effectiveBounds={props.nativeEffectiveBounds}
           enabled={Boolean(props.showNativeContent && props.activeTool === "select")}
           gridSize={props.gridSize}
+          hiddenIds={props.nativeHiddenIds}
           objects={props.nativeObjects ?? []}
           onSelect={props.onSelectNative ?? ignoreNativeSelection}
           onTransform={props.onTransformNative}

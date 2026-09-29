@@ -361,6 +361,39 @@ export function nativeGeometryEdit(object: NativePageObject, bounds: NativeRect,
 }
 
 export function nativeDeleteEdit(object: NativePageObject, queuedEdits: NativeEdit[]): NativeGeometryResult {
+  if (object.type === "text") {
+    if (object.editability === "unsupported") return { blocked: object.reason || "This text cannot be deleted safely." };
+    if (object.editability === "overlay-only") return { blocked: "Appearance-only text cannot remove the original source safely." };
+    const existing = queuedEdits.find((edit): edit is NativeTextEdit => edit.kind === "text" && edit.objectId === object.id && !edit.reflowFollower);
+    if (existing?.layoutMode === "expand-flow") return { blocked: "Discard or apply the queued layout-aware reflow before deleting this text." };
+    const language = cjkLanguageForScript(object.script);
+    const edit: NativeTextEdit = existing ? { ...existing } : {
+      id: crypto.randomUUID(),
+      kind: "text",
+      objectId: object.id,
+      pageNumber: object.pageNumber,
+      originalText: object.text,
+      text: object.text,
+      sourceBounds: object.bounds,
+      bounds: object.bounds,
+      fontFamily: editableFamilyForSource(object.family, object.script),
+      fontSize: Math.max(1, object.size),
+      color: colorValue(object.color),
+      backgroundColor: "transparent",
+      align: object.align ?? "left",
+      mode: "replace",
+      wrap: false,
+      fontSource: language ? "built-in-cjk" : "built-in",
+      fontLanguage: language,
+      writingMode: object.writingMode,
+      fontWeight: object.weight,
+      fontStyle: object.style,
+      lineHeight: object.lineHeight,
+      layoutMode: "fixed-box",
+      preserveSourceStyle: false
+    };
+    return { edit: { ...edit, text: "", mode: "replace", backgroundColor: "transparent", wrap: false, sourceBounds: edit.sourceBounds ?? object.bounds, bounds: effectiveNativeBounds(object, queuedEdits), layoutMode: "fixed-box", styleRuns: undefined, preserveSourceStyle: false, reflowFollower: false } };
+  }
   if (object.type === "image") return { edit: { ...imageGeometryEdit(object, effectiveNativeBounds(object, queuedEdits), queuedEdits), action: "delete" } };
   if (object.type === "vector") {
     const edit = vectorGeometryEdit(object, effectiveNativeBounds(object, queuedEdits), queuedEdits);
@@ -374,7 +407,7 @@ export function nativeDeleteEdit(object: NativePageObject, queuedEdits: NativeEd
     const edit = complexGeometryEdit(object, effectiveNativeBounds(object, queuedEdits), queuedEdits);
     return edit ? { edit: { ...edit, action: "delete" } } : { blocked: "This nested PDF group cannot be deleted safely." };
   }
-  return { blocked: object.type === "text" ? "P6 does not delete source text by broad rectangular redaction; edit its content through the qualified text panel instead." : "Interactive form fields are not deleted by the value-editing engine." };
+  return { blocked: "Interactive form fields are not deleted by the value-editing engine." };
 }
 
 export function nativeRotationEdit(object: NativePageObject, deltaDegrees: number, queuedEdits: NativeEdit[]): NativeGeometryResult {
