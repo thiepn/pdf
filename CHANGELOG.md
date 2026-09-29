@@ -1,6 +1,6 @@
 # Changelog
 
-## 7.1.3 — Editor deletion-selection reliability
+## 7.1.3 — Task-first PDF Tools & Release Candidate
 
 - Clears hidden existing-PDF selections immediately when queued deletion edits remove text, images, vectors, tables, or complex content from the canvas.
 - Keeps the native properties panel synchronized with what is actually visible after deletion instead of leaving a hidden deleted object selected.
