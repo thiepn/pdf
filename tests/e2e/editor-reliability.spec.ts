@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { chooseEditorTool, openSample } from "./helpers/taskFirst";
+import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
+
+async function openMultiPageEditor(page: import("@playwright/test").Page) {
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/generated/plain-text.pdf");
+  await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
+  await switchMode(page, "editor");
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("1");
+}
 
 async function reopenDownload(page: import("@playwright/test").Page, download: import("@playwright/test").Download) {
   const tempPath = `/tmp/pdf-editor-reopen-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
@@ -55,7 +63,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
 });
 
 test("hidden added objects stay out of exported PDF", async ({ page }) => {
-  await openSample(page, "editor");
+  await openMultiPageEditor(page);
   await chooseEditorTool(page, "Add text");
   const canvas = page.locator(".editor-page-layers");
   const box = await canvas.boundingBox();
@@ -136,7 +144,7 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
 
 
 test("manual page navigation clears stale source selection before destructive shortcuts", async ({ page }) => {
-  await openSample(page, "editor");
+  await openMultiPageEditor(page);
   const source = page.getByRole("button", { name: /Select existing (?:text|paragraph|image):/ }).first();
   await expect(source).toBeVisible({ timeout: 20_000 });
   const sourceId = await source.getAttribute("data-native-object-id");
