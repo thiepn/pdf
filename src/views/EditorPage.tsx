@@ -12,7 +12,7 @@ import { openPdfWithPdfJs, inspectPdfAnnotationInventory, inspectPdfBytes } from
 import { EditorCanvasPage } from "../editor/components/EditorCanvasPage";
 import { EditorPropertiesPanel } from "../editor/components/EditorPropertiesPanel";
 import { UnifiedLayoutPropertiesPanel } from "../editor/components/UnifiedLayoutPropertiesPanel";
-import { createHistory, commitHistory, redoHistory, undoHistory } from "../editor/editorHistory";
+import { createHistory, commitHistory, redoHistory, undoHistory, withHistorySelection } from "../editor/editorHistory";
 import { cloneObjects, createEditorState, duplicateObjects, moveRect, updateObjects } from "../editor/editorModel";
 import { listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
 import { exportEditorPdf } from "../editor/editorExportClient";
@@ -221,8 +221,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         ]);
         if (cancelled) return;
         sourceBytesRef.current = bytes;
-        setEditorState({ ...storedState, currentPage: Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage)) });
-        setHistory(createHistory(storedState.objects, storedNativeState.queuedEdits));
+        const hydratedPage = Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage));
+        setEditorState({ ...storedState, currentPage: hydratedPage });
+        setHistory(createHistory(storedState.objects, storedNativeState.queuedEdits, hydratedPage));
         await openDocument(manifest, bytes);
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
     })();
@@ -462,7 +463,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (processing || !edits.length) return;
     setHistory((current) => {
       const nextNativeEdits = mergeNativeEdits(current.present.nativeEdits, edits);
-      return commitHistory(current, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits);
+      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
+      return commitHistory(base, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits, selectedNativeIds, selectedNativeId);
     });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
@@ -473,27 +475,46 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setHistory((current) => {
       const nextNativeEdits = discardNativeObjectEdits(current.present.nativeEdits, objectId);
       if (nextNativeEdits.length === current.present.nativeEdits.length) return current;
-      return commitHistory(current, "Discard existing PDF edit", current.present.objects, selectedIds, undefined, nextNativeEdits);
+      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
+      return commitHistory(base, "Discard existing PDF edit", current.present.objects, selectedIds, undefined, nextNativeEdits, selectedNativeIds, selectedNativeId);
     });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
   }
 
-  function commitEditorTransaction(label: string, objects: EditorObject[], nextNativeEdits: NativeEdit[], nextSelection = selectedIds, mergeKey?: string): void {
+  function commitEditorTransaction(
+    label: string,
+    objects: EditorObject[],
+    nextNativeEdits: NativeEdit[],
+    nextSelection = selectedIds,
+    mergeKey?: string,
+    nextNativeSelection = selectedNativeIds,
+    nextNativePrimary = selectedNativeId
+  ): void {
     if (processing) return;
-    setHistory((current) => commitHistory(current, label, objects, nextSelection, mergeKey, nextNativeEdits));
+    setHistory((current) => {
+      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
+      return commitHistory(base, label, objects, nextSelection, mergeKey, nextNativeEdits, nextNativeSelection, nextNativePrimary);
+    });
     setPreviewObject(null);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
     onTitleChange?.(`Edit · ${project?.name ?? "PDF"}`, `${document?.numPages ?? 0} pages · ${objects.length} added object${objects.length === 1 ? "" : "s"} · Changes not exported`);
   }
 
-  function commitObjects(label: string, objects: EditorObject[], mergeKey?: string, nextSelection = selectedIds): void {
-    commitEditorTransaction(label, objects, nativeEdits, nextSelection, mergeKey);
+  function commitObjects(
+    label: string,
+    objects: EditorObject[],
+    mergeKey?: string,
+    nextSelection = selectedIds,
+    nextNativeSelection = selectedNativeIds,
+    nextNativePrimary = selectedNativeId
+  ): void {
+    commitEditorTransaction(label, objects, nativeEdits, nextSelection, mergeKey, nextNativeSelection, nextNativePrimary);
   }
 
   function addObject(object: EditorObject): void {
     const selection = new Set([object.id]);
-    commitObjects(`Add ${object.type}`, [...history.present.objects, object], undefined, selection);
+    commitObjects(`Add ${object.type}`, [...history.present.objects, object], undefined, selection, new Set(), undefined);
     setSelectedIds(selection);
     setSelectedNativeIds(new Set());
     setSelectedNativeId(undefined);
@@ -624,7 +645,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const next = undoHistory(current);
       if (next === current) return current;
       setSelectedIds(new Set(next.present.selectedIds));
-      setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
+      setSelectedNativeIds(new Set(next.present.selectedNativeIds));
+      setSelectedNativeId(next.present.selectedNativeId);
+      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: true, updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -635,7 +658,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const next = redoHistory(current);
       if (next === current) return current;
       setSelectedIds(new Set(next.present.selectedIds));
-      setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
+      setSelectedNativeIds(new Set(next.present.selectedNativeIds));
+      setSelectedNativeId(next.present.selectedNativeId);
+      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: true, updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -652,7 +677,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     }
     const acted = nextObjects.length !== history.present.objects.length || incoming.length > 0;
     if (acted) {
-      commitEditorTransaction("Delete selection", nextObjects, incoming.length ? mergeNativeEdits(nativeEdits, incoming) : nativeEdits, new Set());
+      commitEditorTransaction("Delete selection", nextObjects, incoming.length ? mergeNativeEdits(nativeEdits, incoming) : nativeEdits, new Set(), undefined, new Set(), undefined);
       setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined);
     }
     if (blocked.length) setWarnings((current) => [...current, ...blocked]);
@@ -665,7 +690,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     const next = duplicateObjects(history.present.objects, selectedIds);
     const existing = new Set(history.present.objects.map((object) => object.id));
     const selection = new Set(next.filter((object) => !existing.has(object.id)).map((object) => object.id));
-    commitObjects("Duplicate objects", next, undefined, selection);
+    commitObjects("Duplicate objects", next, undefined, selection, new Set(), undefined);
     setSelectedIds(selection);
     setSelectedNativeIds(new Set());
     setSelectedNativeId(undefined);
@@ -724,7 +749,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       return { ...structuredClone(object), id: crypto.randomUUID(), groupId, pageNumber: editorState.currentPage, bounds: moveRect(object.bounds, 16, -16), zIndex: highest + index + 1, createdAt: now, modifiedAt: now };
     });
     const selection = new Set(pasted.map((object) => object.id));
-    commitObjects("Paste objects", [...history.present.objects, ...pasted], undefined, selection);
+    commitObjects("Paste objects", [...history.present.objects, ...pasted], undefined, selection, new Set(), undefined);
     setSelectedIds(selection);
     setSelectedNativeIds(new Set());
     setSelectedNativeId(undefined);

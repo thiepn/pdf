@@ -194,6 +194,9 @@ export interface EditorHistoryEntry {
   objects: EditorObject[];
   nativeEdits: NativeEdit[];
   selectedIds: string[];
+  selectedNativeIds: string[];
+  selectedNativeId?: string;
+  pageNumber: number;
   timestamp: number;
   mergeKey?: string;
 }
