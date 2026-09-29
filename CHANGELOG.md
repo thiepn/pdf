@@ -1,5 +1,14 @@
 # Changelog
 
+## 7.1.2 — Task-first PDF Tools & Release Candidate
+
+- Restores existing-PDF selection state through Undo/Redo alongside objects added in PDF Studio.
+- Restores the transaction page through Undo/Redo so recovered selections are visible instead of remaining selected off-screen on another page.
+- Makes mixed existing-PDF and added-object operations preserve the same working context before and after history traversal.
+- Makes add, duplicate, paste, and delete transactions record their intended post-operation native-selection state instead of relying on out-of-band UI state.
+- Adds unit and browser regressions for delete → Undo → restored selected source object → Redo, including page-context restoration.
+- Preserves project package v9, database schema v13, and native-editor schema v6; this maintenance release requires no storage migration.
+
 ## 7.1.1 — Task-first PDF Tools & Release Candidate
 
 - Fixed Undo/Redo so edits to existing PDF text, images, vectors, tables, and complex page content share the same history as objects added in PDF Studio.
