@@ -17,6 +17,7 @@ function entry(
   selectedNativeIds: Iterable<string> = [],
   selectedNativeId?: string,
   pageNumber = 1,
+  revision = 0,
   mergeKey?: string
 ): EditorHistoryEntry {
   const nativeSelection = [...selectedNativeIds];
@@ -28,13 +29,14 @@ function entry(
     selectedNativeIds: nativeSelection,
     selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0],
     pageNumber: Math.max(1, Math.trunc(pageNumber) || 1),
+    revision,
     timestamp: Date.now(),
     mergeKey
   };
 }
 
 export function createHistory(objects: EditorObject[] = [], nativeEdits: NativeEdit[] = [], pageNumber = 1): EditorHistoryState {
-  return { past: [], present: entry("Initial state", objects, nativeEdits, [], [], undefined, pageNumber), future: [] };
+  return { past: [], present: entry("Initial state", objects, nativeEdits, [], [], undefined, pageNumber, 0), future: [], nextRevision: 1 };
 }
 
 export function withHistorySelection(
@@ -68,10 +70,10 @@ export function commitHistory(
   selectedNativeId: string | undefined = state.present.selectedNativeId,
   pageNumber = state.present.pageNumber
 ): EditorHistoryState {
-  const next = entry(label, objects, nativeEdits, selectedIds, selectedNativeIds, selectedNativeId, pageNumber, mergeKey);
+  const next = entry(label, objects, nativeEdits, selectedIds, selectedNativeIds, selectedNativeId, pageNumber, state.nextRevision, mergeKey);
   const canMerge = mergeKey && state.present.mergeKey === mergeKey && next.timestamp - state.present.timestamp < 800;
-  if (canMerge) return { ...state, present: next, future: [] };
-  return { past: [...state.past.slice(-79), state.present], present: next, future: [] };
+  if (canMerge) return { ...state, present: next, future: [], nextRevision: state.nextRevision + 1 };
+  return { past: [...state.past.slice(-79), state.present], present: next, future: [], nextRevision: state.nextRevision + 1 };
 }
 
 export function undoHistory(state: EditorHistoryState): EditorHistoryState {
@@ -84,4 +86,9 @@ export function redoHistory(state: EditorHistoryState): EditorHistoryState {
   const next = state.future[0];
   if (!next) return state;
   return { past: [...state.past, state.present], present: next, future: state.future.slice(1) };
+}
+
+export function breakHistoryMerge(state: EditorHistoryState): EditorHistoryState {
+  if (!state.present.mergeKey) return state;
+  return { ...state, present: { ...state.present, mergeKey: undefined } };
 }

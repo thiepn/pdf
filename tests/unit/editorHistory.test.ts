@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitHistory, createHistory, redoHistory, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
+import { breakHistoryMerge, commitHistory, createHistory, redoHistory, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
 import { createObjectForTool } from "../../src/editor/editorModel";
 import type { NativeEdit } from "../../src/types/nativeEditor";
 
@@ -116,6 +116,24 @@ describe("editor history", () => {
     expect(redone.present.selectedNativeIds).toEqual([]);
     expect(redone.present.selectedNativeId).toBeUndefined();
     expect(redone.present.pageNumber).toBe(2);
+  });
+
+  it("assigns revision identities and preserves an exported merge checkpoint", () => {
+    const object = createObjectForTool({ tool: "text", pageNumber: 1, bounds: { x0: 0, y0: 0, x1: 100, y1: 40 }, author: "Test", zIndex: 1 });
+    if (!object) throw new Error("Fixture creation failed");
+    const initial = createHistory([object]);
+    expect(initial.present.revision).toBe(0);
+
+    const first = commitHistory(initial, "Move", [object], [object.id], "move:test");
+    expect(first.present.revision).toBe(1);
+    const checkpoint = breakHistoryMerge(first);
+    expect(checkpoint.present.mergeKey).toBeUndefined();
+
+    const second = commitHistory(checkpoint, "Move again", [object], [object.id], "move:test");
+    expect(second.present.revision).toBe(2);
+    expect(second.past.at(-1)?.revision).toBe(1);
+    expect(undoHistory(second).present.revision).toBe(1);
+    expect(redoHistory(undoHistory(second)).present.revision).toBe(2);
   });
 
   it("merges rapid property edits into one undo step", () => {

@@ -197,6 +197,7 @@ export interface EditorHistoryEntry {
   selectedNativeIds: string[];
   selectedNativeId?: string;
   pageNumber: number;
+  revision: number;
   timestamp: number;
   mergeKey?: string;
 }
@@ -205,6 +206,7 @@ export interface EditorHistoryState {
   past: EditorHistoryEntry[];
   present: EditorHistoryEntry;
   future: EditorHistoryEntry[];
+  nextRevision: number;
 }
 
 export interface EditorExportAsset {

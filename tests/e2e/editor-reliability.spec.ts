@@ -50,6 +50,16 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const download = await downloadPromise;
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-export-dirty", "false");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
+
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-export-dirty", "true");
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await page.keyboard.press("Control+y");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-export-dirty", "false");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
+
   await reopenDownload(page, download);
   expect(await searchDocument(page, "UNDO OK")).toContain("1 match");
 });
