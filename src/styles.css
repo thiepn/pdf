@@ -2542,6 +2542,12 @@ pre {
 .editor-layer-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-layer-item strong { font-size: .73rem; }
 .editor-layer-item small { color: #89949e; font-size: .6rem; }
+.native-layer-item--deleted { grid-template-columns: minmax(0, 1fr) auto; border-color: #5c4141; background: #2f2527; }
+.native-layer-item--deleted > button:first-child { cursor: default; opacity: .68; }
+.native-layer-item--deleted > button:first-child:disabled { color: #c9c1c1; }
+.native-layer-item--deleted strong { text-decoration: line-through; text-decoration-thickness: 1px; }
+.native-layer-item--deleted .native-layer-restore { min-width: 70px; padding: 0 10px; color: #e7edf3; font-size: .66rem; font-weight: 700; }
+.native-layer-item--deleted .native-layer-restore:hover { background: #403337; }
 .editor-comment-list > button { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 9px; padding: 10px; border: 1px solid #3a424b; border-radius: 8px; color: #dde3e8; background: #252b32; text-align: left; cursor: pointer; }
 .editor-comment-list > button > span { width: 10px; height: 10px; margin-top: 3px; border-radius: 50%; }
 .editor-comment-list > button div { min-width: 0; }
