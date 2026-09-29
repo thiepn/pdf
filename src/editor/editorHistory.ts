@@ -16,6 +16,7 @@ function entry(
   selectedIds: Iterable<string>,
   selectedNativeIds: Iterable<string> = [],
   selectedNativeId?: string,
+  pageNumber = 1,
   mergeKey?: string
 ): EditorHistoryEntry {
   const nativeSelection = [...selectedNativeIds];
@@ -26,20 +27,22 @@ function entry(
     selectedIds: [...selectedIds],
     selectedNativeIds: nativeSelection,
     selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0],
+    pageNumber: Math.max(1, Math.trunc(pageNumber) || 1),
     timestamp: Date.now(),
     mergeKey
   };
 }
 
-export function createHistory(objects: EditorObject[] = [], nativeEdits: NativeEdit[] = []): EditorHistoryState {
-  return { past: [], present: entry("Initial state", objects, nativeEdits, []), future: [] };
+export function createHistory(objects: EditorObject[] = [], nativeEdits: NativeEdit[] = [], pageNumber = 1): EditorHistoryState {
+  return { past: [], present: entry("Initial state", objects, nativeEdits, [], [], undefined, pageNumber), future: [] };
 }
 
 export function withHistorySelection(
   state: EditorHistoryState,
   selectedIds: Iterable<string>,
   selectedNativeIds: Iterable<string> = [],
-  selectedNativeId?: string
+  selectedNativeId?: string,
+  pageNumber = state.present.pageNumber
 ): EditorHistoryState {
   const nativeSelection = [...selectedNativeIds];
   return {
@@ -48,7 +51,8 @@ export function withHistorySelection(
       ...state.present,
       selectedIds: [...selectedIds],
       selectedNativeIds: nativeSelection,
-      selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0]
+      selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0],
+      pageNumber: Math.max(1, Math.trunc(pageNumber) || 1)
     }
   };
 }
@@ -61,9 +65,10 @@ export function commitHistory(
   mergeKey?: string,
   nativeEdits: NativeEdit[] = state.present.nativeEdits,
   selectedNativeIds: Iterable<string> = state.present.selectedNativeIds,
-  selectedNativeId: string | undefined = state.present.selectedNativeId
+  selectedNativeId: string | undefined = state.present.selectedNativeId,
+  pageNumber = state.present.pageNumber
 ): EditorHistoryState {
-  const next = entry(label, objects, nativeEdits, selectedIds, selectedNativeIds, selectedNativeId, mergeKey);
+  const next = entry(label, objects, nativeEdits, selectedIds, selectedNativeIds, selectedNativeId, pageNumber, mergeKey);
   const canMerge = mergeKey && state.present.mergeKey === mergeKey && next.timestamp - state.present.timestamp < 800;
   if (canMerge) return { ...state, present: next, future: [] };
   return { past: [...state.past.slice(-79), state.present], present: next, future: [] };
