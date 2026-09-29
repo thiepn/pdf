@@ -21,6 +21,7 @@ function entry(
 ): EditorHistoryEntry {
   const nativeSelection = [...selectedNativeIds];
   return {
+    contentId: globalThis.crypto.randomUUID(),
     label,
     objects: cloneObjects(objects),
     nativeEdits: cloneNativeEdits(nativeEdits),
