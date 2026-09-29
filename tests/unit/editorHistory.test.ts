@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitHistory, createHistory, redoHistory, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
+import { commitHistory, createHistory, historyContentIsDirty, redoHistory, sealHistoryMergeBoundary, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
 import { createObjectForTool } from "../../src/editor/editorModel";
 import type { NativeEdit } from "../../src/types/nativeEditor";
 
@@ -116,6 +116,34 @@ describe("editor history", () => {
     expect(redone.present.selectedNativeIds).toEqual([]);
     expect(redone.present.selectedNativeId).toBeUndefined();
     expect(redone.present.pageNumber).toBe(2);
+  });
+
+  it("tracks a clean content checkpoint independently of selection and page context", () => {
+    const initial = createHistory([], [], 2);
+    const cleanContentId = initial.present.contentId;
+    expect(historyContentIsDirty(initial, cleanContentId)).toBe(false);
+
+    const selected = withHistorySelection(initial, [], ["native-image-1"], "native-image-1", 3);
+    expect(selected.present.contentId).toBe(cleanContentId);
+    expect(historyContentIsDirty(selected, cleanContentId)).toBe(false);
+
+    const changed = commitHistory(selected, "Change", [], []);
+    expect(changed.present.contentId).not.toBe(cleanContentId);
+    expect(historyContentIsDirty(changed, cleanContentId)).toBe(true);
+    expect(historyContentIsDirty(undoHistory(changed), cleanContentId)).toBe(false);
+  });
+
+  it("seals an exported entry so a rapid next edit cannot merge across the clean checkpoint", () => {
+    const initial = createHistory();
+    const first = commitHistory(initial, "Edit", [], [], "property:text");
+    const cleanContentId = first.present.contentId;
+    const sealed = sealHistoryMergeBoundary(first);
+    expect(sealed.present.contentId).toBe(cleanContentId);
+    expect(sealed.present.mergeKey).toBeUndefined();
+
+    const afterExport = commitHistory(sealed, "Edit", [], [], "property:text");
+    expect(afterExport.past.at(-1)?.contentId).toBe(cleanContentId);
+    expect(undoHistory(afterExport).present.contentId).toBe(cleanContentId);
   });
 
   it("merges rapid property edits into one undo step", () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openSample, switchMode, openDocumentActions, openReaderOptions, readerCommand } from "./helpers/taskFirst";
+import { chooseEditorTool, openSample, switchMode, openDocumentActions, openReaderOptions, readerCommand } from "./helpers/taskFirst";
 
 const overflow = (page: import("@playwright/test").Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
@@ -134,6 +134,40 @@ test("phone editor uses one row and keeps tools, undo, properties and download w
   await page.getByRole("button",{name:"Download PDF",exact:true}).click();
   expect((await download).suggestedFilename()).toMatch(/\.pdf$/i);
   await page.screenshot({path:info.outputPath("compact-editor-phone.png")});
+});
+
+test("compact page and comment selection dismiss panels and reveal the target", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSample(page, "editor");
+
+  await page.getByRole("button", { name: "More tools", exact: true }).click();
+  let tools = page.getByRole("dialog", { name: "Editor tools" });
+  await tools.getByRole("button", { name: "Show pages", exact: true }).click();
+  const sidebar = page.locator(".editor-left-panel");
+  await expect(sidebar).toBeVisible();
+  await sidebar.getByRole("button", { name: "Open page 1", exact: true }).click();
+  await expect(sidebar).toHaveCount(0);
+  await expect(page.locator(".editor-stage")).toBeVisible();
+
+  await chooseEditorTool(page, "Comment");
+  const canvas = page.locator(".editor-page-layers");
+  const rect = await canvas.boundingBox();
+  if (!rect) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(rect.x + 130, rect.y + 150);
+  await expect(page.locator(".editor-properties")).toBeVisible();
+  await page.getByRole("button", { name: "Close editor panel", exact: true }).click({ position: { x: 12, y: 12 } });
+
+  await page.getByRole("button", { name: "More tools", exact: true }).click();
+  tools = page.getByRole("dialog", { name: "Editor tools" });
+  await tools.getByRole("button", { name: "Show pages", exact: true }).click();
+  await expect(sidebar).toBeVisible();
+  await sidebar.getByRole("combobox", { name: "Sidebar content" }).selectOption("comments");
+  const comment = sidebar.locator(".editor-comment-list > button").first();
+  await expect(comment).toBeVisible();
+  await comment.click();
+  await expect(sidebar).toHaveCount(0);
+  await expect(page.locator(".editor-properties")).toBeVisible();
+  await expect(page.locator(".editor-object--selected").first()).toBeVisible();
 });
 
 test("compact options restore focus, preserve state on rotation and do not leave invisible modal traps", async ({page}) => {

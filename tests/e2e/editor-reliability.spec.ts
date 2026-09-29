@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
-import { chooseEditorTool, openSample } from "./helpers/taskFirst";
+import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
+
+async function openEditorFile(page: import("@playwright/test").Page, path: string) {
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles(path);
+  await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
+  await switchMode(page, "editor");
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("1");
+}
+
+async function openMultiPageEditor(page: import("@playwright/test").Page) {
+  await openEditorFile(page, "tests/corpus/generated/plain-text.pdf");
+}
 
 async function reopenDownload(page: import("@playwright/test").Page, download: import("@playwright/test").Download) {
   const tempPath = `/tmp/pdf-editor-reopen-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
@@ -136,4 +148,97 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
   const download = await downloadPromise;
   await reopenDownload(page, download);
   expect(await searchDocument(page, "SAMPLE BRIEF")).toContain("0 matches");
+});
+
+
+test("export creates a clean history checkpoint that Undo can return to", async ({ page }) => {
+  await openSample(page, "editor");
+  const app = page.locator(".editor-app");
+  await expect(app).toHaveAttribute("data-editor-dirty", "false");
+
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 120, box.y + 160);
+  const content = page.locator(".editor-properties").getByLabel("Content");
+  await content.fill("SAVED REVISION");
+  await expect(app).toHaveAttribute("data-editor-dirty", "true");
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+  await download;
+  await expect(app).toHaveAttribute("data-editor-dirty", "false", { timeout: 20_000 });
+
+  await content.fill("AFTER EXPORT");
+  await expect(app).toHaveAttribute("data-editor-dirty", "true");
+  await page.keyboard.press("Control+z");
+  await expect(app).toHaveAttribute("data-editor-dirty", "false");
+  await expect(content).toHaveValue("SAVED REVISION");
+
+  await page.keyboard.press("Control+y");
+  await expect(app).toHaveAttribute("data-editor-dirty", "true");
+  await expect(content).toHaveValue("AFTER EXPORT");
+});
+
+test("page navigation clears stale selections before off-screen shortcuts can run", async ({ page }) => {
+  await openMultiPageEditor(page);
+  const source = page.getByRole("button", { name: /Select existing (?:text|paragraph|image):/ }).first();
+  await expect(source).toBeVisible({ timeout: 20_000 });
+  const sourceId = await source.getAttribute("data-native-object-id");
+  expect(sourceId).toBeTruthy();
+  await source.click();
+  await expect(source).toHaveClass(/active/);
+
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("2");
+  await expect(page.locator(".native-unified-properties")).toHaveCount(0);
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Previous page", exact: true }).click();
+  const restored = page.locator(`[data-native-object-id="${sourceId}"]`);
+  await expect(restored).toBeVisible();
+  await expect(restored).not.toHaveClass(/active/);
+});
+
+test("page-number entry clears stale added-object selection", async ({ page }) => {
+  await openMultiPageEditor(page);
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 120, box.y + 160);
+  const object = page.locator(".editor-object").last();
+  await expect(object).toBeVisible();
+
+  const pageInput = page.getByLabel("Current page", { exact: true });
+  await pageInput.fill("2");
+  await pageInput.press("Enter");
+  await expect(pageInput).toHaveValue("2");
+  await page.keyboard.press("Delete");
+
+  await pageInput.fill("1");
+  await pageInput.press("Enter");
+  await expect(object).toBeVisible();
+});
+
+test("deleted existing content remains recoverable from the layer list", async ({ page }) => {
+  await openSample(page, "editor");
+  const image = page.getByRole("button", { name: /Select existing image:/ }).first();
+  await expect(image).toBeVisible({ timeout: 20_000 });
+  const id = await image.getAttribute("data-native-object-id");
+  expect(id).toBeTruthy();
+  await image.click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator(`[data-native-object-id="${id}"]`)).toHaveCount(0);
+
+  const sidebar = page.locator(".editor-left-panel");
+  await expect(sidebar).toBeVisible();
+  await sidebar.getByRole("combobox", { name: "Sidebar content" }).selectOption("layers");
+  const restore = sidebar.getByRole("button", { name: "Restore", exact: true }).first();
+  await expect(restore).toBeVisible();
+  await restore.click();
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await expect(page.locator(`[data-native-object-id="${id}"]`)).toBeVisible();
 });
