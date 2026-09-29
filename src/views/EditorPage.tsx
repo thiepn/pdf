@@ -868,16 +868,13 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         const cleanState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: false, lastSavedAt: savedAt, updatedAt: savedAt };
         await writeEditorState(cleanState);
         await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: savedAt } });
-        // Export is mutation-locked, so the history entry that exists at
-        // completion is the exact content snapshot just written. Capture the
-        // clean checkpoint from that current entry (not from a render closure),
-        // and seal its merge key so the next rapid property edit cannot merge
-        // through the exported state.
-        setHistory((current) => {
-          const clean = sealHistoryMergeBoundary(current);
-          cleanHistoryContentIdRef.current = clean.present.contentId;
-          return clean;
-        });
+        // Export is mutation-locked, and the bytes above were produced from
+        // this render's exact history snapshot. Record that content identity
+        // synchronously before the UI can expose a clean state; do not hide the
+        // checkpoint assignment inside React's deferred state updater.
+        const exportedContentId = history.present.contentId;
+        cleanHistoryContentIdRef.current = exportedContentId;
+        setHistory((current) => sealHistoryMergeBoundary(current));
         setEditorState((current) => ({ ...current, dirty: false, lastSavedAt: savedAt, updatedAt: savedAt }));
         setStatus("Edited PDF downloaded");
       }
