@@ -2,6 +2,13 @@ import type { EditorHistoryEntry, EditorHistoryState, EditorObject } from "../ty
 import type { NativeEdit } from "../types/nativeEditor";
 import { cloneObjects } from "./editorModel";
 
+let revisionSequence = 0;
+
+function nextRevisionId(): string {
+  revisionSequence += 1;
+  return `${Date.now().toString(36)}-${revisionSequence.toString(36)}`;
+}
+
 function cloneNativeEdits(edits: NativeEdit[]): NativeEdit[] {
   // Native edit payloads are immutable after they enter history. Keep the edit
   // objects (and potentially large embedded font bytes) structurally shared
@@ -28,6 +35,7 @@ function entry(
     selectedNativeIds: nativeSelection,
     selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0],
     pageNumber: Math.max(1, Math.trunc(pageNumber) || 1),
+    revisionId: nextRevisionId(),
     timestamp: Date.now(),
     mergeKey
   };
@@ -55,6 +63,15 @@ export function withHistorySelection(
       pageNumber: Math.max(1, Math.trunc(pageNumber) || 1)
     }
   };
+}
+
+export function sealHistoryMergeBoundary(state: EditorHistoryState): EditorHistoryState {
+  if (!state.present.mergeKey) return state;
+  return { ...state, present: { ...state.present, mergeKey: undefined } };
+}
+
+export function historyRevisionIsDirty(state: EditorHistoryState, savedRevisionId: string | null): boolean {
+  return savedRevisionId === null || state.present.revisionId !== savedRevisionId;
 }
 
 export function commitHistory(

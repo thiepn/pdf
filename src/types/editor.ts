@@ -197,6 +197,7 @@ export interface EditorHistoryEntry {
   selectedNativeIds: string[];
   selectedNativeId?: string;
   pageNumber: number;
+  revisionId: string;
   timestamp: number;
   mergeKey?: string;
 }

@@ -133,3 +133,37 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
   await reopenDownload(page, download);
   expect(await searchDocument(page, "SAMPLE BRIEF")).toContain("0 matches");
 });
+
+
+test("export creates a clean history boundary that Undo can return to", async ({ page }) => {
+  await openSample(page, "editor");
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 120, box.y + 160);
+
+  const properties = page.locator(".editor-properties");
+  const content = properties.getByLabel("Content");
+  await content.fill("SAVED REVISION");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "true");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+  await downloadPromise;
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false", { timeout: 20_000 });
+
+  // Edit immediately after export. This used to merge into the just-exported
+  // history entry, making the clean state impossible to Undo back to.
+  await content.fill("AFTER EXPORT");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "true");
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
+  await expect(content).toHaveValue("SAVED REVISION");
+
+  await page.keyboard.press("Control+y");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "true");
+  await expect(content).toHaveValue("AFTER EXPORT");
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
+});

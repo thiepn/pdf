@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitHistory, createHistory, redoHistory, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
+import { commitHistory, createHistory, historyRevisionIsDirty, redoHistory, sealHistoryMergeBoundary, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
 import { createObjectForTool } from "../../src/editor/editorModel";
 import type { NativeEdit } from "../../src/types/nativeEditor";
 
@@ -116,6 +116,34 @@ describe("editor history", () => {
     expect(redone.present.selectedNativeIds).toEqual([]);
     expect(redone.present.selectedNativeId).toBeUndefined();
     expect(redone.present.pageNumber).toBe(2);
+  });
+
+  it("tracks a saved revision independently of selection and page context", () => {
+    const initial = createHistory([], [], 2);
+    const savedRevision = initial.present.revisionId;
+    expect(historyRevisionIsDirty(initial, savedRevision)).toBe(false);
+
+    const selected = withHistorySelection(initial, [], ["native-1"], "native-1", 3);
+    expect(selected.present.revisionId).toBe(savedRevision);
+    expect(historyRevisionIsDirty(selected, savedRevision)).toBe(false);
+
+    const changed = commitHistory(selected, "Change", [], [], "property:test");
+    expect(changed.present.revisionId).not.toBe(savedRevision);
+    expect(historyRevisionIsDirty(changed, savedRevision)).toBe(true);
+    expect(historyRevisionIsDirty(undoHistory(changed), savedRevision)).toBe(false);
+  });
+
+  it("seals a saved history entry so a rapid post-export edit cannot merge across it", () => {
+    const initial = createHistory();
+    const first = commitHistory(initial, "Edit", [], [], "property:text");
+    const savedRevision = first.present.revisionId;
+    const sealed = sealHistoryMergeBoundary(first);
+    expect(sealed.present.revisionId).toBe(savedRevision);
+    expect(sealed.present.mergeKey).toBeUndefined();
+
+    const afterExportEdit = commitHistory(sealed, "Edit", [], [], "property:text");
+    expect(afterExportEdit.past.at(-1)?.revisionId).toBe(savedRevision);
+    expect(undoHistory(afterExportEdit).present.revisionId).toBe(savedRevision);
   });
 
   it("merges rapid property edits into one undo step", () => {
