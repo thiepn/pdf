@@ -190,6 +190,7 @@ export interface EditorAssetRecord {
 }
 
 export interface EditorHistoryEntry {
+  contentId: string;
   label: string;
   objects: EditorObject[];
   nativeEdits: NativeEdit[];
