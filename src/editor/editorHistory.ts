@@ -79,13 +79,13 @@ export function commitHistory(
 export function undoHistory(state: EditorHistoryState): EditorHistoryState {
   const previous = state.past.at(-1);
   if (!previous) return state;
-  return { past: state.past.slice(0, -1), present: previous, future: [state.present, ...state.future] };
+  return { past: state.past.slice(0, -1), present: previous, future: [state.present, ...state.future], nextRevision: state.nextRevision };
 }
 
 export function redoHistory(state: EditorHistoryState): EditorHistoryState {
   const next = state.future[0];
   if (!next) return state;
-  return { past: [...state.past, state.present], present: next, future: state.future.slice(1) };
+  return { past: [...state.past, state.present], present: next, future: state.future.slice(1), nextRevision: state.nextRevision };
 }
 
 export function breakHistoryMerge(state: EditorHistoryState): EditorHistoryState {
