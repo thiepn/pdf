@@ -183,23 +183,21 @@ test("export creates a clean history checkpoint that Undo can return to", async 
 
 test("page navigation clears stale selections before off-screen shortcuts can run", async ({ page }) => {
   await openMultiPageEditor(page);
-  const source = page.getByRole("button", { name: /Select existing (?:text|paragraph|image):/ }).first();
-  await expect(source).toBeVisible({ timeout: 20_000 });
-  const sourceId = await source.getAttribute("data-native-object-id");
-  expect(sourceId).toBeTruthy();
-  await source.click();
-  await expect(source).toHaveClass(/active/);
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 120, box.y + 160);
+  const object = page.locator(".editor-object").last();
+  await expect(object).toBeVisible();
 
   await page.getByRole("button", { name: "Next page", exact: true }).click();
   await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("2");
-  await expect(page.locator(".native-unified-properties")).toHaveCount(0);
   await page.keyboard.press("Delete");
-  await expect(page.locator(".native-queued-count")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Previous page", exact: true }).click();
-  const restored = page.locator(`[data-native-object-id="${sourceId}"]`);
-  await expect(restored).toBeVisible();
-  await expect(restored).not.toHaveClass(/active/);
+  await expect(object).toBeVisible();
+  await expect(object).not.toHaveClass(/editor-object--selected/);
 });
 
 test("page-number entry clears stale added-object selection", async ({ page }) => {

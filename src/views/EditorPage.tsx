@@ -430,12 +430,15 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   function navigateToPage(pageNumber: number): void {
     const totalPages = document?.numPages ?? project?.summary.pageCount ?? 1;
     const nextPage = Math.max(1, Math.min(totalPages, Math.trunc(pageNumber) || 1));
-    if (nextPage === editorState.currentPage) return;
-    setSelectedIds(new Set());
-    setSelectedNativeIds(new Set());
-    setSelectedNativeId(undefined);
-    setPreviewObject(null);
-    setEditorState((state) => ({ ...state, currentPage: nextPage }));
+    if (nextPage !== editorState.currentPage) {
+      setSelectedIds(new Set());
+      setSelectedNativeIds(new Set());
+      setSelectedNativeId(undefined);
+      setPreviewObject(null);
+      setEditorState((state) => ({ ...state, currentPage: nextPage }));
+    }
+    // Page selection is also a compact-navigation action. Even choosing the
+    // already-current page should dismiss the sheet/sidebar and reveal canvas.
     if (isCompactViewport()) {
       setPropertiesOpen(false);
       setSidebarOpen(false);
@@ -812,7 +815,6 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   async function exportPdf(saveProject: boolean): Promise<void> {
     if (!project || !sourceBytesRef.current || processing || abortRef.current) return;
     const sourceBytes = sourceBytesRef.current;
-    const exportedContentId = history.present.contentId;
     (window.document.activeElement as HTMLElement | null)?.blur();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -866,8 +868,16 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         const cleanState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: false, lastSavedAt: savedAt, updatedAt: savedAt };
         await writeEditorState(cleanState);
         await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: savedAt } });
-        cleanHistoryContentIdRef.current = exportedContentId;
-        setHistory((current) => current.present.contentId === exportedContentId ? sealHistoryMergeBoundary(current) : current);
+        // Export is mutation-locked, so the history entry that exists at
+        // completion is the exact content snapshot just written. Capture the
+        // clean checkpoint from that current entry (not from a render closure),
+        // and seal its merge key so the next rapid property edit cannot merge
+        // through the exported state.
+        setHistory((current) => {
+          const clean = sealHistoryMergeBoundary(current);
+          cleanHistoryContentIdRef.current = clean.present.contentId;
+          return clean;
+        });
         setEditorState((current) => ({ ...current, dirty: false, lastSavedAt: savedAt, updatedAt: savedAt }));
         setStatus("Edited PDF downloaded");
       }
