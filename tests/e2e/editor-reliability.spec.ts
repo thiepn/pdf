@@ -103,6 +103,26 @@ test("deleted existing objects leave no stale canvas hitbox and return on Undo",
   await page.keyboard.press("Control+y");
   await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
+
+  const showPages = page.getByRole("button", { name: "Show pages", exact: true });
+  if (await showPages.isVisible()) await showPages.click();
+  const sidebar = page.locator(".editor-left-panel");
+  await expect(sidebar).toBeVisible();
+  await sidebar.getByRole("combobox", { name: "Sidebar content" }).selectOption("layers");
+  const deletedLayer = sidebar.getByRole("button", { name: /Deleted existing .* image/i }).first();
+  await expect(deletedLayer).toBeDisabled();
+  const restore = sidebar.getByRole("button", { name: /Restore existing .* image/i }).first();
+  await expect(restore).toBeVisible();
+  await restore.click();
+
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "source", { timeout: 20_000 });
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
+  await expect(restore).toHaveCount(0);
+
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
 });
 
 
