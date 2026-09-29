@@ -749,7 +749,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       return { ...structuredClone(object), id: crypto.randomUUID(), groupId, pageNumber: editorState.currentPage, bounds: moveRect(object.bounds, 16, -16), zIndex: highest + index + 1, createdAt: now, modifiedAt: now };
     });
     const selection = new Set(pasted.map((object) => object.id));
-    commitObjects("Paste objects", [...history.present.objects, ...pasted], undefined, selection);
+    commitObjects("Paste objects", [...history.present.objects, ...pasted], undefined, selection, new Set(), undefined);
     setSelectedIds(selection);
     setSelectedNativeIds(new Set());
     setSelectedNativeId(undefined);
