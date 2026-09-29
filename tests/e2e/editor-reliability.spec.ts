@@ -96,7 +96,13 @@ test("deleted existing objects leave no stale canvas hitbox and return on Undo",
 
   await page.keyboard.press("Control+z");
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
-  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toBeVisible();
+  const restored = page.locator(`[data-native-object-id="${nativeId}"]`);
+  await expect(restored).toBeVisible();
+  await expect(restored).toHaveClass(/active/);
+
+  await page.keyboard.press("Control+y");
+  await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
+  await expect(page.locator(`[data-native-object-id="${nativeId}"]`)).toHaveCount(0);
 });
 
 

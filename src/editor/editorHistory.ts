@@ -9,12 +9,48 @@ function cloneNativeEdits(edits: NativeEdit[]): NativeEdit[] {
   return edits.slice();
 }
 
-function entry(label: string, objects: EditorObject[], nativeEdits: NativeEdit[], selectedIds: Iterable<string>, mergeKey?: string): EditorHistoryEntry {
-  return { label, objects: cloneObjects(objects), nativeEdits: cloneNativeEdits(nativeEdits), selectedIds: [...selectedIds], timestamp: Date.now(), mergeKey };
+function entry(
+  label: string,
+  objects: EditorObject[],
+  nativeEdits: NativeEdit[],
+  selectedIds: Iterable<string>,
+  selectedNativeIds: Iterable<string> = [],
+  selectedNativeId?: string,
+  mergeKey?: string
+): EditorHistoryEntry {
+  const nativeSelection = [...selectedNativeIds];
+  return {
+    label,
+    objects: cloneObjects(objects),
+    nativeEdits: cloneNativeEdits(nativeEdits),
+    selectedIds: [...selectedIds],
+    selectedNativeIds: nativeSelection,
+    selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0],
+    timestamp: Date.now(),
+    mergeKey
+  };
 }
 
 export function createHistory(objects: EditorObject[] = [], nativeEdits: NativeEdit[] = []): EditorHistoryState {
   return { past: [], present: entry("Initial state", objects, nativeEdits, []), future: [] };
+}
+
+export function withHistorySelection(
+  state: EditorHistoryState,
+  selectedIds: Iterable<string>,
+  selectedNativeIds: Iterable<string> = [],
+  selectedNativeId?: string
+): EditorHistoryState {
+  const nativeSelection = [...selectedNativeIds];
+  return {
+    ...state,
+    present: {
+      ...state.present,
+      selectedIds: [...selectedIds],
+      selectedNativeIds: nativeSelection,
+      selectedNativeId: selectedNativeId && nativeSelection.includes(selectedNativeId) ? selectedNativeId : nativeSelection[0]
+    }
+  };
 }
 
 export function commitHistory(
@@ -23,9 +59,11 @@ export function commitHistory(
   objects: EditorObject[],
   selectedIds: Iterable<string>,
   mergeKey?: string,
-  nativeEdits: NativeEdit[] = state.present.nativeEdits
+  nativeEdits: NativeEdit[] = state.present.nativeEdits,
+  selectedNativeIds: Iterable<string> = state.present.selectedNativeIds,
+  selectedNativeId: string | undefined = state.present.selectedNativeId
 ): EditorHistoryState {
-  const next = entry(label, objects, nativeEdits, selectedIds, mergeKey);
+  const next = entry(label, objects, nativeEdits, selectedIds, selectedNativeIds, selectedNativeId, mergeKey);
   const canMerge = mergeKey && state.present.mergeKey === mergeKey && next.timestamp - state.present.timestamp < 800;
   if (canMerge) return { ...state, present: next, future: [] };
   return { past: [...state.past.slice(-79), state.present], present: next, future: [] };

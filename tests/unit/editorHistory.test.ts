@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitHistory, createHistory, redoHistory, undoHistory } from "../../src/editor/editorHistory";
+import { commitHistory, createHistory, redoHistory, undoHistory, withHistorySelection } from "../../src/editor/editorHistory";
 import { createObjectForTool } from "../../src/editor/editorModel";
 import type { NativeEdit } from "../../src/types/nativeEditor";
 
@@ -95,6 +95,25 @@ describe("editor history", () => {
     const undone = undoHistory(withOverlay);
     expect(undone.present.objects).toHaveLength(0);
     expect(undone.present.nativeEdits).toHaveLength(1);
+  });
+
+  it("restores both added-object and existing-PDF selections across a transaction", () => {
+    const object = createObjectForTool({ tool: "text", pageNumber: 1, bounds: { x0: 0, y0: 0, x1: 100, y1: 40 }, author: "Test", zIndex: 1 });
+    if (!object) throw new Error("Fixture creation failed");
+    const selected = withHistorySelection(createHistory([object]), [object.id], ["native-image-1"], "native-image-1");
+    const deleted = commitHistory(selected, "Delete selection", [], [], undefined, [], [], undefined);
+    expect(deleted.present.selectedIds).toEqual([]);
+    expect(deleted.present.selectedNativeIds).toEqual([]);
+
+    const undone = undoHistory(deleted);
+    expect(undone.present.selectedIds).toEqual([object.id]);
+    expect(undone.present.selectedNativeIds).toEqual(["native-image-1"]);
+    expect(undone.present.selectedNativeId).toBe("native-image-1");
+
+    const redone = redoHistory(undone);
+    expect(redone.present.selectedIds).toEqual([]);
+    expect(redone.present.selectedNativeIds).toEqual([]);
+    expect(redone.present.selectedNativeId).toBeUndefined();
   });
 
   it("merges rapid property edits into one undo step", () => {
