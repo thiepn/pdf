@@ -221,8 +221,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         ]);
         if (cancelled) return;
         sourceBytesRef.current = bytes;
-        setEditorState({ ...storedState, currentPage: Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage)) });
-        setHistory(createHistory(storedState.objects, storedNativeState.queuedEdits));
+        const hydratedPage = Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage));
+        setEditorState({ ...storedState, currentPage: hydratedPage });
+        setHistory(createHistory(storedState.objects, storedNativeState.queuedEdits, hydratedPage));
         await openDocument(manifest, bytes);
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
     })();
@@ -462,7 +463,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (processing || !edits.length) return;
     setHistory((current) => {
       const nextNativeEdits = mergeNativeEdits(current.present.nativeEdits, edits);
-      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId);
+      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
       return commitHistory(base, "Edit existing PDF content", current.present.objects, selectedIds, undefined, nextNativeEdits, selectedNativeIds, selectedNativeId);
     });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
@@ -474,7 +475,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setHistory((current) => {
       const nextNativeEdits = discardNativeObjectEdits(current.present.nativeEdits, objectId);
       if (nextNativeEdits.length === current.present.nativeEdits.length) return current;
-      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId);
+      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
       return commitHistory(base, "Discard existing PDF edit", current.present.objects, selectedIds, undefined, nextNativeEdits, selectedNativeIds, selectedNativeId);
     });
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
@@ -491,7 +492,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   ): void {
     if (processing) return;
     setHistory((current) => {
-      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId);
+      const base = withHistorySelection(current, selectedIds, selectedNativeIds, selectedNativeId, editorState.currentPage);
       return commitHistory(base, label, objects, nextSelection, mergeKey, nextNativeEdits, nextNativeSelection, nextNativePrimary);
     });
     setPreviewObject(null);
@@ -646,7 +647,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
-      setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
+      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: true, updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
@@ -659,7 +660,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
-      setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
+      setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: true, updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
