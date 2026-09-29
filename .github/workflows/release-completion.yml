@@ -58,6 +58,8 @@ jobs:
           python -m pip install --requirement requirements-phase11.txt
       - name: Generate and validate all release browser corpora
         run: node scripts/releases/prepare-browser-corpora.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Test release-certificate and licence-packaging failure boundaries
         run: node --test scripts/releases/*.test.mjs
       - name: Complete non-browser release gate
@@ -170,6 +172,6 @@ jobs:
         run: node scripts/releases/certify-browser-matrix.mjs /tmp/release-evidence /tmp/release-certificate.json
       - uses: actions/upload-artifact@v4
         with:
-          name: v7.1.2-release-certificate
+          name: v7.1.3-release-certificate
           path: /tmp/release-certificate.json
           retention-days: 90

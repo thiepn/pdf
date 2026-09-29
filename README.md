@@ -5,19 +5,19 @@ PDF Studio is a private, installable PDF workspace that processes documents insi
 **Site:** https://thiepn.github.io/pdf/  
 **Repository:** https://github.com/thiepn/pdf
 
-**v7.1.2 is the task-first release candidate**: choose a PDF task or drop your files, adjust a visual preview, and download the result. The redesign replaces document and workspace tabs while retaining the existing-content editing and output-validation engines.
+**v7.1.3 is the task-first release candidate**: choose a PDF task or drop your files, adjust a visual preview, and download the result. The redesign replaces document and workspace tabs while retaining the existing-content editing and output-validation engines.
 
 ## Release status
 
-- **Version:** `7.1.2`
+- **Version:** `7.1.3`
 - **Default source channel:** Release candidate
-- **Stable promotion:** Qualified `v7.1.2` tag only
+- **Stable promotion:** Qualified `v7.1.3` tag only
 - **Hosting:** Static GitHub Pages deployment
 - **Processing:** Browser-local
 - **Licence:** GNU AGPL-3.0-or-later
 - **Qualified CI toolchain:** Node 22.16.0 / npm 10.9.2
 
-Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.0.0 introduced the existing-content editing release line; v7.1.2 hardens editor history, selection continuity, and everyday workflows.** P1–P8 add exact text editing with layout-aware reflow, source image manipulation, vector and table reconstruction, unified mixed-object layout, reusable nested Form XObject editing, and source-vs-output fidelity certification. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.2` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
+Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.0.0 introduced the existing-content editing release line; v7.1.3 hardens editor history, deletion-selection continuity, and everyday workflows.** P1–P8 add exact text editing with layout-aware reflow, source image manipulation, vector and table reconstruction, unified mixed-object layout, reusable nested Form XObject editing, and source-vs-output fidelity certification. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.3` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
 ### v6.1.0 interface principles
 
@@ -218,11 +218,11 @@ The lockfile is already committed. **Bootstrap dependency lock** is only for ini
 1. Open **Settings → Pages** and set **Source** to **GitHub Actions**.
 2. Merge the reviewed, current-head-qualified release PR into `main`. Do not bypass failed checks.
 3. The main-branch workflow requalifies the merged source before publishing a **release-candidate** build. It preserves an existing same-version Stable deployment instead of overwriting it.
-4. For Stable publication, create the exact **`v7.1.2` tag on the accepted commit in `main` history** and push that tag. Do not tag an unmerged branch, recreate an existing tag, or manually publish a GitHub Release ahead of verification.
+4. For Stable publication, create the exact **`v7.1.3` tag on the accepted commit in `main` history** and push that tag. Do not tag an unmerged branch, recreate an existing tag, or manually publish a GitHub Release ahead of verification.
 
 The tagged workflow rebuilds with `VITE_RELEASE_CHANNEL=stable`, proves reproducibility, reruns browser and security gates, packages source/distribution archives with checksums, deploys the qualified artifact, and smoke-tests the live application. Only after those steps succeed does it publish the GitHub Release. A passing PR or a local stable-channel build is not evidence that deployment has happened.
 
-The default deployment base is `/pdf/`; an explicit `PAGES_BASE_PATH` repository variable can override it for a separately configured deployment. Runtime assets, PWA scope and release metadata must use the same base. See [the v7.1.2 release contract](docs/P9_RELEASE_CANDIDATE.md) for preserved schemas and capability boundaries.
+The default deployment base is `/pdf/`; an explicit `PAGES_BASE_PATH` repository variable can override it for a separately configured deployment. Runtime assets, PWA scope and release metadata must use the same base. See [the v7.1.3 release contract](docs/P9_RELEASE_CANDIDATE.md) for preserved schemas and capability boundaries.
 
 Every verified distribution contains `LICENSE.txt`, `THIRD_PARTY_NOTICES.txt` and `license-inventory.json`. They are covered by distribution integrity checks and included in the core offline cache. Keep these files with redistributed builds.
 

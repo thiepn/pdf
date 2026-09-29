@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.1.3 — Task-first PDF Tools & Release Candidate
+
+- Clears hidden existing-PDF selections immediately when queued deletion edits remove text, images, vectors, tables, or complex content from the canvas.
+- Keeps the native properties panel synchronized with what is actually visible after deletion instead of leaving a hidden deleted object selected.
+- Restores the deleted source object, active selection, and properties panel together on Undo, then clears them again consistently on Redo.
+- Centralizes hidden native-object detection in the native edit queue so canvas hit-testing and selection cleanup use the same deletion semantics.
+- Adds unit and browser regressions for deletion-selection cleanup and Undo/Redo restoration without changing project package v9, database schema v13, or native-editor schema v6.
+
 ## 7.1.2 — Task-first PDF Tools & Release Candidate
 
 - Restores existing-PDF selection state through Undo/Redo alongside objects added in PDF Studio.

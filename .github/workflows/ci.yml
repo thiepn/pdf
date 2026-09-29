@@ -114,6 +114,7 @@ jobs:
           node scripts/reconstruction/r8_qualification.mjs --discovery-qualified
         env:
           R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
       - name: P9 release-candidate freeze audit
         run: npm run audit:p9:release-candidate
       - name: v7 release-line non-browser qualification
@@ -203,6 +204,7 @@ jobs:
           python scripts/p0/validate_stress_corpus.py
         env:
           R8_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Download exact verified distribution
         uses: actions/download-artifact@v8
         with:
