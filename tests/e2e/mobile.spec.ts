@@ -168,7 +168,7 @@ test("compact page and comment selection dismiss the sheet and reveal the target
   await comment.click();
   await expect(sidebar).toHaveCount(0);
   await expect(page.locator(".editor-properties")).toBeVisible();
-  await expect(page.locator(".editor-object.active,.editor-object[aria-selected='true']").first()).toBeVisible();
+  await expect(page.locator(".editor-object--selected").first()).toBeVisible();
 });
 
 test("compact options restore focus, preserve state on rotation and do not leave invisible modal traps", async ({page}) => {
