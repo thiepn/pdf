@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import urllib.request
 from pathlib import Path
@@ -28,14 +29,20 @@ OUTPUT = ROOT / "tests" / "corpus" / "r8-external"
 MANIFEST = OUTPUT / "manifest.json"
 
 
+def github_api_headers() -> dict[str, str]:
+    headers = {
+        "User-Agent": "pdf-studio-r8-qualification",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def request_json(url: str):
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "pdf-studio-r8-qualification",
-            "Accept": "application/vnd.github+json",
-        },
-    )
+    request = urllib.request.Request(url, headers=github_api_headers())
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
 
