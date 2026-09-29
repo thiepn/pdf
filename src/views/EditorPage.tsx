@@ -12,7 +12,7 @@ import { openPdfWithPdfJs, inspectPdfAnnotationInventory, inspectPdfBytes } from
 import { EditorCanvasPage } from "../editor/components/EditorCanvasPage";
 import { EditorPropertiesPanel } from "../editor/components/EditorPropertiesPanel";
 import { UnifiedLayoutPropertiesPanel } from "../editor/components/UnifiedLayoutPropertiesPanel";
-import { createHistory, commitHistory, redoHistory, undoHistory } from "../editor/editorHistory";
+import { createHistory, commitHistory, redoHistory, undoHistory, withHistorySelection } from "../editor/editorHistory";
 import { cloneObjects, createEditorState, duplicateObjects, moveRect, updateObjects } from "../editor/editorModel";
 import { listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
 import { exportEditorPdf } from "../editor/editorExportClient";
