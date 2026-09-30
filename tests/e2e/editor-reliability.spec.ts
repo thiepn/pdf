@@ -240,3 +240,44 @@ test("deleted existing content remains recoverable from the layer list", async (
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
   await expect(page.locator(`[data-native-object-id="${id}"]`)).toBeVisible();
 });
+
+
+test("locked added objects stay immutable until explicitly unlocked", async ({ page }) => {
+  await openSample(page, "editor");
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 140, box.y + 180);
+
+  const object = page.locator(".editor-object").last();
+  const properties = page.locator(".editor-properties");
+  const content = properties.getByLabel("Content");
+  await content.fill("LOCKED OBJECT");
+  const locked = properties.getByLabel("Locked", { exact: true });
+  await locked.check();
+
+  await expect(content).toBeDisabled();
+  await expect(properties.getByRole("button", { name: "Delete", exact: true })).toBeDisabled();
+  await expect(properties.getByRole("button", { name: "Bring front", exact: true })).toBeDisabled();
+  await expect(object).toHaveClass(/editor-object--locked/);
+
+  const before = await object.boundingBox();
+  if (!before) throw new Error("Locked object bounds are unavailable.");
+  await object.click();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Control+d");
+
+  await expect(page.locator(".editor-object")).toHaveCount(1);
+  const after = await object.boundingBox();
+  if (!after) throw new Error("Locked object disappeared.");
+  expect(Math.abs(after.x - before.x)).toBeLessThan(0.5);
+  expect(Math.abs(after.y - before.y)).toBeLessThan(0.5);
+
+  await locked.uncheck();
+  await expect(content).toBeEnabled();
+  await object.click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".editor-object")).toHaveCount(0);
+});
