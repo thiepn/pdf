@@ -252,6 +252,10 @@ test("page Select All and Cut shortcuts are safe for mixed PDF selections", asyn
 
   const added = page.locator(".editor-object").last();
   await expect(added).toBeVisible();
+  // Existing-content discovery is deliberately deferred after the editor becomes
+  // interactive. Wait for one source hitbox so this test exercises a genuinely
+  // mixed selection rather than racing that hydration step.
+  await expect(page.locator(".native-content-hitbox").first()).toBeVisible({ timeout: 20_000 });
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+a");
 
