@@ -84,7 +84,7 @@ test("release licences remain available from the service worker when the origin 
       return { inventory, files };
     });
     expect(result.inventory.schemaVersion).toBe(1);
-    expect(result.inventory.application.version).toBe("7.1.3");
+    expect(result.inventory.application.version).toBe("7.1.4");
     expect(result.inventory.packages).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "pdfjs-dist", version: "5.4.624" }),
       expect.objectContaining({ name: "mupdf", version: "1.28.0" }),
