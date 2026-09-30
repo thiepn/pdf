@@ -344,7 +344,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       if (command && event.key.toLowerCase() === "a") { event.preventDefault(); selectAllCurrentPage(); return; }
       if (command && event.key.toLowerCase() === "c") { event.preventDefault(); void copySelection(); return; }
-      if (command && event.key.toLowerCase() === "x") { event.preventDefault(); void cutSelection(); return; }
+      if (command && event.key.toLowerCase() === "x") { event.preventDefault(); cutSelection(); return; }
       if (command && event.key.toLowerCase() === "v") { event.preventDefault(); void pasteSelection(); return; }
       if (command && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateSelection(); return; }
       if (event.key === "Escape") { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); return; }
@@ -731,7 +731,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     }
   }
 
-  async function cutSelection(): Promise<void> {
+  function cutSelection(): void {
     if (processing) return;
     if (selectedNativeIds.size) {
       const message = "Existing PDF content cannot be cut to the clipboard safely. Deselect original PDF items first; nothing was deleted.";
@@ -743,11 +743,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (!copied.length) return;
 
     internalClipboardRef.current = cloneObjects(copied);
-    try {
-      await navigator.clipboard.writeText(JSON.stringify({ format: "local-pdf-studio/editor-objects", version: 1, objects: copied }));
-    } catch {
+    void navigator.clipboard.writeText(JSON.stringify({ format: "local-pdf-studio/editor-objects", version: 1, objects: copied })).catch(() => {
       // The internal clipboard is sufficient for in-app paste when system clipboard access is unavailable.
-    }
+    });
 
     const nextObjects = history.present.objects.filter((object) => !selectedIds.has(object.id));
     commitEditorTransaction("Cut objects", nextObjects, nativeEdits, new Set(), undefined, new Set(), undefined);
@@ -981,6 +979,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const contextControls = <div className="editor-contextbar editor-selectionbar" inert={processing ? true : undefined}>
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !sidebarOpen; setSidebarOpen(next); if (next && isCompactViewport()) setPropertiesOpen(false); }} type="button" aria-expanded={sidebarOpen}>{sidebarOpen ? "Hide pages" : "Show pages"}</button>
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !propertiesOpen; setPropertiesOpen(next); if (next && isCompactViewport()) setSidebarOpen(false); }} type="button" aria-expanded={propertiesOpen}>{propertiesOpen ? "Hide properties" : "Properties"}</button>
+        <button onClick={() => { if (compactControls) closeMobileTools(); selectAllCurrentPage(); }} title="Select visible objects on this page (Ctrl/Cmd+A)" type="button">Select page objects</button>
+        {selectedIds.size && !selectedNativeIds.size ? <button onClick={() => { if (compactControls) closeMobileTools(); cutSelection(); }} title="Cut selected added objects (Ctrl/Cmd+X)" type="button">Cut</button> : null}
         <span />
         <details className="editor-guides"><summary>Guides & existing content</summary><div><label className="editor-toggle"><input checked={editorState.snapEnabled} onChange={(event) => setEditorState((state) => ({ ...state, snapEnabled: event.target.checked }))} type="checkbox" />Snap</label>
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
