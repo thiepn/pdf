@@ -262,18 +262,21 @@ test("locked added objects stay immutable until explicitly unlocked", async ({ p
   await expect(properties.getByRole("button", { name: "Bring front", exact: true })).toBeDisabled();
   await expect(object).toHaveClass(/editor-object--locked/);
 
-  const before = await object.boundingBox();
-  if (!before) throw new Error("Locked object bounds are unavailable.");
+  const before = await object.evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return { left: style.left, top: style.top, width: style.width, height: style.height, transform: style.transform };
+  });
   await object.click();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Delete");
   await page.keyboard.press("Control+d");
 
   await expect(page.locator(".editor-object")).toHaveCount(1);
-  const after = await object.boundingBox();
-  if (!after) throw new Error("Locked object disappeared.");
-  expect(Math.abs(after.x - before.x)).toBeLessThan(0.5);
-  expect(Math.abs(after.y - before.y)).toBeLessThan(0.5);
+  const after = await object.evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return { left: style.left, top: style.top, width: style.width, height: style.height, transform: style.transform };
+  });
+  expect(after).toEqual(before);
 
   await locked.uncheck();
   await expect(content).toBeEnabled();
