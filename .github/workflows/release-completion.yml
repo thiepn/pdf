@@ -172,6 +172,6 @@ jobs:
         run: node scripts/releases/certify-browser-matrix.mjs /tmp/release-evidence /tmp/release-certificate.json
       - uses: actions/upload-artifact@v4
         with:
-          name: v7.1.3-release-certificate
+          name: v7.1.4-release-certificate
           path: /tmp/release-certificate.json
           retention-days: 90

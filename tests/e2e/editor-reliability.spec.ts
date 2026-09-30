@@ -240,3 +240,116 @@ test("deleted existing content remains recoverable from the layer list", async (
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
   await expect(page.locator(`[data-native-object-id="${id}"]`)).toBeVisible();
 });
+
+
+test("page Select All and Cut shortcuts are safe for mixed PDF selections", async ({ page }) => {
+  await openSample(page, "editor");
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 110, box.y + 150);
+
+  const added = page.locator(".editor-object").last();
+  await expect(added).toBeVisible();
+  // Existing-content discovery is deliberately deferred after the editor becomes
+  // interactive. Wait for one source hitbox so this test exercises a genuinely
+  // mixed selection rather than racing that hydration step.
+  await expect(page.locator(".native-content-hitbox").first()).toBeVisible({ timeout: 20_000 });
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+a");
+
+  await expect(added).toHaveClass(/editor-object--selected/);
+  await expect.poll(async () => page.locator(".native-content-hitbox.active").count()).toBeGreaterThan(0);
+
+  // A mixed selection must never partially cut only the added objects while
+  // silently leaving original PDF content behind.
+  await page.keyboard.press("Control+x");
+  await expect(added).toBeVisible();
+  await expect(page.locator(".native-queued-count")).toHaveCount(0);
+  await expect(page.locator(".editor-banner.warning-banner")).toContainText("Existing PDF content cannot be cut to the clipboard safely");
+
+  // Cut is supported when the selection is entirely made of objects added in
+  // PDF Studio, and participates in document history.
+  await page.keyboard.press("Escape");
+  await added.click();
+  await page.keyboard.press("Control+x");
+  await expect(page.locator(".editor-object")).toHaveCount(0);
+
+  await page.keyboard.press("Control+z");
+  const restored = page.locator(".editor-object").last();
+  await expect(restored).toBeVisible();
+  await expect(restored).toHaveClass(/editor-object--selected/);
+
+  await page.keyboard.press("Control+y");
+  await expect(page.locator(".editor-object")).toHaveCount(0);
+
+  await page.keyboard.press("Control+v");
+  const pasted = page.locator(".editor-object").last();
+  await expect(pasted).toBeVisible();
+  await expect(pasted).toHaveClass(/editor-object--selected/);
+});
+
+test("Ctrl+A inside an editor text field keeps native text-selection behavior", async ({ page }) => {
+  await openSample(page, "editor");
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 110, box.y + 150);
+
+  const content = page.locator(".editor-properties").getByLabel("Content");
+  await content.fill("replace this entire field");
+  await content.focus();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("FIELD ONLY");
+
+  await expect(content).toHaveValue("FIELD ONLY");
+  await expect(page.locator(".editor-object--selected")).toHaveCount(1);
+  await expect(page.locator(".native-content-hitbox.active")).toHaveCount(0);
+});
+
+
+test("locked added objects stay immutable until explicitly unlocked", async ({ page }) => {
+  await openSample(page, "editor");
+  await chooseEditorTool(page, "Add text");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(box.x + 140, box.y + 180);
+
+  const object = page.locator(".editor-object").last();
+  const properties = page.locator(".editor-properties");
+  const content = properties.getByLabel("Content");
+  await content.fill("LOCKED OBJECT");
+  const locked = properties.getByLabel("Locked", { exact: true });
+  await locked.check();
+
+  await expect(content).toBeDisabled();
+  await expect(properties.getByRole("button", { name: "Delete", exact: true })).toBeDisabled();
+  await expect(properties.getByRole("button", { name: "Bring front", exact: true })).toBeDisabled();
+  await expect(object).toHaveClass(/editor-object--locked/);
+
+  const before = await object.evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return { left: style.left, top: style.top, width: style.width, height: style.height, transform: style.transform };
+  });
+  await object.click();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Control+d");
+  await page.keyboard.press("Control+x");
+
+  await expect(page.locator(".editor-object")).toHaveCount(1);
+  const after = await object.evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return { left: style.left, top: style.top, width: style.width, height: style.height, transform: style.transform };
+  });
+  expect(after).toEqual(before);
+
+  await locked.uncheck();
+  await expect(content).toBeEnabled();
+  await object.click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".editor-object")).toHaveCount(0);
+});

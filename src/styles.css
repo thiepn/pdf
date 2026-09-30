@@ -2526,6 +2526,11 @@ pre {
 .property-segmented button.active { border-color: #5795ed; color: white; background: #2d619f; }
 .property-actions button.danger { border-color: #834846; color: #ffc1bd; background: #442726; }
 .property-note { margin: 0; color: #919ba5; font-size: .68rem; line-height: 1.45; }
+.editor-properties__editable-controls { min-width: 0; margin: 0; padding: 0; border: 0; }
+.editor-properties__editable-controls:disabled { opacity: .52; }
+.editor-properties__editable-controls:disabled :is(button,input,select,textarea) { cursor: not-allowed; }
+.editor-lock-note { padding: 8px 9px; border: 1px solid #665f43; border-radius: 7px; color: #d9c991; background: #373321; }
+.editor-properties__protection { padding-top: 2px; }
 
 .editor-panel-empty { display: grid; gap: 7px; place-content: center; min-height: 180px; padding: 24px; color: #9aa4ae; text-align: center; }
 .editor-panel-empty strong { color: #d9dfe5; }

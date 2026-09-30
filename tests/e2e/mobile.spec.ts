@@ -195,3 +195,38 @@ test("compact options restore focus, preserve state on rotation and do not leave
   await expect(page.getByLabel("Current page",{exact:true})).toHaveValue("2");
   expect(await page.evaluate(()=>document.documentElement.dataset.modalOpen)).toBeUndefined();
 });
+
+
+test("compact editor never leaves an empty properties drawer over the canvas", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSample(page, "editor");
+
+  await page.getByRole("button", { name: "Add text", exact: true }).click();
+  const canvas = page.locator(".editor-page-layers");
+  const rect = await canvas.boundingBox();
+  if (!rect) throw new Error("Editor canvas is unavailable.");
+  await page.mouse.click(rect.x + 110, rect.y + 140);
+  const properties = page.locator(".editor-properties");
+  await expect(properties).toBeVisible();
+
+  // Starting another creation tool should return the full document canvas.
+  await page.getByRole("button", { name: "Add text", exact: true }).click();
+  await expect(properties).toHaveCount(0);
+  await expect(page.locator(".editor-stage")).toBeVisible();
+
+  // Re-select the object, then Escape should dismiss both selection and drawer.
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const object = page.locator(".editor-object").last();
+  await object.click();
+  await expect(properties).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(properties).toHaveCount(0);
+  await expect(object).not.toHaveClass(/editor-object--selected/);
+
+  // Deleting the final selection must not leave a useless "No selection" sheet.
+  await object.click();
+  await expect(properties).toBeVisible();
+  await page.keyboard.press("Delete");
+  await expect(object).toHaveCount(0);
+  await expect(properties).toHaveCount(0);
+});
