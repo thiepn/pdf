@@ -344,10 +344,18 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (command && event.key.toLowerCase() === "a") { event.preventDefault(); selectAllCurrentPage(); return; }
       if (command && event.key.toLowerCase() === "c") { event.preventDefault(); void copySelection(); return; }
+      if (command && event.key.toLowerCase() === "x") { event.preventDefault(); cutSelection(); return; }
       if (command && event.key.toLowerCase() === "v") { event.preventDefault(); void pasteSelection(); return; }
       if (command && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateSelection(); return; }
-      if (event.key === "Escape") { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); return; }
+      if (event.key === "Escape") {
+        setSelectedIds(new Set());
+        setSelectedNativeIds(new Set());
+        setSelectedNativeId(undefined);
+        setPropertiesOpen(false);
+        return;
+      }
       if (event.key === "Delete" || event.key === "Backspace") { if (unifiedSelectionCount) { event.preventDefault(); deleteSelection(); } return; }
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) && unifiedSelectionCount) {
         event.preventDefault();
@@ -430,7 +438,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   function activateTool(tool: EditorTool): void {
     if (tool === "image") { imageInputRef.current?.click(); return; }
     setEditorState((state) => ({ ...state, activeTool: tool }));
-    if (tool !== "select") { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
+    if (tool !== "select") {
+      setSelectedIds(new Set());
+      setSelectedNativeIds(new Set());
+      setSelectedNativeId(undefined);
+      setPropertiesOpen(false);
+    }
   }
 
   function navigateToPage(pageNumber: number): void {
@@ -453,7 +466,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function selectObject(id: string | null, additive: boolean): void {
     if (!id) {
-      if (!additive) { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
+      if (!additive) {
+        setSelectedIds(new Set());
+        setSelectedNativeIds(new Set());
+        setSelectedNativeId(undefined);
+        setPropertiesOpen(false);
+      }
       return;
     }
     if (!additive) { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
@@ -461,25 +479,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (isCompactViewport()) setSidebarOpen(false);
     const object = history.present.objects.find((item) => item.id === id);
     const targetIds = object?.groupId ? history.present.objects.filter((item) => item.groupId === object.groupId).map((item) => item.id) : [id];
-    setSelectedIds((current) => {
-      const next = additive ? new Set(current) : new Set<string>();
-      const removing = additive && targetIds.every((targetId) => next.has(targetId));
-      for (const targetId of targetIds) removing ? next.delete(targetId) : next.add(targetId);
-      return next;
-    });
+    const next = additive ? new Set(selectedIds) : new Set<string>();
+    const removing = additive && targetIds.every((targetId) => next.has(targetId));
+    for (const targetId of targetIds) removing ? next.delete(targetId) : next.add(targetId);
+    setSelectedIds(next);
+    setPropertiesOpen(next.size > 0 || selectedNativeIds.size > 0);
   }
 
   function selectNativeObject(object: NativePageObject, additive = false): void {
-    if (!additive) setSelectedIds(new Set());
-    setSelectedNativeIds((current) => {
-      const next = additive ? new Set(current) : new Set<string>();
-      if (additive && next.has(object.id)) next.delete(object.id); else next.add(object.id);
-      const primary = next.has(object.id) ? object.id : next.values().next().value as string | undefined;
-      setSelectedNativeId(primary);
-      return next;
-    });
+    const nextAddedSelection = additive ? selectedIds : new Set<string>();
+    if (!additive) setSelectedIds(nextAddedSelection);
+    const nextNativeSelection = additive ? new Set(selectedNativeIds) : new Set<string>();
+    if (additive && nextNativeSelection.has(object.id)) nextNativeSelection.delete(object.id); else nextNativeSelection.add(object.id);
+    const primary = nextNativeSelection.has(object.id) ? object.id : nextNativeSelection.values().next().value as string | undefined;
+    setSelectedNativeIds(nextNativeSelection);
+    setSelectedNativeId(primary);
     if (isCompactViewport()) setSidebarOpen(false);
-    setPropertiesOpen(true);
+    setPropertiesOpen(nextNativeSelection.size > 0 || nextAddedSelection.size > 0);
     setEditorState((state) => ({ ...state, activeTool: "select", currentPage: object.pageNumber }));
   }
 
@@ -504,6 +520,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setSelectedNativeId(beforeNativePrimary && nextSelection.has(beforeNativePrimary)
       ? beforeNativePrimary
       : nextSelection.values().next().value as string | undefined);
+    if (nextSelection.size === 0 && selectedIds.size === 0) setPropertiesOpen(false);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
   }
@@ -700,6 +717,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
+      const restoresSelection = next.present.selectedIds.length > 0 || next.present.selectedNativeIds.length > 0;
+      setPropertiesOpen(restoresSelection);
+      if (restoresSelection && isCompactViewport()) setSidebarOpen(false);
       setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentId), updatedAt: Date.now() }));
       return next;
     });
@@ -713,10 +733,67 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
+      const restoresSelection = next.present.selectedIds.length > 0 || next.present.selectedNativeIds.length > 0;
+      setPropertiesOpen(restoresSelection);
+      if (restoresSelection && isCompactViewport()) setSidebarOpen(false);
       setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentId), updatedAt: Date.now() }));
       return next;
     });
     setPreviewObject(null);
+  }
+
+  function selectAllCurrentPage(): void {
+    if (processing) return;
+    const overlaySelection = new Set(history.present.objects
+      .filter((object) => object.pageNumber === editorState.currentPage && !object.hidden)
+      .map((object) => object.id));
+    const nativeSelection = showNativeContent
+      ? new Set(currentNativeObjects.filter((object) => !nativeHiddenIds.has(object.id)).map((object) => object.id))
+      : new Set<string>();
+    const primaryNativeId = nativeSelection.values().next().value as string | undefined;
+
+    setSelectedIds(overlaySelection);
+    setSelectedNativeIds(nativeSelection);
+    setSelectedNativeId(primaryNativeId);
+    setPreviewObject(null);
+    setEditorState((state) => ({ ...state, activeTool: "select" }));
+
+    const count = overlaySelection.size + nativeSelection.size;
+    if (count) {
+      setPropertiesOpen(true);
+      if (isCompactViewport()) setSidebarOpen(false);
+      setStatus(`${count} object${count === 1 ? "" : "s"} selected on page ${editorState.currentPage}`);
+    } else {
+      setPropertiesOpen(false);
+      setStatus(`No selectable objects on page ${editorState.currentPage}`);
+    }
+  }
+
+  function cutSelection(): void {
+    if (processing) return;
+    if (selectedNativeIds.size) {
+      const message = "Existing PDF content cannot be cut to the clipboard safely. Deselect original PDF items first; nothing was deleted.";
+      setWarnings((current) => current.includes(message) ? current : [...current, message]);
+      setStatus("Cut cancelled · original PDF content is selected");
+      return;
+    }
+    if (blockLockedSelection("cutting the selection")) return;
+
+    const copied = history.present.objects.filter((object) => selectedIds.has(object.id));
+    if (!copied.length) return;
+
+    internalClipboardRef.current = cloneObjects(copied);
+    void navigator.clipboard.writeText(JSON.stringify({ format: "local-pdf-studio/editor-objects", version: 1, objects: copied })).catch(() => {
+      // The internal clipboard is sufficient for in-app paste when system clipboard access is unavailable.
+    });
+
+    const nextObjects = history.present.objects.filter((object) => !selectedIds.has(object.id));
+    commitEditorTransaction("Cut objects", nextObjects, nativeEdits, new Set(), undefined, new Set(), undefined);
+    setSelectedIds(new Set());
+    setSelectedNativeIds(new Set());
+    setSelectedNativeId(undefined);
+    setPropertiesOpen(false);
+    setStatus(`${copied.length} object${copied.length === 1 ? "" : "s"} cut`);
   }
 
   function deleteSelection(): void {
@@ -733,6 +810,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (acted) {
       commitEditorTransaction("Delete selection", nextObjects, incoming.length ? mergeNativeEdits(nativeEdits, incoming) : nativeEdits, new Set(), undefined, new Set(), undefined);
       setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined);
+      setPropertiesOpen(false);
     }
     if (blocked.length) setWarnings((current) => [...current, ...blocked]);
   }
@@ -948,6 +1026,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const contextControls = <div className="editor-contextbar editor-selectionbar" inert={processing ? true : undefined}>
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !sidebarOpen; setSidebarOpen(next); if (next && isCompactViewport()) setPropertiesOpen(false); }} type="button" aria-expanded={sidebarOpen}>{sidebarOpen ? "Hide pages" : "Show pages"}</button>
         <button onClick={() => { if (compactControls) closeMobileTools(); const next = !propertiesOpen; setPropertiesOpen(next); if (next && isCompactViewport()) setSidebarOpen(false); }} type="button" aria-expanded={propertiesOpen}>{propertiesOpen ? "Hide properties" : "Properties"}</button>
+        <button onClick={() => { if (compactControls) closeMobileTools(); selectAllCurrentPage(); }} title="Select visible objects on this page (Ctrl/Cmd+A)" type="button">Select page objects</button>
+        {selectedIds.size && !selectedNativeIds.size ? <button disabled={hasLockedSelection} onClick={() => { if (compactControls) closeMobileTools(); cutSelection(); }} title={hasLockedSelection ? "Unlock selected objects before cutting" : "Cut selected added objects (Ctrl/Cmd+X)"} type="button">Cut</button> : null}
         <span />
         <details className="editor-guides"><summary>Guides & existing content</summary><div><label className="editor-toggle"><input checked={editorState.snapEnabled} onChange={(event) => setEditorState((state) => ({ ...state, snapEnabled: event.target.checked }))} type="checkbox" />Snap</label>
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
