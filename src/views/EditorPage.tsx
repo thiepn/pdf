@@ -698,6 +698,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
+      const restoresSelection = next.present.selectedIds.length > 0 || next.present.selectedNativeIds.length > 0;
+      setPropertiesOpen(restoresSelection);
+      if (restoresSelection && isCompactViewport()) setSidebarOpen(false);
       setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentId), updatedAt: Date.now() }));
       return next;
     });
@@ -711,6 +714,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setSelectedIds(new Set(next.present.selectedIds));
       setSelectedNativeIds(new Set(next.present.selectedNativeIds));
       setSelectedNativeId(next.present.selectedNativeId);
+      const restoresSelection = next.present.selectedIds.length > 0 || next.present.selectedNativeIds.length > 0;
+      setPropertiesOpen(restoresSelection);
+      if (restoresSelection && isCompactViewport()) setSidebarOpen(false);
       setEditorState((state) => ({ ...state, currentPage: next.present.pageNumber, dirty: historyContentIsDirty(next, cleanHistoryContentId), updatedAt: Date.now() }));
       return next;
     });
