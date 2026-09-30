@@ -185,6 +185,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }, [history.present.objects, previewObject]);
   const selectedObjects = useMemo(() => displayObjects.filter((object) => selectedIds.has(object.id)), [displayObjects, selectedIds]);
   const selectedSourceObjects = useMemo(() => history.present.objects.filter((object) => selectedIds.has(object.id)), [history.present.objects, selectedIds]);
+  const lockedSelectedObjects = useMemo(() => selectedSourceObjects.filter((object) => object.locked), [selectedSourceObjects]);
+  const hasLockedSelection = lockedSelectedObjects.length > 0;
   const currentPageObjects = useMemo(() => displayObjects.filter((object) => object.pageNumber === editorState.currentPage), [displayObjects, editorState.currentPage]);
   const comments = useMemo(() => displayObjects.filter((object): object is Extract<EditorObject, { type: "note" }> => object.type === "note"), [displayObjects]);
   const redactionCount = useMemo(() => displayObjects.filter((object) => object.type === "redaction").length, [displayObjects]);
@@ -578,6 +580,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function applyUnifiedBounds(targets: Map<string, UnifiedCanvasBounds>, label: string): void {
     if (processing || !targets.size) return;
+    if (blockLockedSelection("moving, resizing, aligning, or distributing the selection")) return;
     const pageWidth = currentNativePage?.width ?? Math.abs(pageGeometry.x1 - pageGeometry.x0);
     const pageHeight = currentNativePage?.height ?? Math.abs(pageGeometry.y1 - pageGeometry.y0);
     let overlayChanged = false;
@@ -607,8 +610,21 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     }]));
   }
 
+  function blockLockedSelection(action: string): boolean {
+    if (!lockedSelectedObjects.length) return false;
+    const count = lockedSelectedObjects.length;
+    const message = `${count} locked object${count === 1 ? "" : "s"} selected. Unlock or deselect ${count === 1 ? "it" : "them"} before ${action}.`;
+    setWarnings((current) => current.includes(message) ? current : [...current, message]);
+    return true;
+  }
+
   function commitObject(label: string, object: EditorObject, mergeKey?: string): void {
     const previous = history.present.objects.find((item) => item.id === object.id);
+    if (previous?.locked && object.locked && label !== "Hide object" && label !== "Show object") {
+      const message = "This object is locked. Unlock it before editing its content, position, appearance, or layer order.";
+      setWarnings((current) => current.includes(message) ? current : [...current, message]);
+      return;
+    }
     if (previous && selectedIds.has(object.id) && unifiedSelectionCount > 1 && (label === "Move object" || label === "Resize object")) {
       const source = editorLayoutItem(previous, pageGeometry).bounds;
       const target = editorLayoutItem(object, pageGeometry).bounds;
@@ -661,6 +677,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function rotateUnified(degrees: number): void {
     if (processing) return;
+    if (blockLockedSelection("rotating the selection")) return;
     let overlayChanged = false;
     const rotatableOverlayIds = new Set(unifiedItems.filter((item) => item.source === "editor" && item.rotatable).map((item) => item.id));
     const nextObjects = updateObjects(history.present.objects, rotatableOverlayIds, (object) => { overlayChanged = true; return { ...object, rotation: object.rotation + degrees }; });
@@ -704,6 +721,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function deleteSelection(): void {
     if (processing) return;
+    if (blockLockedSelection("deleting the selection")) return;
     const nextObjects = selectedIds.size ? history.present.objects.filter((object) => !selectedIds.has(object.id)) : history.present.objects;
     const incoming: NativeEdit[] = [];
     const blocked: string[] = [];
@@ -721,6 +739,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function duplicateSelection(): void {
     if (processing) return;
+    if (blockLockedSelection("duplicating the selection")) return;
     if (selectedNativeIds.size) setWarnings((current) => [...current, "Existing PDF objects cannot be duplicated safely. Only objects added in PDF Studio are duplicated."]);
     if (!selectedIds.size) return;
     const next = duplicateObjects(history.present.objects, selectedIds);
@@ -734,6 +753,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function arrange(direction: "front" | "back"): void {
     if (processing) return;
+    if (blockLockedSelection("changing layer order")) return;
     if (selectedNativeIds.size) setWarnings((current) => [...current, "Bring to front and Send to back only reorder objects added in PDF Studio. Existing PDF content keeps its original painting order."]);
     if (!selectedIds.size) return;
     const ordered = history.present.objects.slice().sort((a, b) => a.zIndex - b.zIndex);
@@ -745,12 +765,14 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function groupSelection(): void {
     if (processing || selectedIds.size < 2) return;
+    if (blockLockedSelection("grouping the selection")) return;
     const groupId = crypto.randomUUID();
     commitObjects("Group objects", updateObjects(history.present.objects, selectedIds, (object) => ({ ...object, groupId })));
   }
 
   function ungroupSelection(): void {
     if (processing || !selectedIds.size) return;
+    if (blockLockedSelection("ungrouping the selection")) return;
     commitObjects("Ungroup objects", updateObjects(history.present.objects, selectedIds, (object) => ({ ...object, groupId: undefined })));
   }
 
@@ -931,7 +953,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
         <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection || nativeInspecting} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />Select existing PDF content</label></div></details>
         {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} PDF edit{nativeEdits.length === 1 ? "" : "s"} ready</span> : null}
-        {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button onClick={groupSelection} type="button">Group added</button><button onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button onClick={() => alignUnified("left")} type="button">Align left</button><button onClick={() => alignUnified("center")} type="button">Center</button><button onClick={() => alignUnified("right")} type="button">Align right</button><button onClick={() => alignUnified("top")} type="button">Top</button><button onClick={() => alignUnified("middle")} type="button">Middle</button><button onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
+        {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button disabled={hasLockedSelection} onClick={groupSelection} type="button">Group added</button><button disabled={hasLockedSelection} onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button disabled={hasLockedSelection} onClick={() => alignUnified("left")} type="button">Align left</button><button disabled={hasLockedSelection} onClick={() => alignUnified("center")} type="button">Center</button><button disabled={hasLockedSelection} onClick={() => alignUnified("right")} type="button">Align right</button><button disabled={hasLockedSelection} onClick={() => alignUnified("top")} type="button">Top</button><button disabled={hasLockedSelection} onClick={() => alignUnified("middle")} type="button">Middle</button><button disabled={hasLockedSelection} onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button disabled={hasLockedSelection} onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button disabled={hasLockedSelection} onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
         <strong className="editor-save-status" aria-live="polite">{localSaveLabel}</strong>
       </div>;
 
@@ -1022,7 +1044,7 @@ function LayerList({ objects, nativeObjects, nativeQueued, deletedNativeIds, sel
         {deleted ? <button className="native-layer-restore" onClick={() => onRestoreNative(object.id)} type="button">Restore</button> : null}
       </div>;
     })}</> : null}
-    {objects.length ? <><div className="editor-layer-heading"><strong>Added objects</strong><span>{objects.length}</span></div>{objects.slice().sort((a, b) => b.zIndex - a.zIndex).map((object) => <div className={selectedIds.has(object.id) ? "editor-layer-item active" : "editor-layer-item"} key={object.id}><button onClick={(event) => onSelect(object.id, event.ctrlKey || event.metaKey || event.shiftKey)} type="button"><span>{objectIcon(object)}</span><div><strong>{objectLabel(object)}</strong><small>Added in PDF Studio{object.hidden ? " · Hidden" : ""}</small>{showTechnicalDetails ? <small className="editor-layer-technical">Type {object.type} · Layer order {object.zIndex}</small> : null}</div></button><button onClick={() => onToggleHidden(object)} title={object.hidden ? "Show" : "Hide"} type="button">{object.hidden ? "○" : "●"}</button></div>)}</> : null}
+    {objects.length ? <><div className="editor-layer-heading"><strong>Added objects</strong><span>{objects.length}</span></div>{objects.slice().sort((a, b) => b.zIndex - a.zIndex).map((object) => <div className={selectedIds.has(object.id) ? "editor-layer-item active" : "editor-layer-item"} key={object.id}><button onClick={(event) => onSelect(object.id, event.ctrlKey || event.metaKey || event.shiftKey)} type="button"><span>{objectIcon(object)}</span><div><strong>{objectLabel(object)}</strong><small>Added in PDF Studio{object.hidden ? " · Hidden" : ""}{object.locked ? " · Locked" : ""}</small>{showTechnicalDetails ? <small className="editor-layer-technical">Type {object.type} · Layer order {object.zIndex}</small> : null}</div></button><button onClick={() => onToggleHidden(object)} title={object.hidden ? "Show" : "Hide"} type="button">{object.hidden ? "○" : "●"}</button></div>)}</> : null}
   </div>;
 }
 
