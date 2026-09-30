@@ -345,7 +345,13 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (command && event.key.toLowerCase() === "c") { event.preventDefault(); void copySelection(); return; }
       if (command && event.key.toLowerCase() === "v") { event.preventDefault(); void pasteSelection(); return; }
       if (command && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateSelection(); return; }
-      if (event.key === "Escape") { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); return; }
+      if (event.key === "Escape") {
+        setSelectedIds(new Set());
+        setSelectedNativeIds(new Set());
+        setSelectedNativeId(undefined);
+        setPropertiesOpen(false);
+        return;
+      }
       if (event.key === "Delete" || event.key === "Backspace") { if (unifiedSelectionCount) { event.preventDefault(); deleteSelection(); } return; }
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) && unifiedSelectionCount) {
         event.preventDefault();
@@ -428,7 +434,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   function activateTool(tool: EditorTool): void {
     if (tool === "image") { imageInputRef.current?.click(); return; }
     setEditorState((state) => ({ ...state, activeTool: tool }));
-    if (tool !== "select") { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
+    if (tool !== "select") {
+      setSelectedIds(new Set());
+      setSelectedNativeIds(new Set());
+      setSelectedNativeId(undefined);
+      setPropertiesOpen(false);
+    }
   }
 
   function navigateToPage(pageNumber: number): void {
@@ -451,7 +462,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   function selectObject(id: string | null, additive: boolean): void {
     if (!id) {
-      if (!additive) { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
+      if (!additive) {
+        setSelectedIds(new Set());
+        setSelectedNativeIds(new Set());
+        setSelectedNativeId(undefined);
+        setPropertiesOpen(false);
+      }
       return;
     }
     if (!additive) { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); }
@@ -463,6 +479,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const next = additive ? new Set(current) : new Set<string>();
       const removing = additive && targetIds.every((targetId) => next.has(targetId));
       for (const targetId of targetIds) removing ? next.delete(targetId) : next.add(targetId);
+      if (next.size === 0 && selectedNativeIds.size === 0) setPropertiesOpen(false);
       return next;
     });
   }
@@ -474,6 +491,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (additive && next.has(object.id)) next.delete(object.id); else next.add(object.id);
       const primary = next.has(object.id) ? object.id : next.values().next().value as string | undefined;
       setSelectedNativeId(primary);
+      if (next.size === 0 && selectedIds.size === 0) setPropertiesOpen(false);
       return next;
     });
     if (isCompactViewport()) setSidebarOpen(false);
@@ -502,6 +520,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     setSelectedNativeId(beforeNativePrimary && nextSelection.has(beforeNativePrimary)
       ? beforeNativePrimary
       : nextSelection.values().next().value as string | undefined);
+    if (nextSelection.size === 0 && selectedIds.size === 0) setPropertiesOpen(false);
     setEditorState((state) => ({ ...state, dirty: true, updatedAt: Date.now() }));
     setLastReport(null);
   }
@@ -715,6 +734,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (acted) {
       commitEditorTransaction("Delete selection", nextObjects, incoming.length ? mergeNativeEdits(nativeEdits, incoming) : nativeEdits, new Set(), undefined, new Set(), undefined);
       setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined);
+      setPropertiesOpen(false);
     }
     if (blocked.length) setWarnings((current) => [...current, ...blocked]);
   }
