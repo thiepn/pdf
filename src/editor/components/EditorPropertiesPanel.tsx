@@ -12,51 +12,65 @@ interface Props {
 
 export function EditorPropertiesPanel({ selected, onChange, onDelete, onDuplicate, onBringFront, onSendBack }: Props) {
   if (!selected.length) return <aside className="editor-properties"><div className="editor-panel-empty"><strong>No selection</strong><p>Select an object to edit its appearance and behavior.</p></div></aside>;
-  if (selected.length > 1) return (
-    <aside className="editor-properties">
-      <header><span>Selection</span><strong>{selected.length} objects</strong></header>
-      <div className="editor-properties__body">
-        <div className="property-actions"><button onClick={onDuplicate} type="button">Duplicate</button><button onClick={onBringFront} type="button">Bring front</button><button onClick={onSendBack} type="button">Send back</button><button className="danger" onClick={onDelete} type="button">Delete</button></div>
-      </div>
-    </aside>
-  );
+  if (selected.length > 1) {
+    const lockedCount = selected.filter((object) => object.locked).length;
+    const locked = lockedCount > 0;
+    return (
+      <aside className="editor-properties">
+        <header><span>Selection</span><strong>{selected.length} objects</strong></header>
+        <div className="editor-properties__body">
+          {locked ? <p className="property-note editor-lock-note">{lockedCount} locked object{lockedCount === 1 ? "" : "s"} selected. Unlock or deselect locked objects before changing this selection.</p> : null}
+          <div className="property-actions"><button disabled={locked} onClick={onDuplicate} type="button">Duplicate</button><button disabled={locked} onClick={onBringFront} type="button">Bring front</button><button disabled={locked} onClick={onSendBack} type="button">Send back</button><button className="danger" disabled={locked} onClick={onDelete} type="button">Delete</button></div>
+        </div>
+      </aside>
+    );
+  }
   const object = selected[0];
-  const patch = <T extends EditorObject>(changes: Partial<T>, label = "Change properties", mergeKey = `property:${object.id}`) => onChange(label, { ...object, ...changes } as EditorObject, mergeKey);
+  const patch = <T extends EditorObject>(changes: Partial<T>, label = "Change properties", mergeKey = `property:${object.id}`) => {
+    if (object.locked && !("locked" in changes && changes.locked === false)) return;
+    onChange(label, { ...object, ...changes } as EditorObject, mergeKey);
+  };
 
   return (
     <aside className="editor-properties">
       <header><span>Properties</span><strong>{object.type}</strong></header>
       <div className="editor-properties__body">
-        {object.type === "text" ? <TextProperties object={object} patch={patch} /> : null}
-        <section className="property-section">
-          <h3>Position</h3>
-          <div className="property-grid property-grid--two">
-            <NumberField label="X" value={object.bounds.x0} onChange={(value) => patch({ bounds: { ...object.bounds, x0: value, x1: value + rectWidth(object.bounds) } } as Partial<typeof object>, "Move object")} />
-            <NumberField label="Y" value={object.bounds.y0} onChange={(value) => patch({ bounds: { ...object.bounds, y0: value, y1: value + rectHeight(object.bounds) } } as Partial<typeof object>, "Move object")} />
-            <NumberField label="Width" min={2} value={rectWidth(object.bounds)} onChange={(value) => patch({ bounds: { ...object.bounds, x1: object.bounds.x0 + value } } as Partial<typeof object>, "Resize object")} />
-            <NumberField label="Height" min={2} value={rectHeight(object.bounds)} onChange={(value) => patch({ bounds: { ...object.bounds, y1: object.bounds.y0 + value } } as Partial<typeof object>, "Resize object")} />
-          </div>
-          <div className="property-grid property-grid--two">
-            <NumberField label="Rotation" min={-180} max={180} value={object.rotation} onChange={(value) => patch({ rotation: value } as Partial<typeof object>, "Rotate object")} />
-            <NumberField label="Opacity" min={0.05} max={1} step={0.05} value={object.opacity} onChange={(value) => patch({ opacity: value } as Partial<typeof object>)} />
-          </div>
-          {object.rotation ? <p className="property-note">Rotation is preserved in the editor preview. The current annotation exporter normalizes rotation and reports it during export.</p> : null}
+        {object.locked ? <p className="property-note editor-lock-note">Locked objects stay selectable for inspection, but cannot be edited, moved, arranged, duplicated, grouped, or deleted until unlocked.</p> : null}
+        <fieldset className="editor-properties__editable-controls" disabled={object.locked}>
+          {object.type === "text" ? <TextProperties object={object} patch={patch} /> : null}
+          <section className="property-section">
+            <h3>Position</h3>
+            <div className="property-grid property-grid--two">
+              <NumberField label="X" value={object.bounds.x0} onChange={(value) => patch({ bounds: { ...object.bounds, x0: value, x1: value + rectWidth(object.bounds) } } as Partial<typeof object>, "Move object")} />
+              <NumberField label="Y" value={object.bounds.y0} onChange={(value) => patch({ bounds: { ...object.bounds, y0: value, y1: value + rectHeight(object.bounds) } } as Partial<typeof object>, "Move object")} />
+              <NumberField label="Width" min={2} value={rectWidth(object.bounds)} onChange={(value) => patch({ bounds: { ...object.bounds, x1: object.bounds.x0 + value } } as Partial<typeof object>, "Resize object")} />
+              <NumberField label="Height" min={2} value={rectHeight(object.bounds)} onChange={(value) => patch({ bounds: { ...object.bounds, y1: object.bounds.y0 + value } } as Partial<typeof object>, "Resize object")} />
+            </div>
+            <div className="property-grid property-grid--two">
+              <NumberField label="Rotation" min={-180} max={180} value={object.rotation} onChange={(value) => patch({ rotation: value } as Partial<typeof object>, "Rotate object")} />
+              <NumberField label="Opacity" min={0.05} max={1} step={0.05} value={object.opacity} onChange={(value) => patch({ opacity: value } as Partial<typeof object>)} />
+            </div>
+            {object.rotation ? <p className="property-note">Rotation is preserved in the editor preview. The current annotation exporter normalizes rotation and reports it during export.</p> : null}
+          </section>
+
+          {object.type === "image" ? <ImageProperties object={object} patch={patch} /> : null}
+          {object.type === "shape" ? <ShapeProperties object={object} patch={patch} /> : null}
+          {object.type === "ink" ? <InkProperties object={object} patch={patch} /> : null}
+          {object.type === "highlight" ? <section className="property-section"><h3>{object.style}</h3><ColorField label="Color" value={object.color} onChange={(color) => patch({ color })} /></section> : null}
+          {object.type === "note" ? <NoteProperties object={object} patch={patch} /> : null}
+          {object.type === "link" ? <LinkProperties object={object} patch={patch} /> : null}
+          {object.type === "stamp" ? <StampProperties object={object} patch={patch} /> : null}
+          {object.type === "signature" ? <SignatureProperties object={object} patch={patch} /> : null}
+          {object.type === "redaction" ? <RedactionProperties object={object} patch={patch} /> : null}
+
+          <section className="property-section">
+            <h3>Arrange</h3>
+            <div className="property-actions"><button onClick={onDuplicate} type="button">Duplicate</button><button onClick={onBringFront} type="button">Bring front</button><button onClick={onSendBack} type="button">Send back</button><button className="danger" onClick={onDelete} type="button">Delete</button></div>
+          </section>
+        </fieldset>
+        <section className="property-section editor-properties__protection">
+          <h3>Protection</h3>
           <label className="property-toggle"><input checked={object.locked} onChange={(event) => patch({ locked: event.target.checked } as Partial<typeof object>, event.target.checked ? "Lock object" : "Unlock object", undefined)} type="checkbox" />Locked</label>
-        </section>
-
-        {object.type === "image" ? <ImageProperties object={object} patch={patch} /> : null}
-        {object.type === "shape" ? <ShapeProperties object={object} patch={patch} /> : null}
-        {object.type === "ink" ? <InkProperties object={object} patch={patch} /> : null}
-        {object.type === "highlight" ? <section className="property-section"><h3>{object.style}</h3><ColorField label="Color" value={object.color} onChange={(color) => patch({ color })} /></section> : null}
-        {object.type === "note" ? <NoteProperties object={object} patch={patch} /> : null}
-        {object.type === "link" ? <LinkProperties object={object} patch={patch} /> : null}
-        {object.type === "stamp" ? <StampProperties object={object} patch={patch} /> : null}
-        {object.type === "signature" ? <SignatureProperties object={object} patch={patch} /> : null}
-        {object.type === "redaction" ? <RedactionProperties object={object} patch={patch} /> : null}
-
-        <section className="property-section">
-          <h3>Arrange</h3>
-          <div className="property-actions"><button onClick={onDuplicate} type="button">Duplicate</button><button onClick={onBringFront} type="button">Bring front</button><button onClick={onSendBack} type="button">Send back</button><button className="danger" onClick={onDelete} type="button">Delete</button></div>
         </section>
       </div>
     </aside>
