@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.1.4 — Task-first PDF Tools & Release Candidate
+
+- Enforces locked added objects as a real editor protection boundary across properties, keyboard movement, layout actions, duplication, deletion, grouping, layer order, and the new Cut workflow while keeping visibility toggles independently usable.
+- Keeps the Properties panel synchronized with actual selection state on compact/mobile layouts, including tool changes, empty-canvas clicks, Escape, deletion, additive deselection, and Undo/Redo restoration.
+- Adds page-scoped Ctrl/Cmd+A selection for visible added objects and selectable existing-PDF content without overriding normal text-field selection.
+- Adds safe Ctrl/Cmd+X Cut for objects added in PDF Studio with immediate internal clipboard support, Undo/Redo/Paste history, full refusal for mixed selections containing original PDF content, and locked-object protection.
+- Expands browser/mobile regressions for lock semantics, panel dismissal, mixed-selection safety, Cut → Undo → Redo → Paste, and restored Properties state without changing project package v9, database schema v13, or native-editor schema v6.
+
 ## 7.1.3 — Task-first PDF Tools & Release Candidate
 
 - Clears hidden existing-PDF selections immediately when queued deletion edits remove text, images, vectors, tables, or complex content from the canvas.
