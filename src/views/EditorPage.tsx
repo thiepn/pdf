@@ -342,7 +342,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (command && event.key.toLowerCase() === "a") { event.preventDefault(); selectAllCurrentPage(); return; }
       if (command && event.key.toLowerCase() === "c") { event.preventDefault(); void copySelection(); return; }
+      if (command && event.key.toLowerCase() === "x") { event.preventDefault(); void cutSelection(); return; }
       if (command && event.key.toLowerCase() === "v") { event.preventDefault(); void pasteSelection(); return; }
       if (command && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateSelection(); return; }
       if (event.key === "Escape") { setSelectedIds(new Set()); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); return; }
@@ -700,6 +702,59 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       return next;
     });
     setPreviewObject(null);
+  }
+
+  function selectAllCurrentPage(): void {
+    if (processing) return;
+    const overlaySelection = new Set(history.present.objects
+      .filter((object) => object.pageNumber === editorState.currentPage && !object.hidden)
+      .map((object) => object.id));
+    const nativeSelection = showNativeContent
+      ? new Set(currentNativeObjects.filter((object) => !nativeHiddenIds.has(object.id)).map((object) => object.id))
+      : new Set<string>();
+    const primaryNativeId = nativeSelection.values().next().value as string | undefined;
+
+    setSelectedIds(overlaySelection);
+    setSelectedNativeIds(nativeSelection);
+    setSelectedNativeId(primaryNativeId);
+    setPreviewObject(null);
+    setEditorState((state) => ({ ...state, activeTool: "select" }));
+
+    const count = overlaySelection.size + nativeSelection.size;
+    if (count) {
+      setPropertiesOpen(true);
+      if (isCompactViewport()) setSidebarOpen(false);
+      setStatus(`${count} object${count === 1 ? "" : "s"} selected on page ${editorState.currentPage}`);
+    } else {
+      setPropertiesOpen(false);
+      setStatus(`No selectable objects on page ${editorState.currentPage}`);
+    }
+  }
+
+  async function cutSelection(): Promise<void> {
+    if (processing) return;
+    if (selectedNativeIds.size) {
+      const message = "Existing PDF content cannot be cut to the clipboard safely. Deselect original PDF items first; nothing was deleted.";
+      setWarnings((current) => current.includes(message) ? current : [...current, message]);
+      setStatus("Cut cancelled · original PDF content is selected");
+      return;
+    }
+    const copied = history.present.objects.filter((object) => selectedIds.has(object.id));
+    if (!copied.length) return;
+
+    internalClipboardRef.current = cloneObjects(copied);
+    try {
+      await navigator.clipboard.writeText(JSON.stringify({ format: "local-pdf-studio/editor-objects", version: 1, objects: copied }));
+    } catch {
+      // The internal clipboard is sufficient for in-app paste when system clipboard access is unavailable.
+    }
+
+    const nextObjects = history.present.objects.filter((object) => !selectedIds.has(object.id));
+    commitEditorTransaction("Cut objects", nextObjects, nativeEdits, new Set(), undefined, new Set(), undefined);
+    setSelectedIds(new Set());
+    setSelectedNativeIds(new Set());
+    setSelectedNativeId(undefined);
+    setStatus(`${copied.length} object${copied.length === 1 ? "" : "s"} cut`);
   }
 
   function deleteSelection(): void {
