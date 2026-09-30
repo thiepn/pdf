@@ -475,27 +475,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     if (isCompactViewport()) setSidebarOpen(false);
     const object = history.present.objects.find((item) => item.id === id);
     const targetIds = object?.groupId ? history.present.objects.filter((item) => item.groupId === object.groupId).map((item) => item.id) : [id];
-    setSelectedIds((current) => {
-      const next = additive ? new Set(current) : new Set<string>();
-      const removing = additive && targetIds.every((targetId) => next.has(targetId));
-      for (const targetId of targetIds) removing ? next.delete(targetId) : next.add(targetId);
-      if (next.size === 0 && selectedNativeIds.size === 0) setPropertiesOpen(false);
-      return next;
-    });
+    const next = additive ? new Set(selectedIds) : new Set<string>();
+    const removing = additive && targetIds.every((targetId) => next.has(targetId));
+    for (const targetId of targetIds) removing ? next.delete(targetId) : next.add(targetId);
+    setSelectedIds(next);
+    setPropertiesOpen(next.size > 0 || selectedNativeIds.size > 0);
   }
 
   function selectNativeObject(object: NativePageObject, additive = false): void {
-    if (!additive) setSelectedIds(new Set());
-    setSelectedNativeIds((current) => {
-      const next = additive ? new Set(current) : new Set<string>();
-      if (additive && next.has(object.id)) next.delete(object.id); else next.add(object.id);
-      const primary = next.has(object.id) ? object.id : next.values().next().value as string | undefined;
-      setSelectedNativeId(primary);
-      if (next.size === 0 && selectedIds.size === 0) setPropertiesOpen(false);
-      return next;
-    });
+    const nextAddedSelection = additive ? selectedIds : new Set<string>();
+    if (!additive) setSelectedIds(nextAddedSelection);
+    const nextNativeSelection = additive ? new Set(selectedNativeIds) : new Set<string>();
+    if (additive && nextNativeSelection.has(object.id)) nextNativeSelection.delete(object.id); else nextNativeSelection.add(object.id);
+    const primary = nextNativeSelection.has(object.id) ? object.id : nextNativeSelection.values().next().value as string | undefined;
+    setSelectedNativeIds(nextNativeSelection);
+    setSelectedNativeId(primary);
     if (isCompactViewport()) setSidebarOpen(false);
-    setPropertiesOpen(true);
+    setPropertiesOpen(nextNativeSelection.size > 0 || nextAddedSelection.size > 0);
     setEditorState((state) => ({ ...state, activeTool: "select", currentPage: object.pageNumber }));
   }
 
