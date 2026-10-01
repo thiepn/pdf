@@ -44,6 +44,14 @@ export function migrateBatchRecipe(recipe: BatchRecipe, now = Date.now(), idFact
   return { schemaVersion: CURRENT_BATCH_SCHEMA_VERSION, id: recipe.id, name: recipe.name, steps, outputSuffix: recipe.outputSuffix || "processed", updatedAt: now };
 }
 
+export function batchRecipeExecutionFingerprint(recipe: BatchRecipe): string {
+  const normalized = migrateBatchRecipe(recipe);
+  return JSON.stringify(normalized.steps.map((step) => {
+    const { id: _id, ...execution } = step;
+    return execution;
+  }));
+}
+
 const KNOWN_STEP_TYPES = new Set<BatchStep["type"]>(["rotate","optimize","remove-metadata","crop","decorate","blank-pages","raster-compress","grayscale","split-fixed","page-images"]);
 export function parseBatchRecipeJson(source: string): BatchRecipe {
   let parsed: unknown;
