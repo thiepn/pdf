@@ -23,8 +23,12 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(taskCapabilitySource).toContain("signal?: AbortSignal");
   });
 
-  it("retains completed security inspection reuse for Protect itself", () => {
-    expect(securityClientSource).toContain("WeakMap<Uint8Array, Map<string, InspectionEntry>>");
+  it("reuses equivalent immutable bytes for Protect and bounds completed inspection identities", () => {
+    expect(securityClientSource).toContain("WeakMap<Uint8Array, Promise<string>>");
+    expect(securityClientSource).toContain("Map<string, Map<string, InspectionEntry>>");
+    expect(securityClientSource).toContain('subtle.digest("SHA-256"');
+    expect(securityClientSource).toContain("MAX_INSPECTION_IDENTITIES");
+    expect(securityClientSource).toContain("evictSettledIdentities");
     expect(securityClientSource).toContain("security.inspection.session.hit");
     expect(securityClientSource).toContain("security.inspection.session.miss");
     expect(securityClientSource).toContain("maybeAbortUnused");
@@ -47,6 +51,6 @@ describe("Recovery P4 capability gate decoupling", () => {
     const applySource = securityClientSource.slice(applyStart);
     expect(applySource).toContain('type: "APPLY_SECURITY"');
     expect(applySource).toContain("return runWorker");
-    expect(applySource).not.toContain("inspectionsByBytes");
+    expect(applySource).not.toContain("inspectionsByIdentity");
   });
 });
