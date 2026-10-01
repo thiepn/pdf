@@ -17,6 +17,15 @@ interface PdfResult { bytes: Uint8Array; filename: string; report: ProfessionalE
 
 const defaultBates: BatesSettings = { prefix: "BATES-", suffix: "", start: 1, digits: 6, pageRange: "all", position: "bottom-right", fontSize: 9, color: "#111111", includeFilename: false, filename: "", setPageLabels: false };
 const defaultImposition: ImpositionOptions = { layout: "2-up", pageSize: "a4", quality: "standard", marginMm: 10, gutterMm: 5, drawBorders: true, cropMarks: false, registrationMarks: false, bookletDirection: "ltr" };
+const professionalImageIdentities = new WeakMap<Uint8Array, string>();
+function professionalImageIdentity(bytes: Uint8Array): string {
+  let identity = professionalImageIdentities.get(bytes);
+  if (!identity) {
+    identity = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    professionalImageIdentities.set(bytes, identity);
+  }
+  return identity;
+}
 
 function tabLabel(tab: Tab): string { return ({ text: "Text", images: "Images", bates: "Document numbering", imposition: "Print layout", layers: "Layers", archive: "Archive check", convert: "DOCX" } as const)[tab]; }
 function supportsStaticText(value: string): boolean { return [...value].every(character => character.charCodeAt(0) <= 255); }
@@ -28,7 +37,21 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
   const [textPage, setTextPage] = useState(1), [selectedLineId, setSelectedLineId] = useState(""), [replacementText, setReplacementText] = useState(""), [replacementMode, setReplacementMode] = useState<TextReplacement["mode"]>("redact-replace"), [textQueue, setTextQueue] = useState<TextReplacement[]>([]);
   const [selectedImageId, setSelectedImageId] = useState(""), [imageQueue, setImageQueue] = useState<ImageReplacement[]>([]);
   const [bates, setBates] = useState<BatesSettings>(defaultBates), [layers, setLayers] = useState<LayerInspection[]>([]), [imposition, setImposition] = useState<ImpositionOptions>(defaultImposition);
-  const [result, setResult] = useState<PdfResult | null>(null), [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<PdfResult | null>(null), [resultFingerprint, setResultFingerprint] = useState<string | null>(null), [saving, setSaving] = useState(false);
+
+  const editsFingerprint = useMemo(() => JSON.stringify({
+    textQueue,
+    images: imageQueue.map(({ bytes, ...item }) => ({ ...item, byteIdentity: professionalImageIdentity(bytes) }))
+  }), [imageQueue, textQueue]);
+  const batesFingerprint = useMemo(() => JSON.stringify(bates), [bates]);
+  const layersFingerprint = useMemo(() => JSON.stringify(layers), [layers]);
+  const impositionFingerprint = useMemo(() => JSON.stringify(imposition), [imposition]);
+  const validatedResult = result && [
+    `edits:${editsFingerprint}`,
+    `bates:${batesFingerprint}`,
+    `layers:${layersFingerprint}`,
+    `imposition:${impositionFingerprint}`
+  ].includes(resultFingerprint ?? "") ? result : null;
 
   useEffect(() => { let disposed = false; void (async () => { try { const manifest = await getProject(projectId); if (!manifest) throw new Error("Project not found."); const bytes = await loadProjectBytes(manifest); if (disposed) return; setProject(manifest); setSourceBytes(bytes); setBates(value => ({ ...value, filename: manifest.sourceFilename })); await inspect(manifest, bytes); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } })(); return () => { disposed = true; abortRef.current?.abort(); }; }, [projectId]);
 
@@ -88,6 +111,7 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
   }
 
   async function runPdfOperation(
+    requestedFingerprint: string,
     label: string,
     filename: string,
     operation: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; report: ProfessionalExportReport }>,
@@ -95,18 +119,18 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
     extraValidation?: (bytes: Uint8Array) => Promise<void>,
   ) {
     if (!project) return;
-    setError(null); setResult(null); setStatus(label); setProgress(0); const controller = new AbortController(); abortRef.current = controller;
+    setError(null); setResult(null); setResultFingerprint(null); setStatus(label); setProgress(0); const controller = new AbortController(); abortRef.current = controller;
     try {
       await runProjectOperation(project.id, { label: label.replace(/…$/, ""), signal: controller.signal }, async ({ signal, update }) => {
         update({ detail: label, progress: 0.05 });
         const value = await operation(signal);
         setStatus("Validating output…"); update({ stage: "validating", detail: "Reopening and validating professional output…", progress: 0.88 });
         await validateProfessionalOutput(value.bytes, replacements); await extraValidation?.(value.bytes);
-        setResult({ ...value, filename }); setStatus("Output validated"); setProgress(1); update({ progress: 1 });
+        setResult({ ...value, filename }); setResultFingerprint(requestedFingerprint); setStatus("Output validated"); setProgress(1); update({ progress: 1 });
       });
     } catch (reason) { if (reason instanceof DOMException && reason.name === "AbortError") setStatus("Cancelled"); else { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
   }
-  async function applyEdits() { if (!sourceBytes || (!textQueue.length && !imageQueue.length)) return; await runPdfOperation("Applying content replacements…", `${project?.name ?? "document"}-professional.pdf`, signal => applyProfessionalEdits(sourceBytes, { text: textQueue, images: imageQueue }, password || undefined, signal), textQueue); }
+  async function applyEdits() { if (!sourceBytes || (!textQueue.length && !imageQueue.length)) return; await runPdfOperation(`edits:${editsFingerprint}`, "Applying content replacements…", `${project?.name ?? "document"}-professional.pdf`, signal => applyProfessionalEdits(sourceBytes, { text: textQueue, images: imageQueue }, password || undefined, signal), textQueue); }
   async function applyBates() {
     if (!sourceBytes || !inspection) return;
     const parsed = parsePageSelection(bates.pageRange.trim() || "all", inspection.pageCount);
@@ -114,6 +138,7 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
     const firstPage = [...parsed.pages].sort((left, right) => left - right)[0];
     const expectedLabel = `${bates.prefix}${String(bates.start).padStart(bates.digits, "0")}${bates.suffix}${bates.includeFilename ? ` · ${bates.filename}` : ""}`;
     await runPdfOperation(
+      `bates:${batesFingerprint}`,
       "Applying document numbering…",
       `${project?.name ?? "document"}-bates.pdf`,
       signal => applyBatesNumbering(sourceBytes, bates, password || undefined, signal),
@@ -126,10 +151,10 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
       },
     );
   }
-  async function applyLayers() { if (!sourceBytes) return; await runPdfOperation("Saving layer visibility…", `${project?.name ?? "document"}-layers.pdf`, signal => applyLayerVisibility(sourceBytes, layers, password || undefined, signal)); }
-  async function impose() { if (!sourceBytes || !project) return; setError(null); setResult(null); setStatus("Building print-layout sheets…"); const controller = new AbortController(); abortRef.current = controller; try { await runProjectOperation(project.id, { label: "Building imposed sheets", signal: controller.signal }, async ({ signal, update }) => { const started = performance.now(); const value = await buildImposedPdf(sourceBytes, imposition, password || undefined, signal, (done, total) => { const progressValue = done / total; setProgress(progressValue); update({ detail: `Building sheet ${done}/${total}…`, progress: Math.min(.85, progressValue * .85) }); }); update({ stage: "validating", detail: "Validating imposed output…", progress: .9 }); await validateProfessionalOutput(value.bytes, [], value.sheetCount, null); setResult({ bytes: value.bytes, filename: `${project.name}-${imposition.layout}.pdf`, report: { operation: "imposition", pageCount: value.sheetCount, outputBytes: value.bytes.byteLength, changedPages: Array.from({ length: value.sheetCount }, (_, i) => i + 1), warnings: value.warnings, durationMs: performance.now() - started } }); setStatus("Print-layout PDF validated"); update({ progress: 1 }); }); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
+  async function applyLayers() { if (!sourceBytes) return; await runPdfOperation(`layers:${layersFingerprint}`, "Saving layer visibility…", `${project?.name ?? "document"}-layers.pdf`, signal => applyLayerVisibility(sourceBytes, layers, password || undefined, signal)); }
+  async function impose() { if (!sourceBytes || !project) return; const requestedFingerprint = `imposition:${impositionFingerprint}`; setError(null); setResult(null); setResultFingerprint(null); setStatus("Building print-layout sheets…"); const controller = new AbortController(); abortRef.current = controller; try { await runProjectOperation(project.id, { label: "Building imposed sheets", signal: controller.signal }, async ({ signal, update }) => { const started = performance.now(); const value = await buildImposedPdf(sourceBytes, imposition, password || undefined, signal, (done, total) => { const progressValue = done / total; setProgress(progressValue); update({ detail: `Building sheet ${done}/${total}…`, progress: Math.min(.85, progressValue * .85) }); }); update({ stage: "validating", detail: "Validating imposed output…", progress: .9 }); await validateProfessionalOutput(value.bytes, [], value.sheetCount, null); setResult({ bytes: value.bytes, filename: `${project.name}-${imposition.layout}.pdf`, report: { operation: "imposition", pageCount: value.sheetCount, outputBytes: value.bytes.byteLength, changedPages: Array.from({ length: value.sheetCount }, (_, i) => i + 1), warnings: value.warnings, durationMs: performance.now() - started } }); setResultFingerprint(requestedFingerprint); setStatus("Print-layout PDF validated"); update({ progress: 1 }); }); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
   async function exportDocx() { if (!sourceBytes || !project) return; setError(null); setStatus("Extracting editable text…"); const controller = new AbortController(); abortRef.current = controller; try { await runProjectOperation(project.id, { label: "Exporting editable DOCX", signal: controller.signal }, async ({ signal, update }) => { const value = await buildTextDocx(sourceBytes, project.name, password || undefined, signal, (done, total) => { const progressValue = done / total; setProgress(progressValue); update({ detail: `Extracting page ${done}/${total}…`, progress: progressValue }); }); downloadBlob(new Blob([value.bytes.slice().buffer], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), `${project.name}-text.docx`); setStatus("DOCX exported"); update({ progress: 1 }); }); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
-  async function saveResultProject() { if (!result || !project) return; setSaving(true); try { await runProjectOperation(projectId, { label: "Saving professional revision", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => { update({ stage: "committing", detail: "Validating storage and writing a new revision…", progress: .4 }); const created = await createDerivedProjectFromBytes(projectId, result.bytes, result.filename, `professional:${result.report.operation}`, "application/pdf", password || undefined); update({ progress: 1 }); window.location.hash = routeHref({ name: "workspace", projectId: created.id, mode: "viewer" }).slice(1); }); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setSaving(false); } }
+  async function saveResultProject() { if (!validatedResult || !project) return; setSaving(true); try { await runProjectOperation(projectId, { label: "Saving professional revision", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => { update({ stage: "committing", detail: "Validating storage and writing a new revision…", progress: .4 }); const created = await createDerivedProjectFromBytes(projectId, validatedResult.bytes, validatedResult.filename, `professional:${validatedResult.report.operation}`, "application/pdf", password || undefined); update({ progress: 1 }); window.location.hash = routeHref({ name: "workspace", projectId: created.id, mode: "viewer" }).slice(1); }); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setSaving(false); } }
 
   if (!project || !sourceBytes) return <div className="empty-state"><strong>{status}</strong><p>{error ?? "Loading local project data."}</p></div>;
   return <div className="professional-page">
@@ -138,7 +163,8 @@ export function ProfessionalPage({ projectId, onTitleChange }: Props) {
       <div className="professional-status"><strong>{status}</strong>{progress > 0 && progress < 1 ? <progress max="1" value={progress}/> : null}<span>{inspection ? `${inspection.pageCount} pages · ${inspection.pdfVersion}` : "Inspection pending"}</span></div>
       {passwordRequired ? <div className="password-panel"><input autoComplete="off" onChange={event => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={!password} onClick={() => void inspect(project, sourceBytes, password)} type="button">Unlock</button></div> : null}
       {error ? <div className="error-banner"><strong>Print & Advanced issue</strong><span>{error}</span></div> : null}
-      {result ? <section className="professional-result"><strong>Validated output</strong><span>{(result.bytes.byteLength / 1024 / 1024).toFixed(2)} MB · {result.report.operation}</span>{result.report.warnings.map(warning => <small key={warning}>{warning}</small>)}<button className="button button--wide" onClick={() => downloadBlob(new Blob([result.bytes.slice().buffer], { type: "application/pdf" }), result.filename)} type="button">Download PDF</button><button className="button button--secondary button--wide" disabled={saving} onClick={() => void saveResultProject()} type="button">{saving ? "Saving…" : "Save as local project"}</button></section> : null}
+      {result && !validatedResult ? <p role="status" className="scope-note">Professional settings changed. Create the output again before downloading or saving.</p> : null}
+      {validatedResult ? <section className="professional-result"><strong>Validated output</strong><span>{(validatedResult.bytes.byteLength / 1024 / 1024).toFixed(2)} MB · {validatedResult.report.operation}</span>{validatedResult.report.warnings.map(warning => <small key={warning}>{warning}</small>)}<button className="button button--wide" onClick={() => downloadBlob(new Blob([validatedResult.bytes.slice().buffer], { type: "application/pdf" }), validatedResult.filename)} type="button">Download PDF</button><button className="button button--secondary button--wide" disabled={saving} onClick={() => void saveResultProject()} type="button">{saving ? "Saving…" : "Save as local project"}</button></section> : null}
     </aside>
     <main className="professional-workspace">
       {tab === "text" ? <section className="professional-panel"><header><div><p className="eyebrow">Existing text</p><h2>Redact and replace selected lines</h2></div><button className="button" disabled={!textQueue.length} onClick={() => void applyEdits()} type="button">Apply {textQueue.length || ""} replacement{textQueue.length === 1 ? "" : "s"}</button></header><div className="professional-toolbar"><label>Page<input max={inspection?.pageCount ?? 1} min="1" onChange={event => setTextPage(Number(event.target.value))} type="number" value={textPage}/></label><span>{pageLines.length} detected lines</span></div><div className="professional-split"><div className="detected-list">{pageLines.map(line => <button className={selectedLineId === line.id ? "detected-item detected-item--active" : "detected-item"} key={line.id} onClick={() => selectLine(line)} type="button"><strong>{line.text}</strong><span>{line.fontName} · {line.fontSize.toFixed(1)} pt</span><small>{line.classification} · x {line.bounds.x.toFixed(0)}, y {line.bounds.y.toFixed(0)}</small></button>)}{!pageLines.length ? <div className="empty-state"><strong>No editable text lines</strong><p>This page may be scanned, contain vector outlines, or use an unsupported encoding.</p></div> : null}</div><aside className="replacement-editor">{selectedLine ? <><h3>Replacement</h3><p>{selectedLine.reason}</p><textarea onChange={event => setReplacementText(event.target.value)} rows={5} value={replacementText}/><label>Mode<select onChange={event => setReplacementMode(event.target.value as TextReplacement["mode"])} value={replacementMode}><option disabled={selectedLine.classification !== "redact-and-replace"} value="redact-replace">Remove original and replace</option><option value="overlay">Cover visually and overlay</option></select></label><button className="button button--wide" onClick={queueTextReplacement} type="button">Add to replacement queue</button></> : <p>Select a detected text line.</p>}<div className="queue-list">{textQueue.map(item => <div key={item.lineId}><strong>Page {item.pageNumber}</strong><span>{item.originalText} → {item.replacementText}</span><button onClick={() => setTextQueue(queue => queue.filter(value => value.lineId !== item.lineId))} type="button">Remove</button></div>)}</div></aside></div></section> : null}
