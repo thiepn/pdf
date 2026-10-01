@@ -28,6 +28,11 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityIdentitySource).toContain("WeakMap<Uint8Array, Promise<string>>");
     expect(securityClientSource).toContain("Map<string, Map<string, InspectionEntry>>");
     expect(securityIdentitySource).toContain('subtle.digest("SHA-256"');
+    expect(securityIdentitySource).toContain('name: "HMAC"');
+    expect(securityIdentitySource).toContain('subtle.sign("HMAC"');
+    expect(securityIdentitySource).toContain("protected-uncached");
+    expect(securityClientSource).not.toContain("protected:${password}");
+    expect(securityClientSource).toContain("securityInspectionCredentialIdentity(password)");
     expect(securityClientSource).toContain("MAX_INSPECTION_IDENTITIES");
     expect(securityClientSource).toContain("evictSettledIdentities");
     expect(securityClientSource).toContain("security.inspection.session.hit");
