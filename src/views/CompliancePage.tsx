@@ -47,6 +47,7 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
   const [draft, setDraft] = useState<Omit<ComplianceFieldDraft, "id">>(fieldDefault);
   const [options, setOptions] = useState<ComplianceOptions>({ ...defaultComplianceOptions });
   const [result, setResult] = useState<{ bytes: Uint8Array; report: ComplianceExportReport } | null>(null);
+  const [resultFingerprint, setResultFingerprint] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<DetachedSignatureEvidence | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -100,6 +101,10 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
     void writeComplianceState({ projectId, schemaVersion: 2, draftFields: fields, options: { ...options, fields }, updatedAt: Date.now() });
   }, [fields, loaded, options, projectId]);
 
+  const complianceFingerprint = useMemo(() => JSON.stringify({ options, fields }), [fields, options]);
+  const validatedResult = result && resultFingerprint === complianceFingerprint ? result : null;
+  useEffect(() => { setEvidence(null); }, [complianceFingerprint]);
+
   const grouped = useMemo(() => groupFindings(inspection?.findings ?? []), [inspection]);
   const orderedTopLevel = useMemo(() => {
     const top = inspection?.structureElements.filter(item => item.depth === 0) ?? [], map = new Map(top.map(item => [item.id, item]));
@@ -113,30 +118,30 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
     setFields(value => [...value, item]); setDraft(value => ({ ...value, name: `field_${fields.length + 2}` }));
   }
   async function exportPdf(): Promise<void> {
-    if (!source || !project) return; setBusy(true); setError(null);
+    if (!source || !project) return; const requestedFingerprint = complianceFingerprint; setBusy(true); setError(null); setEvidence(null);
     try {
       await runProjectOperation(project.id, { label: "Preparing standards-compliant copy" }, async ({ signal, update }) => {
         update({ detail: "Applying archival and accessibility changes…", progress: 0.08 });
         const next = await applyCompliance(source, { ...options, fields }, password || undefined, signal);
         update({ stage: "validating", detail: "Checking the standards-ready PDF…", progress: 0.9 });
-        setResult(next);
+        setResult(next); setResultFingerprint(requestedFingerprint);
         update({ progress: 1 });
       });
     } catch (reason) { if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
   async function signEvidence(): Promise<void> {
-    const bytes = result?.bytes ?? source; if (!bytes || !project) return; setBusy(true); setError(null);
-    try { const next = await createDetachedSignatureEvidence(bytes, result ? `${project.name}-compliance.pdf` : project.sourceFilename); if (!await verifyDetachedSignatureEvidence(bytes, next)) throw new Error("Detached signature self-verification failed."); setEvidence(next); }
+    const bytes = validatedResult?.bytes ?? source; if (!bytes || !project) return; setBusy(true); setError(null);
+    try { const next = await createDetachedSignatureEvidence(bytes, validatedResult ? `${project.name}-compliance.pdf` : project.sourceFilename); if (!await verifyDetachedSignatureEvidence(bytes, next)) throw new Error("Detached signature self-verification failed."); setEvidence(next); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
   async function saveProject(): Promise<void> {
-    if (!result || !project) return;
+    if (!validatedResult || !project) return;
     try {
       await runProjectOperation(project.id, { label: "Saving standards-ready PDF", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => {
         update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });
-        await createDerivedProjectFromBytes(project.id, result.bytes, `${project.name}-compliance.pdf`, "compliance-export", "application/pdf", options.prepareArchival ? undefined : (password || undefined));
+        await createDerivedProjectFromBytes(project.id, validatedResult.bytes, `${project.name}-compliance.pdf`, "compliance-export", "application/pdf", options.prepareArchival ? undefined : (password || undefined));
         update({ progress: 1 });
       });
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -190,7 +195,8 @@ export function CompliancePage({ projectId, onTitleChange }: Props) {
 
     {tab === "forms" ? <section className="compliance-grid"><article className="professional-panel"><p className="eyebrow">Interactive PDF form fields</p><h3>Add a field</h3><div className="form-grid"><label>Type<select value={draft.type} onChange={event => setDraft(value => ({ ...value, type: event.target.value as ComplianceFieldDraft["type"] }))}>{["text", "multiline", "password", "checkbox", "radio", "combo", "list", "button", "signature"].map(type => <option key={type}>{type}</option>)}</select></label><label>Name<input value={draft.name} onChange={event => setDraft(value => ({ ...value, name: event.target.value }))}/></label><label>Field description (tooltip)<input value={draft.tooltip} onChange={event => setDraft(value => ({ ...value, tooltip: event.target.value }))}/></label><label>Page<input min="1" max={inspection?.pageCount ?? 1} type="number" value={draft.pageNumber} onChange={event => setDraft(value => ({ ...value, pageNumber: Number(event.target.value) }))}/></label><label>X position<input type="number" value={draft.bounds.x} onChange={event => setDraft(value => ({ ...value, bounds: { ...value.bounds, x: Number(event.target.value) } }))}/></label><label>Y position<input type="number" value={draft.bounds.y} onChange={event => setDraft(value => ({ ...value, bounds: { ...value.bounds, y: Number(event.target.value) } }))}/></label><label>Width<input type="number" value={draft.bounds.w} onChange={event => setDraft(value => ({ ...value, bounds: { ...value.bounds, w: Number(event.target.value) } }))}/></label><label>Height<input type="number" value={draft.bounds.h} onChange={event => setDraft(value => ({ ...value, bounds: { ...value.bounds, h: Number(event.target.value) } }))}/></label></div><label className="check-row"><input checked={draft.required} onChange={event => setDraft(value => ({ ...value, required: event.target.checked }))} type="checkbox"/>Required</label><label className="check-row"><input checked={draft.readOnly} onChange={event => setDraft(value => ({ ...value, readOnly: event.target.checked }))} type="checkbox"/>Read only</label><button className="button" disabled={!draft.name.trim()} onClick={addField} type="button">Queue field</button></article><article className="professional-panel"><p className="eyebrow">Form structure</p><h3>{fields.length} queued · {inspection?.fields.length ?? 0} existing</h3>{fields.length ? <ul className="compliance-field-list">{fields.map(field => <li key={field.id}><div><strong>{field.name}</strong><span>{field.type} · page {field.pageNumber}</span></div><button onClick={() => setFields(value => value.filter(item => item.id !== field.id))} type="button">Remove</button></li>)}</ul> : <p className="muted">No new fields queued.</p>}<label className="check-row"><input checked={options.flattenForms} onChange={event => setOptions(value => ({ ...value, flattenForms: event.target.checked }))} type="checkbox"/>Flatten all form widgets in output</label></article></section> : null}
 
-    {result ? <section className="professional-panel result-card"><header><div><p className="eyebrow">Validated local output</p><h2>{result.report.archivalProfile !== "none" ? `${result.report.archivalProfile} candidate` : "Compliance copy"}</h2></div><div className="button-row"><button className="button" onClick={() => downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), `${project?.name ?? "document"}-compliance.pdf`)} type="button">Download PDF</button><button className="button button--secondary" onClick={() => void saveProject()} type="button">Save as project</button></div></header><div className="archival-summary"><Summary value={result.report.outputIntentEmbedded ? "Yes" : "No"} label="ICC intent"/><Summary value={result.report.xmpNormalized ? "Yes" : "No"} label="PDF/A XMP"/><Summary value={result.report.encryptionRemoved ? "Yes" : "No"} label="Decrypted"/><Summary value={String(result.report.accessibilityRepairsApplied)} label="Tag repairs"/><Summary value={String(result.report.formTooltipsRepaired)} label="Tooltips repaired"/></div>{result.report.warnings.map(warning => <p className="scope-note" key={warning}>{warning}</p>)}</section> : null}
+    {result && !validatedResult ? <p role="status" className="scope-note">Compliance settings changed. Create the PDF again before downloading or saving.</p> : null}
+    {validatedResult ? <section className="professional-panel result-card"><header><div><p className="eyebrow">Validated local output</p><h2>{validatedResult.report.archivalProfile !== "none" ? `${validatedResult.report.archivalProfile} candidate` : "Compliance copy"}</h2></div><div className="button-row"><button className="button" onClick={() => downloadBlob(new Blob([toOwnedArrayBuffer(validatedResult.bytes)], { type: "application/pdf" }), `${project?.name ?? "document"}-compliance.pdf`)} type="button">Download PDF</button><button className="button button--secondary" onClick={() => void saveProject()} type="button">Save as project</button></div></header><div className="archival-summary"><Summary value={validatedResult.report.outputIntentEmbedded ? "Yes" : "No"} label="ICC intent"/><Summary value={validatedResult.report.xmpNormalized ? "Yes" : "No"} label="PDF/A XMP"/><Summary value={validatedResult.report.encryptionRemoved ? "Yes" : "No"} label="Decrypted"/><Summary value={String(validatedResult.report.accessibilityRepairsApplied)} label="Tag repairs"/><Summary value={String(validatedResult.report.formTooltipsRepaired)} label="Tooltips repaired"/></div>{validatedResult.report.warnings.map(warning => <p className="scope-note" key={warning}>{warning}</p>)}</section> : null}
   </div>;
 }
 
