@@ -29,8 +29,26 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [output, setOutput] = useState<Uint8Array | null>(null);
+  const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [passwordRequired, setPasswordRequired] = useState(false);
+
+  const compressionFingerprint = JSON.stringify({
+    profile,
+    removeMetadata: profile === "lossless" ? removeMetadata : false
+  });
+  const validatedOutput = output && outputFingerprint === compressionFingerprint ? output : null;
+  const validatedOutputDocument = validatedOutput ? outputDocument : null;
+
+  function invalidateOutput(): void {
+    const previous = outputDocumentRef.current;
+    outputDocumentRef.current = null;
+    setOutputDocument(null);
+    setOutput(null);
+    setOutputFingerprint(null);
+    setWarnings([]);
+    if (previous) void previous.loadingTask.destroy().catch(() => undefined);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +79,9 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
 
   async function run() {
     if (!project || !document) return;
-    setProcessing(true); setError(null); setWarnings([]); setOutput(null); setProgress(0); setStatus("Compressing…");
+    const requestedFingerprint = compressionFingerprint;
+    invalidateOutput();
+    setProcessing(true); setError(null); setProgress(0); setStatus("Compressing…");
     abortRef.current = new AbortController();
     try {
       await runProjectOperation(project.id, { label: "Compressing PDF", signal: abortRef.current.signal }, async ({ signal, update }) => {
@@ -82,7 +102,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
       if (summary.pageCount !== document.numPages) throw new Error("The compressed PDF could not be verified because its page count changed.");
       const outputPdf = await openPdfWithPdfJs(resultBytes, profile === "lossless" ? (password || undefined) : undefined);
       if (outputDocumentRef.current) await outputDocumentRef.current.loadingTask.destroy();
-      outputDocumentRef.current = outputPdf; setOutputDocument(outputPdf); setOutput(resultBytes); setStatus("Compressed PDF checked and ready");
+      outputDocumentRef.current = outputPdf; setOutputDocument(outputPdf); setOutput(resultBytes); setOutputFingerprint(requestedFingerprint); setStatus("Compressed PDF checked and ready");
       update({ progress: 1 });
       });
     } catch (reason) { if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
@@ -90,36 +110,36 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
   }
 
   async function save(asProject: boolean) {
-    if (!output || !project) return;
+    if (!validatedOutput || !project) return;
     if (asProject) {
       await runProjectOperation(project.id, { label: "Saving compressed PDF", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => {
         update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });
-        const created = await createDerivedProjectFromBytes(project.id, output, `${project.name}-compressed.pdf`, `compress:${profile}`, "application/pdf", profile === "lossless" ? (password || undefined) : undefined);
+        const created = await createDerivedProjectFromBytes(project.id, validatedOutput, `${project.name}-compressed.pdf`, `compress:${profile}`, "application/pdf", profile === "lossless" ? (password || undefined) : undefined);
         update({ progress: 1 });
         window.location.hash = routeHref({ name: "workspace", projectId: created.id, mode: "viewer" }).slice(1);
       });
-    } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), `${project.name}-compressed.pdf`);
+    } else downloadBlob(new Blob([toOwnedArrayBuffer(validatedOutput)], { type: "application/pdf" }), `${project.name}-compressed.pdf`);
   }
 
-  const reduction = output && project ? (1 - output.byteLength / project.byteLength) * 100 : null;
+  const reduction = validatedOutput && project ? (1 - validatedOutput.byteLength / project.byteLength) * 100 : null;
   return <div className="compression-page">
     <aside className="compression-controls">
       <p className="eyebrow">Compression</p><h2>Choose how much to shrink the PDF</h2><p>Keep text and forms for a safer reduction, or use image-based compression for a smaller file with fewer interactive features.</p>
       {error ? <div className="error-banner"><strong>Compression issue</strong><span>{error}</span></div> : null}
       {passwordRequired ? <section className="password-panel"><input autoFocus autoComplete="off" onChange={(event) => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={!password || !project} onClick={() => project && void loadProjectBytes(project).then((bytes) => open(project, bytes, password))} type="button">Open PDF</button></section> : null}
       <div className="compression-profiles">
-        <label className={profile === "lossless" ? "compression-profile compression-profile--active" : "compression-profile"}><input checked={profile === "lossless"} disabled={processing} onChange={() => setProfile("lossless")} type="radio"/><span><strong>Keep text and forms</strong><small>Reduce file size without turning pages into images.</small></span></label>
-        {RASTER_PROFILES.map((item) => <label className={profile === item.id ? "compression-profile compression-profile--active" : "compression-profile"} key={item.id}><input checked={profile === item.id} disabled={processing} onChange={() => setProfile(item.id as ProfileId)} type="radio"/><span><strong>{item.label}</strong><small>{item.dpi} DPI · {item.description}</small></span></label>)}
+        <label className={profile === "lossless" ? "compression-profile compression-profile--active" : "compression-profile"}><input checked={profile === "lossless"} disabled={processing} onChange={() => { invalidateOutput(); setProfile("lossless"); setStatus("Settings changed · compress again."); }} type="radio"/><span><strong>Keep text and forms</strong><small>Reduce file size without turning pages into images.</small></span></label>
+        {RASTER_PROFILES.map((item) => <label className={profile === item.id ? "compression-profile compression-profile--active" : "compression-profile"} key={item.id}><input checked={profile === item.id} disabled={processing} onChange={() => { invalidateOutput(); setProfile(item.id as ProfileId); setStatus("Settings changed · compress again."); }} type="radio"/><span><strong>{item.label}</strong><small>{item.dpi} DPI · {item.description}</small></span></label>)}
       </div>
-      <label><input checked={removeMetadata} disabled={processing || profile !== "lossless"} onChange={(event) => setRemoveMetadata(event.target.checked)} type="checkbox"/> Remove document metadata</label>
+      <label><input checked={removeMetadata} disabled={processing || profile !== "lossless"} onChange={(event) => { invalidateOutput(); setRemoveMetadata(event.target.checked); setStatus("Settings changed · compress again."); }} type="checkbox"/> Remove document metadata</label>
       <button className="button button--wide" disabled={!document || processing} onClick={() => void run()} type="button">{processing ? "Processing…" : "Compress PDF"}</button>
       {processing ? <><progress max="1" value={progress}/><button className="button button--secondary button--wide" onClick={() => abortRef.current?.abort()} type="button">Cancel</button></> : null}
       {warnings.length ? <div className="warning-list">{warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}
     </aside>
     <main className="compression-preview">
-      <header className="processing-header"><div><strong>{status}</strong><span>{project ? `${(project.byteLength / 1024 / 1024).toFixed(2)} MB source` : ""}{output ? ` → ${(output.byteLength / 1024 / 1024).toFixed(2)} MB` : ""}</span></div>{reduction !== null ? <strong className={reduction >= 0 ? "size-positive" : "size-negative"}>{reduction >= 0 ? `${reduction.toFixed(1)}% smaller` : `${Math.abs(reduction).toFixed(1)}% larger`}</strong> : null}</header>
-      <div className="compression-compare">{document ? <section><h3>Original</h3><div className="mini-page-preview"><PageCanvas document={document} pageNumber={1} zoom={0.55}/></div></section> : null}{outputDocument ? <section><h3>Output</h3><div className="mini-page-preview"><PageCanvas document={outputDocument} pageNumber={1} zoom={0.55}/></div></section> : <section className="empty-state"><strong>No output preview</strong><p>Run a profile to compare the first page.</p></section>}</div>
-      {output ? <footer className="output-bar"><div><strong>Compressed PDF checked and ready</strong><span>{outputDocument?.numPages} pages</span></div><button className="button button--secondary" onClick={() => void save(false)} type="button">Download</button><button className="button" onClick={() => void save(true)} type="button">Save as project</button></footer> : null}
+      <header className="processing-header"><div><strong>{status}</strong><span>{project ? `${(project.byteLength / 1024 / 1024).toFixed(2)} MB source` : ""}{validatedOutput ? ` → ${(validatedOutput.byteLength / 1024 / 1024).toFixed(2)} MB` : ""}</span></div>{reduction !== null ? <strong className={reduction >= 0 ? "size-positive" : "size-negative"}>{reduction >= 0 ? `${reduction.toFixed(1)}% smaller` : `${Math.abs(reduction).toFixed(1)}% larger`}</strong> : null}</header>
+      <div className="compression-compare">{document ? <section><h3>Original</h3><div className="mini-page-preview"><PageCanvas document={document} pageNumber={1} zoom={0.55}/></div></section> : null}{validatedOutputDocument ? <section><h3>Output</h3><div className="mini-page-preview"><PageCanvas document={validatedOutputDocument} pageNumber={1} zoom={0.55}/></div></section> : <section className="empty-state"><strong>No output preview</strong><p>Run a profile to compare the first page.</p></section>}</div>
+      {validatedOutput ? <footer className="output-bar"><div><strong>Compressed PDF checked and ready</strong><span>{validatedOutputDocument?.numPages} pages</span></div><button className="button button--secondary" onClick={() => void save(false)} type="button">Download</button><button className="button" onClick={() => void save(true)} type="button">Save as project</button></footer> : null}
     </main>
   </div>;
 }
