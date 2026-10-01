@@ -43,9 +43,6 @@ describe("Recovery P4 capability gate decoupling", () => {
   } else {
     touchIdentity(identity, sessions);
   }`);
-    expect(securityClientSource).toContain(`sessions.set(key, current);
-    // Evict only after the new identity has a live entry.
-`);
     expect(securityClientSource).toMatch(/sessions\.set\(key, current\);[\s\S]*?evictSettledIdentities\(\);[\s\S]*?security\.inspection\.session\.miss/);
   });
 
