@@ -37,16 +37,16 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityClientSource).toContain("current.settled = true");
     expect(gateSource).toContain("preflight.abort(new DOMException");
 
-    const inspectStart = securityClientSource.indexOf("export async function inspectSecurity");
-    const inspectSource = securityClientSource.slice(inspectStart);
-    const identityMapInsert = inspectSource.indexOf("inspectionsByIdentity.set(identity, sessions)");
-    const inspectionEntryInsert = inspectSource.indexOf("sessions.set(key, current)", identityMapInsert);
-    const evictionAfterEntry = inspectSource.indexOf("evictSettledIdentities()", inspectionEntryInsert);
-    expect(inspectStart).toBeGreaterThanOrEqual(0);
-    expect(identityMapInsert).toBeGreaterThanOrEqual(0);
-    expect(inspectionEntryInsert).toBeGreaterThan(identityMapInsert);
-    expect(inspectSource.slice(identityMapInsert, inspectionEntryInsert)).not.toContain("evictSettledIdentities()");
-    expect(evictionAfterEntry).toBeGreaterThan(inspectionEntryInsert);
+    expect(securityClientSource).toContain(`if (!sessions) {
+    sessions = new Map();
+    inspectionsByIdentity.set(identity, sessions);
+  } else {
+    touchIdentity(identity, sessions);
+  }`);
+    expect(securityClientSource).toContain(`sessions.set(key, current);
+    // Evict only after the new identity has a live entry.
+`);
+    expect(securityClientSource).toMatch(/sessions\.set\(key, current\);[\s\S]*?evictSettledIdentities\(\);[\s\S]*?security\.inspection\.session\.miss/);
   });
 
   it("waits for MuPDF worker initialization before transferring security input", () => {
