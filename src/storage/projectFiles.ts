@@ -2,7 +2,19 @@ import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 
 const PROJECT_ROOT = "projects";
+const MAX_SOURCE_BYTE_CACHE = 6;
 const sourceByteCache = new Map<string, Uint8Array>();
+
+function rememberProjectSource(projectId: string, bytes: Uint8Array): Uint8Array {
+  sourceByteCache.delete(projectId);
+  sourceByteCache.set(projectId, bytes);
+  while (sourceByteCache.size > MAX_SOURCE_BYTE_CACHE) {
+    const oldest = sourceByteCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    sourceByteCache.delete(oldest);
+  }
+  return bytes;
+}
 
 function hasOpfs(): boolean {
   return "storage" in navigator && "getDirectory" in navigator.storage;
@@ -24,7 +36,7 @@ export async function writeProjectSource(projectId: string, bytes: Uint8Array): 
     await writable.close();
     // Project source PDFs are immutable. Reusing the same byte view avoids a full
     // OPFS read every time the persistent workspace changes document modes.
-    sourceByteCache.set(projectId, bytes);
+    rememberProjectSource(projectId, bytes);
   } catch (reason) {
     sourceByteCache.delete(projectId);
     try { await writable.abort(reason); } catch { /* Best-effort cleanup; caller removes the project directory. */ }
@@ -36,6 +48,7 @@ export async function writeProjectSource(projectId: string, bytes: Uint8Array): 
 export async function readProjectSource(projectId: string): Promise<Uint8Array> {
   const cached = sourceByteCache.get(projectId);
   if (cached) {
+    rememberProjectSource(projectId, cached);
     recordRuntimeMetric("storage", "projectSource.session.hit", 0, undefined, { storage: "opfs" });
     return cached;
   }
@@ -44,8 +57,7 @@ export async function readProjectSource(projectId: string): Promise<Uint8Array> 
   const directory = await getProjectDirectory(projectId, false);
   const handle = await directory.getFileHandle("original.pdf");
   const bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
-  sourceByteCache.set(projectId, bytes);
-  return bytes;
+  return rememberProjectSource(projectId, bytes);
 }
 
 export async function deleteProjectFiles(projectId: string): Promise<void> {
