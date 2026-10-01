@@ -28,13 +28,42 @@ function announceUpdate(registration: ServiceWorkerRegistration): void {
   window.dispatchEvent(new CustomEvent<ServiceWorkerUpdateDetail>(SERVICE_WORKER_UPDATE_EVENT, { detail: { registration } }));
 }
 
-function messageWorker<T>(worker: ServiceWorker | null, data: unknown, timeoutMs = 4000): Promise<T> {
+export function messageWorker<T>(worker: ServiceWorker | null, data: unknown, timeoutMs = 4000): Promise<T> {
   if (!worker) return Promise.reject(new Error("No active PDF Studio service worker is available."));
   return new Promise<T>((resolve, reject) => {
     const channel = new MessageChannel();
-    const timeout = window.setTimeout(() => reject(new Error("Service worker did not respond.")), timeoutMs);
-    channel.port1.onmessage = (event) => { window.clearTimeout(timeout); resolve(event.data as T); };
-    worker.postMessage(data, [channel.port2]);
+    let settled = false;
+    let timeout: number | undefined;
+
+    const cleanup = () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      channel.port1.onmessage = null;
+      channel.port1.onmessageerror = null;
+      channel.port1.close();
+      channel.port2.close();
+    };
+    const resolveOnce = (value: T) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const rejectOnce = (reason: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    };
+
+    timeout = window.setTimeout(() => rejectOnce(new Error("Service worker did not respond.")), timeoutMs);
+    channel.port1.onmessage = (event) => resolveOnce(event.data as T);
+    channel.port1.onmessageerror = () => rejectOnce(new Error("Service worker returned an unreadable response."));
+
+    try {
+      worker.postMessage(data, [channel.port2]);
+    } catch (reason) {
+      rejectOnce(reason);
+    }
   });
 }
 
