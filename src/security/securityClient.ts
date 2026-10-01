@@ -153,7 +153,6 @@ export async function inspectSecurity(
   if (!sessions) {
     sessions = new Map();
     inspectionsByIdentity.set(identity, sessions);
-    evictSettledIdentities();
   } else {
     touchIdentity(identity, sessions);
   }
@@ -193,6 +192,10 @@ export async function inspectSecurity(
       throw reason;
     });
     sessions.set(key, current);
+    // Evict only after the new identity has a live entry. Evicting while the
+    // session map is still empty could make a just-created identity evict itself
+    // when every older identity is still busy.
+    evictSettledIdentities();
     recordRuntimeMetric("worker", "security.inspection.session.miss", 0, undefined, {
       byteLength: bytes.byteLength,
       passwordProtected: Boolean(password)
