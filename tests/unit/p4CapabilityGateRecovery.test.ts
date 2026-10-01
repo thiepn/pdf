@@ -36,6 +36,14 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityClientSource).toContain("entry.controller.abort()");
     expect(securityClientSource).toContain("current.settled = true");
     expect(gateSource).toContain("preflight.abort(new DOMException");
+
+    const identityMapInsert = securityClientSource.indexOf("inspectionsByIdentity.set(identity, sessions)");
+    const inspectionEntryInsert = securityClientSource.indexOf("sessions.set(key, current)", identityMapInsert);
+    const evictionAfterEntry = securityClientSource.indexOf("evictSettledIdentities()", inspectionEntryInsert);
+    expect(identityMapInsert).toBeGreaterThanOrEqual(0);
+    expect(inspectionEntryInsert).toBeGreaterThan(identityMapInsert);
+    expect(securityClientSource.slice(identityMapInsert, inspectionEntryInsert)).not.toContain("evictSettledIdentities()");
+    expect(evictionAfterEntry).toBeGreaterThan(inspectionEntryInsert);
   });
 
   it("waits for MuPDF worker initialization before transferring security input", () => {
