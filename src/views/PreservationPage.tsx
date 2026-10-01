@@ -23,9 +23,13 @@ export function PreservationPage({ projectId, onTitleChange }: Props) {
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [graph, setGraph] = useState<PreservationGraph | null>(null);
   const [result, setResult] = useState<PreservationResult | null>(null);
+  const [resultFingerprint, setResultFingerprint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState(defaultImpose);
+
+  const impositionFingerprint = JSON.stringify(settings);
+  const validatedResult = result && (resultFingerprint === "optimize" || resultFingerprint === `impose:${impositionFingerprint}`) ? result : null;
 
   useEffect(() => {
     let disposed = false;
@@ -54,9 +58,11 @@ export function PreservationPage({ projectId, onTitleChange }: Props) {
     if (!bytes || !project) return;
     const source = bytes;
     const activeProject = project;
+    const requestedFingerprint = kind === "optimize" ? "optimize" : `impose:${impositionFingerprint}`;
     setBusy(true);
     setError(null);
     setResult(null);
+    setResultFingerprint(null);
     abortRef.current = new AbortController();
     try {
       const next = await runProjectOperation(
@@ -76,6 +82,7 @@ export function PreservationPage({ projectId, onTitleChange }: Props) {
         }
       );
       setResult(next);
+      setResultFingerprint(requestedFingerprint);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -84,8 +91,8 @@ export function PreservationPage({ projectId, onTitleChange }: Props) {
   }
 
   async function saveProject() {
-    if (!result || !project) return;
-    const activeResult = result;
+    if (!validatedResult || !project) return;
+    const activeResult = validatedResult;
     const activeProject = project;
     try {
       await runProjectOperation(
@@ -129,10 +136,11 @@ export function PreservationPage({ projectId, onTitleChange }: Props) {
         </div>
         <p className="scope-note">Page graphics stay sharp and vector-based. Interactive items such as links, forms, annotations, signatures, bookmarks, and tagged reading order cannot be moved reliably onto the new sheets; the app reports these limitations before you use the output.</p>
       </section>
-      {result ? (
+      {result && !validatedResult ? <p role="status" className="scope-note">Print-layout settings changed. Create the vector print-layout copy again before downloading or saving.</p> : null}
+      {validatedResult ? (
         <section className="professional-panel result-card">
-          <header><div><p className="eyebrow">Validated output</p><h2>{result.report.passed ? "Structure check passed" : "Output blocked"}</h2></div><div className="button-row"><button className="button" onClick={() => downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), `${project?.name ?? "document"}-${result.report.operation}.pdf`)} type="button">Download PDF</button><button className="button button--secondary" onClick={() => void saveProject()} type="button">Save as project</button></div></header>
-          <p>{result.report.warnings.join(" ") || "No unexpected structural loss detected."}</p>
+          <header><div><p className="eyebrow">Validated output</p><h2>{validatedResult.report.passed ? "Structure check passed" : "Output blocked"}</h2></div><div className="button-row"><button className="button" onClick={() => downloadBlob(new Blob([toOwnedArrayBuffer(validatedResult.bytes)], { type: "application/pdf" }), `${project?.name ?? "document"}-${validatedResult.report.operation}.pdf`)} type="button">Download PDF</button><button className="button button--secondary" onClick={() => void saveProject()} type="button">Save as project</button></div></header>
+          <p>{validatedResult.report.warnings.join(" ") || "No unexpected structural loss detected."}</p>
         </section>
       ) : null}
     </div>
