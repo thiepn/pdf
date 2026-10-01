@@ -42,13 +42,14 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityClientSource).toContain("current.settled = true");
     expect(gateSource).toContain("preflight.abort(new DOMException");
 
-    expect(securityClientSource).toContain(`if (!sessions) {
-    sessions = new Map();
-    inspectionsByIdentity.set(identity, sessions);
-  } else {
-    touchIdentity(identity, sessions);
-  }`);
-    expect(securityClientSource).toMatch(/sessions\.set\(key, current\);[\s\S]*?evictSettledIdentities\(\);[\s\S]*?security\.inspection\.session\.miss/);
+    expect(securityClientSource).toContain("if (credential.cacheable)");
+    expect(securityClientSource).toContain("const cachedSessions = inspectionsByIdentity.get(identity)");
+    expect(securityClientSource).toContain("touchIdentity(identity, sessions)");
+    expect(securityClientSource).toContain("sessions = new Map()");
+    expect(securityClientSource).toContain("credential.cacheable ? sessions.get(key) : undefined");
+    expect(securityClientSource).toContain("Protected inspection caching fails closed");
+    expect(securityClientSource).toMatch(/if \(credential\.cacheable\) \{[\s\S]*?sessions\.set\(key, current\);[\s\S]*?evictSettledIdentities\(\);[\s\S]*?\}/);
+    expect(securityClientSource).toContain("security.inspection.session.miss");
   });
 
   it("waits for MuPDF worker initialization before transferring security input", () => {
