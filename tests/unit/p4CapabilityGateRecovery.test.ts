@@ -37,12 +37,15 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(securityClientSource).toContain("current.settled = true");
     expect(gateSource).toContain("preflight.abort(new DOMException");
 
-    const identityMapInsert = securityClientSource.indexOf("inspectionsByIdentity.set(identity, sessions)");
-    const inspectionEntryInsert = securityClientSource.indexOf("sessions.set(key, current)", identityMapInsert);
-    const evictionAfterEntry = securityClientSource.indexOf("evictSettledIdentities()", inspectionEntryInsert);
+    const inspectStart = securityClientSource.indexOf("export async function inspectSecurity");
+    const inspectSource = securityClientSource.slice(inspectStart);
+    const identityMapInsert = inspectSource.indexOf("inspectionsByIdentity.set(identity, sessions)");
+    const inspectionEntryInsert = inspectSource.indexOf("sessions.set(key, current)", identityMapInsert);
+    const evictionAfterEntry = inspectSource.indexOf("evictSettledIdentities()", inspectionEntryInsert);
+    expect(inspectStart).toBeGreaterThanOrEqual(0);
     expect(identityMapInsert).toBeGreaterThanOrEqual(0);
     expect(inspectionEntryInsert).toBeGreaterThan(identityMapInsert);
-    expect(securityClientSource.slice(identityMapInsert, inspectionEntryInsert)).not.toContain("evictSettledIdentities()");
+    expect(inspectSource.slice(identityMapInsert, inspectionEntryInsert)).not.toContain("evictSettledIdentities()");
     expect(evictionAfterEntry).toBeGreaterThan(inspectionEntryInsert);
   });
 
