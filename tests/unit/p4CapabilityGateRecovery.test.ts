@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import gateSource from "../../src/capabilities/CapabilityGatedWorkspace.tsx?raw";
 import taskCapabilitySource from "../../src/capabilities/taskCapability.ts?raw";
 import securityClientSource from "../../src/security/securityClient.ts?raw";
+import securityIdentitySource from "../../src/security/securityInspectionIdentity.ts?raw";
 import securityWorkerEntrySource from "../../src/workers/security-entry.worker.ts?raw";
 
 describe("Recovery P4 capability gate decoupling", () => {
@@ -24,9 +25,9 @@ describe("Recovery P4 capability gate decoupling", () => {
   });
 
   it("reuses equivalent immutable bytes for Protect and bounds completed inspection identities", () => {
-    expect(securityClientSource).toContain("WeakMap<Uint8Array, Promise<string>>");
+    expect(securityIdentitySource).toContain("WeakMap<Uint8Array, Promise<string>>");
     expect(securityClientSource).toContain("Map<string, Map<string, InspectionEntry>>");
-    expect(securityClientSource).toContain('subtle.digest("SHA-256"');
+    expect(securityIdentitySource).toContain('subtle.digest("SHA-256"');
     expect(securityClientSource).toContain("MAX_INSPECTION_IDENTITIES");
     expect(securityClientSource).toContain("evictSettledIdentities");
     expect(securityClientSource).toContain("security.inspection.session.hit");
