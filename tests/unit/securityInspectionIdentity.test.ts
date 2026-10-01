@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { securityInspectionByteIdentity } from "../../src/security/securityInspectionIdentity";
+import { securityInspectionByteIdentity, securityInspectionCredentialIdentity } from "../../src/security/securityInspectionIdentity";
 
 describe("security inspection byte identity", () => {
   it("returns the same content identity for independent arrays with identical bytes", async () => {
@@ -26,5 +26,37 @@ describe("security inspection byte identity", () => {
     const second = await securityInspectionByteIdentity(bytes);
 
     expect(second).toBe(first);
+  });
+});
+
+
+describe("security inspection credential identity", () => {
+  it("keeps unprotected inspection cacheable without a credential secret", async () => {
+    await expect(securityInspectionCredentialIdentity()).resolves.toEqual({
+      key: "unprotected",
+      cacheable: true
+    });
+  });
+
+  it("uses a stable session-private key for the same protected password", async () => {
+    const password = "correct horse battery staple";
+    const first = await securityInspectionCredentialIdentity(password);
+    const second = await securityInspectionCredentialIdentity(password);
+
+    expect(first.cacheable).toBe(true);
+    expect(second).toEqual(first);
+    expect(first.key).toMatch(/^protected:[0-9a-f]{64}$/);
+    expect(first.key).not.toContain(password);
+  });
+
+  it("separates different protected passwords without retaining either plaintext value", async () => {
+    const firstPassword = "alpha-secret";
+    const secondPassword = "beta-secret";
+    const first = await securityInspectionCredentialIdentity(firstPassword);
+    const second = await securityInspectionCredentialIdentity(secondPassword);
+
+    expect(first.key).not.toBe(second.key);
+    expect(first.key).not.toContain(firstPassword);
+    expect(second.key).not.toContain(secondPassword);
   });
 });

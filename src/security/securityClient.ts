@@ -1,5 +1,5 @@
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
-import { securityInspectionByteIdentity } from "./securityInspectionIdentity";
+import { securityInspectionByteIdentity, securityInspectionCredentialIdentity } from "./securityInspectionIdentity";
 import type { SecurityExportOptions, SecurityExportReport, SecurityInspectionReport } from "../types/security";
 
 interface Ready { type: "READY" }
@@ -18,10 +18,6 @@ interface InspectionEntry {
 
 const MAX_INSPECTION_IDENTITIES = 8;
 const inspectionsByIdentity = new Map<string, Map<string, InspectionEntry>>();
-
-function inspectionKey(password?: string): string {
-  return password ? `protected:${password}` : "unprotected";
-}
 
 function abortError(): DOMException {
   return new DOMException("Security inspection cancelled.", "AbortError");
@@ -135,30 +131,42 @@ function waitWithSignal(
 
 /**
  * Recovery P4 shares immutable-document security inspection between capability
- * preflight and Protect. Reuse is keyed by a local SHA-256 byte identity plus the
- * in-memory password state, so independently loaded Uint8Array instances for the
- * same project still share one completed report. The bounded cache stores no PDF
- * bytes or password values in diagnostics, and export/apply operations are never
- * cached.
+ * preflight and Protect. Reuse is keyed by a local SHA-256 byte identity plus a
+ * session-private HMAC credential identity, so independently loaded Uint8Array
+ * instances for the same project can share one completed report without retaining
+ * plaintext passwords as strong cache keys. The bounded cache stores no PDF bytes,
+ * and export/apply operations are never cached.
  */
 export async function inspectSecurity(
   bytes: Uint8Array,
   password?: string,
   signal?: AbortSignal
 ): Promise<SecurityInspectionReport> {
-  const identity = await securityInspectionByteIdentity(bytes);
+  const [identity, credential] = await Promise.all([
+    securityInspectionByteIdentity(bytes),
+    securityInspectionCredentialIdentity(password)
+  ]);
   if (signal?.aborted) throw abortError();
 
-  let sessions = inspectionsByIdentity.get(identity);
-  if (!sessions) {
-    sessions = new Map();
-    inspectionsByIdentity.set(identity, sessions);
+  let sessions: Map<string, InspectionEntry>;
+  if (credential.cacheable) {
+    const cachedSessions = inspectionsByIdentity.get(identity);
+    if (cachedSessions) {
+      sessions = cachedSessions;
+      touchIdentity(identity, sessions);
+    } else {
+      sessions = new Map();
+      inspectionsByIdentity.set(identity, sessions);
+    }
   } else {
-    touchIdentity(identity, sessions);
+    // Protected inspection caching fails closed when Web Crypto cannot create the
+    // session-private credential identity. Keep waiter/cancellation bookkeeping
+    // local to this call without retaining any password-derived cache key.
+    sessions = new Map();
   }
 
-  const key = inspectionKey(password);
-  let entry = sessions.get(key);
+  const key = credential.key;
+  let entry = credential.cacheable ? sessions.get(key) : undefined;
 
   if (entry) {
     recordRuntimeMetric("worker", "security.inspection.session.hit", 0, undefined, {
@@ -191,11 +199,13 @@ export async function inspectSecurity(
       removeEntry(identity, sessions!, key);
       throw reason;
     });
-    sessions.set(key, current);
-    // Evict only after the new identity has a live entry. Evicting while the
-    // session map is still empty could make a just-created identity evict itself
-    // when every older identity is still busy.
-    evictSettledIdentities();
+    if (credential.cacheable) {
+      sessions.set(key, current);
+      // Evict only after the new identity has a live entry. Evicting while the
+      // session map is still empty could make a just-created identity evict itself
+      // when every older identity is still busy.
+      evictSettledIdentities();
+    }
     recordRuntimeMetric("worker", "security.inspection.session.miss", 0, undefined, {
       byteLength: bytes.byteLength,
       passwordProtected: Boolean(password)
