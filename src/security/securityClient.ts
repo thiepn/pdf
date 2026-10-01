@@ -1,4 +1,5 @@
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
+import { securityInspectionByteIdentity } from "./securityInspectionIdentity";
 import type { SecurityExportOptions, SecurityExportReport, SecurityInspectionReport } from "../types/security";
 
 interface Ready { type: "READY" }
@@ -16,8 +17,6 @@ interface InspectionEntry {
 }
 
 const MAX_INSPECTION_IDENTITIES = 8;
-const identityPromiseByBytes = new WeakMap<Uint8Array, Promise<string>>();
-const fallbackIdentityByBytes = new WeakMap<Uint8Array, string>();
 const inspectionsByIdentity = new Map<string, Map<string, InspectionEntry>>();
 
 function inspectionKey(password?: string): string {
@@ -62,28 +61,6 @@ function runWorker<T>(
     worker.onmessageerror = () => { cleanup(); reject(new Error("Security worker returned an unreadable response.")); };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Security worker failed.")); };
   });
-}
-
-async function byteIdentity(bytes: Uint8Array): Promise<string> {
-  let identity = identityPromiseByBytes.get(bytes);
-  if (identity) return identity;
-
-  if (!globalThis.crypto?.subtle) {
-    let fallback = fallbackIdentityByBytes.get(bytes);
-    if (!fallback) {
-      fallback = `object:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
-      fallbackIdentityByBytes.set(bytes, fallback);
-    }
-    identity = Promise.resolve(fallback);
-  } else {
-    const snapshot = Uint8Array.from(bytes);
-    identity = globalThis.crypto.subtle.digest("SHA-256", snapshot).then((digest) =>
-      Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("")
-    );
-  }
-
-  identityPromiseByBytes.set(bytes, identity);
-  return identity;
 }
 
 function touchIdentity(identity: string, sessions: Map<string, InspectionEntry>): void {
@@ -169,7 +146,7 @@ export async function inspectSecurity(
   password?: string,
   signal?: AbortSignal
 ): Promise<SecurityInspectionReport> {
-  const identity = await byteIdentity(bytes);
+  const identity = await securityInspectionByteIdentity(bytes);
   if (signal?.aborted) throw abortError();
 
   let sessions = inspectionsByIdentity.get(identity);
