@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import gateSource from "../../src/capabilities/CapabilityGatedWorkspace.tsx?raw";
 import taskCapabilitySource from "../../src/capabilities/taskCapability.ts?raw";
 import securityClientSource from "../../src/security/securityClient.ts?raw";
+import securityIdentitySource from "../../src/security/securityInspectionIdentity.ts?raw";
 import securityWorkerEntrySource from "../../src/workers/security-entry.worker.ts?raw";
 
 describe("Recovery P4 capability gate decoupling", () => {
@@ -23,14 +24,26 @@ describe("Recovery P4 capability gate decoupling", () => {
     expect(taskCapabilitySource).toContain("signal?: AbortSignal");
   });
 
-  it("retains completed security inspection reuse for Protect itself", () => {
-    expect(securityClientSource).toContain("WeakMap<Uint8Array, Map<string, InspectionEntry>>");
+  it("reuses equivalent immutable bytes for Protect and bounds completed inspection identities", () => {
+    expect(securityIdentitySource).toContain("WeakMap<Uint8Array, Promise<string>>");
+    expect(securityClientSource).toContain("Map<string, Map<string, InspectionEntry>>");
+    expect(securityIdentitySource).toContain('subtle.digest("SHA-256"');
+    expect(securityClientSource).toContain("MAX_INSPECTION_IDENTITIES");
+    expect(securityClientSource).toContain("evictSettledIdentities");
     expect(securityClientSource).toContain("security.inspection.session.hit");
     expect(securityClientSource).toContain("security.inspection.session.miss");
     expect(securityClientSource).toContain("maybeAbortUnused");
     expect(securityClientSource).toContain("entry.controller.abort()");
     expect(securityClientSource).toContain("current.settled = true");
     expect(gateSource).toContain("preflight.abort(new DOMException");
+
+    expect(securityClientSource).toContain(`if (!sessions) {
+    sessions = new Map();
+    inspectionsByIdentity.set(identity, sessions);
+  } else {
+    touchIdentity(identity, sessions);
+  }`);
+    expect(securityClientSource).toMatch(/sessions\.set\(key, current\);[\s\S]*?evictSettledIdentities\(\);[\s\S]*?security\.inspection\.session\.miss/);
   });
 
   it("waits for MuPDF worker initialization before transferring security input", () => {
@@ -47,6 +60,6 @@ describe("Recovery P4 capability gate decoupling", () => {
     const applySource = securityClientSource.slice(applyStart);
     expect(applySource).toContain('type: "APPLY_SECURITY"');
     expect(applySource).toContain("return runWorker");
-    expect(applySource).not.toContain("inspectionsByBytes");
+    expect(applySource).not.toContain("inspectionsByIdentity");
   });
 });
