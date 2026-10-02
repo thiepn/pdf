@@ -6,6 +6,7 @@ type WorkerResult =
   | { type: "PROFESSIONAL_ERROR"; requestId: string; error: { name: string; message: string } };
 
 function invoke<T>(message: Record<string, unknown>, bytes: Uint8Array, password?: string, signal?: AbortSignal, transfers: Transferable[] = []): Promise<T> {
+  if (signal?.aborted) return Promise.reject(new DOMException("Operation cancelled.", "AbortError"));
   const worker = new Worker(new URL("../workers/professional.worker.ts", import.meta.url), { type: "module" });
   const requestId = crypto.randomUUID();
   const source = Uint8Array.from(bytes).buffer;

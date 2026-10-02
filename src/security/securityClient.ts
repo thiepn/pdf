@@ -29,6 +29,7 @@ function runWorker<T>(
   signal: AbortSignal | undefined,
   read: (response: Response) => T | undefined
 ): Promise<T> {
+  if (signal?.aborted) return Promise.reject(new DOMException("Operation cancelled.", "AbortError"));
   const worker = new Worker(new URL("../workers/security-entry.worker.ts", import.meta.url), { type: "module" });
   const requestId = String(message.requestId);
   return new Promise((resolve, reject) => {

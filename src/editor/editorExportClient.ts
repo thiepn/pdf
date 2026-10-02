@@ -25,6 +25,7 @@ async function exportOverlayPdf(
   signal?: AbortSignal,
   password?: string
 ): Promise<{ bytes: Uint8Array; report: EditorExportReport }> {
+  if (signal?.aborted) throw new DOMException("Export cancelled.", "AbortError");
   const worker = new Worker(new URL("../workers/editor-export.worker.ts", import.meta.url), { type: "module" });
   const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const source = Uint8Array.from(bytes).buffer;
