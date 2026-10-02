@@ -29,7 +29,7 @@ describe("one-use file handoff", () => {
   });
   it("actively releases abandoned transfer references when the TTL elapses", () => {
     expect(fileHandoffSource).toContain("pendingExpiry = setTimeout");
-    expect(fileHandoffSource).toContain("if (pending === transfer) pending = null");
+    expect(fileHandoffSource).toContain("if (pending !== transfer) return");
     expect(fileHandoffSource).toContain("clearTimeout(pendingExpiry)");
   });
   it("copies the caller's array so later mutations do not change the batch", () => {
