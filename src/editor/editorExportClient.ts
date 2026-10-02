@@ -41,7 +41,7 @@ async function exportOverlayPdf(
     }
     let started = false;
     const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { if (started) worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Export cancelled.", "AbortError")); };
+    const cancel = () => { if (started) { try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ } } cleanup(); reject(new DOMException("Export cancelled.", "AbortError")); };
     const startupTimeout = setTimeout(() => {
       cleanup();
       reject(new Error("The editor export engine could not start. Reload the app and try again."));
