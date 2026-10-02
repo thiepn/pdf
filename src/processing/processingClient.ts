@@ -16,7 +16,7 @@ async function invoke(type: "OPTIMIZE" | "REPAIR", bytes: Uint8Array, options: {
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
-        started = true; clearTimeout(startupTimeout); worker.postMessage({ type, requestId, bytes: source, ...options }, [source]); return;
+        started = true; clearTimeout(startupTimeout); try { worker.postMessage({ type, requestId, bytes: source, ...options }, [source]); } catch (reason) { cleanup(); reject(reason instanceof Error ? reason : new Error(String(reason))); } return;
       }
       if (event.data.requestId !== requestId) return;
       cleanup();
