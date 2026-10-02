@@ -27,18 +27,31 @@ export function acceptsTaskInput(task: Pick<PdfTask, "id" | "target">, kind: Inp
 const TTL = 10 * 60 * 1000;
 export interface TaskTransfer { files: File[]; passwords: Array<string | undefined>; warnings: string[] }
 let pending: (TaskTransfer & { taskId: string; at: number }) | null = null;
+let pendingExpiry: ReturnType<typeof setTimeout> | null = null;
+
+function clearPending(): void {
+  pending = null;
+  if (pendingExpiry !== null) clearTimeout(pendingExpiry);
+  pendingExpiry = null;
+}
 /** File bytes and passwords are never put in URLs, browser storage or analytics. */
 export function handOffTaskFiles(taskId: string, files: readonly File[], context: Partial<Pick<TaskTransfer, "passwords" | "warnings">> = {}): void {
   const kind = inspectIncomingFiles(files), task = getTask(taskId);
   if (!task || !acceptsTaskInput(task, kind, files.length)) throw new Error("These files cannot be used by that tool. Choose a compatible task.");
-  pending = { taskId, files: [...files], passwords: [...(context.passwords ?? [])], warnings: [...(context.warnings ?? [])], at: Date.now() };
+  clearPending();
+  const transfer = { taskId, files: [...files], passwords: [...(context.passwords ?? [])], warnings: [...(context.warnings ?? [])], at: Date.now() };
+  pending = transfer;
+  pendingExpiry = setTimeout(() => {
+    if (pending === transfer) pending = null;
+    pendingExpiry = null;
+  }, TTL);
 }
 export function takeTaskTransfer(taskId: string): TaskTransfer | null {
   const current = pending;
   if (!current) return null;
-  if (Date.now() - current.at > TTL) { pending = null; return null; }
+  if (Date.now() - current.at > TTL) { clearPending(); return null; }
   if (current.taskId !== taskId) return null;
-  pending = null; return { files: current.files, passwords: current.passwords, warnings: current.warnings };
+  clearPending(); return { files: current.files, passwords: current.passwords, warnings: current.warnings };
 }
 export function takeTaskFiles(taskId: string): File[] | null { return takeTaskTransfer(taskId)?.files ?? null; }
-export function discardTaskFiles(): void { pending = null; }
+export function discardTaskFiles(): void { clearPending(); }
