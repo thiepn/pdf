@@ -54,7 +54,12 @@ function runWorker<T>(
         if (started || signal?.aborted) return;
         started = true;
         clearTimeout(startupTimeout);
-        worker.postMessage({ ...message, bytes: source }, [source]);
+        try {
+          worker.postMessage({ ...message, bytes: source }, [source]);
+        } catch (reason) {
+          cleanup();
+          reject(reason instanceof Error ? reason : new Error(String(reason)));
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
