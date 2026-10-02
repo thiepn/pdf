@@ -5,6 +5,7 @@ import { inspectPreservationGraph } from "../../src/preservation/preservationCli
 import { inspectProfessionalPdf } from "../../src/professional/professionalClient";
 import type { ComplianceOptions } from "../../src/types/compliance";
 import type { CreatorBuildRequest } from "../../src/types/creator";
+import nativeClientSource from "../../src/native/nativeClient.ts?raw";
 
 const workerConstructed = vi.fn();
 
@@ -83,5 +84,15 @@ describe("pre-aborted worker clients", () => {
     ).rejects.toMatchObject({ name: "AbortError" });
 
     expect(workerConstructed).not.toHaveBeenCalled();
+  });
+
+  it("rejects Native inspection before creating cache/session work", () => {
+    const functionStart = nativeClientSource.indexOf("export async function inspectNativePdf");
+    const guard = nativeClientSource.indexOf("if (signal?.aborted) throw abortError();", functionStart);
+    const cacheLookup = nativeClientSource.indexOf("inspectionsByBytes.get(bytes)", functionStart);
+
+    expect(functionStart).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeGreaterThan(functionStart);
+    expect(cacheLookup).toBeGreaterThan(guard);
   });
 });
