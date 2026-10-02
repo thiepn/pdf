@@ -52,7 +52,12 @@ async function exportOverlayPdf(
         if (started || signal?.aborted) return;
         started = true;
         clearTimeout(startupTimeout);
-        worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
+        try {
+          worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
+        } catch (reason) {
+          cleanup();
+          reject(reason instanceof Error ? reason : new Error(String(reason)));
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
