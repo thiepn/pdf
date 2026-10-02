@@ -18,7 +18,7 @@ function invokeWorker(payload: object, transfers: Transferable[], signal?: Abort
     worker.onmessage = (event: MessageEvent<Ready | WorkerSuccess | WorkerFailure>) => {
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
-        started = true; clearTimeout(startupTimeout); worker.postMessage({ ...payload, requestId }, transfers); return;
+        started = true; clearTimeout(startupTimeout); try { worker.postMessage({ ...payload, requestId }, transfers); } catch (reason) { cleanup(); reject(reason instanceof Error ? reason : new Error(String(reason))); } return;
       }
       if (event.data.requestId !== requestId) return;
       cleanup();
