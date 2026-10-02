@@ -8,7 +8,7 @@ import { PROJECT_SCHEMA_VERSION, type ProjectManifest, type ViewerPreferences } 
 import { decodeProjectPackage, encodeProjectPackage, verifyProjectPackageIntegrity } from "./projectPackage";
 import { deleteEditorState, listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
 import { deleteSecurityState, readSecurityState, writeSecurityState } from "../security/securityRepository";
-import { forgetProjectSessionPassword } from "../security/sessionPasswords";
+import { forgetProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { listOcrJobs, listOcrPages, writeOcrJob, writeOcrPage } from "../ocr/ocrRepository";
 import { deleteNativeState, readNativeState, writeNativeState } from "../native/nativeRepository";
 import { deleteComplianceState, readComplianceState, writeComplianceState } from "../compliance/complianceRepository";
@@ -83,6 +83,7 @@ export async function createProjectFromBytes(
         const updated = { ...compatibleExisting, lastOpenedAt: Date.now(), updatedAt: Date.now() };
         await idbPut("projects", updated);
         try { localStorage.setItem("local-pdf-studio-last-project", existing.id); } catch { /* Storage may be blocked. */ }
+        if (password) rememberProjectSessionPassword(updated.id, password);
         return updated;
       }
       // Preserve the suspect project for recovery instead of deleting it automatically.
@@ -143,6 +144,7 @@ export async function createProjectFromBytes(
     await idbPut("projects", project);
     await recordProjectRevision(project);
     rememberSource(project, bytes);
+    if (password) rememberProjectSessionPassword(project.id, password);
     return project;
   } catch (reason) {
     await deleteProject(id);

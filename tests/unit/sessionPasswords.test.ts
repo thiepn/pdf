@@ -22,6 +22,13 @@ describe("project session password lifecycle", () => {
     expect(readProjectSessionPassword("project-b")).toBe("beta-secret");
   });
 
+  it("registers known passwords for both reused and newly created projects", () => {
+    const registrations = projectRepositorySource.split("if (password) rememberProjectSessionPassword(").length - 1;
+    expect(registrations).toBe(2);
+    expect(projectRepositorySource).toContain('return createProjectFromBytes(bytes, file.name, file.type || "application/pdf", password);');
+    expect(projectRepositorySource).toContain("createProjectFromBytes(\n      pdfBytes,");
+  });
+
   it("ties successful project deletion to session-password cleanup", () => {
     const persistentDelete = 'await idbDelete("projects", projectId);';
     const credentialDelete = "forgetProjectSessionPassword(projectId);";
