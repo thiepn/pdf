@@ -23,4 +23,10 @@ describe("batch output validity", () => {
     expect(batchPageSource).toContain('recipe.outputSuffix||"processed"');
     expect(batchPageSource).toContain("currentOutputFilename(item)");
   });
+
+  it("does not allow queue removal while a run is using its captured item snapshot", () => {
+    expect(batchPageSource).toContain('<button className="button button--tiny button--ghost" disabled={running}');
+    expect(batchPageSource).not.toContain('disabled={running&&item.status==="running"}');
+  });
+
 });
