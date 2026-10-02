@@ -7,7 +7,7 @@ import { navigateTo, routeHref } from "../core/appRouter";
 import { createShowcasePdf } from "../fixtures/showcasePdf";
 import { taskRoute } from "../ia/taskCatalog";
 import { createProjectFromBytes, importPdfProject, importProjectPackage, listProjects } from "../projects/projectRepository";
-import { acknowledgeSharedInboxFiles, listSharedInboxFiles, removeSharedInboxFiles } from "../pwa/shareInbox";
+import { acknowledgeSharedInboxFiles, listSharedInboxFiles } from "../pwa/shareInbox";
 import { acknowledgePendingPwaLaunchFiles, peekPendingPwaLaunchFiles, PWA_LAUNCH_FILES_EVENT } from "../pwa/launchFiles";
 import { classifyIncomingFile } from "../pwa/fileIngress";
 import type { ProjectManifest } from "../types/project";
@@ -88,7 +88,7 @@ export function HomePage() {
         if (!shared) return;
         const kind = classifyIncomingFile(shared.file.name, shared.file.type);
         if (kind) await processFile(shared.file, kind, undefined, shared.id);
-        else await removeSharedInboxFiles([shared.id]);
+        else await acknowledgeSharedInboxFiles([shared.id]);
       } finally { consuming = false; }
     };
     const listener = () => { void consumeIncoming(); };
