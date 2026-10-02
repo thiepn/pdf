@@ -1,5 +1,6 @@
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 import type { NativeInspection } from "../types/nativeEditor";
+import { securityInspectionCredentialIdentity } from "../security/securityInspectionIdentity";
 import * as base from "./nativeClientBase";
 
 export * from "./nativeClientBase";
@@ -13,10 +14,6 @@ interface InspectionEntry {
 }
 
 const inspectionsByBytes = new WeakMap<Uint8Array, Map<string, InspectionEntry>>();
-
-function inspectionKey(password?: string): string {
-  return password ? `protected:${password}` : "unprotected";
-}
 
 function abortError(): DOMException {
   return new DOMException("Inspection cancelled.", "AbortError");
@@ -66,13 +63,21 @@ function waitWithSignal(
  */
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
   if (signal?.aborted) throw abortError();
-  let sessions = inspectionsByBytes.get(bytes);
-  if (!sessions) {
+  const credential = await securityInspectionCredentialIdentity(password);
+  if (signal?.aborted) throw abortError();
+
+  let sessions: Map<string, InspectionEntry>;
+  if (credential.cacheable) {
+    sessions = inspectionsByBytes.get(bytes) ?? new Map();
+    if (!inspectionsByBytes.has(bytes)) inspectionsByBytes.set(bytes, sessions);
+  } else {
+    // Protected inspection caching fails closed when Web Crypto cannot produce
+    // the session-private credential identity.
     sessions = new Map();
-    inspectionsByBytes.set(bytes, sessions);
   }
-  const key = inspectionKey(password);
-  let entry = sessions.get(key);
+
+  const key = credential.key;
+  let entry = credential.cacheable ? sessions.get(key) : undefined;
   if (entry) {
     recordRuntimeMetric("worker", "mupdf.inspection.session.hit", 0, undefined, {
       byteLength: bytes.byteLength,
@@ -98,7 +103,7 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
         sessions!.delete(key);
         throw reason;
       });
-    sessions.set(key, current);
+    if (credential.cacheable) sessions.set(key, current);
     recordRuntimeMetric("worker", "mupdf.inspection.session.miss", 0, undefined, {
       byteLength: bytes.byteLength,
       passwordProtected: Boolean(password)
