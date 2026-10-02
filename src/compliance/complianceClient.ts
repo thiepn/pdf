@@ -5,18 +5,24 @@ type WorkerResponse =
   | { type: "COMPLIANCE_RESULT"; requestId: string; output: ArrayBuffer; report: ComplianceExportReport }
   | { type: "COMPLIANCE_ERROR"; requestId: string; error: { message: string } };
 
-async function loadSrgbProfile(): Promise<ArrayBuffer> {
+function abortError(): DOMException {
+  return new DOMException("Operation cancelled.", "AbortError");
+}
+
+async function loadSrgbProfile(signal?: AbortSignal): Promise<ArrayBuffer> {
+  if (signal?.aborted) throw abortError();
   const url = `${import.meta.env.BASE_URL}color/srgb-artifex.icc`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`The bundled sRGB output-intent profile could not be loaded (${response.status}).`);
   return response.arrayBuffer();
 }
 
 function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?: string, signal?: AbortSignal, extras: Transferable[] = []): Promise<T> {
+  if (signal?.aborted) return Promise.reject(abortError());
   const worker = new Worker(new URL("../workers/compliance.worker.ts", import.meta.url), { type: "module" }), requestId = crypto.randomUUID(), input = Uint8Array.from(bytes).buffer;
   return new Promise((resolve, reject) => {
     const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
+    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(abortError()); };
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       if (event.data.requestId !== requestId) return;
@@ -35,8 +41,9 @@ export function inspectCompliance(bytes: Uint8Array, password?: string, signal?:
 }
 
 export async function applyCompliance(bytes: Uint8Array, options: ComplianceOptions, password?: string, signal?: AbortSignal) {
+  if (signal?.aborted) throw abortError();
   const needsProfile = options.prepareArchival && options.archivalLevel !== "none" && options.addOutputIntent;
-  const srgbProfile = needsProfile ? await loadSrgbProfile() : undefined;
+  const srgbProfile = needsProfile ? await loadSrgbProfile(signal) : undefined;
   return call<{ bytes: Uint8Array; report: ComplianceExportReport }>(
     { type: "APPLY_COMPLIANCE", options, srgbProfile },
     bytes,
