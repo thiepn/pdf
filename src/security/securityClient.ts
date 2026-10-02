@@ -38,7 +38,9 @@ function runWorker<T>(
     let started = false;
     const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => {
-      if (started) worker.postMessage({ type: "CANCEL", requestId });
+      if (started) {
+        try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ }
+      }
       cleanup();
       reject(new DOMException("Operation cancelled.", "AbortError"));
     };
