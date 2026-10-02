@@ -33,7 +33,14 @@ export function runVisualDiff(left: RgbaPlane, right: RgbaPlane, signal?: AbortS
 
     const cleanup = () => {
       signal?.removeEventListener("abort", cancel);
+      worker.onmessage = null;
+      worker.onmessageerror = null;
+      worker.onerror = null;
       worker.terminate();
+    };
+    const fail = (reason: unknown) => {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
     };
     const cancel = () => {
       cleanup();
@@ -57,16 +64,18 @@ export function runVisualDiff(left: RgbaPlane, right: RgbaPlane, signal?: AbortS
         changedRatio: event.data.changedRatio
       });
     };
-    worker.onerror = (event) => {
-      cleanup();
-      reject(new Error(event.message || "Visual comparison worker failed."));
-    };
+    worker.onmessageerror = () => fail(new Error("Visual comparison worker returned an unreadable response."));
+    worker.onerror = (event) => fail(new Error(event.message || "Visual comparison worker failed."));
 
-    worker.postMessage({
-      type: "COMPARE_RGBA",
-      requestId,
-      left: { width: left.width, height: left.height, pixels: leftBuffer },
-      right: { width: right.width, height: right.height, pixels: rightBuffer }
-    }, [leftBuffer, rightBuffer]);
+    try {
+      worker.postMessage({
+        type: "COMPARE_RGBA",
+        requestId,
+        left: { width: left.width, height: left.height, pixels: leftBuffer },
+        right: { width: right.width, height: right.height, pixels: rightBuffer }
+      }, [leftBuffer, rightBuffer]);
+    } catch (reason) {
+      fail(reason);
+    }
   });
 }
