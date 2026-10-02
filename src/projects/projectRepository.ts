@@ -8,6 +8,7 @@ import { PROJECT_SCHEMA_VERSION, type ProjectManifest, type ViewerPreferences } 
 import { decodeProjectPackage, encodeProjectPackage, verifyProjectPackageIntegrity } from "./projectPackage";
 import { deleteEditorState, listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
 import { deleteSecurityState, readSecurityState, writeSecurityState } from "../security/securityRepository";
+import { forgetProjectSessionPassword } from "../security/sessionPasswords";
 import { listOcrJobs, listOcrPages, writeOcrJob, writeOcrPage } from "../ocr/ocrRepository";
 import { deleteNativeState, readNativeState, writeNativeState } from "../native/nativeRepository";
 import { deleteComplianceState, readComplianceState, writeComplianceState } from "../compliance/complianceRepository";
@@ -236,6 +237,7 @@ export async function deleteProject(projectId: string): Promise<void> {
     idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
   ]);
   await idbDelete("projects", projectId);
+  forgetProjectSessionPassword(projectId);
 }
 
 export async function readViewerPreferences(projectId: string): Promise<ViewerPreferences | undefined> {
