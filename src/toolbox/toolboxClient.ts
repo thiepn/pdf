@@ -17,7 +17,7 @@ export function transformPdf(bytes: Uint8Array, options: ToolboxTransformOptions
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
-        started = true; clearTimeout(startupTimeout); worker.postMessage({ type: "TRANSFORM", requestId, bytes: source, options, password }, [source]); return;
+        started = true; clearTimeout(startupTimeout); try { worker.postMessage({ type: "TRANSFORM", requestId, bytes: source, options, password }, [source]); } catch (reason) { cleanup(); reject(reason instanceof Error ? reason : new Error(String(reason))); } return;
       }
       if (event.data.requestId !== requestId) return;
       cleanup();
