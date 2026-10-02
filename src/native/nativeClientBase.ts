@@ -114,7 +114,7 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
     if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
     let started = false;
     const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { if (started) worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
+    const cancel = () => { if (started) { try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ } } cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
     const startupTimeout = setTimeout(() => {
       cleanup();
       reject(new Error("The native editor engine could not start. Reload the app and try again."));
