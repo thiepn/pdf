@@ -65,6 +65,7 @@ function waitWithSignal(
  * completed inspection remains cached for later Edit sessions.
  */
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
+  if (signal?.aborted) throw abortError();
   let sessions = inspectionsByBytes.get(bytes);
   if (!sessions) {
     sessions = new Map();
