@@ -6,6 +6,10 @@ import { inspectProfessionalPdf } from "../../src/professional/professionalClien
 import type { ComplianceOptions } from "../../src/types/compliance";
 import type { CreatorBuildRequest } from "../../src/types/creator";
 import nativeClientSource from "../../src/native/nativeClient.ts?raw";
+import nativeClientBaseSource from "../../src/native/nativeClientBase.ts?raw";
+import visualDiffSource from "../../src/comparison/visualDiffClient.ts?raw";
+import editorExportSource from "../../src/editor/editorExportClient.ts?raw";
+import securityClientSource from "../../src/security/securityClient.ts?raw";
 
 const workerConstructed = vi.fn();
 
@@ -94,5 +98,32 @@ describe("pre-aborted worker clients", () => {
     expect(functionStart).toBeGreaterThanOrEqual(0);
     expect(guard).toBeGreaterThan(functionStart);
     expect(cacheLookup).toBeGreaterThan(guard);
+  });
+
+  it("places remaining pre-abort guards before worker construction or native worker calls", () => {
+    const visualStart = visualDiffSource.indexOf("export function runVisualDiff");
+    expect(visualDiffSource.indexOf("if (signal?.aborted)", visualStart)).toBeLessThan(
+      visualDiffSource.indexOf("new Worker", visualStart)
+    );
+
+    const editorStart = editorExportSource.indexOf("async function exportOverlayPdf");
+    expect(editorExportSource.indexOf("if (signal?.aborted)", editorStart)).toBeLessThan(
+      editorExportSource.indexOf("new Worker", editorStart)
+    );
+
+    const securityStart = securityClientSource.indexOf("function runWorker");
+    expect(securityClientSource.indexOf("if (signal?.aborted)", securityStart)).toBeLessThan(
+      securityClientSource.indexOf("new Worker", securityStart)
+    );
+
+    const nativeInspectStart = nativeClientBaseSource.indexOf("export async function inspectNativePdf");
+    expect(nativeClientBaseSource.indexOf("if (signal?.aborted)", nativeInspectStart)).toBeLessThan(
+      nativeClientBaseSource.indexOf("nativeWorker()", nativeInspectStart)
+    );
+
+    const nativeApplyStart = nativeClientBaseSource.indexOf("export async function applyNativeEdits");
+    expect(nativeClientBaseSource.indexOf("if (signal?.aborted)", nativeApplyStart)).toBeLessThan(
+      nativeClientBaseSource.indexOf("nativeWorker()", nativeApplyStart)
+    );
   });
 });
