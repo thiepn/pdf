@@ -174,6 +174,7 @@ function mergeComplexInspection(base: NativeInspection, complex: ComplexInspecti
 }
 
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
+  if (signal?.aborted) throw new DOMException("Operation cancelled.", "AbortError");
   const controller = new AbortController();
   let timedOut = false;
   const forwardAbort = () => controller.abort();
@@ -253,6 +254,7 @@ function prepareImageEdits(edits: NativeImageEdit[]): { payload: NativeImageEdit
 }
 
 export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], password?: string, signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException("Operation cancelled.", "AbortError");
   const replaySource = Uint8Array.from(bytes);
   const imageEdits = edits.filter((edit): edit is NativeImageEdit => edit.kind === "image");
   const vectorEdits = edits.filter((edit): edit is NativeVectorEdit => edit.kind === "vector");
