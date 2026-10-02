@@ -27,6 +27,11 @@ describe("one-use file handoff", () => {
     vi.useFakeTimers(); handOffTaskFiles("extract-pages", [pdf()]); vi.advanceTimersByTime(10 * 60 * 1000 + 1);
     expect(takeTaskFiles("extract-pages")).toBeNull();
   });
+  it("actively releases abandoned transfer references when the TTL elapses", () => {
+    expect(fileHandoffSource).toContain("pendingExpiry = setTimeout");
+    expect(fileHandoffSource).toContain("if (pending === transfer) pending = null");
+    expect(fileHandoffSource).toContain("clearTimeout(pendingExpiry)");
+  });
   it("copies the caller's array so later mutations do not change the batch", () => {
     const first = pdf(); const files = [first]; handOffTaskFiles("merge-pdfs", files); files.push(pdf("later.pdf"));
     expect(takeTaskFiles("merge-pdfs")).toEqual([first]);
