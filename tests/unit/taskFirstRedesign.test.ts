@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fileHandoffSource from "../../src/product/fileHandoff.ts?raw";
 import { discardTaskFiles, handOffTaskFiles, inspectIncomingFiles, takeTaskFiles, takeTaskTransfer } from "../../src/product/fileHandoff";
 const pdf = (name = "report.pdf") => new File(["%PDF-test"], name, { type: "application/pdf" });
 afterEach(() => { discardTaskFiles(); vi.useRealTimers(); });
