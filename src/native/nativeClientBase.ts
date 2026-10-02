@@ -3,6 +3,8 @@ import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
+import { rememberNativeExportReplay } from "./nativeExportReplay";
+export { takeNativeExportReplay } from "./nativeExportReplay";
 import type {
   NativeComplexEdit,
   NativeComplexObject,
@@ -44,27 +46,12 @@ type Response =
   | { type: "NATIVE_RESULT"; requestId: string; output: ArrayBuffer; report: NativeExportReport }
   | { type: "NATIVE_ERROR"; requestId: string; error: { message: string } };
 
-interface NativeExportReplay {
-  sourceBytes: Uint8Array;
-  outputBytes: Uint8Array;
-  edits: NativeEdit[];
-  password?: string;
-}
 
 const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_PAGE = 650;
 const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_DOCUMENT = 4_000;
 const MAX_TABLE_RECOVERY_VECTORS_PER_PAGE = 600;
 const MAX_TABLE_RECOVERY_PAIR_WORK_PER_DOCUMENT = 1_000_000;
 export const NATIVE_INSPECTION_TIMEOUT_MS = 30_000;
-
-let pendingExportReplay: NativeExportReplay | undefined;
-
-export function takeNativeExportReplay(bytes: Uint8Array): Omit<NativeExportReplay, "outputBytes"> | undefined {
-  const replay = pendingExportReplay;
-  if (!replay || replay.outputBytes !== bytes) return undefined;
-  pendingExportReplay = undefined;
-  return { sourceBytes: replay.sourceBytes, edits: replay.edits, password: replay.password };
-}
 
 export function reconstructInspectionWithinResponsivenessBudget(inspection: NativeInspection): NativeInspection {
   let remaining = MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_DOCUMENT;
@@ -310,6 +297,6 @@ export async function applyNativeEdits(bytes: Uint8Array, edits: NativeEdit[], p
   const fidelity = await validatePdfFidelity(replaySource, working, edits.map((edit) => edit.pageNumber), password, signal);
   if (!fidelity.passed) throw new Error(`P8 fidelity validation failed: ${fidelity.failures.join(" ")}`);
   report.warnings.push(...fidelity.warnings);
-  pendingExportReplay = { sourceBytes: replaySource, outputBytes: working, edits, password };
+  rememberNativeExportReplay(working, { sourceBytes: replaySource, edits, password });
   return { bytes: working, report };
 }
