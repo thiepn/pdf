@@ -42,7 +42,8 @@ export function handOffTaskFiles(taskId: string, files: readonly File[], context
   const transfer = { taskId, files: [...files], passwords: [...(context.passwords ?? [])], warnings: [...(context.warnings ?? [])], at: Date.now() };
   pending = transfer;
   pendingExpiry = setTimeout(() => {
-    if (pending === transfer) pending = null;
+    if (pending !== transfer) return;
+    pending = null;
     pendingExpiry = null;
   }, TTL);
 }
