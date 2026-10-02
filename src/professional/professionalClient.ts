@@ -12,7 +12,11 @@ function invoke<T>(message: Record<string, unknown>, bytes: Uint8Array, password
   const source = Uint8Array.from(bytes).buffer;
   return new Promise<T>((resolve, reject) => {
     const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
+    const cancel = () => {
+      try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ }
+      cleanup();
+      reject(new DOMException("Operation cancelled.", "AbortError"));
+    };
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<WorkerResult>) => {
       if (event.data.requestId !== requestId) return;
@@ -21,8 +25,14 @@ function invoke<T>(message: Record<string, unknown>, bytes: Uint8Array, password
       else if (event.data.type === "PROFESSIONAL_INSPECTION_RESULT") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
+    worker.onmessageerror = () => { cleanup(); reject(new Error("Professional worker returned an unreadable response.")); };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Professional worker failed.")); };
-    worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...transfers]);
+    try {
+      worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...transfers]);
+    } catch (reason) {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    }
   });
 }
 

@@ -57,16 +57,25 @@ export function runVisualDiff(left: RgbaPlane, right: RgbaPlane, signal?: AbortS
         changedRatio: event.data.changedRatio
       });
     };
+    worker.onmessageerror = () => {
+      cleanup();
+      reject(new Error("Visual comparison worker returned an unreadable response."));
+    };
     worker.onerror = (event) => {
       cleanup();
       reject(new Error(event.message || "Visual comparison worker failed."));
     };
 
-    worker.postMessage({
-      type: "COMPARE_RGBA",
-      requestId,
-      left: { width: left.width, height: left.height, pixels: leftBuffer },
-      right: { width: right.width, height: right.height, pixels: rightBuffer }
-    }, [leftBuffer, rightBuffer]);
+    try {
+      worker.postMessage({
+        type: "COMPARE_RGBA",
+        requestId,
+        left: { width: left.width, height: left.height, pixels: leftBuffer },
+        right: { width: right.width, height: right.height, pixels: rightBuffer }
+      }, [leftBuffer, rightBuffer]);
+    } catch (reason) {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    }
   });
 }

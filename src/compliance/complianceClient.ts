@@ -22,7 +22,11 @@ function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?:
   const worker = new Worker(new URL("../workers/compliance.worker.ts", import.meta.url), { type: "module" }), requestId = crypto.randomUUID(), input = Uint8Array.from(bytes).buffer;
   return new Promise((resolve, reject) => {
     const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(abortError()); };
+    const cancel = () => {
+      try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ }
+      cleanup();
+      reject(abortError());
+    };
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       if (event.data.requestId !== requestId) return;
@@ -31,8 +35,14 @@ function call<T>(message: Record<string, unknown>, bytes: Uint8Array, password?:
       else if (event.data.type === "COMPLIANCE_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
+    worker.onmessageerror = () => { cleanup(); reject(new Error("Compliance worker returned an unreadable response.")); };
     worker.onerror = event => { cleanup(); reject(new Error(event.message || "Compliance worker failed.")); };
-    worker.postMessage({ ...message, requestId, bytes: input, password }, [input, ...extras]);
+    try {
+      worker.postMessage({ ...message, requestId, bytes: input, password }, [input, ...extras]);
+    } catch (reason) {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    }
   });
 }
 
