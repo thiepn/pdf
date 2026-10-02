@@ -1,4 +1,5 @@
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
+import { securityInspectionCredentialIdentity } from "../security/securityInspectionIdentity";
 import * as base from "./pdfjsBase";
 
 export type PdfJsDocument = Awaited<ReturnType<typeof base.openPdfWithPdfJs>>;
@@ -35,10 +36,6 @@ interface SharedPdfEntry {
 
 const sessionsByBytes = new WeakMap<Uint8Array, Map<string, SharedPdfEntry>>();
 const entryByLease = new WeakMap<object, SharedPdfEntry>();
-
-function sessionKey(password?: string): string {
-  return password ? `protected:${password}` : "unprotected";
-}
 
 function clearIdleTimer(entry: SharedPdfEntry): void {
   if (entry.idleTimer !== null) clearTimeout(entry.idleTimer);
@@ -100,13 +97,18 @@ function createDocumentLease(entry: SharedPdfEntry): PdfJsDocument {
  * underlying parser/worker between Read, Edit and Pages.
  */
 export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string): Promise<PdfJsDocument> {
-  let sessions = sessionsByBytes.get(bytes);
-  if (!sessions) {
+  const credential = await securityInspectionCredentialIdentity(password);
+  let sessions: Map<string, SharedPdfEntry>;
+  if (credential.cacheable) {
+    sessions = sessionsByBytes.get(bytes) ?? new Map();
+    if (!sessionsByBytes.has(bytes)) sessionsByBytes.set(bytes, sessions);
+  } else {
+    // Protected PDF.js reuse fails closed when secure session-private
+    // credential identity is unavailable.
     sessions = new Map();
-    sessionsByBytes.set(bytes, sessions);
   }
-  const key = sessionKey(password);
-  let entry = sessions.get(key);
+  const key = credential.key;
+  let entry = credential.cacheable ? sessions.get(key) : undefined;
   if (entry) {
     clearIdleTimer(entry);
     recordRuntimeMetric("pdf", "pdfjs.session.hit", 0, undefined, {
@@ -133,7 +135,7 @@ export async function openPdfWithPdfJs(bytes: Uint8Array, password?: string): Pr
         owner.delete(key);
         throw reason;
       });
-    sessions.set(key, entry);
+    if (credential.cacheable) sessions.set(key, entry);
     recordRuntimeMetric("pdf", "pdfjs.session.miss", 0, undefined, {
       byteLength: bytes.byteLength,
       passwordProtected: Boolean(password)
