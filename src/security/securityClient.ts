@@ -1,6 +1,7 @@
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 import { securityInspectionByteIdentity, securityInspectionCredentialIdentity } from "./securityInspectionIdentity";
 import type { SecurityExportOptions, SecurityExportReport, SecurityInspectionReport } from "../types/security";
+import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
 
 interface Ready { type: "READY" }
 interface InspectionSuccess { type: "SECURITY_INSPECTION_RESULT"; requestId: string; report: SecurityInspectionReport }
@@ -35,17 +36,22 @@ function runWorker<T>(
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
     let started = false;
-    const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
+    const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => {
       if (started) worker.postMessage({ type: "CANCEL", requestId });
       cleanup();
       reject(new DOMException("Operation cancelled.", "AbortError"));
     };
+    const startupTimeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("The security engine could not start. Reload the app and try again."));
+    }, WORKER_STARTUP_TIMEOUT_MS);
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
         started = true;
+        clearTimeout(startupTimeout);
         worker.postMessage({ ...message, bytes: source }, [source]);
         return;
       }
