@@ -125,7 +125,12 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
         if (started || signal?.aborted) return;
         started = true;
         clearTimeout(startupTimeout);
-        worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        try {
+          worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        } catch (reason) {
+          cleanup();
+          reject(reason instanceof Error ? reason : new Error(String(reason)));
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
