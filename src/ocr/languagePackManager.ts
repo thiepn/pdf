@@ -20,20 +20,47 @@ export function ocrLanguageBaseUrl(): string {
   return deploymentAssetUrl("ocr-languages").replace(/\/$/, "");
 }
 
+async function removeLegacyLanguageCache(): Promise<void> {
+  try {
+    await caches.delete(LEGACY_CACHE_NAME);
+  } catch {
+    // Legacy cleanup must never make otherwise-valid OCR language packs unusable.
+  }
+}
+
+async function migrateLanguageCache(): Promise<void> {
+  if (!(await caches.has(LEGACY_CACHE_NAME))) return;
+
+  const records = await listInstalledLanguages();
+  if (!records.length) {
+    await removeLegacyLanguageCache();
+    return;
+  }
+
+  const [current, legacy] = await Promise.all([caches.open(CACHE_NAME), caches.open(LEGACY_CACHE_NAME)]);
+  for (const record of records) {
+    const url = localUrl(record.code);
+    if (await current.match(url)) continue;
+    const response = await legacy.match(url);
+    if (response) await current.put(url, response.clone());
+  }
+
+  // The pre-namespace cache can contain large traineddata files. Once every
+  // recorded language has either been copied or already exists in the current
+  // namespace, retaining the old cache only duplicates storage.
+  await removeLegacyLanguageCache();
+}
+
 async function ensureLanguageCacheMigration(): Promise<void> {
   if (CACHE_NAME === LEGACY_CACHE_NAME) return;
-  if (migrationPromise) return migrationPromise;
-  migrationPromise = (async () => {
-    const records = await listInstalledLanguages();
-    if (!records.length) return;
-    const [current, legacy] = await Promise.all([caches.open(CACHE_NAME), caches.open(LEGACY_CACHE_NAME)]);
-    for (const record of records) {
-      const url = localUrl(record.code);
-      if (await current.match(url)) continue;
-      const response = await legacy.match(url);
-      if (response) await current.put(url, response.clone());
-    }
-  })();
+  if (!migrationPromise) {
+    migrationPromise = migrateLanguageCache().catch((reason) => {
+      // A transient Cache Storage failure must not poison OCR for the rest of
+      // the tab lifetime. Future calls can retry the migration.
+      migrationPromise = null;
+      throw reason;
+    });
+  }
   return migrationPromise;
 }
 
