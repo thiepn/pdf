@@ -111,12 +111,30 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
   const source = Uint8Array.from(bytes).buffer;
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
-    const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
+    const cleanup = () => {
+      signal?.removeEventListener("abort", cancel);
+      worker.onmessage = null;
+      worker.onmessageerror = null;
+      worker.onerror = null;
+      worker.terminate();
+    };
+    const fail = (reason: unknown) => {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    };
+    const cancel = () => {
+      try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* termination below is authoritative */ }
+      cleanup();
+      reject(new DOMException("Operation cancelled.", "AbortError"));
+    };
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "READY") {
-        worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        try {
+          worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        } catch (reason) {
+          fail(reason);
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
@@ -130,7 +148,8 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
       else if (event.data.type === "COMPLEX_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
-    worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Native editor worker failed.")); };
+    worker.onmessageerror = () => fail(new Error("Native editor worker returned an unreadable response."));
+    worker.onerror = (event) => fail(new Error(event.message || "Native editor worker failed."));
   });
 }
 
