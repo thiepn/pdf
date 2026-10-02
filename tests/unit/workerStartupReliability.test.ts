@@ -77,6 +77,21 @@ describe("worker startup reliability", () => {
     expect(worker?.terminate).toHaveBeenCalledOnce();
   });
 
+
+  it("rejects and terminates if READY-time postMessage throws synchronously", async () => {
+    const promise = buildSearchablePdf({} as CreatorBuildRequest);
+    const worker = SilentWorker.latest;
+    expect(worker).not.toBeNull();
+    worker?.postMessage.mockImplementationOnce(() => {
+      throw new Error("structured-clone failed");
+    });
+
+    worker?.emit({ type: "READY" });
+
+    await expect(promise).rejects.toThrow("structured-clone failed");
+    expect(worker?.terminate).toHaveBeenCalledOnce();
+  });
+
   it("rejects unreadable Creator responses and releases the worker", async () => {
     const promise = buildSearchablePdf({} as CreatorBuildRequest);
     const assertion = expect(promise).rejects.toThrow("unreadable response");
@@ -91,6 +106,8 @@ describe("worker startup reliability", () => {
     for (const source of [creatorSource, editorSource, nativeSource, securitySource]) {
       expect(source).toContain("WORKER_STARTUP_TIMEOUT_MS");
       expect(source).toContain("clearTimeout(startupTimeout)");
+      expect(source).toContain("try");
+      expect(source).toContain("worker.postMessage");
     }
 
     expect(creatorSource).toContain("worker.onmessageerror");
