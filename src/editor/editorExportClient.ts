@@ -38,8 +38,22 @@ async function exportOverlayPdf(
       reject(new DOMException("Export cancelled.", "AbortError"));
       return;
     }
-    const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Export cancelled.", "AbortError")); };
+    const cleanup = () => {
+      signal?.removeEventListener("abort", cancel);
+      worker.onmessage = null;
+      worker.onmessageerror = null;
+      worker.onerror = null;
+      worker.terminate();
+    };
+    const fail = (reason: unknown) => {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    };
+    const cancel = () => {
+      try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* termination below is authoritative */ }
+      cleanup();
+      reject(new DOMException("Export cancelled.", "AbortError"));
+    };
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "EDITOR_EXPORT_READY") {
@@ -48,7 +62,11 @@ async function exportOverlayPdf(
           reject(new DOMException("Export cancelled.", "AbortError"));
           return;
         }
-        worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
+        try {
+          worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
+        } catch (reason) {
+          fail(reason);
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
@@ -56,7 +74,8 @@ async function exportOverlayPdf(
       if (event.data.type === "EDITOR_EXPORT_ERROR") reject(new Error(event.data.error.message));
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report });
     };
-    worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Editor export worker failed.")); };
+    worker.onmessageerror = () => fail(new Error("Editor export worker returned an unreadable response."));
+    worker.onerror = (event) => fail(new Error(event.message || "Editor export worker failed."));
   });
 }
 
