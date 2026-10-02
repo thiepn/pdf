@@ -1,3 +1,4 @@
+import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
 interface Ready { type: "READY" }
 interface ProcessingResult { type: "PROCESSING_RESULT"; requestId: string; output: ArrayBuffer; report: { operation: string; inputBytes: number; outputBytes: number; repaired: boolean; versionsBefore: number; durationMs: number; warnings: string[] } }
 interface ProcessingError { type: "PROCESSING_ERROR"; requestId: string; error: { name: string; message: string } }
@@ -10,12 +11,12 @@ async function invoke(type: "OPTIMIZE" | "REPAIR", bytes: Uint8Array, options: {
     let started = false;
     const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => { cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
-    const startupTimeout = setTimeout(() => { cleanup(); reject(new Error("The PDF engine could not start. Reload the app and try again.")); }, 45_000);
+    const startupTimeout = setTimeout(() => { cleanup(); reject(new Error("The PDF engine could not start. Reload the app and try again.")); }, WORKER_STARTUP_TIMEOUT_MS);
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
-        started = true; clearTimeout(startupTimeout); worker.postMessage({ type, requestId, bytes: source, ...options }, [source]); return;
+        started = true; clearTimeout(startupTimeout); try { worker.postMessage({ type, requestId, bytes: source, ...options }, [source]); } catch (reason) { cleanup(); reject(reason instanceof Error ? reason : new Error(String(reason))); } return;
       }
       if (event.data.requestId !== requestId) return;
       cleanup();

@@ -2,6 +2,7 @@ import { reconstructPageTextParagraphs } from "./nativeModel";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
+import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
 import type {
   NativeComplexEdit,
   NativeComplexObject,
@@ -111,12 +112,25 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
   const source = Uint8Array.from(bytes).buffer;
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
-    const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
+    let started = false;
+    const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
+    const cancel = () => { if (started) { try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ } } cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
+    const startupTimeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("The native editor engine could not start. Reload the app and try again."));
+    }, WORKER_STARTUP_TIMEOUT_MS);
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "READY") {
-        worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        if (started || signal?.aborted) return;
+        started = true;
+        clearTimeout(startupTimeout);
+        try {
+          worker.postMessage({ ...message, requestId, bytes: source, password }, [source, ...extra]);
+        } catch (reason) {
+          cleanup();
+          reject(reason instanceof Error ? reason : new Error(String(reason)));
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
@@ -130,6 +144,7 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
       else if (event.data.type === "COMPLEX_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
     };
+    worker.onmessageerror = () => { cleanup(); reject(new Error("The native editor engine returned an unreadable response.")); };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Native editor worker failed.")); };
   });
 }

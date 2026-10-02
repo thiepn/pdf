@@ -1,4 +1,5 @@
 import type { AssemblyEnginePage } from "./assemblyEngine";
+import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
 export interface CompilePage { sourcePageIndex: number; rotation: 0 | 90 | 180 | 270 }
 export interface MergeSource { password?: string; name: string; bytes: Uint8Array }
 interface Ready { type: "READY" }
@@ -12,12 +13,12 @@ function invokeWorker(payload: object, transfers: Transferable[], signal?: Abort
     let started = false;
     const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
     const cancel = () => { cleanup(); reject(new DOMException("Operation cancelled.", "AbortError")); };
-    const startupTimeout = setTimeout(() => { cleanup(); reject(new Error("The PDF engine could not start. Reload the app and try again.")); }, 45_000);
+    const startupTimeout = setTimeout(() => { cleanup(); reject(new Error("The PDF engine could not start. Reload the app and try again.")); }, WORKER_STARTUP_TIMEOUT_MS);
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Ready | WorkerSuccess | WorkerFailure>) => {
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
-        started = true; clearTimeout(startupTimeout); worker.postMessage({ ...payload, requestId }, transfers); return;
+        started = true; clearTimeout(startupTimeout); try { worker.postMessage({ ...payload, requestId }, transfers); } catch (reason) { cleanup(); reject(reason instanceof Error ? reason : new Error(String(reason))); } return;
       }
       if (event.data.requestId !== requestId) return;
       cleanup();

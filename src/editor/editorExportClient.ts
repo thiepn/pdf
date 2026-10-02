@@ -1,6 +1,7 @@
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 import { applyNativeEdits, takeNativeExportReplay } from "../native/nativeClient";
 import type { EditorExportAsset, EditorExportReport, EditorObject } from "../types/editor";
+import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
 
 interface Ready {
   type: "EDITOR_EXPORT_READY";
@@ -38,17 +39,25 @@ async function exportOverlayPdf(
       reject(new DOMException("Export cancelled.", "AbortError"));
       return;
     }
-    const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
-    const cancel = () => { worker.postMessage({ type: "CANCEL", requestId }); cleanup(); reject(new DOMException("Export cancelled.", "AbortError")); };
+    let started = false;
+    const cleanup = () => { clearTimeout(startupTimeout); signal?.removeEventListener("abort", cancel); worker.terminate(); };
+    const cancel = () => { if (started) { try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* Worker may already be gone. */ } } cleanup(); reject(new DOMException("Export cancelled.", "AbortError")); };
+    const startupTimeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("The editor export engine could not start. Reload the app and try again."));
+    }, WORKER_STARTUP_TIMEOUT_MS);
     signal?.addEventListener("abort", cancel, { once: true });
     worker.onmessage = (event: MessageEvent<Response>) => {
       if (event.data.type === "EDITOR_EXPORT_READY") {
-        if (signal?.aborted) {
+        if (started || signal?.aborted) return;
+        started = true;
+        clearTimeout(startupTimeout);
+        try {
+          worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
+        } catch (reason) {
           cleanup();
-          reject(new DOMException("Export cancelled.", "AbortError"));
-          return;
+          reject(reason instanceof Error ? reason : new Error(String(reason)));
         }
-        worker.postMessage({ type: "EXPORT_EDITOR", requestId, bytes: source, objects, assets: transferableAssets, password }, transfers);
         return;
       }
       if (event.data.requestId !== requestId) return;
@@ -56,6 +65,7 @@ async function exportOverlayPdf(
       if (event.data.type === "EDITOR_EXPORT_ERROR") reject(new Error(event.data.error.message));
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report });
     };
+    worker.onmessageerror = () => { cleanup(); reject(new Error("The editor export engine returned an unreadable response.")); };
     worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Editor export worker failed.")); };
   });
 }
