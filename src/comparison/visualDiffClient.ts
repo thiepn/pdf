@@ -18,6 +18,7 @@ interface Failure {
 type Response = Success | Failure;
 
 export function runVisualDiff(left: RgbaPlane, right: RgbaPlane, signal?: AbortSignal): Promise<VisualDiffPixels> {
+  if (signal?.aborted) return Promise.reject(new DOMException("Comparison cancelled.", "AbortError"));
   const worker = new Worker(new URL("../workers/compare-diff.worker.ts", import.meta.url), { type: "module" });
   const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const leftBuffer = left.pixels.buffer as ArrayBuffer;
