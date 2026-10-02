@@ -35,9 +35,21 @@ function runWorker<T>(
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { worker.terminate(); reject(new DOMException("Operation cancelled.", "AbortError")); return; }
     let started = false;
-    const cleanup = () => { signal?.removeEventListener("abort", cancel); worker.terminate(); };
+    const cleanup = () => {
+      signal?.removeEventListener("abort", cancel);
+      worker.onmessage = null;
+      worker.onmessageerror = null;
+      worker.onerror = null;
+      worker.terminate();
+    };
+    const fail = (reason: unknown) => {
+      cleanup();
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    };
     const cancel = () => {
-      if (started) worker.postMessage({ type: "CANCEL", requestId });
+      if (started) {
+        try { worker.postMessage({ type: "CANCEL", requestId }); } catch { /* termination below is authoritative */ }
+      }
       cleanup();
       reject(new DOMException("Operation cancelled.", "AbortError"));
     };
@@ -46,7 +58,11 @@ function runWorker<T>(
       if (event.data.type === "READY") {
         if (started || signal?.aborted) return;
         started = true;
-        worker.postMessage({ ...message, bytes: source }, [source]);
+        try {
+          worker.postMessage({ ...message, bytes: source }, [source]);
+        } catch (reason) {
+          fail(reason);
+        }
         return;
       }
       if (event.data.requestId !== requestId) return;
@@ -55,8 +71,8 @@ function runWorker<T>(
       if (value === undefined) return;
       cleanup(); resolve(value);
     };
-    worker.onmessageerror = () => { cleanup(); reject(new Error("Security worker returned an unreadable response.")); };
-    worker.onerror = (event) => { cleanup(); reject(new Error(event.message || "Security worker failed.")); };
+    worker.onmessageerror = () => fail(new Error("Security worker returned an unreadable response."));
+    worker.onerror = (event) => fail(new Error(event.message || "Security worker failed."));
   });
 }
 
