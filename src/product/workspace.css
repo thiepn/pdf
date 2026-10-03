@@ -3,3 +3,113 @@
 .product-app .capability-gated-workspace { display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; }
 .product-app .capability-gated-workspace > .document-workspace { flex:1 1 0%; height:auto; min-height:0; }
 .product-app .capability-gated-workspace > :is(.task-capability-notice,.task-capability-loading) { flex:0 0 auto; max-height:30%; overflow:auto; }
+
+
+/* P2 intelligent document entry: compact, task-first recommendations rather than
+   another dashboard. Evidence is computed locally and the strip never blocks the workspace. */
+.product-app .document-entry-recommendations {
+  margin: 10px 14px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.product-app .document-entry-recommendations__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.product-app .document-entry-recommendations__header > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.product-app .document-entry-recommendations__header .eyebrow {
+  margin: 0;
+}
+.product-app .document-entry-recommendations__header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.product-app .document-entry-recommendations__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+.product-app .document-entry-recommendation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  padding: 11px 12px;
+  text-align: left;
+}
+.product-app .document-entry-recommendation:hover:not(:disabled) {
+  background: var(--surface-strong);
+}
+.product-app .document-entry-recommendation > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.product-app .document-entry-recommendation strong {
+  font-size: 13px;
+}
+.product-app .document-entry-recommendation small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+.product-app .document-entry-recommendation em {
+  color: var(--accent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+.product-app .document-entry-recommendation__warning {
+  color: var(--warning-text, var(--muted));
+  font-size: 11px;
+  line-height: 1.35;
+}
+.product-app .document-entry-recommendation--warning {
+  box-shadow: inset 3px 0 0 var(--warning, var(--line-strong));
+}
+.product-app .document-entry-recommendations__privacy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  border-top: 1px solid var(--line);
+}
+.product-app .document-entry-recommendations--compact {
+  margin: 8px 0 12px;
+  border-radius: 12px;
+}
+.product-app .document-entry-recommendations--compact .document-entry-recommendations__list {
+  grid-template-columns: 1fr;
+}
+.product-app .document-entry-recommendations--compact .document-entry-recommendation {
+  padding: 9px 10px;
+}
+@media (max-width: 720px) {
+  .product-app .document-entry-recommendations {
+    margin: 8px 8px 0;
+    border-radius: 12px;
+  }
+  .product-app .document-entry-recommendations__list {
+    grid-template-columns: 1fr;
+  }
+  .product-app .document-entry-recommendation small {
+    display: none;
+  }
+}
