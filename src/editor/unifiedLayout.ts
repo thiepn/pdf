@@ -1,6 +1,7 @@
 import type { Rect } from "../core/coordinates";
 import { cjkLanguageForScript, detectScript } from "../native/nativeModel";
 import { buildPreservedEditRuns, editableFamilyForSource } from "../native/textStyle";
+import { nativeTextSourceRects } from "../native/textSourceGeometry";
 import { evaluateTextFit } from "../native/textFit";
 import type { EditorObject } from "../types/editor";
 import type {
@@ -179,6 +180,7 @@ function textGeometryEdit(object: NativeTextObject, bounds: NativeRect, queuedEd
     originalText: object.text,
     text: object.text,
     sourceBounds: object.bounds,
+    sourceRects: nativeTextSourceRects(object),
     bounds: object.bounds,
     fontFamily: family,
     fontSize: Math.max(1, object.size),
@@ -199,7 +201,7 @@ function textGeometryEdit(object: NativeTextObject, bounds: NativeRect, queuedEd
   };
   const fit = evaluateTextFit(base.text, bounds, base.fontSize, base.wrap, base.lineHeight);
   if (base.mode !== "overlay" && !fit.fits) return undefined;
-  return { ...base, bounds, sourceBounds: base.sourceBounds ?? object.bounds, layoutMode: "fixed-box", reflowFollower: false };
+  return { ...base, bounds, sourceBounds: base.sourceBounds ?? object.bounds, sourceRects: base.sourceRects ?? nativeTextSourceRects(object), layoutMode: "fixed-box", reflowFollower: false };
 }
 
 function imageGeometryEdit(object: Extract<NativePageObject, { type: "image" }>, bounds: NativeRect, queuedEdits: NativeEdit[]): NativeImageEdit {
@@ -375,6 +377,7 @@ export function nativeDeleteEdit(object: NativePageObject, queuedEdits: NativeEd
       originalText: object.text,
       text: object.text,
       sourceBounds: object.bounds,
+      sourceRects: nativeTextSourceRects(object),
       bounds: object.bounds,
       fontFamily: editableFamilyForSource(object.family, object.script),
       fontSize: Math.max(1, object.size),
@@ -392,7 +395,7 @@ export function nativeDeleteEdit(object: NativePageObject, queuedEdits: NativeEd
       layoutMode: "fixed-box",
       preserveSourceStyle: false
     };
-    return { edit: { ...edit, text: "", mode: "replace", backgroundColor: "transparent", wrap: false, sourceBounds: edit.sourceBounds ?? object.bounds, bounds: effectiveNativeBounds(object, queuedEdits), layoutMode: "fixed-box", styleRuns: undefined, preserveSourceStyle: false, reflowFollower: false } };
+    return { edit: { ...edit, text: "", mode: "replace", backgroundColor: "transparent", wrap: false, sourceBounds: edit.sourceBounds ?? object.bounds, sourceRects: edit.sourceRects ?? nativeTextSourceRects(object), bounds: effectiveNativeBounds(object, queuedEdits), layoutMode: "fixed-box", styleRuns: undefined, preserveSourceStyle: false, reflowFollower: false } };
   }
   if (object.type === "image") return { edit: { ...imageGeometryEdit(object, effectiveNativeBounds(object, queuedEdits), queuedEdits), action: "delete" } };
   if (object.type === "vector") {

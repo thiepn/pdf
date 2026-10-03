@@ -280,6 +280,7 @@ export interface NativeTextEdit {
   text: string;
   bounds: NativeRect;
   sourceBounds?: NativeRect;
+  sourceRects?: NativeRect[];
   fontFamily: NativeEditableFontFamily;
   fontSize: number;
   color: string;
