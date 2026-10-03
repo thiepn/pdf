@@ -252,14 +252,14 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
     add("metadata", 45, "Review descriptive metadata before sharing or archiving the PDF.", `${evidence.metadataFieldCount} metadata fields`, "Review metadata");
   }
 
-  if (!candidates.size) {
+  const strongCount = [...candidates.values()].filter((candidate) => candidate.priority >= 60).length;
+  if (strongCount < 2) {
     add("edit-pdf", 70, "Open the document editor for supported text, image, vector, table, and annotation changes.", `${evidence.pageCount} page${evidence.pageCount === 1 ? "" : "s"}`, "Edit this PDF");
     add("read-pdf", 60, "Read, search, zoom, and print without changing the source.", "Ordinary digital PDF", "Read PDF");
-    add("document-details", 35, "Inspect fonts, images, forms, revisions, and PDF structure when you need technical details.", "Local document inspection", "Inspect document");
   }
 
-  if (candidates.size === 1) {
-    add("document-details", 30, "Inspect the document structure if you need more context before choosing another operation.", `${evidence.pageCount} page${evidence.pageCount === 1 ? "" : "s"}`, "Inspect document");
+  if (candidates.size < 2) {
+    add("document-details", 35, "Inspect fonts, images, forms, revisions, and PDF structure when you need technical details.", "Local document inspection", "Inspect document");
   }
 
   return [...candidates.values()]
