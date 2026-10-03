@@ -1,4 +1,4 @@
-import { inspectDetailedPdf, openPdfWithPdfJs, type DetailedPdfInspection } from "../engines/pdfjs";
+import { inspectDocumentEntryStructure, openPdfWithPdfJs, type DocumentEntryStructureSample } from "../engines/pdfjs";
 import { getTask } from "../ia/taskCatalog";
 import { loadProjectBytes } from "../projects/projectRepository";
 import { inspectSecurity } from "../security/securityClient";
@@ -19,6 +19,7 @@ export interface DocumentEntryEvidence {
   imageOperations?: number;
   pagesWithText?: number;
   pagesWithImages?: number;
+  sampledPageCount?: number;
   likelyScanned?: boolean;
   imageHeavy?: boolean;
   fillableFormFieldCount?: number;
@@ -75,27 +76,22 @@ export function documentEntryEvidenceFromProject(project: ProjectManifest): Docu
   };
 }
 
-function mergeStructure(evidence: DocumentEntryEvidence, details: DetailedPdfInspection): DocumentEntryEvidence {
-  const pages = Math.max(1, details.pages.length);
-  const pagesWithText = details.pages.filter((page) => page.textCharacters >= 32).length;
-  const pagesWithImages = details.pages.filter((page) => page.imageOperations > 0).length;
-  const averageText = details.totals.textCharacters / pages;
-  const likelyScanned = pagesWithImages >= Math.ceil(pages * 0.6)
-    && pagesWithText <= Math.floor(pages * 0.35)
+function mergeStructure(evidence: DocumentEntryEvidence, details: DocumentEntryStructureSample): DocumentEntryEvidence {
+  const pages = Math.max(1, details.sampledPageCount);
+  const averageText = details.textCharacters / pages;
+  const likelyScanned = details.pagesWithImages >= Math.ceil(pages * 0.6)
+    && details.pagesWithText <= Math.floor(pages * 0.35)
     && averageText < 120;
-  const imageHeavy = pagesWithImages >= Math.ceil(pages * 0.5)
-    || details.totals.imageOperations >= pages * 2;
+  const imageHeavy = details.pagesWithImages >= Math.ceil(pages * 0.5)
+    || details.imageOperations >= pages * 2;
 
   return {
     ...evidence,
-    formFieldCount: Math.max(evidence.formFieldCount, details.formFieldCount),
-    annotationCount: Math.max(evidence.annotationCount, details.totals.annotations),
-    attachmentCount: Math.max(evidence.attachmentCount, details.attachmentCount),
-    metadataFieldCount: Math.max(evidence.metadataFieldCount, Object.keys(details.metadata).length),
-    textCharacters: details.totals.textCharacters,
-    imageOperations: details.totals.imageOperations,
-    pagesWithText,
-    pagesWithImages,
+    textCharacters: details.textCharacters,
+    imageOperations: details.imageOperations,
+    pagesWithText: details.pagesWithText,
+    pagesWithImages: details.pagesWithImages,
+    sampledPageCount: details.sampledPageCount,
     likelyScanned,
     imageHeavy,
     sources: { ...evidence.sources, structure: true }
@@ -137,7 +133,7 @@ export async function inspectDocumentEntry(project: ProjectManifest, signal?: Ab
   try {
     document = await openPdfWithPdfJs(bytes, password);
     const [structure, security] = await Promise.allSettled([
-      inspectDetailedPdf(document, signal),
+      inspectDocumentEntryStructure(document, signal),
       inspectSecurity(bytes, password, signal)
     ]);
     signal?.throwIfAborted();
@@ -221,12 +217,12 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
 
   if (evidence.likelyScanned) {
     add("ocr-pdf", 205, "Recognize the page images so the scan becomes searchable and easier to copy from.", evidenceText([
-      evidence.pagesWithImages !== undefined ? `${evidence.pagesWithImages}/${evidence.pageCount} pages contain images` : undefined,
-      evidence.textCharacters !== undefined ? `${evidence.textCharacters.toLocaleString()} selectable text characters` : undefined
+      evidence.pagesWithImages !== undefined ? `${evidence.pagesWithImages}/${evidence.sampledPageCount ?? evidence.pageCount} sampled pages contain images` : undefined,
+      evidence.textCharacters !== undefined ? `${evidence.textCharacters.toLocaleString()} selectable text characters in sample` : undefined
     ]), "Make this scan searchable");
     add("compress-pdf", 130, "Image-heavy scans are often the best candidates for meaningful file-size reduction.", evidenceText([`${megabytes.toFixed(megabytes >= 100 ? 0 : 1)} MB`, "Image-heavy pages"]), "Compress this scan");
   } else if ((evidence.textCharacters ?? 0) > 100) {
-    add("edit-pdf", 85, "This document contains selectable text and is a good candidate for direct content editing.", `${(evidence.textCharacters ?? 0).toLocaleString()} text characters`, "Edit document content");
+    add("edit-pdf", 85, "This document contains selectable text and is a good candidate for direct content editing.", `${(evidence.textCharacters ?? 0).toLocaleString()} text characters in the sampled pages`, "Edit document content");
     add("pdf-to-text", 58, "Export the selectable text directly when you only need the document contents.", "Selectable text detected", "Extract text");
   }
 
