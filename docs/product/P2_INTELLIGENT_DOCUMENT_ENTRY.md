@@ -68,6 +68,8 @@ Workspace behavior:
 - manifest recommendations appear immediately
 - deeper inspection starts after a 650 ms defer so initial document rendering wins
 - optional inspection has a 15-second deadline
+- full security inspection runs automatically for documents up to 60 pages, or when the manifest already shows forms, encryption, attachments, or JavaScript
+- large ordinary PDFs therefore avoid a hidden all-page security scan
 - completed evidence is retained even if another inspection source times out
 - unmount/project change aborts the inspection
 - recommendation inspection never creates a workspace error banner
