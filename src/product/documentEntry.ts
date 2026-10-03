@@ -177,7 +177,8 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
   };
 
   const megabytes = evidence.byteLength / (1024 * 1024);
-  const formCount = evidence.fillableFormFieldCount ?? evidence.formFieldCount;
+  const fillableFormCount = evidence.fillableFormFieldCount ?? evidence.formFieldCount;
+  const totalFormCount = evidence.formFieldCount;
   const signatures = evidence.signatureCount ?? 0;
   const signedSignatures = evidence.signedSignatureCount ?? 0;
   const signatureFields = evidence.signatureFieldCount ?? 0;
@@ -206,9 +207,11 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
     add("document-details", 120, "Inspect active content, attachments, revisions, and security details.", "Interactive/embedded content", "Inspect document structure");
   }
 
-  if (formCount > 0) {
-    add("fill-forms", 200, "Open the supported interactive fields instead of placing ordinary text over the page.", `${formCount} fillable form field${formCount === 1 ? "" : "s"}`, `Fill ${formCount} form field${formCount === 1 ? "" : "s"}`);
-    add("flatten-pdf", 115, "Create a static copy after form filling when interactivity is no longer needed.", `${evidence.formFieldCount} form widget${evidence.formFieldCount === 1 ? "" : "s"}`, "Flatten when finished");
+  if (fillableFormCount > 0) {
+    add("fill-forms", 200, "Open the supported interactive fields instead of placing ordinary text over the page.", `${fillableFormCount} fillable form field${fillableFormCount === 1 ? "" : "s"}`, `Fill ${fillableFormCount} form field${fillableFormCount === 1 ? "" : "s"}`);
+  }
+  if (totalFormCount > 0) {
+    add("flatten-pdf", 115, "Create a static copy after form filling or review when interactivity is no longer needed.", `${totalFormCount} form widget${totalFormCount === 1 ? "" : "s"}`, "Flatten when finished");
   }
 
   if (signatureFields > 0 && signedSignatures === 0) {
@@ -231,7 +234,7 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
     if (megabytes >= 100) add("document-details", 95, "Inspect what is making this PDF large before choosing an aggressive compression path.", `${megabytes.toFixed(0)} MB`, "Inspect file size");
   }
 
-  if (evidence.annotationCount > 0 && formCount === 0) {
+  if (evidence.annotationCount > 0 && totalFormCount === 0) {
     add("flatten-pdf", 82, "Create a static copy if comments or annotations should no longer remain interactive.", `${evidence.annotationCount} annotation${evidence.annotationCount === 1 ? "" : "s"}`, "Flatten annotations");
   }
 
