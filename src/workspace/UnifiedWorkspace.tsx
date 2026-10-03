@@ -147,22 +147,30 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
     }
     let cancelled = false;
     const controller = new AbortController();
+    let deadline: number | undefined;
     setEntryEvidence(documentEntryEvidenceFromProject(project));
     setEntryChecking(true);
     setEntryDismissed(false);
     const timer = window.setTimeout(() => {
+      deadline = window.setTimeout(() => {
+        if (!controller.signal.aborted) controller.abort(new DOMException("Document recommendation inspection timed out.", "TimeoutError"));
+      }, 15_000);
       void inspectDocumentEntry(project, controller.signal).then(
         (evidence) => { if (!cancelled) setEntryEvidence(evidence); },
         (reason) => {
-          if (cancelled || (reason instanceof DOMException && reason.name === "AbortError")) return;
+          if (cancelled || (reason instanceof DOMException && (reason.name === "AbortError" || reason.name === "TimeoutError"))) return;
           // Recommendations are optional guidance. Keep the immediate manifest
           // evidence instead of turning a failed deep inspection into a workspace error.
         }
-      ).finally(() => { if (!cancelled) setEntryChecking(false); });
+      ).finally(() => {
+        if (deadline !== undefined) window.clearTimeout(deadline);
+        if (!cancelled) setEntryChecking(false);
+      });
     }, 650);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      if (deadline !== undefined) window.clearTimeout(deadline);
       controller.abort();
     };
   }, [project?.checksum, project?.id, projectId]);
