@@ -195,8 +195,8 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
 
   if (signedSignatures > 0 || signatures > 0) {
     add("document-details", 210, "Review signature objects and change history before modifying the document.", evidenceText([
-      "${signatures || signedSignatures} signature${(signatures || signedSignatures) === 1 ? "" : "s"}",
-      evidence.versionCount && evidence.versionCount > 1 ? "${evidence.versionCount} revisions" : undefined
+      `${signatures || signedSignatures} signature${(signatures || signedSignatures) === 1 ? "" : "s"}`,
+      evidence.versionCount && evidence.versionCount > 1 ? `${evidence.versionCount} revisions` : undefined
     ]), "Review signatures");
     add("edit-pdf", 145, "Work on a separate editable copy while keeping the signed source unchanged.", "Existing signature coverage", "Edit a copy", "Changing PDF bytes means the changed copy cannot retain the original signature's validity over those new bytes.");
   }
@@ -205,38 +205,38 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
     add("sanitize-pdf", 195, "Review and remove active or embedded content before sharing a cleaned copy.", evidenceText([
       evidence.hasJavaScript ? "JavaScript detected" : undefined,
       evidence.hasOpenAction || evidence.hasAdditionalActions ? "Automatic actions detected" : undefined,
-      evidence.attachmentCount ? "${evidence.attachmentCount} attachment${evidence.attachmentCount === 1 ? "" : "s"}" : undefined
+      evidence.attachmentCount ? `${evidence.attachmentCount} attachment${evidence.attachmentCount === 1 ? "" : "s"}` : undefined
     ]), "Clean risky content");
     add("document-details", 120, "Inspect active content, attachments, revisions, and security details.", "Interactive/embedded content", "Inspect document structure");
   }
 
   if (formCount > 0) {
-    add("fill-forms", 200, "Open the supported interactive fields instead of placing ordinary text over the page.", "${formCount} fillable form field${formCount === 1 ? "" : "s"}", "Fill ${formCount} form field${formCount === 1 ? "" : "s"}");
-    add("flatten-pdf", 115, "Create a static copy after form filling when interactivity is no longer needed.", "${evidence.formFieldCount} form widget${evidence.formFieldCount === 1 ? "" : "s"}", "Flatten when finished");
+    add("fill-forms", 200, "Open the supported interactive fields instead of placing ordinary text over the page.", `${formCount} fillable form field${formCount === 1 ? "" : "s"}`, `Fill ${formCount} form field${formCount === 1 ? "" : "s"}`);
+    add("flatten-pdf", 115, "Create a static copy after form filling when interactivity is no longer needed.", `${evidence.formFieldCount} form widget${evidence.formFieldCount === 1 ? "" : "s"}`, "Flatten when finished");
   }
 
   if (signatureFields > 0 && signedSignatures === 0) {
-    add("visual-signature", 135, "The PDF contains signature fields; add an appearance signature if that matches the document workflow.", "${signatureFields} signature field${signatureFields === 1 ? "" : "s"}", "Add a visual signature", "This is appearance-only signing, not certificate-backed digital signing.");
+    add("visual-signature", 135, "The PDF contains signature fields; add an appearance signature if that matches the document workflow.", `${signatureFields} signature field${signatureFields === 1 ? "" : "s"}`, "Add a visual signature", "This is appearance-only signing, not certificate-backed digital signing.");
   }
 
   if (evidence.likelyScanned) {
     add("ocr-pdf", 205, "Recognize the page images so the scan becomes searchable and easier to copy from.", evidenceText([
-      evidence.pagesWithImages !== undefined ? "${evidence.pagesWithImages}/${evidence.pageCount} pages contain images" : undefined,
-      evidence.textCharacters !== undefined ? "${evidence.textCharacters.toLocaleString()} selectable text characters" : undefined
+      evidence.pagesWithImages !== undefined ? `${evidence.pagesWithImages}/${evidence.pageCount} pages contain images` : undefined,
+      evidence.textCharacters !== undefined ? `${evidence.textCharacters.toLocaleString()} selectable text characters` : undefined
     ]), "Make this scan searchable");
-    add("compress-pdf", 130, "Image-heavy scans are often the best candidates for meaningful file-size reduction.", evidenceText(["${megabytes.toFixed(megabytes >= 100 ? 0 : 1)} MB", "Image-heavy pages"]), "Compress this scan");
+    add("compress-pdf", 130, "Image-heavy scans are often the best candidates for meaningful file-size reduction.", evidenceText([`${megabytes.toFixed(megabytes >= 100 ? 0 : 1)} MB`, "Image-heavy pages"]), "Compress this scan");
   } else if ((evidence.textCharacters ?? 0) > 100) {
-    add("edit-pdf", 85, "This document contains selectable text and is a good candidate for direct content editing.", "${(evidence.textCharacters ?? 0).toLocaleString()} text characters", "Edit document content");
+    add("edit-pdf", 85, "This document contains selectable text and is a good candidate for direct content editing.", `${(evidence.textCharacters ?? 0).toLocaleString()} text characters`, "Edit document content");
     add("pdf-to-text", 58, "Export the selectable text directly when you only need the document contents.", "Selectable text detected", "Extract text");
   }
 
   if (megabytes >= 20) {
-    add("compress-pdf", megabytes >= 100 ? 190 : 120, "Reduce the local PDF size while choosing how much structure and image quality to preserve.", "${megabytes.toFixed(megabytes >= 100 ? 0 : 1)} MB", "Reduce file size");
-    if (megabytes >= 100) add("document-details", 95, "Inspect what is making this PDF large before choosing an aggressive compression path.", "${megabytes.toFixed(0)} MB", "Inspect file size");
+    add("compress-pdf", megabytes >= 100 ? 190 : 120, "Reduce the local PDF size while choosing how much structure and image quality to preserve.", `${megabytes.toFixed(megabytes >= 100 ? 0 : 1)} MB`, "Reduce file size");
+    if (megabytes >= 100) add("document-details", 95, "Inspect what is making this PDF large before choosing an aggressive compression path.", `${megabytes.toFixed(0)} MB`, "Inspect file size");
   }
 
   if (evidence.annotationCount > 0 && formCount === 0) {
-    add("flatten-pdf", 82, "Create a static copy if comments or annotations should no longer remain interactive.", "${evidence.annotationCount} annotation${evidence.annotationCount === 1 ? "" : "s"}", "Flatten annotations");
+    add("flatten-pdf", 82, "Create a static copy if comments or annotations should no longer remain interactive.", `${evidence.annotationCount} annotation${evidence.annotationCount === 1 ? "" : "s"}`, "Flatten annotations");
   }
 
   if (evidence.encrypted) {
@@ -245,21 +245,21 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
   }
 
   if (evidence.pageCount >= 40) {
-    add("organize-pages", 72, "Large documents are easier to work with after reviewing page order, ranges, and unnecessary pages.", "${evidence.pageCount} pages", "Organize pages");
+    add("organize-pages", 72, "Large documents are easier to work with after reviewing page order, ranges, and unnecessary pages.", `${evidence.pageCount} pages`, "Organize pages");
   }
 
   if (evidence.metadataFieldCount >= 3) {
-    add("metadata", 45, "Review descriptive metadata before sharing or archiving the PDF.", "${evidence.metadataFieldCount} metadata fields", "Review metadata");
+    add("metadata", 45, "Review descriptive metadata before sharing or archiving the PDF.", `${evidence.metadataFieldCount} metadata fields`, "Review metadata");
   }
 
   if (!candidates.size) {
-    add("edit-pdf", 70, "Open the document editor for supported text, image, vector, table, and annotation changes.", "${evidence.pageCount} page${evidence.pageCount === 1 ? "" : "s"}", "Edit this PDF");
+    add("edit-pdf", 70, "Open the document editor for supported text, image, vector, table, and annotation changes.", `${evidence.pageCount} page${evidence.pageCount === 1 ? "" : "s"}`, "Edit this PDF");
     add("read-pdf", 60, "Read, search, zoom, and print without changing the source.", "Ordinary digital PDF", "Read PDF");
     add("document-details", 35, "Inspect fonts, images, forms, revisions, and PDF structure when you need technical details.", "Local document inspection", "Inspect document");
   }
 
   if (candidates.size === 1) {
-    add("document-details", 30, "Inspect the document structure if you need more context before choosing another operation.", "${evidence.pageCount} page${evidence.pageCount === 1 ? "" : "s"}", "Inspect document");
+    add("document-details", 30, "Inspect the document structure if you need more context before choosing another operation.", `${evidence.pageCount} page${evidence.pageCount === 1 ? "" : "s"}`, "Inspect document");
   }
 
   return [...candidates.values()]
