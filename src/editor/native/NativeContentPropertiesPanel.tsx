@@ -1,21 +1,27 @@
-import type { NativeComplexEdit, NativeEdit, NativePageObject, NativeTableEdit } from "../../types/nativeEditor";
+import type { NativeComplexEdit, NativeEdit, NativePageObject, NativePageTree, NativeTableEdit } from "../../types/nativeEditor";
 import { NativeComplexPropertiesPanel } from "./NativeComplexPropertiesPanel";
 import { NativeContentPropertiesPanel as LegacyNativeContentPropertiesPanel } from "./LegacyNativeContentPropertiesPanel";
+import { LayoutAwareTextPropertiesPanel } from "./LayoutAwareTextPropertiesPanel";
 import { NativeTablePropertiesPanel } from "./NativeTablePropertiesPanel";
 
 interface Props {
   object: NativePageObject;
+  page?: NativePageTree;
   queuedEdits: NativeEdit[];
   onQueue: (edits: NativeEdit[]) => void;
   onRemove: (objectId: string) => void;
 }
 
 /**
- * P7 preserves the qualified P1-P5 property implementations and intercepts only
- * first-class nested Form XObject groups. Structured tables remain on the P5
- * panel; all earlier object types continue through the legacy implementation.
+ * Unified editing routes text through the layout-aware P1/P2 panel so fit,
+ * style-run, reflow, font-validation, and source-geometry safeguards are active
+ * in the primary editor. Tables/complex objects keep their specialist panels;
+ * older non-text object types continue through the legacy implementation.
  */
-export function NativeContentPropertiesPanel({ object, queuedEdits, onQueue, onRemove }: Props) {
+export function NativeContentPropertiesPanel({ object, page, queuedEdits, onQueue, onRemove }: Props) {
+  if (object.type === "text" && page) {
+    return <LayoutAwareTextPropertiesPanel object={object} page={page} queuedEdits={queuedEdits} onQueue={onQueue} onRemove={onRemove} />;
+  }
   if (object.type === "complex") {
     const queued = queuedEdits.find((edit): edit is NativeComplexEdit => edit.kind === "complex" && edit.objectId === object.id);
     return <NativeComplexPropertiesPanel object={object} queued={queued} onQueue={(edit) => onQueue([edit])} onRemove={() => onRemove(object.id)} />;

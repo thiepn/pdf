@@ -7,8 +7,13 @@ describe("native editor worker MuPDF contract", () => {
     expect(workerSource).not.toContain('page.createAnnotation("Redaction")');
   });
 
-  it("redacts original text geometry before writing P2 expanded destinations", () => {
-    expect(workerSource).toContain("redactRegion(page, (edit as any).sourceBounds ?? edit.bounds)");
+  it("redacts only exact source text regions before writing expanded destinations", () => {
+    expect(workerSource).toContain("function textSourceRegions");
+    expect(workerSource).toContain("Array.isArray(edit.sourceRects)");
+    expect(workerSource).toContain("redactTextOnly(page, textSourceRegions(edit))");
+    expect(workerSource).toContain("REDACT_IMAGE_NONE");
+    expect(workerSource).toContain("REDACT_LINE_ART_NONE");
+    expect(workerSource).toContain("REDACT_TEXT_REMOVE");
     expect(workerSource).toContain("prevents a follower's old redaction rectangle");
   });
 
@@ -17,6 +22,8 @@ describe("native editor worker MuPDF contract", () => {
     expect(workerSource).toContain('edit.fontSource === "imported-latin"');
     expect(workerSource).toContain("font.font.advanceGlyph");
     expect(workerSource).toContain("wrapStyled");
+    expect(workerSource).toContain('import { encodeWinAnsiHex } from "../native/textEncoding"');
+    expect(workerSource).not.toContain("const winAnsiExtras = new Map");
   });
 
   it("distinguishes MuPDF PDF null objects from concrete dictionaries and streams", () => {

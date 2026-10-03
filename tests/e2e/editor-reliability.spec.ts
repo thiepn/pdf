@@ -32,6 +32,88 @@ async function searchDocument(page: import("@playwright/test").Page, query: stri
   return (await summary.textContent()) ?? "";
 }
 
+async function medianCanvasPixelAtBox(page: import("@playwright/test").Page, box: { x: number; y: number; width: number; height: number }): Promise<[number, number, number, number]> {
+  return page.evaluate(({ x, y, width, height }) => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
+    if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
+    const rect = canvas.getBoundingClientRect();
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Editor PDF canvas context is unavailable.");
+    const fractions = [.08, .28, .5, .72, .92];
+    const samples = fractions.flatMap((fy) => fractions.map((fx) => {
+      const clientX = x + width * fx;
+      const clientY = y + height * fy;
+      const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round((clientX - rect.left) * canvas.width / rect.width)));
+      const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round((clientY - rect.top) * canvas.height / rect.height)));
+      return [...context.getImageData(pixelX, pixelY, 1, 1).data] as [number, number, number, number];
+    }));
+    const median = (channel: number) => {
+      const values = samples.map((sample) => sample[channel]).sort((left, right) => left - right);
+      return values[Math.floor(values.length / 2)] ?? 0;
+    };
+    return [median(0), median(1), median(2), median(3)] as [number, number, number, number];
+  }, box);
+}
+
+test("corrupt imported fonts are rejected before a native text edit can use them", async ({ page }) => {
+  await openSample(page, "editor");
+  const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
+  await expect(sourceText).toBeVisible({ timeout: 20_000 });
+  await sourceText.click();
+
+  const properties = page.locator(".native-unified-properties");
+  const fontInput = properties.locator('input[type="file"][accept*=".ttf"]');
+  await fontInput.setInputFiles({
+    name: "broken-font.ttf",
+    mimeType: "font/ttf",
+    buffer: (globalThis as any).Buffer.from("this is deliberately not a font")
+  });
+
+  await expect(properties.getByRole("alert")).toContainText("Could not use this font", { timeout: 20_000 });
+  await expect(properties.getByText(/Matching font: broken-font/)).toHaveCount(0);
+  await expect(properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ })).toBeEnabled();
+});
+
+test("existing-text reconstruction preserves colored PDF backgrounds and supports source verification", async ({ page }) => {
+  await openSample(page, "editor");
+  const target = page.getByRole("button", { name: /Select existing (?:text|paragraph):.*MAY - JUL/i }).first();
+  await expect(target).toBeVisible({ timeout: 20_000 });
+  const targetBox = await target.boundingBox();
+  if (!targetBox) throw new Error("Colored sample text target is unavailable.");
+
+  const before = await medianCanvasPixelAtBox(page, targetBox);
+  // The showcase card is a pale colored vector fill, not white. This assertion
+  // makes the test capable of catching the previous opaque-white replacement.
+  expect(before[0]).toBeLessThan(252);
+
+  await target.click();
+  const properties = page.locator(".native-unified-properties");
+  const editor = properties.locator("textarea").first();
+  const original = await editor.inputValue();
+  expect(original).toContain("MAY - JUL");
+  await editor.fill(original.replace("MAY - JUL", "JUN - AUG"));
+  const applyTextChange = properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ });
+  await expect(applyTextChange).toBeEnabled();
+  await applyTextChange.click();
+
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+  const after = await medianCanvasPixelAtBox(page, targetBox);
+  for (let channel = 0; channel < 3; channel += 1) expect(Math.abs(after[channel] - before[channel])).toBeLessThanOrEqual(4);
+
+  const originalView = page.getByRole("button", { name: "Original", exact: true });
+  const editedView = page.getByRole("button", { name: "Edited preview", exact: true });
+  await expect(originalView).toBeVisible();
+  await originalView.click();
+  await expect(page.getByText("Original PDF · editing paused", { exact: true })).toBeVisible();
+  await expect(originalView).toHaveAttribute("aria-pressed", "true");
+  const sourceAgain = await medianCanvasPixelAtBox(page, targetBox);
+  expect(sourceAgain).toEqual(before);
+
+  await editedView.click();
+  await expect(editedView).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Original PDF · editing paused", { exact: true })).toHaveCount(0);
+});
+
 test("existing PDF edits participate in Undo/Redo and survive export", async ({ page }) => {
   await openSample(page, "editor");
   const sourceText = page.getByRole("button", { name: /Select existing (?:text|paragraph):/ }).first();
@@ -40,6 +122,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
 
   const properties = page.locator(".native-unified-properties");
   const editor = properties.locator("textarea").first();
+  const originalText = await editor.inputValue();
   await editor.fill("UNDO OK");
   const beforePreview = await page.locator(".editor-page-layers > canvas").screenshot();
   await properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ }).click();
@@ -52,12 +135,14 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   await undo.click();
   await expect(page.locator(".native-queued-count")).toHaveCount(0);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "source", { timeout: 20_000 });
+  await expect(editor).toHaveValue(originalText);
 
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   await expect(redo).toBeEnabled();
   await redo.click();
   await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+  await expect(editor).toHaveValue("UNDO OK");
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();

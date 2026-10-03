@@ -101,3 +101,17 @@
 .editor-tools-sheet__document button,.editor-tools-sheet__actions button { min-height:44px; padding:10px; background:var(--surface-subtle); border:1px solid var(--line); color:var(--ink); }
 .editor-tools-sheet__actions { display:flex; gap:10px; border-top:1px solid var(--line); padding-top:18px; }
 .editor-tools-sheet__actions button { display:flex; align-items:center; gap:8px; }
+
+
+/* P1 source/output verification. The original view is deliberately read-only so
+   comparison cannot accidentally mutate the queued edited preview. */
+.native-preview-switch { display:inline-flex; align-items:center; gap:2px; padding:2px; border:1px solid var(--line); border-radius:9px; background:var(--surface-strong); }
+.product-app .editor-contextbar .native-preview-switch button { min-height:26px; border:0; border-radius:7px; background:transparent; padding:4px 8px; }
+.product-app .editor-contextbar .native-preview-switch button[aria-pressed="true"] { color:var(--accent); background:var(--accent-soft); font-weight:650; }
+.editor-stage--source-review { position:relative; }
+.editor-source-review-badge { position:sticky; top:10px; z-index:15; width:max-content; max-width:calc(100% - 20px); margin:0 auto -34px; padding:6px 10px; border:1px solid var(--line-strong); border-radius:999px; background:var(--surface-strong); color:var(--muted); box-shadow:var(--shadow); font-size:11px; font-weight:650; pointer-events:none; }
+.editor-layout--source-review .editor-left-panel,.editor-layout--source-review .editor-properties { opacity:.58; }
+@media (max-width:760px) {
+  .native-preview-switch { width:100%; }
+  .product-app .editor-contextbar .native-preview-switch button { flex:1; }
+}
