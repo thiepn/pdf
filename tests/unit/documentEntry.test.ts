@@ -35,6 +35,15 @@ describe("P2 intelligent document entry", () => {
     expect(recommendations.map((item) => item.taskId)).toContain("compress-pdf");
   });
 
+  it("does not call unverified manifest form widgets fillable before security inspection", () => {
+    const recommendations = recommendDocumentEntryTasks(evidence({
+      formFieldCount: 6,
+      sources: { manifest: true, structure: false, security: false }
+    }));
+    expect(recommendations.map((item) => item.taskId)).not.toContain("fill-forms");
+    expect(recommendations.map((item) => item.taskId)).toContain("flatten-pdf");
+  });
+
   it("surfaces fill, signature and flatten workflows for interactive forms", () => {
     const recommendations = recommendDocumentEntryTasks(evidence({
       formFieldCount: 18,
