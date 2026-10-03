@@ -13,7 +13,7 @@ interface Props {
 
 export function DocumentEntryRecommendations({ recommendations, checking, disabled, compact, onChoose, onDismiss }: Props) {
   if (!recommendations.length) return null;
-  return <section className={\`document-entry-recommendations${compact ? " document-entry-recommendations--compact" : ""}\`} aria-label="Suggested actions for this PDF">
+  return <section className={`document-entry-recommendations${compact ? " document-entry-recommendations--compact" : ""}`} aria-label="Suggested actions for this PDF">
     <header className="document-entry-recommendations__header">
       <div><p className="eyebrow">Suggested for this PDF</p><span>{checking ? "Checking document structure locally…" : "Based on this document’s local structure"}</span></div>
       {onDismiss ? <button aria-label="Hide suggested actions" className="icon-button" onClick={onDismiss} type="button">×</button> : null}
@@ -22,7 +22,7 @@ export function DocumentEntryRecommendations({ recommendations, checking, disabl
       {recommendations.map((recommendation) => {
         const task = getTask(recommendation.taskId);
         if (!task) return null;
-        return <button className={\`document-entry-recommendation${recommendation.warning ? " document-entry-recommendation--warning" : ""}\`} disabled={disabled} key={recommendation.taskId} onClick={() => onChoose(task)} type="button">
+        return <button className={`document-entry-recommendation${recommendation.warning ? " document-entry-recommendation--warning" : ""}`} disabled={disabled} key={recommendation.taskId} onClick={() => onChoose(task)} type="button">
           <Icon name={task.icon} size={20} />
           <span><strong>{recommendation.label}</strong><small>{recommendation.reason}</small><em>{recommendation.evidence}</em>{recommendation.warning ? <span className="document-entry-recommendation__warning">{recommendation.warning}</span> : null}</span>
           <Icon name="chevron-right" size={16} />
