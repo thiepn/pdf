@@ -136,7 +136,8 @@ export async function inspectDocumentEntry(project: ProjectManifest, signal?: Ab
       inspectDocumentEntryStructure(document, signal),
       inspectSecurity(bytes, password, signal)
     ]);
-    signal?.throwIfAborted();
+    // A recommendation timeout is allowed to keep whichever local inspection
+    // finished first. Component unmounts still ignore the returned value.
     let merged = evidence;
     if (structure.status === "fulfilled") merged = mergeStructure(merged, structure.value);
     else if (!(structure.reason instanceof DOMException && structure.reason.name === "AbortError")) {
