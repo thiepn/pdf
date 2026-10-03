@@ -2,6 +2,8 @@ import { DocumentControlsContext, useCompactDocumentControls } from "../product/
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { navigateTo, routeHref } from "../core/appRouter";
 import { TaskDirectory } from "../product/TaskDirectory";
+import { DocumentEntryRecommendations } from "../product/DocumentEntryRecommendations";
+import { documentEntryEvidenceFromProject, inspectDocumentEntry, recommendDocumentEntryTasks, type DocumentEntryEvidence } from "../product/documentEntry";
 import { handOffTaskFiles } from "../product/fileHandoff";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { prepareDocumentSnapshot } from "../product/documentSnapshot";
@@ -72,6 +74,9 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
   const [interruptedSession, setInterruptedSession] = useState<InterruptedWorkspaceSession | null>(() => readInterruptedWorkspaceSession(projectId));
   const [activeOperation, setActiveOperation] = useState<ProjectOperationSnapshot | null>(null);
   const [handoffBusy, setHandoffBusy] = useState(false);
+  const [entryEvidence, setEntryEvidence] = useState<DocumentEntryEvidence | null>(null);
+  const [entryChecking, setEntryChecking] = useState(false);
+  const [entryDismissed, setEntryDismissed] = useState(false);
   const handoffRef = useRef(false);
   const compactControls = useCompactDocumentControls();
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
@@ -133,6 +138,42 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
     })();
     return () => { cancelled = true; };
   }, [projectId]);
+
+  useEffect(() => {
+    if (!project || project.id !== projectId) {
+      setEntryEvidence(null);
+      setEntryChecking(false);
+      return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    let deadline: number | undefined;
+    setEntryEvidence(documentEntryEvidenceFromProject(project));
+    setEntryChecking(true);
+    setEntryDismissed(false);
+    const timer = window.setTimeout(() => {
+      deadline = window.setTimeout(() => {
+        if (!controller.signal.aborted) controller.abort(new DOMException("Document recommendation inspection timed out.", "TimeoutError"));
+      }, 15_000);
+      void inspectDocumentEntry(project, controller.signal).then(
+        (evidence) => { if (!cancelled) setEntryEvidence(evidence); },
+        (reason) => {
+          if (cancelled || (reason instanceof DOMException && (reason.name === "AbortError" || reason.name === "TimeoutError"))) return;
+          // Recommendations are optional guidance. Keep the immediate manifest
+          // evidence instead of turning a failed deep inspection into a workspace error.
+        }
+      ).finally(() => {
+        if (deadline !== undefined) window.clearTimeout(deadline);
+        if (!cancelled) setEntryChecking(false);
+      });
+    }, 650);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (deadline !== undefined) window.clearTimeout(deadline);
+      controller.abort();
+    };
+  }, [project?.checksum, project?.id, projectId]);
 
   useEffect(() => {
     if (!project || project.id !== projectId || !session) return;
@@ -207,7 +248,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
   }, [childSubtitle, mode, onTitleChange, project, projectId]);
 
   const contract = useMemo(() => getPreservationContract(mode), [mode]);
-  const contextActions = useMemo(() => buildContextActions(project), [project]);
+  const entryRecommendations = useMemo(() => entryEvidence ? recommendDocumentEntryTasks(entryEvidence) : [], [entryEvidence]);
   const modeRequiresOwnership = !["viewer", "inspector"].includes(mode);
   const workspaceLocked = leaseMode === "read-only" && modeRequiresOwnership;
   const workspaceAcquiring = leaseMode === "acquiring" && modeRequiresOwnership;
@@ -319,6 +360,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
     {interruptedSession ? <div aria-live="polite" className="warning-banner workspace-recovery-banner" role="status"><div><strong>Recovered after an interrupted session</strong><details><summary>Details</summary><span>The previous workspace heartbeat ended without a clean close. Source PDF bytes were never edited in place; any interrupted document transaction is reconciled before this tab can write.</span></details></div><button className="button button--small button--secondary" onClick={() => setInterruptedSession(null)} type="button">Dismiss</button></div> : null}
     {activeOperation ? <div className="workspace-operation-banner" role="status" aria-live="polite"><div><strong>{activeOperation.label}</strong><span>{activeOperation.detail ?? operationStageLabel(activeOperation.stage)}</span>{activeOperation.progress !== undefined ? <progress max="1" value={activeOperation.progress} /> : null}</div><div><small>{formatElapsed(Date.now() - activeOperation.startedAt)}</small>{activeOperation.cancellable ? <button className="button button--small button--secondary" onClick={() => cancelProjectOperation(projectId)} type="button">Cancel</button> : null}</div></div> : null}
     {leaseMode === "read-only" ? <div className="warning-banner workspace-readonly-banner" role="status"><strong>Read-only in this tab</strong><span>This project is being edited in another tab. You can still read it here, but editing is disabled to prevent conflicting changes.</span><button className="button button--small button--secondary" onClick={() => void retryOwnership()} type="button">Try editing here</button></div> : null}
+    {!entryDismissed && (mode === "viewer" || mode === "editor") ? <DocumentEntryRecommendations recommendations={entryRecommendations} checking={entryChecking} disabled={Boolean(activeOperation) || handoffBusy} onChoose={(task) => void chooseDocumentTask(task)} onDismiss={() => setEntryDismissed(true)} /> : null}
 
     <div className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"}>
       <section aria-labelledby="workspace-document-title" className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader" : "workspace-mode-content"} id="workspace-document-panel">
@@ -345,6 +387,7 @@ export function UnifiedWorkspace({ projectId, mode, taskId, onTitleChange }: Uni
     {mobileToolsOpen ? <div className="product-modal-backdrop" onClick={closeMobileTools} role="presentation"><section aria-label="Document actions" aria-modal="true" className="product-modal document-task-dialog" id="document-actions-dialog" onClick={(event) => event.stopPropagation()} ref={mobileSheetRef} role="dialog">
       <header><div><p className="eyebrow">WORK WITH THIS DOCUMENT</p><h2>What would you like to do?</h2></div><button className="icon-button" aria-label="Close document actions" onClick={closeMobileTools} type="button"><Icon name="close"/></button></header>
       <p className="product-muted">{project.name}</p>{handoffBusy ? <p role="status">Preparing and checking your latest edits…</p> : null}{error ? <p role="alert">{error}</p> : null}
+      <DocumentEntryRecommendations compact recommendations={entryRecommendations} checking={entryChecking} disabled={Boolean(activeOperation) || handoffBusy} onChoose={(task) => void chooseDocumentTask(task)} />
       <div className="document-action-shortcuts"><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("edit-pdf")!)} type="button"><Icon name="edit"/>Edit this PDF</button><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("edit-pdf")!, true)} type="button"><Icon name="read"/>Read PDF</button><button className="button button--secondary" disabled={handoffBusy} onClick={() => void chooseDocumentTask(getTask("organize-pages")!)} type="button"><Icon name="pages"/>Arrange pages</button></div>
       <div className="document-action-shortcuts"><button className="button button--secondary" onClick={() => { closeMobileTools(); void togglePanel("timelineOpen"); }} type="button">History & checkpoints</button>{settings.showPreservationWarnings ? <button className="button button--secondary" onClick={() => { closeMobileTools(); void togglePanel("preservationOpen"); }} type="button">What changes in this PDF?</button> : null}</div>
       <fieldset className="document-task-options" disabled={handoffBusy}><legend className="visually-hidden">Choose the next task</legend><TaskDirectory compact projectId={projectId} kind="pdf" fileCount={1} onChoose={(task) => void chooseDocumentTask(task)} /></fieldset>
@@ -386,16 +429,6 @@ function ModeLoading({ mode }: { mode: WorkspaceMode }) {
 
 function ContractSection({ label, items, tone }: { label: string; items: string[]; tone: "safe" | "neutral" | "warning" }) {
   return <section className={`contract-section contract-section--${tone}`}><h3>{label}</h3><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></section>;
-}
-
-function buildContextActions(project: ProjectManifest | null): Array<{ mode: WorkspaceMode; label: string }> {
-  if (!project) return [];
-  const actions: Array<{ mode: WorkspaceMode; label: string }> = [];
-  if (project.summary.formFieldCount) actions.push({ mode: "secure", label: `Fill ${project.summary.formFieldCount} form fields` });
-  if (project.summary.encrypted) actions.push({ mode: "secure", label: "Review protection" });
-  if (project.summary.pageCount > 30) actions.push({ mode: "organizer", label: "Organize pages" });
-  if (project.byteLength > 20_000_000) actions.push({ mode: "compress", label: "Reduce file size" });
-  return actions.slice(0, 3);
 }
 
 function formatBytes(value: number): string {

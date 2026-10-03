@@ -203,6 +203,82 @@ export function multiplyTransforms(left: number[], right: number[]): [number, nu
   ];
 }
 
+export interface DocumentEntryStructureSample {
+  pageCount: number;
+  sampledPageCount: number;
+  sampledPageNumbers: number[];
+  textCharacters: number;
+  imageOperations: number;
+  pagesWithText: number;
+  pagesWithImages: number;
+}
+
+function documentEntrySamplePages(pageCount: number, maximum = 12): number[] {
+  if (pageCount <= maximum) return Array.from({ length: pageCount }, (_, index) => index + 1);
+  const values = new Set<number>();
+  for (let index = 0; index < maximum; index += 1) {
+    values.add(Math.round(1 + (index * (pageCount - 1)) / (maximum - 1)));
+  }
+  return [...values].sort((left, right) => left - right);
+}
+
+/**
+ * P2 document entry samples a bounded set of pages instead of running the full
+ * Inspector pass automatically. The sample is spread across the document so
+ * scan-vs-digital recommendations stay useful without making large PDFs pay an
+ * O(page-count) startup cost.
+ */
+export async function inspectDocumentEntryStructure(
+  document: PdfJsDocument,
+  signal?: AbortSignal,
+  maximumPages = 12
+): Promise<DocumentEntryStructureSample> {
+  const sampledPageNumbers = documentEntrySamplePages(document.numPages, Math.max(2, maximumPages));
+  const ops = (pdfjs as any).OPS ?? {};
+  const imageCodes = new Set([
+    ops.paintImageXObject,
+    ops.paintInlineImageXObject,
+    ops.paintImageMaskXObject,
+    ops.paintSolidColorImageMask
+  ].filter((value: unknown) => typeof value === "number"));
+  let textCharacters = 0;
+  let imageOperations = 0;
+  let pagesWithText = 0;
+  let pagesWithImages = 0;
+
+  for (const pageNumber of sampledPageNumbers) {
+    if (signal?.aborted) throw new DOMException("Inspection cancelled.", "AbortError");
+    const page = await document.getPage(pageNumber);
+    try {
+      const [text, operatorList] = await Promise.all([
+        page.getTextContent({ includeMarkedContent: false }),
+        page.getOperatorList()
+      ]);
+      let pageText = 0;
+      for (const item of text.items) if ("str" in item) pageText += item.str.length;
+      let pageImages = 0;
+      for (const code of operatorList.fnArray) if (imageCodes.has(code)) pageImages += 1;
+      textCharacters += pageText;
+      imageOperations += pageImages;
+      if (pageText >= 32) pagesWithText += 1;
+      if (pageImages > 0) pagesWithImages += 1;
+    } finally {
+      page.cleanup();
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+
+  return {
+    pageCount: document.numPages,
+    sampledPageCount: sampledPageNumbers.length,
+    sampledPageNumbers,
+    textCharacters,
+    imageOperations,
+    pagesWithText,
+    pagesWithImages
+  };
+}
+
 export interface DetailedPageInspection {
   pageNumber: number;
   width: number;

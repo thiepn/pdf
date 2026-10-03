@@ -135,6 +135,27 @@ test("editor replaces document tabs and mode tabs with direct tools and focused 
         pdf.destroy();
     }
 });
+test("opened PDFs surface local task recommendations through the existing workspace", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await editor(page);
+    const recommendations = page.locator('section[aria-label="Suggested actions for this PDF"]').first();
+    await expect(recommendations).toBeVisible({ timeout: 20000 });
+    await expect(recommendations).toContainText("Suggested for this PDF");
+    await expect(recommendations).toContainText("Nothing is uploaded and no AI model reads the document.");
+    await expect(recommendations.getByRole("button").first()).toBeEnabled();
+
+    await page.getByRole("button", { name: "Document actions", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
+    await expect(dialog.locator('section[aria-label="Suggested actions for this PDF"]')).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    const readRecommendation = recommendations.getByRole("button").filter({ hasText: "Read PDF" });
+    await expect(readRecommendation).toBeVisible();
+    await readRecommendation.click();
+    await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20000 });
+    await expect(page).toHaveURL(/\/viewer(?:\/[^/]+)?$/);
+});
+
 test("mobile editor exposes touch-sized direct tools and does not overflow the viewport", async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await editor(page);
