@@ -183,7 +183,7 @@ export function recommendDocumentEntryTasks(evidence: DocumentEntryEvidence, lim
   };
 
   const megabytes = evidence.byteLength / (1024 * 1024);
-  const fillableFormCount = evidence.fillableFormFieldCount ?? evidence.formFieldCount;
+  const fillableFormCount = evidence.fillableFormFieldCount ?? 0;
   const totalFormCount = evidence.formFieldCount;
   const signatures = evidence.signatureCount ?? 0;
   const signedSignatures = evidence.signedSignatureCount ?? 0;
