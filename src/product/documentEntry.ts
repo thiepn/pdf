@@ -132,9 +132,14 @@ export async function inspectDocumentEntry(project: ProjectManifest, signal?: Ab
   let document: Awaited<ReturnType<typeof openPdfWithPdfJs>> | null = null;
   try {
     document = await openPdfWithPdfJs(bytes, password);
+    const securityWorthInspecting = evidence.pageCount <= 60
+      || evidence.encrypted
+      || evidence.formFieldCount > 0
+      || evidence.attachmentCount > 0
+      || evidence.hasJavaScript;
     const [structure, security] = await Promise.allSettled([
       inspectDocumentEntryStructure(document, signal),
-      inspectSecurity(bytes, password, signal)
+      securityWorthInspecting ? inspectSecurity(bytes, password, signal) : Promise.resolve<SecurityInspectionReport | null>(null)
     ]);
     // A recommendation timeout is allowed to keep whichever local inspection
     // finished first. Component unmounts still ignore the returned value.
@@ -143,8 +148,8 @@ export async function inspectDocumentEntry(project: ProjectManifest, signal?: Ab
     else if (!(structure.reason instanceof DOMException && structure.reason.name === "AbortError")) {
       merged = { ...merged, warnings: [...merged.warnings, "Structure inspection could not complete; recommendations use the available document summary."] };
     }
-    if (security.status === "fulfilled") merged = mergeSecurity(merged, security.value);
-    else if (!(security.reason instanceof DOMException && security.reason.name === "AbortError")) {
+    if (security.status === "fulfilled" && security.value) merged = mergeSecurity(merged, security.value);
+    else if (security.status === "rejected" && !(security.reason instanceof DOMException && security.reason.name === "AbortError")) {
       merged = { ...merged, warnings: [...merged.warnings, "Security inspection could not complete; signature and action recommendations may be limited."] };
     }
     return merged;
