@@ -21,6 +21,13 @@ describe("P2 intelligent document entry wiring", () => {
     expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
   });
 
+  it("avoids a full security-page walk for large ordinary PDFs", () => {
+    expect(entrySource).toContain("const securityWorthInspecting = evidence.pageCount <= 60");
+    expect(entrySource).toContain("|| evidence.formFieldCount > 0");
+    expect(entrySource).toContain("|| evidence.attachmentCount > 0");
+    expect(entrySource).toContain("securityWorthInspecting ? inspectSecurity");
+  });
+
   it("states the local-only privacy boundary in the recommendation UI", () => {
     expect(recommendationSource).toContain("Nothing is uploaded and no AI model reads the document.");
     expect(entrySource).not.toContain("fetch(");
