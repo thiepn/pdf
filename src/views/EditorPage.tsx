@@ -53,6 +53,8 @@ import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
 import { Thumbnail } from "../viewer/Thumbnail";
 import { commitPreparedNativePdfWrite, prepareNativePdfWrite, readNativeFileStatus, supportsNativeFileSave, writeExternalProjectBackup, type NativeFileStatus, type PreparedNativePdfWrite } from "../files/nativeFileWorkflow";
+import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
+import { OutputTrustPanel } from "../components/OutputTrustPanel";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
@@ -134,6 +136,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
   const [lastReport, setLastReport] = useState<string | null>(null);
+  const [outputTrust, setOutputTrust] = useState<OutputTrustReport | null>(null);
   const [nativeInspection, setNativeInspection] = useState<NativeInspection | null>(null);
   const [selectedNativeId, setSelectedNativeId] = useState<string | undefined>();
   const [selectedNativeIds, setSelectedNativeIds] = useState<Set<string>>(new Set());
@@ -957,7 +960,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     (window.document.activeElement as HTMLElement | null)?.blur();
     const controller = new AbortController();
     abortRef.current = controller;
-    setProcessing(true); setError(null); setWarnings([]); setLastReport(null); setStatus("Preparing edited PDF…");
+    setProcessing(true); setError(null); setWarnings([]); setLastReport(null); setOutputTrust(null); setStatus("Preparing edited PDF…");
     try {
       const operationLabel = target === "download" ? "Exporting edited PDF"
         : target === "replace-original" ? "Replacing original PDF"
@@ -992,9 +995,20 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const linkDelta = afterInventory.linkCount - beforeInventory.linkCount;
       if (annotationDelta < result.report.annotationCount) throw new Error("The edited PDF could not be verified because some annotations did not save correctly.");
       if (linkDelta < result.report.linkCount) throw new Error("The edited PDF could not be verified because some links did not save correctly.");
-      setWarnings([...(nativeReport?.warnings ?? []), ...result.report.warnings]);
+      const exportWarnings = [...(nativeReport?.warnings ?? []), ...result.report.warnings];
+      setWarnings(exportWarnings);
       const pdfEditCount = nativeReport ? nativeReport.textEdits + nativeReport.imageEdits + nativeReport.vectorEdits + nativeReport.tableCellEdits + nativeReport.formEdits : 0;
       setLastReport(`${pdfEditCount} PDF content edit${pdfEditCount === 1 ? "" : "s"} · ${result.report.objectCount} added object${result.report.objectCount === 1 ? "" : "s"} · ${formatBytes(result.report.outputBytes)}`);
+      update({ stage: "validating", detail: "Building output verification evidence…", progress: 0.9 });
+      const trust = await verifyOutputTrust({
+        operationId: "editor",
+        sources: [{ name: project.sourceFilename || project.name, bytes: sourceBytes, mime: "application/pdf", password: passwordRef.current, pageCount: document?.numPages }],
+        outputs: [{ name: filename, bytes: result.bytes, mime: "application/pdf", password: passwordRef.current, pageCount: summary.pageCount }],
+        warnings: exportWarnings,
+        expectedPageCount: document?.numPages,
+        signal
+      });
+      setOutputTrust(trust);
       if (saveProject) {
         update({ stage: "committing", detail: "Saving edited PDF as a new project…", progress: 0.94 });
         const created = await createDerivedProjectFromBytes(project.id, result.bytes, filename, "unified-editor", "application/pdf", passwordRef.current);
@@ -1144,6 +1158,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         {localSave.phase === "error" ? <div className="editor-banner error-banner" role="alert"><strong>Local autosave failed</strong><span>{localSave.message}</span><button onClick={retryLocalSave} type="button">Retry save</button></div> : null}
         {error ? <div className="editor-banner error-banner"><strong>Editor error</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
         {warnings.length ? <div className="editor-banner warning-banner"><strong>Editor notice</strong><span>{warnings.join(" ")}</span><button onClick={() => setWarnings([])} type="button">Dismiss</button></div> : null}
+        {outputTrust ? <OutputTrustPanel compact report={outputTrust} /> : null}
         {redactionCount ? <div className="editor-banner warning-banner" role="status"><strong>Redaction marks are not permanent yet</strong><span>{redactionCount} marked region{redactionCount === 1 ? "" : "s"}. Choose Document actions → Apply permanent redactions to remove the covered content before sharing.</span></div> : null}
       </div>
 
