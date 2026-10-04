@@ -127,6 +127,8 @@ P3 does not modify the original project in place.
 - Recognition still supports resumable page-level results.
 - Region OCR avoids rerunning an entire page for a localized problem.
 - Completed OCR results are reusable after reopening the workspace.
+- Before starting Tesseract on a selected page, P3 checks its existing PDF text layer. Pages with substantial selectable text are left unchanged so mixed digital/scan documents do not accumulate duplicate hidden OCR text.
+- The Tesseract worker is started lazily only when at least one selected page actually needs recognition.
 - Searchable output is rebuilt only when recognition settings or reviewed OCR evidence changed.
 - Worker startup has a bounded timeout.
 - Export can be cancelled through the project-operation coordinator.
