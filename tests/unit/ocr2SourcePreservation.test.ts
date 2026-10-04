@@ -4,6 +4,7 @@ import ocrClientSource from "../../src/ocr/ocrClient.ts?raw";
 import layerPdfSource from "../../src/ocr/ocrLayerPdf.ts?raw";
 import reviewSource from "../../src/ocr/OcrReviewCanvas.tsx?raw";
 import languagePanelSource from "../../src/ocr/OcrLanguagePanel.tsx?raw";
+import scanSource from "../../src/views/ScanPage.tsx?raw";
 import scanPageSource from "../../src/views/ScanPage.tsx?raw";
 
 describe("P3 OCR 2.0 source-preservation contracts", () => {
@@ -56,6 +57,13 @@ describe("P3 OCR 2.0 source-preservation contracts", () => {
   it("suggests installed language packs without preventing mixed-language selection", () => {
     expect(languagePanelSource).toContain("suggestInstalledOcrLanguages");
     expect(languagePanelSource).toContain('[...selected, language.code]');
+  });
+
+  it("uses the same source-preserving text layer for image-to-PDF scanning", () => {
+    expect(scanSource).toContain("const imagePdf = buildJpegPdf(images");
+    expect(scanSource).toContain("applyOcrTextLayer(imagePdf, recognizedLayers");
+    expect(scanSource).not.toContain("mergePdfSources");
+    expect(scanSource).not.toContain("searchablePdf");
   });
 
   it("keeps OCR local and does not add a cloud recognition request", () => {
