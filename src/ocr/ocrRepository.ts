@@ -43,6 +43,16 @@ export async function listOcrPages(jobId: string): Promise<OcrPageResult[]> {
   return pages.sort((a, b) => a.pageNumber - b.pageNumber);
 }
 
+export async function listLatestOcrPagesForProject(projectId: string): Promise<OcrPageResult[]> {
+  const pages = await idbGetAllByIndex<OcrPageResult>("ocrPages", "projectId", projectId);
+  const latest = new Map<number, OcrPageResult>();
+  for (const page of [...pages].sort((a, b) => b.updatedAt - a.updatedAt)) {
+    if (page.status !== "complete" || !page.words.length || latest.has(page.pageNumber)) continue;
+    latest.set(page.pageNumber, page);
+  }
+  return [...latest.values()].sort((a, b) => a.pageNumber - b.pageNumber);
+}
+
 export async function listInstalledLanguages(): Promise<InstalledOcrLanguage[]> {
   return (await idbGetAll<InstalledOcrLanguage>("ocrLanguages")).sort((a, b) => a.label.localeCompare(b.label));
 }
