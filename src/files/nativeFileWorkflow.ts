@@ -3,7 +3,7 @@ import { idbDelete, idbGet, idbPut } from "../storage/database";
 export type NativePermissionState = "granted" | "denied" | "prompt";
 
 export interface NativeWritableFileStream {
-  write(data: Blob | BufferSource | string): Promise<void>;
+  write(data: Blob | Uint8Array | string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -44,7 +44,11 @@ export interface NativeFileBindingRecord {
   outputHandle?: NativeFileHandle;
   backupDirectoryHandle?: NativeDirectoryHandle;
   sourceName?: string;
+  sourceSize?: number;
+  sourceLastModified?: number;
   outputName?: string;
+  outputSize?: number;
+  outputLastModified?: number;
   lastPdfSavedAt?: number;
   lastBackupAt?: number;
   updatedAt: number;
@@ -150,12 +154,14 @@ export async function readNativeFileStatus(projectId: string): Promise<NativeFil
 }
 
 export async function rememberNativeSourceHandle(projectId: string, handle: NativeFileHandle): Promise<void> {
-  const current = await readNativeFileBinding(projectId);
+  const [current, file] = await Promise.all([readNativeFileBinding(projectId), handle.getFile()]);
   const next: NativeFileBindingRecord = {
     ...current,
     projectId,
     sourceHandle: handle,
     sourceName: handle.name,
+    sourceSize: file.size,
+    sourceLastModified: file.lastModified,
     updatedAt: Date.now()
   };
   await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
@@ -186,6 +192,14 @@ async function requestWritePermission(handle: NativeFileHandle | NativeDirectory
   return ensureWritePermission(handle, true);
 }
 
+async function assertExternalFileUnchanged(handle: NativeFileHandle, size?: number, lastModified?: number): Promise<void> {
+  if (size === undefined || lastModified === undefined) return;
+  const current = await handle.getFile();
+  if (current.size !== size || current.lastModified !== lastModified) {
+    throw new Error(`“${handle.name}” changed outside PDF Studio since it was linked. Reopen that file or use Save as so external changes are not overwritten.`);
+  }
+}
+
 async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array, permissionPrepared = false): Promise<void> {
   if (!permissionPrepared && !(await ensureWritePermission(handle, true))) throw new Error("Write permission was not granted for this file.");
   const writable = await handle.createWritable();
@@ -197,12 +211,14 @@ async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array, perm
 }
 
 async function rememberOutput(projectId: string, handle: NativeFileHandle, savedAt: number): Promise<void> {
-  const current = await readNativeFileBinding(projectId);
+  const [current, file] = await Promise.all([readNativeFileBinding(projectId), handle.getFile()]);
   const next: NativeFileBindingRecord = {
     ...current,
     projectId,
     outputHandle: handle,
     outputName: handle.name,
+    outputSize: file.size,
+    outputLastModified: file.lastModified,
     lastPdfSavedAt: savedAt,
     updatedAt: savedAt
   };
@@ -219,6 +235,7 @@ export async function prepareNativePdfWrite(
     const binding = await readNativeFileBinding(projectId);
     if (!binding?.sourceHandle) throw new Error("This project is not linked to the PDF file it was opened from. Use Save as instead.");
     if (!(await requestWritePermission(binding.sourceHandle))) throw new Error("Write permission was not granted for the original PDF.");
+    await assertExternalFileUnchanged(binding.sourceHandle, binding.sourceSize, binding.sourceLastModified);
     return { handle: binding.sourceHandle, filename: binding.sourceHandle.name, target: "source" };
   }
 
@@ -233,6 +250,7 @@ export async function prepareNativePdfWrite(
   const binding = await readNativeFileBinding(projectId);
   if (binding?.outputHandle) {
     if (!(await requestWritePermission(binding.outputHandle))) throw new Error("Write permission was not granted for the saved PDF.");
+    await assertExternalFileUnchanged(binding.outputHandle, binding.outputSize, binding.outputLastModified);
     return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output" };
   }
   const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
@@ -250,9 +268,12 @@ export async function commitPreparedNativePdfWrite(
   else {
     const binding = await readNativeFileBinding(projectId);
     if (!binding?.sourceHandle) throw new Error("The original PDF link was lost before the verified output could be written.");
+    const file = await prepared.handle.getFile();
     const next: NativeFileBindingRecord = {
       ...binding,
       projectId,
+      sourceSize: file.size,
+      sourceLastModified: file.lastModified,
       lastPdfSavedAt: savedAt,
       updatedAt: savedAt
     };
