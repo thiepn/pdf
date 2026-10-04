@@ -49,6 +49,20 @@ function enforceOutputBudget(files: QuickOutput[]): void {
   if (files.reduce((total, file) => total + file.bytes.byteLength, 0) > MAX_OUTPUT_BYTES) throw new Error("This export is too large for a safe browser download. Choose fewer pages or a lower image resolution.");
 }
 
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  for (let index = 0; index < left.byteLength; index += 1) if (left[index] !== right[index]) return false;
+  return true;
+}
+
+function rasterCompressionChangedBytes(task: QuickTaskId, options: QuickOptions, inputs: QuickInput[], files: QuickOutput[]): boolean {
+  if (task !== "compress-pdf" || options.compression === "lossless") return false;
+  return files.some((file, index) => {
+    const source = inputs[index];
+    return !source || !bytesEqual(source.bytes, file.bytes);
+  });
+}
+
 async function imagesToPdf(inputs: QuickInput[], options: QuickOptions, signal: AbortSignal, progress: (text: string) => void): Promise<Uint8Array> {
   const pages: JpegPdfPage[] = [];
   let bytes = 0;
@@ -93,7 +107,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
       sources: inputs.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.image?.type || PDF, password: item.password, pageCount: item.pageCount })),
       outputs: files.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.mime, password: item.password, pageCount: item.pageCount })),
       warnings: uniqueWarnings,
-      rasterized: options.compression !== "lossless",
+      rasterized: rasterCompressionChangedBytes(task, options, inputs, files),
       hardValidationPassed: true,
       signal
     });
@@ -230,7 +244,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
     sources: inputs.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.image?.type || PDF, password: item.password, pageCount: item.pageCount })),
     outputs: files.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.mime, password: item.password, pageCount: item.pageCount })),
     warnings: uniqueWarnings,
-    rasterized: task === "compress-pdf" && options.compression !== "lossless",
+    rasterized: rasterCompressionChangedBytes(task, options, inputs, files),
     hardValidationPassed: true,
     signal
   });
