@@ -118,8 +118,9 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const running = job?.status === "running";
 
   const currentRecipe = buildOcrRecipeFingerprint({ pageNumbers: parsedPages.pageArray, languages, preprocess });
+  const recipeIsCurrent = Boolean(job && job.recipeFingerprint === currentRecipe);
   const currentResultsFingerprint = ocrResultsFingerprint(results);
-  const outputIsCurrent = Boolean(output && job?.recipeFingerprint === currentRecipe && outputFingerprint === currentResultsFingerprint);
+  const outputIsCurrent = Boolean(output && recipeIsCurrent && outputFingerprint === currentResultsFingerprint);
   const reviewResult = useMemo(() => results.find((item) => item.pageNumber === reviewPageNumber && item.status === "complete") ?? null, [results, reviewPageNumber]);
   const selectedReviewWord = reviewResult && selectedWord !== null ? reviewResult.words[selectedWord] : undefined;
   const lowConfidenceCount = reviewResult?.words.filter((word) => !word.ignored && ocrConfidenceBand(word.confidence) === "low").length ?? 0;
@@ -289,6 +290,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
 
   async function recognizeReviewRegion(): Promise<void> {
     if (!document || !reviewResult || !reviewRegion || !languages.length || reviewBusy) return;
+    if (!recipeIsCurrent) { setError("OCR settings changed. Run OCR again before re-recognizing a region."); return; }
     if (reviewRegion.x1 - reviewRegion.x0 < .01 || reviewRegion.y1 - reviewRegion.y0 < .01) {
       setError("Drag a larger OCR review region first.");
       return;
@@ -313,6 +315,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
 
   async function rebuildSearchableOutput(): Promise<void> {
     if (!project || !document || !sourceBytesRef.current || reviewBusy) return;
+    if (!recipeIsCurrent) { setError("OCR settings changed. Run OCR again before rebuilding searchable output."); return; }
     const readyPages = results.filter((item) => item.status === "complete" || item.status === "skipped");
     const completePages = readyPages.filter((item) => item.status === "complete");
     const layerPages = buildOcrLayerPages(completePages);
@@ -464,7 +467,11 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         {results.filter((item) => item.status === "failed").map((item) => <p key={item.id}><strong>Page {item.pageNumber}:</strong> {item.error ?? "Recognition failed."}</p>)}
       </div> : null}
 
-      {results.some((item) => item.status === "complete" || item.status === "skipped") && !running && !outputIsCurrent ? <div className="ocr-build-layer">
+      {!running && results.some((item) => item.status === "complete" || item.status === "skipped") && !recipeIsCurrent ? <div className="ocr-build-layer ocr-build-layer--stale">
+        <div><strong>Recognition settings changed</strong><span>Pages, languages, or image cleanup no longer match these saved OCR results. Run OCR again before rebuilding or re-recognizing regions.</span></div>
+        <button className="button" disabled={reviewBusy || !document || !languages.length} onClick={() => void run()} type="button">Run OCR again</button>
+      </div> : null}
+      {results.some((item) => item.status === "complete" || item.status === "skipped") && !running && recipeIsCurrent && !outputIsCurrent ? <div className="ocr-build-layer">
         <div><strong>{output ? "OCR review changed" : "Recognition is ready for review"}</strong><span>{output ? "Rebuild the searchable PDF to include the latest corrections." : "Build a searchable copy after reviewing low-confidence text."}</span></div>
         <button className="button" disabled={reviewBusy} onClick={() => void rebuildSearchableOutput()} type="button">{reviewBusy ? "Building…" : "Build searchable PDF"}</button>
       </div> : null}
