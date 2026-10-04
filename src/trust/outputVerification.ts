@@ -43,6 +43,7 @@ export interface VerifyOutputOptions {
   rasterized?: boolean;
   expectedPageCount?: number;
   explicitLossNotes?: string[];
+  hardValidationPassed: boolean;
   signal?: AbortSignal;
 }
 
@@ -217,7 +218,11 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
     { label: "Output", value: `${options.outputs.length} ${options.outputs.length === 1 ? "file" : "files"} · ${formatBytes(outputBytes)}` },
     { label: "File size", value: sizeChange(sourceBytes, outputBytes) }
   ];
-  const checks: OutputTrustCheck[] = [];
+  const checks: OutputTrustCheck[] = [
+    options.hardValidationPassed
+      ? { label: "Blocking validation", outcome: "passed", detail: "No blocking validation problem was detected before this result was published." }
+      : { label: "Blocking validation", outcome: "warning", detail: "The caller did not confirm its hard validation gate." }
+  ];
   const notes = [...new Set([...(options.warnings ?? []), ...(options.explicitLossNotes ?? []), ...operationLossNotes(options.operationId, options.rasterized === true)])];
   if (sourceResults.some((result) => result.status === "rejected")) notes.push("Some source structure could not be inspected, so preservation comparisons are limited to evidence that was available.");
   if (outputResults.some((result) => result.status === "rejected")) notes.push("Some detailed output structure could not be inspected after the output reopened. The affected checks are marked as not checked.");
@@ -314,8 +319,8 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
   }
 
   options.signal?.throwIfAborted();
-  const warningChecks = checks.filter((item) => item.outcome === "warning").length;
-  const level: TrustLevel = warningChecks || notes.length ? "verified-with-notes" : "verified";
+  const attentionChecks = checks.filter((item) => item.outcome === "warning" || item.outcome === "not-checked").length;
+  const level: TrustLevel = attentionChecks || notes.length ? "verified-with-notes" : "verified";
   return {
     schemaVersion: 1,
     operationId: options.operationId,
