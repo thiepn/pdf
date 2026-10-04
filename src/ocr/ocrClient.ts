@@ -10,7 +10,6 @@ export interface OcrRecognitionResult {
   words: OcrWord[];
   hocr?: string;
   tsv?: string;
-  searchablePdf?: Uint8Array;
 }
 
 function assetUrl(relative: string): string {
@@ -64,10 +63,9 @@ export async function createOcrSession(languages: string[], onProgress?: (messag
   return {
     async recognize(image: Blob, jobId?: string): Promise<OcrRecognitionResult> {
       if (terminated) throw new Error("The OCR session is closed.");
-      const result = await worker.recognize(image, {}, { text: true, blocks: true, hocr: true, tsv: true, pdf: true }, jobId);
+      const result = await worker.recognize(image, {}, { text: true, blocks: true, hocr: true, tsv: true }, jobId);
       const data: Record<string, unknown> = Object.fromEntries(Object.entries(result.data));
       const tsv = typeof data.tsv === "string" ? data.tsv : undefined;
-      const pdf = data.pdf;
       const hocr = typeof data.hocr === "string" ? data.hocr : undefined;
       const tsvWords = parseTsv(tsv);
       return {
@@ -75,14 +73,7 @@ export async function createOcrSession(languages: string[], onProgress?: (messag
         confidence: typeof data.confidence === "number" ? data.confidence : 0,
         words: tsvWords.length ? tsvWords : parseHocr(hocr),
         hocr,
-        tsv,
-        searchablePdf: pdf instanceof Uint8Array
-          ? Uint8Array.from(pdf)
-          : pdf instanceof ArrayBuffer
-            ? new Uint8Array(pdf.slice(0))
-            : Array.isArray(pdf)
-              ? Uint8Array.from(pdf)
-              : undefined
+        tsv
       };
     },
     async terminate(): Promise<void> {
