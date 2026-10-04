@@ -214,6 +214,49 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     } finally { await session?.terminate(); sessionRef.current = null; setProgress(0); }
   }
 
+  async function persistReviewedPage(next: OcrPageResult, message: string): Promise<void> {
+    await writeOcrPage(next);
+    setResults((current) => current.map((item) => item.id === next.id ? next : item));
+    setOutputFingerprint(null);
+    setStatus(message);
+  }
+
+  async function saveWordCorrection(): Promise<void> {
+    if (!reviewResult || selectedWord === null || !reviewResult.words[selectedWord]) return;
+    await persistReviewedPage(updateOcrWord(reviewResult, selectedWord, correctionDraft), correctionDraft.trim() ? "OCR correction saved · rebuild the searchable PDF when review is complete" : "OCR word excluded · rebuild the searchable PDF when review is complete");
+  }
+
+  async function restoreSelectedWord(): Promise<void> {
+    if (!reviewResult || selectedWord === null || !reviewResult.words[selectedWord]) return;
+    const next = restoreOcrWord(reviewResult, selectedWord);
+    setCorrectionDraft(next.words[selectedWord]?.text ?? "");
+    await persistReviewedPage(next, "Original OCR word restored · rebuild the searchable PDF when review is complete");
+  }
+
+  async function recognizeReviewRegion(): Promise<void> {
+    if (!document || !reviewResult || !reviewRegion || !languages.length || reviewBusy) return;
+    if (reviewRegion.x1 - reviewRegion.x0 < .01 || reviewRegion.y1 - reviewRegion.y0 < .01) {
+      setError("Drag a larger OCR review region first.");
+      return;
+    }
+    setReviewBusy(true); setError(null); setStatus(`Re-recognizing page ${reviewResult.pageNumber} region…`);
+    let session: Awaited<ReturnType<typeof createOcrSession>> | null = null;
+    try {
+      const rendered = await renderPdfRegionForOcr(document, reviewResult.pageNumber, preprocess, reviewRegion);
+      session = await createOcrSession(languages, (message) => setStatus(`Region OCR · ${message.status} · ${Math.round(message.progress * 100)}%`));
+      const recognized = await session.recognize(rendered.blob, `${reviewResult.jobId}-region-${Date.now()}`);
+      const next = mergeRegionRecognition(reviewResult, reviewRegion, recognized.words, rendered);
+      await persistReviewedPage(next, `Region OCR updated ${recognized.words.length} word${recognized.words.length === 1 ? "" : "s"} · review before export`);
+      setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      setStatus("Region OCR failed");
+    } finally {
+      await session?.terminate();
+      setReviewBusy(false);
+    }
+  }
+
   async function saveOutput(asProject: boolean) {
     if (!output || !project || !outputIsCurrent) return;
     if (asProject) {
