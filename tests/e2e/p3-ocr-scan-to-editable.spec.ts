@@ -10,6 +10,21 @@ async function seedCompletedOcr(page: import("@playwright/test").Page, projectId
     });
     try {
       const now = Date.now();
+      const preprocess = { grayscale: true, contrast: 1, brightness: 0, threshold: null, invert: false, scale: 2 };
+      const recipe = JSON.stringify({
+        engine: "tesseract-7/render-v2",
+        pageNumbers: [1],
+        languages: ["eng"],
+        preprocess
+      });
+      let a = 0x811c9dc5;
+      let b = 0x9e3779b9;
+      for (let index = 0; index < recipe.length; index += 1) {
+        const code = recipe.charCodeAt(index);
+        a ^= code; a = Math.imul(a, 0x01000193) >>> 0;
+        b ^= code + index; b = Math.imul(b, 0x85ebca6b) >>> 0;
+      }
+      const recipeFingerprint = `tesseract-7/render-v2:${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
       await new Promise<void>((resolve, reject) => {
         const transaction = database.transaction(["ocrJobs", "ocrPages"], "readwrite");
         transaction.objectStore("ocrJobs").put({
@@ -20,7 +35,8 @@ async function seedCompletedOcr(page: import("@playwright/test").Page, projectId
           name: "P3 browser OCR",
           languages: ["eng"],
           pageNumbers: [1],
-          preprocess: { grayscale: true, contrast: 1, brightness: 0, threshold: null, invert: false, scale: 2 },
+          preprocess,
+          recipeFingerprint,
           status: "complete",
           completedPages: 1,
           totalPages: 1,
