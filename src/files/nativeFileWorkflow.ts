@@ -14,6 +14,7 @@ export interface NativeFileHandle {
   createWritable(): Promise<NativeWritableFileStream>;
   queryPermission?(options?: { mode?: "read" | "readwrite" }): Promise<NativePermissionState>;
   requestPermission?(options?: { mode?: "read" | "readwrite" }): Promise<NativePermissionState>;
+  isSameEntry?(other: NativeFileHandle): Promise<boolean>;
 }
 
 export interface NativeDirectoryHandle {
@@ -155,6 +156,7 @@ export async function readNativeFileStatus(projectId: string): Promise<NativeFil
 
 export async function rememberNativeSourceHandle(projectId: string, handle: NativeFileHandle): Promise<void> {
   const [current, file] = await Promise.all([readNativeFileBinding(projectId), handle.getFile()]);
+  const outputMatchesSource = current?.outputHandle ? await handlesReferToSameFile(handle, current.outputHandle) : false;
   const next: NativeFileBindingRecord = {
     ...current,
     projectId,
@@ -164,6 +166,12 @@ export async function rememberNativeSourceHandle(projectId: string, handle: Nati
     sourceLastModified: file.lastModified,
     updatedAt: Date.now()
   };
+  if (outputMatchesSource) {
+    delete next.outputHandle;
+    delete next.outputName;
+    delete next.outputSize;
+    delete next.outputLastModified;
+  }
   await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
   bindingCache.set(projectId, next);
 }
@@ -197,6 +205,26 @@ async function assertExternalFileUnchanged(handle: NativeFileHandle, size?: numb
   const current = await handle.getFile();
   if (current.size !== size || current.lastModified !== lastModified) {
     throw new Error(`“${handle.name}” changed outside PDF Studio since it was linked. Reopen that file or use Save as so external changes are not overwritten.`);
+  }
+}
+
+async function handlesReferToSameFile(left: NativeFileHandle, right: NativeFileHandle): Promise<boolean> {
+  if (left === right) return true;
+  if (left.isSameEntry) {
+    try { return await left.isSameEntry(right); }
+    catch { return false; }
+  }
+  if (right.isSameEntry) {
+    try { return await right.isSameEntry(left); }
+    catch { return false; }
+  }
+  return false;
+}
+
+async function assertOutputIsNotSource(projectId: string, output: NativeFileHandle): Promise<void> {
+  const binding = await readNativeFileBinding(projectId);
+  if (binding?.sourceHandle && await handlesReferToSameFile(binding.sourceHandle, output)) {
+    throw new Error("Save as cannot replace the original PDF. Choose a different filename, or use Replace original for an intentional overwrite.");
   }
 }
 
@@ -244,16 +272,21 @@ export async function prepareNativePdfWrite(
   if (!picker) return null;
   if (mode === "save-as") {
     const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
+    await assertOutputIsNotSource(projectId, handle);
     return { handle, filename: handle.name, target: "output" };
   }
 
   const binding = await readNativeFileBinding(projectId);
   if (binding?.outputHandle) {
     if (!(await requestWritePermission(binding.outputHandle))) throw new Error("Write permission was not granted for the saved PDF.");
+    if (binding.sourceHandle && await handlesReferToSameFile(binding.sourceHandle, binding.outputHandle)) {
+      throw new Error("The current Save target is the original PDF. Use Save as to choose a separate file, or Replace original for an intentional overwrite.");
+    }
     await assertExternalFileUnchanged(binding.outputHandle, binding.outputSize, binding.outputLastModified);
     return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output" };
   }
   const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
+  await assertOutputIsNotSource(projectId, handle);
   return { handle, filename: handle.name, target: "output" };
 }
 
