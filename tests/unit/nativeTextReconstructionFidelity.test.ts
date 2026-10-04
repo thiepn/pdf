@@ -16,7 +16,8 @@ describe("P1 native text reconstruction fidelity", () => {
   it("preserves original visual-line regions for fixed-box paragraph reconstruction", () => {
     expect(workerSource).toContain("function textSourceLineRegions");
     expect(workerSource).toContain('edit.layoutMode !== "expand-flow"');
-    expect(workerSource).toContain("sourceLineRegions.map((region) => region.w)");
+    expect(workerSource).toContain("sourceLineRegions.map((region) => Math.max(region.w");
+    expect(workerSource).toContain("edit.bounds.w - Math.max(0, region.x - edit.bounds.x)");
     expect(workerSource).toContain("const sourceLayoutFits =");
     expect(workerSource).toContain("sourceRegion ? pdfRect(page, sourceRegion)");
     expect(workerSource).toContain("sourceRegion ? lineY1 - baselineSize");
