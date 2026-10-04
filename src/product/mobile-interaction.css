@@ -102,3 +102,41 @@
 
   .organizer-selection-actions__move button { width:100%; }
 }
+
+@media (pointer: coarse), (max-width: 760px) {
+  .quick-file-actions button,
+  .task-canvas__bar .button,
+  .quick-inline button,
+  .assembly-tools button,
+  .assembly-card-actions button,
+  .assembly-page-menu summary,
+  .assembly-page-menu button,
+  .organizer-toolbar button,
+  .organizer-selectionbar button,
+  .organizer-selection-actions button,
+  .quick-result > .button,
+  .quick-next .button,
+  .product-home-links button {
+    min-height:44px;
+  }
+
+  .quick-file-actions button[aria-label],
+  .assembly-card-actions button {
+    min-width:44px;
+  }
+
+  .organizer-selection-actions {
+    flex-wrap:wrap;
+  }
+
+  .organizer-selection-actions__move {
+    margin-left:auto;
+  }
+
+  .task-page,
+  .organizer-app,
+  .output-trust {
+    min-width:0;
+    max-width:100%;
+  }
+}
