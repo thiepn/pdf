@@ -281,6 +281,8 @@ export interface NativeTextEdit {
   bounds: NativeRect;
   sourceBounds?: NativeRect;
   sourceRects?: NativeRect[];
+  /** Original visual lines retained from structured-text inspection. */
+  sourceLines?: Array<{ text: string; bounds: NativeRect }>;
   fontFamily: NativeEditableFontFamily;
   fontSize: number;
   color: string;
