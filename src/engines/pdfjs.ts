@@ -9,8 +9,10 @@ export type SearchOptions = base.SearchOptions;
 export type PdfSearchResult = base.PdfSearchResult;
 export type DetailedPageInspection = base.DetailedPageInspection;
 export type DetailedPdfInspection = base.DetailedPdfInspection;
+export type DocumentEntryStructureSample = base.DocumentEntryStructureSample;
 
 export const inspectPdfBytes = base.inspectPdfBytes;
+export const inspectDocumentEntryStructure = base.inspectDocumentEntryStructure;
 export const inspectPdfAnnotationInventory = base.inspectPdfAnnotationInventory;
 export const inspectDetailedPdf = base.inspectDetailedPdf;
 export const multiplyTransforms = base.multiplyTransforms;
