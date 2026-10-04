@@ -3,7 +3,7 @@ import { findNativeReflowQueueConflict } from "../../native/nativeEditQueue";
 import { evaluateStyledTextFit, evaluateTextFit, fitsWithinSourceBaseline } from "../../native/textFit";
 import { buildPreservedEditRuns, editableFamilyForSource } from "../../native/textStyle";
 import { firstUnencodableWinAnsiCharacter } from "../../native/textEncoding";
-import { nativeTextSourceRects } from "../../native/textSourceGeometry";
+import { nativeTextSourceLines, nativeTextSourceRects } from "../../native/textSourceGeometry";
 import type { NativeEdit, NativeInspection, NativeTextEdit, NativeTextObject } from "../../types/nativeEditor";
 
 export interface NativeFindReplaceOptions {
@@ -103,6 +103,7 @@ function makeReplacementEdit(object: NativeTextObject, text: string, queued?: Na
     text,
     sourceBounds: object.bounds,
     sourceRects: nativeTextSourceRects(object),
+    sourceLines: nativeTextSourceLines(object),
     bounds: object.bounds,
     fontFamily: editableFamilyForSource(object.family, object.script),
     fontSize: Math.max(1, object.size),

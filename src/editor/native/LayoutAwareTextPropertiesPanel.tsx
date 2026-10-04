@@ -5,7 +5,7 @@ import { findNativeReflowQueueConflict } from "../../native/nativeEditQueue";
 import { buildPreservedEditRuns, editableFamilyForSource } from "../../native/textStyle";
 import { evaluateStyledTextFit, evaluateTextFit, findFittingFontSize, fitsWithinSourceBaseline } from "../../native/textFit";
 import { firstUnencodableWinAnsiCharacter } from "../../native/textEncoding";
-import { nativeTextSourceRects } from "../../native/textSourceGeometry";
+import { nativeTextSourceLines, nativeTextSourceRects } from "../../native/textSourceGeometry";
 import { MAX_IMPORTED_FONT_BYTES, validateImportedFont } from "../../native/fontValidation";
 import type {
   NativeEdit,
@@ -38,6 +38,7 @@ function textEditForFollower(source: NativeTextObject, bounds: NativeTextObject[
     text: source.text,
     sourceBounds: source.bounds,
     sourceRects: nativeTextSourceRects(source),
+    sourceLines: nativeTextSourceLines(source),
     bounds,
     fontFamily: family,
     fontSize: Math.max(1, source.size),
@@ -220,6 +221,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
       text,
       sourceBounds: object.bounds,
       sourceRects: queued?.sourceRects ?? nativeTextSourceRects(object),
+      sourceLines: queued?.sourceLines ?? nativeTextSourceLines(object),
       bounds: useFlow ? plan.primaryBounds : object.bounds,
       fontFamily,
       fontSize: Math.max(1, fontSize),
@@ -258,6 +260,7 @@ export function LayoutAwareTextPropertiesPanel({ object, page, queuedEdits, onQu
       text: "",
       sourceBounds: object.bounds,
       sourceRects: queued?.sourceRects ?? nativeTextSourceRects(object),
+      sourceLines: queued?.sourceLines ?? nativeTextSourceLines(object),
       bounds: object.bounds,
       fontFamily: sourceFamily,
       fontSize: Math.max(1, object.size),
