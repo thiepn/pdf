@@ -401,6 +401,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         {running ? <progress max="1" value={progress}/> : null}
       </header>
 
+      {skippedSearchable ? <p className="ocr-searchable-skip" role="status">{skippedSearchable} selected page{skippedSearchable === 1 ? "" : "s"} already {skippedSearchable === 1 ? "has" : "have"} substantial selectable text, so OCR was skipped there to avoid duplicate hidden text.</p> : null}
       {results.some((item) => item.status === "complete") ? <>
         <nav aria-label="OCR review pages" className="ocr-review-page-tabs">
           {results.filter((item) => item.status === "complete").map((result) => {
@@ -457,13 +458,13 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
             </section>
           </aside>
         </div> : null}
-      </> : <div className="empty-state"><strong>No OCR results yet</strong><p>Select pages and installed languages, then start recognition.</p></div>}
+      </> : skippedSearchable ? <div className="empty-state"><strong>Selected pages are already searchable</strong><p>PDF Studio did not add a second OCR text layer. You can keep the original PDF or build a checked project copy.</p></div> : <div className="empty-state"><strong>No OCR results yet</strong><p>Select pages and installed languages, then start recognition.</p></div>}
 
       {results.some((item) => item.status === "failed") ? <div className="ocr-page-errors">
         {results.filter((item) => item.status === "failed").map((item) => <p key={item.id}><strong>Page {item.pageNumber}:</strong> {item.error ?? "Recognition failed."}</p>)}
       </div> : null}
 
-      {results.some((item) => item.status === "complete") && !running && !outputIsCurrent ? <div className="ocr-build-layer">
+      {results.some((item) => item.status === "complete" || item.status === "skipped") && !running && !outputIsCurrent ? <div className="ocr-build-layer">
         <div><strong>{output ? "OCR review changed" : "Recognition is ready for review"}</strong><span>{output ? "Rebuild the searchable PDF to include the latest corrections." : "Build a searchable copy after reviewing low-confidence text."}</span></div>
         <button className="button" disabled={reviewBusy} onClick={() => void rebuildSearchableOutput()} type="button">{reviewBusy ? "Building…" : "Build searchable PDF"}</button>
       </div> : null}
