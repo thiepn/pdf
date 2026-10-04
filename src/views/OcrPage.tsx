@@ -261,6 +261,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         outputs: [{ name: `${project.name}-searchable.pdf`, bytes: outputBytes, mime: "application/pdf", password: activePasswordRef.current, pageCount: summary.pageCount }],
         warnings: layerWarnings,
         expectedPageCount: document.numPages,
+        hardValidationPassed: true,
         explicitLossNotes: layerPages.length ? ["OCR adds a positioned invisible text layer; original page artwork remains the visual source of truth."] : [],
         signal
       });
