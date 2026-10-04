@@ -66,8 +66,8 @@ describe("P3 OCR 2.0 layer model", () => {
       [{ text: "Better", confidence: 91, bbox: { x0: 5, y0: 4, x1: 55, y1: 24 } }],
       { x: 200, y: 25, width: 200, height: 100, pageWidth: 1000, pageHeight: 500 }
     );
-    expect(next.words.map((word) => word.text)).toEqual(["Alpha", "Better"]);
-    expect(next.words[1].bbox).toEqual({ x0: 205, y0: 29, x1: 255, y1: 49 });
+    expect(next.words.map((word) => word.text)).toEqual(["Better", "Alpha"]);
+    expect(next.words[0].bbox).toEqual({ x0: 205, y0: 29, x1: 255, y1: 49 });
   });
 
   it("suggests multiple installed languages from browser locales without forcing unavailable packs", () => {
