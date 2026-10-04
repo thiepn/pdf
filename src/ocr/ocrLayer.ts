@@ -67,11 +67,23 @@ export function updateOcrWord(page: OcrPageResult, index: number, value: string)
   return { ...page, words, text: words.filter((word) => !word.ignored).map(ocrWordText).filter(Boolean).join(" "), updatedAt: Date.now() };
 }
 
+export function restoreOcrWord(page: OcrPageResult, index: number): OcrPageResult {
+  const words = page.words.map((word, wordIndex) => {
+    if (wordIndex !== index) return word;
+    const restored = { ...word };
+    delete restored.correctedText;
+    delete restored.corrected;
+    delete restored.ignored;
+    return restored;
+  });
+  return { ...page, words, text: words.filter((word) => !word.ignored).map(ocrWordText).filter(Boolean).join(" "), updatedAt: Date.now() };
+}
+
 export function mergeRegionRecognition(
   page: OcrPageResult,
   region: NormalizedOcrRect,
   recognized: OcrWord[],
-  renderedRegion: { x: number; y: number; width: number; height: number }
+  renderedRegion: { x: number; y: number; width: number; height: number; pageWidth: number; pageHeight: number }
 ): OcrPageResult {
   const regionPixels = {
     x0: region.x0 * page.width,
@@ -84,13 +96,15 @@ export function mergeRegionRecognition(
     const cy = (word.bbox.y0 + word.bbox.y1) / 2;
     return cx < regionPixels.x0 || cx > regionPixels.x1 || cy < regionPixels.y0 || cy > regionPixels.y1;
   });
+  const scaleX = page.width / Math.max(1, renderedRegion.pageWidth);
+  const scaleY = page.height / Math.max(1, renderedRegion.pageHeight);
   const mapped = recognized.map((word) => ({
     ...word,
     bbox: {
-      x0: word.bbox.x0 + renderedRegion.x,
-      y0: word.bbox.y0 + renderedRegion.y,
-      x1: word.bbox.x1 + renderedRegion.x,
-      y1: word.bbox.y1 + renderedRegion.y
+      x0: (word.bbox.x0 + renderedRegion.x) * scaleX,
+      y0: (word.bbox.y0 + renderedRegion.y) * scaleY,
+      x1: (word.bbox.x1 + renderedRegion.x) * scaleX,
+      y1: (word.bbox.y1 + renderedRegion.y) * scaleY
     }
   }));
   const words = [...outside, ...mapped].sort((left, right) => left.bbox.y0 - right.bbox.y0 || left.bbox.x0 - right.bbox.x0);
