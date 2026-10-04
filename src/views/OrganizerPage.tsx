@@ -196,7 +196,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
       </header>
 
       {error ? <div className="error-banner organizer-banner"><strong>Could not complete that action</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
-      {warnings.length ? <div className="warning-banner organizer-banner"><strong>Output note</strong><span>{warnings.join(" ")}</span></div> : null}
+      {warnings.length && !outputTrust ? <div className="warning-banner organizer-banner"><strong>Output note</strong><span>{warnings.join(" ")}</span></div> : null}
       {outputTrust ? <div className="organizer-banner"><OutputTrustPanel compact report={outputTrust} /></div> : null}
 
       <section className="organizer-selectionbar organizer-selectionbar--r3">
