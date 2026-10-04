@@ -288,7 +288,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       try {
         await runProjectOperation(project.id, { label: "Saving searchable PDF", cancellable: false, reserveBytes: project.byteLength }, async ({ update }) => {
           update({ stage: "committing", detail: "Checking local storage and saving as a new project…", progress: 0.4 });
-          const created = await createDerivedProjectFromBytes(project.id, output, `${project.name}-searchable.pdf`, "ocr-searchable");
+          const created = await createDerivedProjectFromBytes(project.id, output, `${project.name}-searchable.pdf`, "ocr-searchable", "application/pdf", activePasswordRef.current);
           if (job) { const updated = { ...job, outputProjectId: created.id, updatedAt: Date.now() }; setJob(updated); await writeOcrJob(updated); }
           update({ progress: 1 });
           window.location.hash = routeHref(destination === "editor" ? { name: "workspace", projectId: created.id, mode: "editor" } : { name: "viewer", projectId: created.id }).slice(1);
