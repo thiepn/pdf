@@ -388,11 +388,13 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
     && sameRect(edit.bounds, edit.sourceBounds ?? edit.bounds)
     ? textSourceLineRegions(edit)
     : [];
-  const sourceLineWidths = sourceLineRegions.length > 1 ? sourceLineRegions.map((region) => region.w) : [];
+  const sourceLineWidths = sourceLineRegions.length > 1
+    ? sourceLineRegions.map((region) => Math.max(region.w, edit.bounds.w - Math.max(0, region.x - edit.bounds.x)))
+    : [];
   const sourceLines = sourceLineWidths.length ? wrapStyled(prepared.chars, sourceLineWidths, true) : [];
   const sourceLayoutFits = sourceLineWidths.length > 0
     && sourceLines.length <= sourceLineRegions.length
-    && sourceLines.every((line, index) => line.width <= Math.max(1, sourceLineRegions[index].w - 3) + 0.01);
+    && sourceLines.every((line, index) => line.width <= Math.max(1, sourceLineWidths[index] - 3) + 0.01);
   const lines = sourceLayoutFits ? sourceLines : wrapStyled(prepared.chars, width, Boolean(edit.wrap));
   const lineHeight = Math.max(prepared.maxSize, Number(edit.lineHeight) || prepared.maxSize * 1.2);
   const requiredHeight = lines.length * lineHeight;
@@ -405,7 +407,9 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
   }
   lines.forEach((line, index) => {
     const sourceRegion = sourceLayoutFits ? sourceLineRegions[index] : undefined;
-    const [lineX0, _lineY0, lineX1, lineY1] = sourceRegion ? pdfRect(page, sourceRegion) : [x0, y0, x1, y1];
+    const [sourceX0, _lineY0, sourceX1, lineY1] = sourceRegion ? pdfRect(page, sourceRegion) : [x0, y0, x1, y1];
+    const lineX0 = sourceRegion ? Math.max(x0, sourceX0) : x0;
+    const lineX1 = sourceRegion ? Math.max(sourceX1, x1) : x1;
     const lineWidth = lineX1 - lineX0;
     const startX = edit.align === "center" ? lineX0 + Math.max(0, (lineWidth - line.width) / 2) : edit.align === "right" ? Math.max(lineX0, lineX1 - line.width) : lineX0 + 1.5;
     const baselineSize = Math.max(prepared.maxSize, ...line.chars.map((item) => item.style.fontSize));
