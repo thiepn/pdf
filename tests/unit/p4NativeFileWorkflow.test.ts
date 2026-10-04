@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { safeNativeBackupName, safeNativePdfName } from "../../src/files/nativeFileWorkflow";
+import { safeNativeBackupName, safeNativePdfName, supportsNativeDirectoryBackup, supportsNativeFileOpen, supportsNativeFileSave } from "../../src/files/nativeFileWorkflow";
 import editorSource from "../../src/views/EditorPage.tsx?raw";
 import homeSource from "../../src/views/HomePage.tsx?raw";
 import projectTypesSource from "../../src/types/project.ts?raw";
 import databaseSource from "../../src/storage/database.ts?raw";
+import nativeWorkflowSource from "../../src/files/nativeFileWorkflow.ts?raw";
 
 describe("P4 native file workflow", () => {
   it("normalizes PDF and project backup filenames without path separators", () => {
@@ -26,11 +27,39 @@ describe("P4 native file workflow", () => {
     expect(exportBody.indexOf("prepareNativePdfWrite")).toBeLessThan(exportBody.indexOf("runProjectOperation(project.id"));
   });
 
-  it("persists opaque handles outside the project/package schema", () => {
+  it("persists opaque handles outside the frozen project/package schema", () => {
     expect(projectTypesSource).not.toContain("FileSystemFileHandle");
     expect(projectTypesSource).not.toContain("NativeFileHandle");
-    expect(databaseSource).toContain('"nativeFileBindings"');
-    expect(databaseSource).toContain("DB_VERSION = 14");
+    expect(databaseSource).not.toContain('"nativeFileBindings"');
+    expect(databaseSource).toContain("DB_VERSION = 13");
+    expect(nativeWorkflowSource).toContain('NATIVE_FILE_DB_NAME = "local-pdf-studio-native-files"');
+    expect(nativeWorkflowSource).toContain("NATIVE_FILE_DB_VERSION = 1");
+  });
+
+  it("detects native picker capabilities progressively", () => {
+    const host = window as unknown as Record<string, unknown>;
+    const keys = ["showOpenFilePicker", "showSaveFilePicker", "showDirectoryPicker"] as const;
+    const previous = keys.map((key) => [key, host[key]] as const);
+    try {
+      for (const key of keys) host[key] = () => Promise.resolve([]);
+      expect(supportsNativeFileOpen()).toBe(true);
+      expect(supportsNativeFileSave()).toBe(true);
+      expect(supportsNativeDirectoryBackup()).toBe(true);
+      for (const key of keys) delete host[key];
+      expect(supportsNativeFileOpen()).toBe(false);
+      expect(supportsNativeFileSave()).toBe(false);
+      expect(supportsNativeDirectoryBackup()).toBe(false);
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete host[key];
+        else host[key] = value;
+      }
+    }
+  });
+
+  it("guards against Save targeting the linked original", () => {
+    expect(nativeWorkflowSource).toContain("isSameEntry");
+    expect(nativeWorkflowSource).toContain("Save as cannot replace the original PDF");
   });
 
   it("keeps automatic backup permission-prompt free after save", () => {
