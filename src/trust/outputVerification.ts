@@ -96,7 +96,7 @@ function samplePageNumbers(pageCount: number): number[] {
 async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
   signal?.throwIfAborted();
   let inspectionPassword: string | undefined;
-  let summary;
+  let summary: Awaited<ReturnType<typeof inspectPdfBytes>>;
   try {
     summary = await inspectPdfBytes(artifact.bytes);
   } catch (reason) {
