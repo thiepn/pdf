@@ -257,7 +257,32 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     }
   }
 
-  async function saveOutput(asProject: boolean) {
+  async function rebuildSearchableOutput(): Promise<void> {
+    if (!project || !document || !sourceBytesRef.current || reviewBusy) return;
+    const completePages = results.filter((item) => item.status === "complete");
+    const layerPages = buildOcrLayerPages(completePages);
+    if (!layerPages.length) { setError("No recognized text is available to add to the PDF."); return; }
+    setReviewBusy(true); setError(null);
+    try {
+      await runProjectOperation(project.id, { label: "Building searchable PDF", cancellable: true }, async ({ signal, update }) => {
+        setStatus("Adding reviewed OCR text to the original PDF…");
+        update({ detail: "Keeping original pages and adding an invisible positioned text layer…", progress: .25 });
+        const layered = await applyOcrTextLayer(sourceBytesRef.current!, layerPages, activePasswordRef.current, signal);
+        update({ stage: "validating", detail: "Checking source-preserving OCR output…", progress: .82 });
+        const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
+        if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
+        setOutput(layered.bytes);
+        setOutputFingerprint(ocrResultsFingerprint(completePages));
+        setStatus(layered.warnings.length ? "Searchable PDF ready · some unsupported-script words were omitted" : "Searchable PDF ready · original page visuals preserved");
+        update({ progress: 1 });
+      });
+    } catch (reason) {
+      if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason));
+      setStatus("Searchable output needs rebuilding");
+    } finally { setReviewBusy(false); }
+  }
+
+  async function saveOutput(asProject: boolean, destination: "viewer" | "editor" = "viewer") {
     if (!output || !project || !outputIsCurrent) return;
     if (asProject) {
       try {
@@ -266,7 +291,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
           const created = await createDerivedProjectFromBytes(project.id, output, `${project.name}-searchable.pdf`, "ocr-searchable");
           if (job) { const updated = { ...job, outputProjectId: created.id, updatedAt: Date.now() }; setJob(updated); await writeOcrJob(updated); }
           update({ progress: 1 });
-          window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
+          window.location.hash = routeHref(destination === "editor" ? { name: "workspace", projectId: created.id, mode: "editor" } : { name: "viewer", projectId: created.id }).slice(1);
         });
       } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), `${project.name}-searchable.pdf`);
