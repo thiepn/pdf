@@ -1,5 +1,3 @@
-import { idbDelete, idbGet, idbPut } from "../storage/database";
-
 export type NativePermissionState = "granted" | "denied" | "prompt";
 
 export interface NativeWritableFileStream {
@@ -87,7 +85,66 @@ export interface PreparedNativePdfWrite {
 }
 
 const PDF_TYPE = [{ description: "PDF document", accept: { "application/pdf": [".pdf"] } }];
+const NATIVE_FILE_DB_NAME = "local-pdf-studio-native-files";
+const NATIVE_FILE_DB_VERSION = 1;
+const NATIVE_FILE_STORE = "bindings";
 const bindingCache = new Map<string, NativeFileBindingRecord | null>();
+
+function openNativeFileDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NATIVE_FILE_DB_NAME, NATIVE_FILE_DB_VERSION);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(NATIVE_FILE_STORE)) {
+        request.result.createObjectStore(NATIVE_FILE_STORE, { keyPath: "projectId" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Native file binding storage could not be opened."));
+  });
+}
+
+async function getStoredNativeFileBinding(projectId: string): Promise<NativeFileBindingRecord | undefined> {
+  const database = await openNativeFileDatabase();
+  try {
+    return await new Promise<NativeFileBindingRecord | undefined>((resolve, reject) => {
+      const request = database.transaction(NATIVE_FILE_STORE, "readonly").objectStore(NATIVE_FILE_STORE).get(projectId);
+      request.onsuccess = () => resolve(request.result as NativeFileBindingRecord | undefined);
+      request.onerror = () => reject(request.error ?? new Error("Native file binding could not be read."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+async function putStoredNativeFileBinding(binding: NativeFileBindingRecord): Promise<void> {
+  const database = await openNativeFileDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(NATIVE_FILE_STORE, "readwrite");
+      transaction.objectStore(NATIVE_FILE_STORE).put(binding);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Native file binding could not be saved."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Native file binding save was aborted."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+async function deleteStoredNativeFileBinding(projectId: string): Promise<void> {
+  const database = await openNativeFileDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(NATIVE_FILE_STORE, "readwrite");
+      transaction.objectStore(NATIVE_FILE_STORE).delete(projectId);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Native file binding could not be deleted."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Native file binding deletion was aborted."));
+    });
+  } finally {
+    database.close();
+  }
+}
 
 function pickerWindow(): NativePickerWindow {
   return window as NativePickerWindow;
@@ -132,7 +189,7 @@ export async function openNativePdf(): Promise<NativeOpenResult | null> {
 
 export async function readNativeFileBinding(projectId: string): Promise<NativeFileBindingRecord | undefined> {
   if (bindingCache.has(projectId)) return bindingCache.get(projectId) ?? undefined;
-  const binding = await idbGet<NativeFileBindingRecord>("nativeFileBindings", projectId);
+  const binding = await getStoredNativeFileBinding(projectId);
   bindingCache.set(projectId, binding ?? null);
   return binding;
 }
@@ -172,12 +229,12 @@ export async function rememberNativeSourceHandle(projectId: string, handle: Nati
     delete next.outputSize;
     delete next.outputLastModified;
   }
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  await putStoredNativeFileBinding(next);
   bindingCache.set(projectId, next);
 }
 
 export async function clearNativeFileBinding(projectId: string): Promise<void> {
-  await idbDelete("nativeFileBindings", projectId);
+  await deleteStoredNativeFileBinding(projectId);
   bindingCache.delete(projectId);
 }
 
@@ -250,7 +307,7 @@ async function rememberOutput(projectId: string, handle: NativeFileHandle, saved
     lastPdfSavedAt: savedAt,
     updatedAt: savedAt
   };
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  await putStoredNativeFileBinding(next);
   bindingCache.set(projectId, next);
 }
 
@@ -310,7 +367,7 @@ export async function commitPreparedNativePdfWrite(
       lastPdfSavedAt: savedAt,
       updatedAt: savedAt
     };
-    await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+    await putStoredNativeFileBinding(next);
     bindingCache.set(projectId, next);
   }
   return { filename: prepared.filename, target: prepared.target, savedAt };
@@ -344,7 +401,7 @@ export async function chooseExternalBackupDirectory(projectId: string): Promise<
     backupDirectoryHandle: handle,
     updatedAt: Date.now()
   };
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  await putStoredNativeFileBinding(next);
   bindingCache.set(projectId, next);
   return readNativeFileStatus(projectId);
 }
@@ -380,7 +437,7 @@ export async function writeExternalProjectBackup(
     lastBackupAt: now,
     updatedAt: now
   };
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  await putStoredNativeFileBinding(next);
   bindingCache.set(projectId, next);
   return true;
 }
