@@ -1009,7 +1009,6 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         hardValidationPassed: true,
         signal
       });
-      setOutputTrust(trust);
       if (saveProject) {
         update({ stage: "committing", detail: "Saving edited PDF as a new project…", progress: 0.94 });
         const created = await createDerivedProjectFromBytes(project.id, result.bytes, filename, "unified-editor", "application/pdf", passwordRef.current);
@@ -1047,6 +1046,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         setCleanHistoryContentId(exportedContentId);
         setHistory((current) => sealHistoryMergeBoundary(current));
         setEditorState((current) => ({ ...current, dirty: false, lastSavedAt: savedAt, updatedAt: savedAt }));
+        setOutputTrust(trust);
 
         if (target !== "download") await refreshNativeFileStatus();
         try {
