@@ -297,14 +297,30 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     } else downloadBlob(new Blob([toOwnedArrayBuffer(output)], { type: "application/pdf" }), `${project.name}-searchable.pdf`);
   }
 
-  return <div className="ocr-workspace">
+  return <div className="ocr-workspace ocr-workspace--review">
     <aside className="ocr-controls">
-      <section><p className="eyebrow">Local OCR</p><h2>Make scans searchable</h2><p>Recognition happens on this device. Completed pages are saved locally so you can resume after an interruption.</p></section>
+      <section>
+        <p className="eyebrow">Local OCR</p>
+        <h2>Make scans searchable and correct the text</h2>
+        <p>Recognition runs on this device. PDF Studio keeps the original PDF pages and adds a positioned invisible text layer only after you review the result.</p>
+      </section>
       {error ? <div className="error-banner" role="alert"><strong>OCR issue</strong><span>{error}</span></div> : null}
-      {passwordRequired ? <section className="password-panel"><input autoFocus autoComplete="off" onChange={(event) => setPassword(event.target.value)} aria-label="PDF password" placeholder="PDF password" type="password" value={password}/><button className="button" disabled={!password || !project} onClick={() => project && void loadProjectBytes(project).then((bytes) => openDocument(project, bytes, password))} type="button">Open PDF</button></section> : null}
-      <label className="field-label">Pages<input disabled={running} onChange={(event) => setPageExpression(event.target.value)} placeholder="all, 1-5, odd" value={pageExpression}/><small>{parsedPages.errors[0] ?? `${parsedPages.pageArray.length} page(s) selected · Examples: all · 1-5 · odd`}</small><small>Only selected pages appear in the output. Unselected pages are not included.</small></label>
+      {passwordRequired ? <section className="password-panel">
+        <input autoFocus autoComplete="off" onChange={(event) => setPassword(event.target.value)} aria-label="PDF password" placeholder="PDF password" type="password" value={password}/>
+        <button className="button" disabled={!password || !project} onClick={() => project && void loadProjectBytes(project).then((bytes) => openDocument(project, bytes, password))} type="button">Open PDF</button>
+      </section> : null}
+      <label className="field-label">Pages
+        <input disabled={running} onChange={(event) => setPageExpression(event.target.value)} placeholder="all, 1-5, odd" value={pageExpression}/>
+        <small>{parsedPages.errors[0] ?? `${parsedPages.pageArray.length} page(s) selected · Examples: all · 1-5 · odd`}</small>
+        <small>Only selected pages are recognized. Every original PDF page remains in the searchable output.</small>
+      </label>
       <div className="setting-grid">
-        <label>Recognition quality<select disabled={running} onChange={(event) => setPreprocess({ ...preprocess, scale: Number(event.target.value) })} value={preprocess.scale}><option value="1.5">Fast</option><option value="2">Balanced (recommended)</option><option value="3">Best recognition</option></select><small>Higher quality can recognize small text better but takes longer.</small></label>
+        <label>Recognition quality
+          <select disabled={running} onChange={(event) => setPreprocess({ ...preprocess, scale: Number(event.target.value) })} value={preprocess.scale}>
+            <option value="1.5">Fast</option><option value="2">Balanced (recommended)</option><option value="3">Best recognition</option>
+          </select>
+          <small>Higher quality can recognize small text better but takes longer.</small>
+        </label>
       </div>
       <details className="ocr-advanced-settings"><summary>Advanced image cleanup</summary><div className="setting-grid">
         <label>Contrast<input disabled={running} max="2" min="0.5" onChange={(event) => setPreprocess({ ...preprocess, contrast: Number(event.target.value) })} step="0.05" type="range" value={preprocess.contrast}/><small>Increase when text is faint; reduce if dark areas merge together.</small></label>
@@ -312,13 +328,96 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         <label><input checked={preprocess.invert} disabled={running} onChange={(event) => setPreprocess({ ...preprocess, invert: event.target.checked })} type="checkbox"/> Invert light/dark colors before recognition</label>
       </div></details>
       <OcrLanguagePanel disabled={running} onChange={setLanguages} selected={languages}/>
-      <div className="ocr-actions"><button className="button" disabled={!document || running || !languages.length} onClick={() => void run()} type="button">{job?.status === "complete" ? "Run OCR again" : job?.status === "paused" || completed ? "Resume OCR" : "Start OCR"}</button>{running ? <button className="button button--secondary" onClick={() => { abortRef.current = true; void sessionRef.current?.terminate(); }} type="button">Pause</button> : null}{job ? <button className="button button--ghost" disabled={running} onClick={() => void deleteOcrJob(job.id).then(() => { setJob(null); setResults([]); setOutput(null); setStatus("Ready"); })} type="button">Discard progress</button> : null}</div>
+      <div className="ocr-actions">
+        <button className="button" disabled={!document || running || !languages.length} onClick={() => void run()} type="button">{job?.status === "complete" ? "Run OCR again" : job?.status === "paused" || completed ? "Resume OCR" : "Start OCR"}</button>
+        {running ? <button className="button button--secondary" onClick={() => { abortRef.current = true; void sessionRef.current?.terminate(); }} type="button">Pause</button> : null}
+        {job ? <button className="button button--ghost" disabled={running || reviewBusy} onClick={() => void deleteOcrJob(job.id).then(() => {
+          setJob(null); setResults([]); setOutput(null); setOutputFingerprint(null); setReviewPageNumber(null); setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null); setStatus("Ready");
+        })} type="button">Discard progress</button> : null}
+      </div>
     </aside>
     <main className="ocr-results">
-      <header className="processing-header"><div><strong>{status}</strong><span>{completed}/{job?.totalPages ?? parsedPages.pageArray.length} pages complete</span></div>{running ? <progress max="1" value={progress}/> : null}</header>
-      <div className="ocr-page-list">{results.length ? results.map((result) => <article className={`ocr-page-result ocr-page-result--${result.status}`} key={result.id}><div><strong>Page {result.pageNumber}</strong><span>{result.status}</span></div><div><span>{result.words.length} words</span></div><details><summary>Recognition details</summary><small>Confidence {Math.round(result.confidence)}%</small></details><p>{result.error ?? (result.text.slice(0, 240) || "No text recognized.")}</p>{result.text.length > 240 ? <details><summary>Show all recognized text</summary><pre className="ocr-full-text">{result.text}</pre></details> : null}</article>) : <div className="empty-state"><strong>No OCR results yet</strong><p>Select pages and installed languages, then start recognition.</p></div>}</div>
-      {output && !outputIsCurrent ? <p role="status">Settings changed. Run OCR again to create a result using these settings.</p> : null}
-      {outputIsCurrent && output ? <footer className="output-bar"><div><strong>Searchable PDF checked and ready</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB</span></div><button className="button" onClick={() => void saveOutput(false)} type="button">Download searchable PDF</button><button className="button button--secondary" onClick={() => downloadBlob(new Blob([results.filter((item) => item.status === "complete").map((item) => `Page ${item.pageNumber}\n${item.text}`).join("\n\n")], { type: "text/plain;charset=utf-8" }), `${project?.name ?? "document"}-recognized.txt`)} type="button">Download text</button><button className="button button--secondary" onClick={() => void saveOutput(true)} type="button">Save project copy</button></footer> : null}
+      <header className="processing-header">
+        <div><strong>{status}</strong><span>{completed}/{job?.totalPages ?? parsedPages.pageArray.length} pages complete</span></div>
+        {running ? <progress max="1" value={progress}/> : null}
+      </header>
+
+      {results.some((item) => item.status === "complete") ? <>
+        <nav aria-label="OCR review pages" className="ocr-review-page-tabs">
+          {results.filter((item) => item.status === "complete").map((result) => {
+            const lows = result.words.filter((word) => !word.ignored && ocrConfidenceBand(word.confidence) === "low").length;
+            return <button aria-current={reviewPageNumber === result.pageNumber ? "page" : undefined} className={reviewPageNumber === result.pageNumber ? "active" : ""} key={result.id} onClick={() => {
+              setReviewPageNumber(result.pageNumber); setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null);
+            }} type="button">
+              <strong>Page {result.pageNumber}</strong><span>{result.words.length} words{lows ? ` · ${lows} low confidence` : ""}</span>
+            </button>;
+          })}
+        </nav>
+
+        {reviewResult && document ? <div className="ocr-review-layout">
+          <OcrReviewCanvas
+            document={document}
+            onRegionChange={setReviewRegion}
+            onSelectWord={(index) => {
+              setSelectedWord(index);
+              setCorrectionDraft(ocrWordText(reviewResult.words[index]));
+            }}
+            region={reviewRegion}
+            result={reviewResult}
+            selectedWord={selectedWord}
+          />
+          <aside className="ocr-review-properties">
+            <div className="section-heading"><div><p className="eyebrow">Review page {reviewResult.pageNumber}</p><h3>Recognized text</h3></div><span>{Math.round(reviewResult.confidence)}%</span></div>
+            <div className="ocr-review-metrics">
+              <span><strong>{reviewResult.words.length}</strong> words</span>
+              <span><strong>{lowConfidenceCount}</strong> low confidence</span>
+              <span><strong>{reviewResult.words.filter((word) => word.corrected).length}</strong> corrected</span>
+            </div>
+            <p className="muted-copy">Red boxes need the most attention. Yellow boxes are worth reviewing. Corrections change only the searchable text layer; the scanned page image stays untouched.</p>
+
+            {selectedReviewWord ? <section className="ocr-word-editor">
+              <p className="eyebrow">Selected word · {Math.round(selectedReviewWord.confidence)}% confidence</p>
+              <label>Recognized text
+                <input aria-label="Correct recognized word" onChange={(event) => setCorrectionDraft(event.target.value)} value={correctionDraft}/>
+              </label>
+              {selectedReviewWord.corrected ? <small>Original OCR: {selectedReviewWord.text}</small> : null}
+              <div>
+                <button className="button button--small" disabled={reviewBusy} onClick={() => void saveWordCorrection()} type="button">Save correction</button>
+                <button className="button button--small button--secondary" disabled={reviewBusy} onClick={() => void persistReviewedPage(updateOcrWord(reviewResult, selectedWord!, ""), "OCR word excluded · rebuild the searchable PDF when review is complete").then(() => setCorrectionDraft(""))} type="button">Exclude word</button>
+                {selectedReviewWord.corrected || selectedReviewWord.ignored ? <button className="button button--small button--ghost" disabled={reviewBusy} onClick={() => void restoreSelectedWord()} type="button">Restore OCR</button> : null}
+              </div>
+            </section> : <div className="ocr-review-empty"><strong>Select a word</strong><span>Click a recognition box on the page to correct or exclude it.</span></div>}
+
+            <section className="ocr-region-review">
+              <p className="eyebrow">Region OCR</p>
+              <p>{reviewRegion ? "Selected region is ready for recognition." : "Drag across a difficult area on the page to recognize only that region again."}</p>
+              <div>
+                <button className="button button--small button--secondary" disabled={!reviewRegion || reviewBusy || running || !languages.length} onClick={() => void recognizeReviewRegion()} type="button">{reviewBusy ? "Working…" : "Re-recognize region"}</button>
+                {reviewRegion ? <button className="button button--small button--ghost" disabled={reviewBusy} onClick={() => setReviewRegion(null)} type="button">Clear region</button> : null}
+              </div>
+            </section>
+          </aside>
+        </div> : null}
+      </> : <div className="empty-state"><strong>No OCR results yet</strong><p>Select pages and installed languages, then start recognition.</p></div>}
+
+      {results.some((item) => item.status === "failed") ? <div className="ocr-page-errors">
+        {results.filter((item) => item.status === "failed").map((item) => <p key={item.id}><strong>Page {item.pageNumber}:</strong> {item.error ?? "Recognition failed."}</p>)}
+      </div> : null}
+
+      {results.some((item) => item.status === "complete") && !running && !outputIsCurrent ? <div className="ocr-build-layer">
+        <div><strong>{output ? "OCR review changed" : "Recognition is ready for review"}</strong><span>{output ? "Rebuild the searchable PDF to include the latest corrections." : "Build a searchable copy after reviewing low-confidence text."}</span></div>
+        <button className="button" disabled={reviewBusy} onClick={() => void rebuildSearchableOutput()} type="button">{reviewBusy ? "Building…" : "Build searchable PDF"}</button>
+      </div> : null}
+
+      {outputIsCurrent && output ? <footer className="output-bar">
+        <div><strong>Source-preserving searchable PDF checked and ready</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB · original pages retained</span></div>
+        <button className="button" onClick={() => void saveOutput(false)} type="button">Download searchable PDF</button>
+        <button className="button button--secondary" onClick={() => downloadBlob(new Blob([
+          results.filter((item) => item.status === "complete").map((item) => `Page ${item.pageNumber}\n${item.words.filter((word) => !word.ignored).map(ocrWordText).filter(Boolean).join(" ")}`).join("\n\n")
+        ], { type: "text/plain;charset=utf-8" }), `${project?.name ?? "document"}-recognized.txt`)} type="button">Download text</button>
+        <button className="button button--secondary" onClick={() => void saveOutput(true, "viewer")} type="button">Save project copy</button>
+        <button className="button button--secondary" onClick={() => void saveOutput(true, "editor")} type="button">Continue in Edit</button>
+      </footer> : null}
     </main>
   </div>;
 }
