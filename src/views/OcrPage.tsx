@@ -109,6 +109,9 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const currentRecipe = buildOcrRecipeFingerprint({ pageNumbers: parsedPages.pageArray, languages, preprocess });
   const currentResultsFingerprint = ocrResultsFingerprint(results);
   const outputIsCurrent = Boolean(output && job?.recipeFingerprint === currentRecipe && outputFingerprint === currentResultsFingerprint);
+  const reviewResult = useMemo(() => results.find((item) => item.pageNumber === reviewPageNumber && item.status === "complete") ?? null, [results, reviewPageNumber]);
+  const selectedReviewWord = reviewResult && selectedWord !== null ? reviewResult.words[selectedWord] : undefined;
+  const lowConfidenceCount = reviewResult?.words.filter((word) => !word.ignored && ocrConfidenceBand(word.confidence) === "low").length ?? 0;
   useEffect(() => {
     if (!running && !outputIsCurrent) return;
     return registerPreparedDocumentSnapshot(projectId, async (signal) => {
