@@ -67,6 +67,7 @@ interface PdfTrustSnapshot {
 
 const PDF = "application/pdf";
 const PAGE_SAMPLE_LIMIT = 12;
+const FILE_SAMPLE_LIMIT = 6;
 
 const pageChangingOperations = new Set([
   "merge-pdfs", "organize-pages", "split-pdf", "extract-pages", "remove-pages", "images-to-pdf"
@@ -91,6 +92,15 @@ function samplePageNumbers(pageCount: number): number[] {
     pages.add(Math.max(1, Math.min(pageCount, Math.round(1 + index * (pageCount - 1) / (PAGE_SAMPLE_LIMIT - 1)))));
   }
   return [...pages].sort((left, right) => left - right);
+}
+
+function sampleArtifacts<T>(items: T[], limit = FILE_SAMPLE_LIMIT): T[] {
+  if (items.length <= limit) return items;
+  const indexes = new Set<number>([0, items.length - 1]);
+  for (let index = 1; index < limit - 1; index += 1) {
+    indexes.add(Math.max(0, Math.min(items.length - 1, Math.round(index * (items.length - 1) / (limit - 1)))));
+  }
+  return [...indexes].sort((left, right) => left - right).map((index) => items[index]);
 }
 
 async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
@@ -245,9 +255,11 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
   const outputBytes = sum(options.outputs, (item) => item.bytes.byteLength);
   const sourcePdfArtifacts = options.sources.filter((item) => item.mime === PDF);
   const outputPdfArtifacts = options.outputs.filter((item) => item.mime === PDF);
+  const sampledSourceArtifacts = sampleArtifacts(sourcePdfArtifacts);
+  const sampledOutputArtifacts = sampleArtifacts(outputPdfArtifacts);
   const [sourceResults, outputResults] = await Promise.all([
-    Promise.allSettled(sourcePdfArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal))),
-    Promise.allSettled(outputPdfArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal)))
+    Promise.allSettled(sampledSourceArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal))),
+    Promise.allSettled(sampledOutputArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal)))
   ]);
   const sourcePdf = sourceResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
   const outputPdf = outputResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
@@ -262,13 +274,21 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
       : { label: "Blocking validation", outcome: "warning", detail: "The caller did not confirm its hard validation gate." }
   ];
   const notes = [...new Set([...(options.warnings ?? []), ...(options.explicitLossNotes ?? []), ...operationLossNotes(options.operationId, options.rasterized === true)])];
+  if (sourcePdfArtifacts.length > sampledSourceArtifacts.length) notes.push(`Detailed source structure was sampled from ${sampledSourceArtifacts.length} of ${sourcePdfArtifacts.length} PDF files; every source still contributes to size/page totals where known.`);
+  if (outputPdfArtifacts.length > sampledOutputArtifacts.length) notes.push(`Detailed output structure was sampled from ${sampledOutputArtifacts.length} of ${outputPdfArtifacts.length} PDF files; every output still passed the workflow's hard validation gate.`);
   if (sourceResults.some((result) => result.status === "rejected")) notes.push("Some source structure could not be inspected, so preservation comparisons are limited to evidence that was available.");
-  if (outputResults.some((result) => result.status === "rejected")) notes.push("Some detailed output structure could not be inspected after the output reopened. The affected checks are marked as not checked.");
+  if (outputResults.some((result) => result.status === "rejected")) notes.push("Some detailed output structure could not be inspected after the output passed hard validation. The affected checks are marked as not checked.");
 
   if (outputPdf.length) {
-    const beforePages = sum(sourcePdf, (item) => item.pageCount);
-    const afterPages = sum(outputPdf, (item) => item.pageCount);
-    facts.push({ label: "Pages", value: sourcePdf.length ? `${beforePages} → ${afterPages}` : String(afterPages) });
+    const knownSourcePages = sourcePdfArtifacts.every((item) => Number.isInteger(item.pageCount))
+      ? sum(sourcePdfArtifacts, (item) => item.pageCount ?? 0)
+      : undefined;
+    const knownOutputPages = outputPdfArtifacts.every((item) => Number.isInteger(item.pageCount))
+      ? sum(outputPdfArtifacts, (item) => item.pageCount ?? 0)
+      : undefined;
+    const beforePages = knownSourcePages ?? sum(sourcePdf, (item) => item.pageCount);
+    const afterPages = knownOutputPages ?? sum(outputPdf, (item) => item.pageCount);
+    facts.push({ label: "Pages", value: sourcePdfArtifacts.length ? `${beforePages} → ${afterPages}` : String(afterPages) });
     const outputTextChecked = outputPdf.every((item) => item.textChecked);
     facts.push({
       label: "Searchable text",
@@ -277,7 +297,13 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
         ? outputPdf.some((item) => item.pageCount > item.sampledPages) ? "Representative pages were sampled for text; page count and document structure were checked separately." : "Every output page was checked for searchable text."
         : "At least one output could not complete the text-layer sample."
     });
-    checks.push({ label: "Output opens", outcome: outputPdf.length === outputPdfArtifacts.length ? "passed" : "not-checked", detail: outputPdf.length === outputPdfArtifacts.length ? `All ${outputPdf.length} output PDF${outputPdf.length === 1 ? "" : "s"} reopened successfully after processing.` : "The operation reopened its output before publication, but detailed P5 inspection was incomplete for at least one file." });
+    checks.push({
+      label: "Output opens",
+      outcome: options.hardValidationPassed ? "passed" : "warning",
+      detail: options.hardValidationPassed
+        ? `All ${outputPdfArtifacts.length} output PDF${outputPdfArtifacts.length === 1 ? "" : "s"} passed the workflow's reopen/validation gate; P5 inspected ${outputPdf.length} representative file${outputPdf.length === 1 ? "" : "s"} in detail.`
+        : "The workflow did not confirm its output reopen/validation gate."
+    });
 
     if (options.expectedPageCount !== undefined) {
       checks.push({
@@ -305,7 +331,7 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
       const outputPages = sum(outputPdf, (item) => item.pageCount);
       const pageScopeChanged = pageChangingOperations.has(options.operationId) || sourcePdf.length !== outputPdf.length || sourcePages !== outputPages;
       const textExpected = !options.rasterized && !["flatten-pdf"].includes(options.operationId);
-      const textFullyChecked = sourcePdf.every((item) => item.textChecked) && outputPdf.every((item) => item.textChecked) && sourcePdf.length === sourcePdfArtifacts.length && outputPdf.length === outputPdfArtifacts.length;
+      const textFullyChecked = sourcePdf.every((item) => item.textChecked) && outputPdf.every((item) => item.textChecked) && sourcePdf.length === sampledSourceArtifacts.length && outputPdf.length === sampledOutputArtifacts.length;
       checks.push(textFullyChecked ? {
         label: "Searchable text",
         outcome: sourceTextPages > 0 && outputTextPages === 0 ? (textExpected ? "warning" : "changed") : outputTextPages >= Math.min(sourceTextPages, outputSampled) ? "passed" : "changed",
@@ -315,7 +341,7 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
       const sourceLinks = sum(sourcePdf, (item) => item.sampledLinkCount);
       const outputLinks = sum(outputPdf, (item) => item.sampledLinkCount);
       const linksExpected = !options.rasterized && !["flatten-pdf"].includes(options.operationId);
-      const annotationsFullyChecked = sourcePdf.every((item) => item.annotationsChecked) && outputPdf.every((item) => item.annotationsChecked) && sourcePdf.length === sourcePdfArtifacts.length && outputPdf.length === outputPdfArtifacts.length;
+      const annotationsFullyChecked = sourcePdf.every((item) => item.annotationsChecked) && outputPdf.every((item) => item.annotationsChecked) && sourcePdf.length === sampledSourceArtifacts.length && outputPdf.length === sampledOutputArtifacts.length;
       checks.push(annotationsFullyChecked
         ? comparisonCheck("Links", sourceLinks, outputLinks, "links on sampled pages", linksExpected && !pageScopeChanged)
         : { label: "Links", outcome: "not-checked", detail: "Link/annotation sampling did not complete for every compared PDF." });
