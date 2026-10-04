@@ -4,7 +4,7 @@ export type AppReleaseChannel = "release-candidate" | "stable";
 export const APP_CHANNEL: AppReleaseChannel = import.meta.env.VITE_RELEASE_CHANNEL === "stable" ? "stable" : "release-candidate";
 export const PROJECT_PACKAGE_VERSION = 9;
 export const SUPPORTED_PROJECT_PACKAGE_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-export const DATABASE_SCHEMA_VERSION = 13;
+export const DATABASE_SCHEMA_VERSION = 14;
 export const BUILD_SOURCE_URL = import.meta.env.VITE_SOURCE_URL ?? "";
 export const BUILD_BASE_PATH = import.meta.env.BASE_URL ?? "/";
 export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP ?? "development";
