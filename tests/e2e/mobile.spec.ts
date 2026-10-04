@@ -234,7 +234,9 @@ test("compact editor never leaves an empty properties drawer over the canvas", a
 
 test("phone page organizer can reorder without drag and keeps touch controls reachable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openSample(page, "viewer");
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/generated/plain-text.pdf");
+  await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
   await switchMode(page, "organizer");
 
   const cards = page.locator(".organizer-page");
