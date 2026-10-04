@@ -21,6 +21,14 @@ describe("P3 OCR 2.0 source-preservation contracts", () => {
     expect(layerPdfSource).toContain("OCR layer validation failed because the page count changed.");
   });
 
+  it("skips pages that already have substantial selectable text instead of duplicating OCR", () => {
+    expect(ocrPageSource).toContain("extractPageText(document, pageNumber)");
+    expect(ocrPageSource).toContain("existingText.trim().length >= 120");
+    expect(ocrPageSource).toContain('status: "skipped"');
+    expect(ocrPageSource).toContain("avoid duplicate hidden text");
+    expect(ocrPageSource).toContain("const ensureSession = async () =>");
+  });
+
   it("makes recognition reviewable before export", () => {
     expect(ocrPageSource).toContain("<OcrReviewCanvas");
     expect(ocrPageSource).toContain("Save correction");
