@@ -282,8 +282,9 @@ function lineOf(chars: StyledChar[]): StyledLine {
   return { chars: clean, width: clean.reduce((sum, item) => sum + item.width, 0) };
 }
 
-function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLine[] {
-  const safeWidth = Math.max(1, width - 3);
+function wrapStyled(chars: StyledChar[], width: number | number[], wrap: boolean): StyledLine[] {
+  const widths = Array.isArray(width) && width.length ? width : [Number(width)];
+  const safeWidth = () => Math.max(1, (widths[Math.min(lines.length, widths.length - 1)] ?? 1) - 3);
   const lines: StyledLine[] = [];
   let current: StyledChar[] = [];
   let currentWidth = 0;
@@ -301,7 +302,7 @@ function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLi
       currentWidth += item.width;
       continue;
     }
-    if (current.length && currentWidth + item.width > safeWidth) {
+    if (current.length && currentWidth + item.width > safeWidth()) {
       let breakIndex = -1;
       for (let index = current.length - 1; index >= 0; index -= 1) {
         if (/\s/u.test(current[index].char)) { breakIndex = index; break; }
@@ -317,10 +318,43 @@ function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLi
     if (!current.length && /\s/u.test(item.char)) continue;
     current.push(item);
     currentWidth += item.width;
-    if (wrap && currentWidth > safeWidth && current.length === 1) flush();
+    if (wrap && currentWidth > safeWidth() && current.length === 1) flush();
   }
   if (current.length || !lines.length) lines.push(lineOf(current));
   return lines;
+}
+
+function axisOverlap(a0: number, a1: number, b0: number, b1: number): number {
+  return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0)) / Math.max(1, Math.min(a1 - a0, b1 - b0));
+}
+
+function textSourceLineRegions(edit: any): NativeRect[] {
+  const regions = textSourceRegions(edit);
+  if (regions.length <= 1 || Number(edit.writingMode) === 1) return regions;
+  const groups: NativeRect[][] = [];
+  const ordered = [...regions].sort((left, right) => left.y - right.y || left.x - right.x);
+  for (const region of ordered) {
+    const group = groups.find((items) => items.some((item) =>
+      axisOverlap(item.y, item.y + item.h, region.y, region.y + region.h) >= 0.55
+      || Math.abs(item.y - region.y) <= Math.max(item.h, region.h) * 0.35
+    ));
+    group ? group.push(region) : groups.push([region]);
+  }
+  return groups.map((items) => {
+    const x = Math.min(...items.map((item) => item.x));
+    const y = Math.min(...items.map((item) => item.y));
+    const x1 = Math.max(...items.map((item) => item.x + item.w));
+    const y1 = Math.max(...items.map((item) => item.y + item.h));
+    return { x, y, w: x1 - x, h: y1 - y };
+  }).sort((left, right) => left.y - right.y || left.x - right.x);
+}
+
+function sameRect(left: NativeRect | undefined, right: NativeRect | undefined, tolerance = 0.5): boolean {
+  if (!left || !right) return false;
+  return Math.abs(left.x - right.x) <= tolerance
+    && Math.abs(left.y - right.y) <= tolerance
+    && Math.abs(left.w - right.w) <= tolerance
+    && Math.abs(left.h - right.h) <= tolerance;
 }
 
 function chunks(line: StyledLine): Array<{ style: PreparedStyle; text: string; width: number }> {
@@ -349,10 +383,22 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
   const width = x1 - x0;
   const height = y1 - y0;
   const prepared = prepareStyles(pdf, page, edit);
-  const lines = wrapStyled(prepared.chars, width, Boolean(edit.wrap));
+  const sourceLineRegions = edit.layoutMode !== "expand-flow"
+    && Boolean(edit.wrap)
+    && sameRect(edit.bounds, edit.sourceBounds ?? edit.bounds)
+    ? textSourceLineRegions(edit)
+    : [];
+  const sourceLineWidths = sourceLineRegions.length > 1
+    ? sourceLineRegions.map((region) => Math.max(region.w, edit.bounds.w - Math.max(0, region.x - edit.bounds.x)))
+    : [];
+  const sourceLines = sourceLineWidths.length ? wrapStyled(prepared.chars, sourceLineWidths, true) : [];
+  const sourceLayoutFits = sourceLineWidths.length > 0
+    && sourceLines.length <= sourceLineRegions.length
+    && sourceLines.every((line, index) => line.width <= Math.max(1, sourceLineWidths[index] - 3) + 0.01);
+  const lines = sourceLayoutFits ? sourceLines : wrapStyled(prepared.chars, width, Boolean(edit.wrap));
   const lineHeight = Math.max(prepared.maxSize, Number(edit.lineHeight) || prepared.maxSize * 1.2);
   const requiredHeight = lines.length * lineHeight;
-  if (requiredHeight > height + 0.01) throw new Error(`Replacement text does not fit the destination at the retained line spacing (${lines.length} lines require ${Number(requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Expand the text flow, lower the font size, or shorten the text.`);
+  if (!sourceLayoutFits && requiredHeight > height + 0.01) throw new Error(`Replacement text does not fit the destination at the retained line spacing (${lines.length} lines require ${Number(requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Expand the text flow, lower the font size, or shorten the text.`);
   if (!edit.wrap && lines.some((line) => line.width > Math.max(1, width - 3))) throw new Error(`Replacement text is wider than the destination at the selected font metrics. Enable paragraph reflow, lower the font size, or shorten the text.`);
   let content = "";
   if (edit.backgroundColor && edit.backgroundColor !== "transparent") {
@@ -360,9 +406,14 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
     content += `q ${br} ${bg} ${bb} rg ${x0} ${y0} ${width} ${height} re f Q\n`;
   }
   lines.forEach((line, index) => {
-    const startX = edit.align === "center" ? x0 + Math.max(0, (width - line.width) / 2) : edit.align === "right" ? Math.max(x0, x1 - line.width) : x0 + 1.5;
+    const sourceRegion = sourceLayoutFits ? sourceLineRegions[index] : undefined;
+    const [sourceX0, _lineY0, sourceX1, lineY1] = sourceRegion ? pdfRect(page, sourceRegion) : [x0, y0, x1, y1];
+    const lineX0 = sourceRegion ? Math.max(x0, sourceX0) : x0;
+    const lineX1 = sourceRegion ? Math.max(sourceX1, x1) : x1;
+    const lineWidth = lineX1 - lineX0;
+    const startX = edit.align === "center" ? lineX0 + Math.max(0, (lineWidth - line.width) / 2) : edit.align === "right" ? Math.max(lineX0, lineX1 - line.width) : lineX0 + 1.5;
     const baselineSize = Math.max(prepared.maxSize, ...line.chars.map((item) => item.style.fontSize));
-    const y = y1 - baselineSize - index * lineHeight;
+    const y = sourceRegion ? lineY1 - baselineSize : y1 - baselineSize - index * lineHeight;
     let cursor = startX;
     for (const chunk of chunks(line)) {
       const [r, g, b] = rgb(chunk.style.color);
