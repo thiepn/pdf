@@ -1,0 +1,418 @@
+import { openPdfWithPdfJs } from "../engines/pdfjs";
+
+export type TrustOutcome = "passed" | "changed" | "warning" | "not-checked";
+export type TrustLevel = "verified" | "verified-with-notes";
+
+export interface OutputTrustFact {
+  label: string;
+  value: string;
+  detail?: string;
+}
+
+export interface OutputTrustCheck {
+  label: string;
+  outcome: TrustOutcome;
+  detail: string;
+}
+
+export interface OutputTrustReport {
+  schemaVersion: 1;
+  operationId: string;
+  level: TrustLevel;
+  headline: string;
+  generatedAt: number;
+  facts: OutputTrustFact[];
+  checks: OutputTrustCheck[];
+  notes: string[];
+  lossy: boolean;
+}
+
+export interface TrustArtifact {
+  name: string;
+  bytes: Uint8Array;
+  mime: string;
+  password?: string;
+  pageCount?: number;
+}
+
+export interface VerifyOutputOptions {
+  operationId: string;
+  sources: TrustArtifact[];
+  outputs: TrustArtifact[];
+  warnings?: string[];
+  rasterized?: boolean;
+  expectedPageCount?: number;
+  explicitLossNotes?: string[];
+  hardValidationPassed: boolean;
+  signal?: AbortSignal;
+}
+
+interface PdfTrustSnapshot {
+  name: string;
+  byteLength: number;
+  pageCount: number;
+  encrypted: boolean;
+  formFieldCount: number;
+  attachmentCount: number;
+  hasOutline: boolean;
+  hasJavaScript: boolean;
+  sampledPages: number;
+  sampledPagesWithText: number;
+  textChecked: boolean;
+  annotationsChecked: boolean;
+  sampledAnnotationCount: number;
+  sampledLinkCount: number;
+  sampledWidgetCount: number;
+}
+
+const PDF = "application/pdf";
+const PAGE_SAMPLE_LIMIT = 12;
+const FILE_SAMPLE_LIMIT = 6;
+
+const pageChangingOperations = new Set([
+  "merge-pdfs", "organize-pages", "split-pdf", "extract-pages", "remove-pages", "images-to-pdf"
+]);
+
+const lossyOperations = new Set([
+  "pdf-to-jpg", "pdf-to-png", "pdf-to-docx", "pdf-to-text",
+  "flatten-pdf", "sanitize-pdf", "remove-metadata"
+]);
+
+const signatureInvalidatingOperations = new Set([
+  "editor", "organizer", "ocr", "merge-pdfs", "organize-pages", "split-pdf",
+  "extract-pages", "remove-pages", "rotate-pdf", "compress-pdf", "repair-pdf",
+  "flatten-pdf", "sanitize-pdf", "remove-metadata", "unlock-pdf", "password-protect",
+  "add-page-numbers", "add-watermark", "crop-pages"
+]);
+
+function samplePageNumbers(pageCount: number): number[] {
+  if (pageCount <= PAGE_SAMPLE_LIMIT) return Array.from({ length: pageCount }, (_, index) => index + 1);
+  const pages = new Set<number>([1, pageCount]);
+  for (let index = 1; index < PAGE_SAMPLE_LIMIT - 1; index += 1) {
+    pages.add(Math.max(1, Math.min(pageCount, Math.round(1 + index * (pageCount - 1) / (PAGE_SAMPLE_LIMIT - 1)))));
+  }
+  return [...pages].sort((left, right) => left - right);
+}
+
+function sampleArtifacts<T>(items: T[], limit = FILE_SAMPLE_LIMIT): T[] {
+  if (items.length <= limit) return items;
+  const indexes = new Set<number>([0, items.length - 1]);
+  for (let index = 1; index < limit - 1; index += 1) {
+    indexes.add(Math.max(0, Math.min(items.length - 1, Math.round(index * (items.length - 1) / (limit - 1)))));
+  }
+  return [...indexes].sort((left, right) => left - right).map((index) => items[index]);
+}
+
+async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
+  signal?.throwIfAborted();
+  let inspectionPassword: string | undefined;
+  let document: Awaited<ReturnType<typeof openPdfWithPdfJs>> | undefined;
+  try {
+    try {
+      document = await openPdfWithPdfJs(artifact.bytes);
+    } catch (reason) {
+      if (!artifact.password || !/password|encrypted/i.test(reason instanceof Error ? reason.message : String(reason))) throw reason;
+      inspectionPassword = artifact.password;
+      document = await openPdfWithPdfJs(artifact.bytes, inspectionPassword);
+    }
+
+    const pages = samplePageNumbers(document.numPages);
+    const [outlineResult, attachmentsResult, fieldsResult, actionsResult] = await Promise.allSettled([
+      document.getOutline(),
+      document.getAttachments(),
+      document.getFieldObjects(),
+      document.getJSActions()
+    ]);
+    const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
+    const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
+    const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
+    const actions = actionsResult.status === "fulfilled" ? actionsResult.value : null;
+    let formFieldCount = 0;
+    if (fields) for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
+
+    let sampledPagesWithText = 0;
+    let sampledAnnotationCount = 0;
+    let sampledLinkCount = 0;
+    let sampledWidgetCount = 0;
+    let textChecked = true;
+    let annotationsChecked = true;
+
+    for (const pageNumber of pages) {
+      signal?.throwIfAborted();
+      const page = await document.getPage(pageNumber);
+      try {
+        const [textResult, annotationResult] = await Promise.allSettled([
+          page.getTextContent({ includeMarkedContent: false }),
+          page.getAnnotations({ intent: "display" })
+        ]);
+        if (textResult.status === "fulfilled") {
+          const hasText = textResult.value.items.some((item) => "str" in item && typeof item.str === "string" && item.str.trim());
+          if (hasText) sampledPagesWithText += 1;
+        } else textChecked = false;
+
+        if (annotationResult.status === "fulfilled") {
+          for (const annotation of annotationResult.value) {
+            const subtype = typeof annotation.subtype === "string" ? annotation.subtype : "";
+            if (subtype === "Link") sampledLinkCount += 1;
+            else if (subtype === "Widget") sampledWidgetCount += 1;
+            else sampledAnnotationCount += 1;
+          }
+        } else annotationsChecked = false;
+      } finally {
+        page.cleanup();
+      }
+    }
+
+    return {
+      name: artifact.name,
+      byteLength: artifact.bytes.byteLength,
+      pageCount: document.numPages,
+      encrypted: Boolean(inspectionPassword),
+      formFieldCount,
+      attachmentCount: attachments ? Object.keys(attachments).length : 0,
+      hasOutline: Boolean(outline?.length),
+      hasJavaScript: Boolean(actions && Object.keys(actions).length),
+      sampledPages: pages.length,
+      sampledPagesWithText,
+      textChecked,
+      annotationsChecked,
+      sampledAnnotationCount,
+      sampledLinkCount,
+      sampledWidgetCount
+    };
+  } finally {
+    if (document) await document.loadingTask.destroy();
+  }
+}
+
+function sum<T>(items: T[], read: (item: T) => number): number {
+  return items.reduce((total, item) => total + read(item), 0);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function sizeChange(before: number, after: number): string {
+  if (!before) return formatBytes(after);
+  const percent = Math.round((after - before) / before * 100);
+  if (!percent) return `${formatBytes(before)} → ${formatBytes(after)} · unchanged`;
+  return `${formatBytes(before)} → ${formatBytes(after)} · ${Math.abs(percent)}% ${percent < 0 ? "smaller" : "larger"}`;
+}
+
+function textCoverageLabel(items: PdfTrustSnapshot[]): string {
+  const sampled = sum(items, (item) => item.sampledPages);
+  const withText = sum(items, (item) => item.sampledPagesWithText);
+  if (!sampled) return "Not checked";
+  return `${withText}/${sampled} sampled pages contain searchable text`;
+}
+
+function comparisonCheck(
+  label: string,
+  before: number,
+  after: number,
+  detailUnit: string,
+  preserveExpected: boolean
+): OutputTrustCheck {
+  if (before === after) return { label, outcome: "passed", detail: `${after} ${detailUnit} found before and after.` };
+  return {
+    label,
+    outcome: preserveExpected && before > after ? "warning" : "changed",
+    detail: `${before} → ${after} ${detailUnit} in the checked document structure.`
+  };
+}
+
+function operationLossNotes(operationId: string, rasterized: boolean): string[] {
+  if (operationId === "compress-pdf" && rasterized) {
+    return ["Image-based compression rasterizes pages. Selectable text, forms, links, layers, password protection, and digital signatures are not retained."];
+  }
+  switch (operationId) {
+    case "pdf-to-jpg":
+    case "pdf-to-png":
+      return ["Image export preserves page appearance only. Searchable text, forms, links, layers, and other PDF structure are not part of the image files."];
+    case "pdf-to-docx":
+      return ["Word export reconstructs editable extracted text and page breaks, not the original PDF layout, images, tables, links, forms, or signatures."];
+    case "pdf-to-text":
+      return ["Text export contains extracted text only. Page appearance and PDF structure are not part of the output."];
+    case "flatten-pdf":
+      return ["Flattened content keeps its visible appearance but intentionally stops being interactive or independently editable."];
+    case "sanitize-pdf":
+      return ["Cleanup intentionally removes selected active content or document data. The removed structures cannot be recovered from the cleaned copy."];
+    case "remove-metadata":
+      return ["Document metadata is intentionally removed from the output copy."];
+    case "repair-pdf":
+      return ["Repair rewrites recoverable structure. Content already missing or irreversibly damaged in the source cannot be recreated."];
+    default:
+      return [];
+  }
+}
+
+export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<OutputTrustReport> {
+  options.signal?.throwIfAborted();
+  const sourceBytes = sum(options.sources, (item) => item.bytes.byteLength);
+  const outputBytes = sum(options.outputs, (item) => item.bytes.byteLength);
+  const sourcePdfArtifacts = options.sources.filter((item) => item.mime === PDF);
+  const outputPdfArtifacts = options.outputs.filter((item) => item.mime === PDF);
+  const sampledSourceArtifacts = sampleArtifacts(sourcePdfArtifacts);
+  const sampledOutputArtifacts = sampleArtifacts(outputPdfArtifacts);
+  const [sourceResults, outputResults] = await Promise.all([
+    Promise.allSettled(sampledSourceArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal))),
+    Promise.allSettled(sampledOutputArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal)))
+  ]);
+  const sourcePdf = sourceResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+  const outputPdf = outputResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+
+  const facts: OutputTrustFact[] = [
+    { label: "Output", value: `${options.outputs.length} ${options.outputs.length === 1 ? "file" : "files"} · ${formatBytes(outputBytes)}` },
+    { label: "File size", value: sizeChange(sourceBytes, outputBytes) }
+  ];
+  const checks: OutputTrustCheck[] = [
+    options.hardValidationPassed
+      ? { label: "Blocking validation", outcome: "passed", detail: "No blocking validation problem was detected before this result was published." }
+      : { label: "Blocking validation", outcome: "warning", detail: "The caller did not confirm its hard validation gate." }
+  ];
+  const notes = [...new Set([...(options.warnings ?? []), ...(options.explicitLossNotes ?? []), ...operationLossNotes(options.operationId, options.rasterized === true)])];
+  if (sourcePdfArtifacts.length > sampledSourceArtifacts.length) notes.push(`Detailed source structure was sampled from ${sampledSourceArtifacts.length} of ${sourcePdfArtifacts.length} PDF files; every source still contributes to size/page totals where known.`);
+  if (outputPdfArtifacts.length > sampledOutputArtifacts.length) notes.push(`Detailed output structure was sampled from ${sampledOutputArtifacts.length} of ${outputPdfArtifacts.length} PDF files; every output still passed the workflow's hard validation gate.`);
+  if (sourceResults.some((result) => result.status === "rejected")) notes.push("Some source structure could not be inspected, so preservation comparisons are limited to evidence that was available.");
+  if (outputResults.some((result) => result.status === "rejected")) notes.push("Some detailed output structure could not be inspected after the output passed hard validation. The affected checks are marked as not checked.");
+
+  if (outputPdf.length) {
+    const knownSourcePages = sourcePdfArtifacts.every((item) => Number.isInteger(item.pageCount))
+      ? sum(sourcePdfArtifacts, (item) => item.pageCount ?? 0)
+      : undefined;
+    const knownOutputPages = outputPdfArtifacts.every((item) => Number.isInteger(item.pageCount))
+      ? sum(outputPdfArtifacts, (item) => item.pageCount ?? 0)
+      : undefined;
+    const beforePages = knownSourcePages ?? sum(sourcePdf, (item) => item.pageCount);
+    const afterPages = knownOutputPages ?? sum(outputPdf, (item) => item.pageCount);
+    facts.push({ label: "Pages", value: sourcePdfArtifacts.length ? `${beforePages} → ${afterPages}` : String(afterPages) });
+    const outputTextChecked = outputPdf.every((item) => item.textChecked);
+    facts.push({
+      label: "Searchable text",
+      value: outputTextChecked ? textCoverageLabel(outputPdf) : "Not fully checked",
+      detail: outputTextChecked
+        ? sampledOutputArtifacts.length < outputPdfArtifacts.length
+          ? `Representative output files were sampled (${sampledOutputArtifacts.length} of ${outputPdfArtifacts.length}); searchable-text counts apply only to those files.`
+          : outputPdf.some((item) => item.pageCount > item.sampledPages)
+            ? "Representative pages were sampled for text; page count and document structure were checked separately."
+            : "Every output page was checked for searchable text."
+        : "At least one inspected output could not complete the text-layer sample."
+    });
+    checks.push({
+      label: "Output opens",
+      outcome: options.hardValidationPassed ? "passed" : "warning",
+      detail: options.hardValidationPassed
+        ? `All ${outputPdfArtifacts.length} output PDF${outputPdfArtifacts.length === 1 ? "" : "s"} passed the workflow's reopen/validation gate; P5 inspected ${outputPdf.length} representative file${outputPdf.length === 1 ? "" : "s"} in detail.`
+        : "The workflow did not confirm its output reopen/validation gate."
+    });
+
+    if (options.expectedPageCount !== undefined) {
+      checks.push({
+        label: "Expected pages",
+        outcome: afterPages === options.expectedPageCount ? "passed" : "warning",
+        detail: `Expected ${options.expectedPageCount}; verified ${afterPages}.`
+      });
+    } else if (sourcePdf.length) {
+      const expectedPreserved = !pageChangingOperations.has(options.operationId);
+      checks.push({
+        label: "Page count",
+        outcome: beforePages === afterPages ? "passed" : expectedPreserved ? "warning" : "changed",
+        detail: beforePages === afterPages
+          ? `All ${afterPages} pages are present.`
+          : `${beforePages} source pages → ${afterPages} output pages${expectedPreserved ? "." : " as required by this operation."}`
+      });
+    }
+
+    if (sourcePdf.length) {
+      const sourceTextPages = sum(sourcePdf, (item) => item.sampledPagesWithText);
+      const outputTextPages = sum(outputPdf, (item) => item.sampledPagesWithText);
+      const sourceSampled = sum(sourcePdf, (item) => item.sampledPages);
+      const outputSampled = sum(outputPdf, (item) => item.sampledPages);
+      const sourcePages = sum(sourcePdf, (item) => item.pageCount);
+      const outputPages = sum(outputPdf, (item) => item.pageCount);
+      const pageScopeChanged = pageChangingOperations.has(options.operationId) || sourcePdf.length !== outputPdf.length || sourcePages !== outputPages;
+      const textExpected = !options.rasterized && !["flatten-pdf"].includes(options.operationId);
+      const textFullyChecked = sourcePdf.every((item) => item.textChecked) && outputPdf.every((item) => item.textChecked) && sourcePdf.length === sampledSourceArtifacts.length && outputPdf.length === sampledOutputArtifacts.length;
+      checks.push(textFullyChecked ? {
+        label: "Searchable text",
+        outcome: sourceTextPages > 0 && outputTextPages === 0 ? (textExpected ? "warning" : "changed") : outputTextPages >= Math.min(sourceTextPages, outputSampled) ? "passed" : "changed",
+        detail: `Source: ${sourceTextPages}/${sourceSampled} sampled pages · output: ${outputTextPages}/${outputSampled} sampled pages.`
+      } : { label: "Searchable text", outcome: "not-checked", detail: "Searchable-text sampling did not complete for every compared PDF." });
+
+      const sourceLinks = sum(sourcePdf, (item) => item.sampledLinkCount);
+      const outputLinks = sum(outputPdf, (item) => item.sampledLinkCount);
+      const linksExpected = !options.rasterized && !["flatten-pdf"].includes(options.operationId);
+      const annotationsFullyChecked = sourcePdf.every((item) => item.annotationsChecked) && outputPdf.every((item) => item.annotationsChecked) && sourcePdf.length === sampledSourceArtifacts.length && outputPdf.length === sampledOutputArtifacts.length;
+      checks.push(annotationsFullyChecked
+        ? comparisonCheck("Links", sourceLinks, outputLinks, "links on sampled pages", linksExpected && !pageScopeChanged)
+        : { label: "Links", outcome: "not-checked", detail: "Link/annotation sampling did not complete for every compared PDF." });
+
+      const sourceForms = sum(sourcePdf, (item) => item.formFieldCount);
+      const outputForms = sum(outputPdf, (item) => item.formFieldCount);
+      const formsExpected = !options.rasterized && options.operationId !== "flatten-pdf";
+      checks.push(comparisonCheck("Forms", sourceForms, outputForms, "form fields", formsExpected && !pageScopeChanged));
+
+      const sourceAttachments = sum(sourcePdf, (item) => item.attachmentCount);
+      const outputAttachments = sum(outputPdf, (item) => item.attachmentCount);
+      if (sourceAttachments || outputAttachments) checks.push(comparisonCheck("Attachments", sourceAttachments, outputAttachments, "attachments", !["sanitize-pdf"].includes(options.operationId)));
+
+      const sourceEncrypted = sourcePdf.some((item) => item.encrypted);
+      const outputEncrypted = outputPdf.some((item) => item.encrypted);
+      if (sourceEncrypted || outputEncrypted || ["unlock-pdf", "password-protect"].includes(options.operationId)) {
+        const expected = options.operationId === "password-protect" ? true : options.operationId === "unlock-pdf" ? false : sourceEncrypted;
+        checks.push({
+          label: "Password protection",
+          outcome: outputEncrypted === expected ? "passed" : "warning",
+          detail: `Source: ${sourceEncrypted ? "protected" : "not protected"} · output: ${outputEncrypted ? "protected" : "not protected"}.`
+        });
+      }
+    }
+  } else if (outputPdfArtifacts.length) {
+    const knownOutputPages = outputPdfArtifacts.every((item) => Number.isInteger(item.pageCount))
+      ? sum(outputPdfArtifacts, (item) => item.pageCount ?? 0)
+      : undefined;
+    if (knownOutputPages !== undefined) facts.push({ label: "Pages", value: String(knownOutputPages) });
+    checks.push({
+      label: "Output opens",
+      outcome: options.hardValidationPassed ? "passed" : "warning",
+      detail: options.hardValidationPassed
+        ? `All ${outputPdfArtifacts.length} output PDF${outputPdfArtifacts.length === 1 ? "" : "s"} passed the workflow's hard validation gate.`
+        : "The workflow did not confirm its output reopen/validation gate."
+    });
+    checks.push({ label: "PDF structure", outcome: "not-checked", detail: "Detailed P5 structure inspection did not complete, so no preservation claim is made beyond the workflow's hard validation." });
+  } else {
+    checks.push({ label: "PDF structure", outcome: "not-checked", detail: "This operation creates a non-PDF format, so PDF structural preservation does not apply to the output." });
+  }
+
+  const explicitLoss = options.rasterized === true || lossyOperations.has(options.operationId) || notes.some((note) => /removes|not retained|not reconstructed|cannot be recovered|raster/i.test(note));
+  if (signatureInvalidatingOperations.has(options.operationId) && sourcePdf.length && outputPdf.length) {
+    const changedBytes = sourcePdfArtifacts.length !== outputPdfArtifacts.length
+      || sourcePdfArtifacts.some((source, index) => {
+        const output = outputPdfArtifacts[index];
+        if (!output || source.bytes.byteLength !== output.bytes.byteLength) return true;
+        for (let byte = 0; byte < source.bytes.byteLength; byte += 1) if (source.bytes[byte] !== output.bytes[byte]) return true;
+        return false;
+      });
+    if (changedBytes) notes.push("The PDF bytes changed. Existing cryptographic/digital signatures require re-validation and generally cannot remain valid after document modification.");
+  }
+
+  options.signal?.throwIfAborted();
+  const attentionChecks = checks.filter((item) => item.outcome === "warning" || item.outcome === "not-checked").length;
+  const level: TrustLevel = attentionChecks || notes.length ? "verified-with-notes" : "verified";
+  return {
+    schemaVersion: 1,
+    operationId: options.operationId,
+    level,
+    headline: level === "verified"
+      ? "Output checked"
+      : "Output checked · review notes",
+    generatedAt: Date.now(),
+    facts,
+    checks,
+    notes: [...new Set(notes)],
+    lossy: explicitLoss
+  };
+}

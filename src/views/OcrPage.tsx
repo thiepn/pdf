@@ -20,6 +20,8 @@ import { createDerivedProjectFromBytes, getProject, loadProjectBytes } from "../
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import { OCR_SCHEMA_VERSION, type OcrJob, type OcrPageResult, type OcrPreprocessSettings } from "../types/ocr";
 import type { ProjectManifest } from "../types/project";
+import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
+import { OutputTrustPanel } from "../components/OutputTrustPanel";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 
@@ -64,6 +66,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const [output, setOutput] = useState<Uint8Array | null>(null);
   const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
   const [outputWarnings, setOutputWarnings] = useState<string[]>([]);
+  const [outputTrust, setOutputTrust] = useState<OutputTrustReport | null>(null);
   const [reviewPageNumber, setReviewPageNumber] = useState<number | null>(null);
   const [selectedWord, setSelectedWord] = useState<number | null>(null);
   const [correctionDraft, setCorrectionDraft] = useState("");
@@ -251,8 +254,20 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       update({ stage: "validating", detail: "Checking source-preserving searchable PDF…", progress: 0.93 });
       const summary = await inspectPdfBytes(outputBytes, activePasswordRef.current);
       if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
+      update({ stage: "validating", detail: "Building OCR output verification evidence…", progress: 0.96 });
+      const trust = await verifyOutputTrust({
+        operationId: "ocr",
+        sources: [{ name: project.sourceFilename || project.name, bytes: sourceBytesRef.current, mime: "application/pdf", password: activePasswordRef.current, pageCount: document.numPages }],
+        outputs: [{ name: `${project.name}-searchable.pdf`, bytes: outputBytes, mime: "application/pdf", password: activePasswordRef.current, pageCount: summary.pageCount }],
+        warnings: layerWarnings,
+        expectedPageCount: document.numPages,
+        hardValidationPassed: true,
+        explicitLossNotes: layerPages.length ? ["OCR adds a positioned invisible text layer; original page artwork remains the visual source of truth."] : [],
+        signal
+      });
       setOutput(outputBytes);
       setOutputWarnings(layerWarnings);
+      setOutputTrust(trust);
       setOutputFingerprint(ocrResultsFingerprint(finalPages));
       setReviewPageNumber((current) => current ?? recognizedPages[0]?.pageNumber ?? null);
       runningJob = { ...runningJob, status: "complete", completedPages: finalPages.length, updatedAt: Date.now() };
@@ -273,6 +288,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     await writeOcrPage(next);
     setResults((current) => current.map((item) => item.id === next.id ? next : item));
     setOutputFingerprint(null);
+    setOutputTrust(null);
     setStatus(message);
   }
 
@@ -330,8 +346,20 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         update({ stage: "validating", detail: "Checking source-preserving OCR output…", progress: .82 });
         const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
         if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
+        update({ stage: "validating", detail: "Building OCR output verification evidence…", progress: .9 });
+        const trust = await verifyOutputTrust({
+          operationId: "ocr",
+          sources: [{ name: project.sourceFilename || project.name, bytes: sourceBytesRef.current!, mime: "application/pdf", password: activePasswordRef.current, pageCount: document.numPages }],
+          outputs: [{ name: `${project.name}-searchable.pdf`, bytes: layered.bytes, mime: "application/pdf", password: activePasswordRef.current, pageCount: summary.pageCount }],
+          warnings: layered.warnings,
+          expectedPageCount: document.numPages,
+          hardValidationPassed: true,
+          explicitLossNotes: layerPages.length ? ["OCR adds a positioned invisible text layer; original page artwork remains the visual source of truth."] : [],
+          signal
+        });
         setOutput(layered.bytes);
         setOutputWarnings(layered.warnings);
+        setOutputTrust(trust);
         setOutputFingerprint(ocrResultsFingerprint(readyPages));
         setStatus(layerPages.length
           ? layered.warnings.length ? "Searchable PDF ready · some unsupported-script words were omitted" : "Searchable PDF ready · original page visuals preserved"
@@ -394,7 +422,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         <button className="button" disabled={!document || running || !languages.length} onClick={() => void run()} type="button">{job?.status === "complete" ? "Run OCR again" : job?.status === "paused" || completed ? "Resume OCR" : "Start OCR"}</button>
         {running ? <button className="button button--secondary" onClick={() => { abortRef.current = true; void sessionRef.current?.terminate(); }} type="button">Pause</button> : null}
         {job ? <button className="button button--ghost" disabled={running || reviewBusy} onClick={() => void deleteOcrJob(job.id).then(() => {
-          setJob(null); setResults([]); setOutput(null); setOutputFingerprint(null); setOutputWarnings([]); setReviewPageNumber(null); setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null); setStatus("Ready");
+          setJob(null); setResults([]); setOutput(null); setOutputFingerprint(null); setOutputWarnings([]); setOutputTrust(null); setReviewPageNumber(null); setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null); setStatus("Ready");
         })} type="button">Discard progress</button> : null}
       </div>
     </aside>
@@ -486,6 +514,8 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         <div><strong>{output ? "OCR review changed" : "Recognition is ready for review"}</strong><span>{output ? "Rebuild the searchable PDF to include the latest corrections." : "Build a searchable copy after reviewing low-confidence text."}</span></div>
         <button className="button" disabled={reviewBusy} onClick={() => void rebuildSearchableOutput()} type="button">{reviewBusy ? "Building…" : "Build searchable PDF"}</button>
       </div> : null}
+
+      {outputIsCurrent && output && outputTrust ? <OutputTrustPanel report={outputTrust} /> : null}
 
       {outputIsCurrent && output ? <footer className="output-bar">
         <div><strong>Source-preserving searchable PDF checked and ready</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB · original pages retained</span>{outputWarnings.map((warning) => <small className="ocr-output-warning" key={warning}>{warning}</small>)}</div>

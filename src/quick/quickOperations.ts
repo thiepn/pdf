@@ -9,10 +9,11 @@ import { applySecurity } from "../security/securityClient";
 import { createSecurityState } from "../security/securityModel";
 import { buildJpegPdf, type JpegPdfPage } from "../pdf/jpegPdf";
 import { MAX_CANVAS_PIXELS, MAX_OUTPUT_BYTES, parsePageSelection, planSplit, safeOutputName, type QuickOptions, type QuickTaskId } from "./quickModel";
+import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
 
 export interface QuickInput { id: string; name: string; bytes: Uint8Array; pageCount: number; password?: string; image?: File }
 export interface QuickOutput { name: string; bytes: Uint8Array; mime: string; /** Confirmed by reopening the output, never inferred from the input. */ password?: string; pageCount?: number }
-export interface QuickResult { files: QuickOutput[]; warnings: string[] }
+export interface QuickResult { files: QuickOutput[]; warnings: string[]; trust?: OutputTrustReport }
 const PDF = "application/pdf";
 const check = (signal: AbortSignal) => signal.throwIfAborted();
 const asPdf = (name: string, bytes: Uint8Array): QuickOutput => ({ name: safeOutputName(name, "pdf"), bytes, mime: PDF });
@@ -48,6 +49,20 @@ function enforceOutputBudget(files: QuickOutput[]): void {
   if (files.reduce((total, file) => total + file.bytes.byteLength, 0) > MAX_OUTPUT_BYTES) throw new Error("This export is too large for a safe browser download. Choose fewer pages or a lower image resolution.");
 }
 
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  for (let index = 0; index < left.byteLength; index += 1) if (left[index] !== right[index]) return false;
+  return true;
+}
+
+function rasterCompressionChangedBytes(task: QuickTaskId, options: QuickOptions, inputs: QuickInput[], files: QuickOutput[]): boolean {
+  if (task !== "compress-pdf" || options.compression === "lossless") return false;
+  return files.some((file, index) => {
+    const source = inputs[index];
+    return !source || !bytesEqual(source.bytes, file.bytes);
+  });
+}
+
 async function imagesToPdf(inputs: QuickInput[], options: QuickOptions, signal: AbortSignal, progress: (text: string) => void): Promise<Uint8Array> {
   const pages: JpegPdfPage[] = [];
   let bytes = 0;
@@ -77,16 +92,26 @@ async function imagesToPdf(inputs: QuickInput[], options: QuickOptions, signal: 
   return buildJpegPdf(pages);
 }
 
-export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[], options: QuickOptions, name: string, signal: AbortSignal, progress: (text: string) => void): Promise<QuickResult> {
+export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[], options: QuickOptions, name: string, signal: AbortSignal, progress: (text: string) => void, skipTrust = false): Promise<QuickResult> {
   check(signal); validateQuickOptions(task, inputs, options);
   const input = inputs[0]; const warnings: string[] = []; const files: QuickOutput[] = [];
   if (task === "compress-pdf" && inputs.length > 1) {
     for (const [index, source] of inputs.entries()) {
       check(signal);
-      const output = await runQuickOperation(task, [source], options, `${String(index + 1).padStart(3, "0")}-${source.name.replace(/\.pdf$/i, "")}-compressed`, signal, (detail) => progress(`${index + 1}/${inputs.length} · ${source.name} · ${detail}`));
+      const output = await runQuickOperation(task, [source], options, `${String(index + 1).padStart(3, "0")}-${source.name.replace(/\.pdf$/i, "")}-compressed`, signal, (detail) => progress(`${index + 1}/${inputs.length} · ${source.name} · ${detail}`), true);
       files.push(...output.files); warnings.push(...output.warnings.map((warning) => `${source.name}: ${warning}`)); enforceOutputBudget(files);
     }
-    return { files, warnings: [...new Set(warnings)] };
+    const uniqueWarnings = [...new Set(warnings)];
+    const trust = skipTrust ? undefined : await verifyOutputTrust({
+      operationId: task,
+      sources: inputs.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.image?.type || PDF, password: item.password, pageCount: item.pageCount })),
+      outputs: files.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.mime, password: item.password, pageCount: item.pageCount })),
+      warnings: uniqueWarnings,
+      rasterized: rasterCompressionChangedBytes(task, options, inputs, files),
+      hardValidationPassed: true,
+      signal
+    });
+    return { files, warnings: uniqueWarnings, trust };
   }
   if (task === "images-to-pdf") {
     files.push(asPdf(name, await imagesToPdf(inputs, options, signal, progress)));
@@ -212,7 +237,19 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
     if (failure) throw new Error("The output could not be reopened with its expected password. No download was published.");
   }
   check(signal);
-  return { files, warnings: [...new Set(warnings)] };
+  const uniqueWarnings = [...new Set(warnings)];
+  progress("Verifying the produced output…");
+  const trust = skipTrust ? undefined : await verifyOutputTrust({
+    operationId: task,
+    sources: inputs.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.image?.type || PDF, password: item.password, pageCount: item.pageCount })),
+    outputs: files.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.mime, password: item.password, pageCount: item.pageCount })),
+    warnings: uniqueWarnings,
+    rasterized: rasterCompressionChangedBytes(task, options, inputs, files),
+    hardValidationPassed: true,
+    signal
+  });
+  check(signal);
+  return { files, warnings: uniqueWarnings, trust };
 }
 
 export function zipQuickResults(files: QuickOutput[]): Uint8Array {
