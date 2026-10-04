@@ -75,6 +75,12 @@ export interface NativePdfWriteResult {
   savedAt: number;
 }
 
+export interface PreparedNativePdfWrite {
+  handle: NativeFileHandle;
+  filename: string;
+  target: "output" | "source";
+}
+
 const PDF_TYPE = [{ description: "PDF document", accept: { "application/pdf": [".pdf"] } }];
 
 function pickerWindow(): NativePickerWindow {
@@ -167,8 +173,14 @@ async function ensureWritePermission(handle: NativeFileHandle | NativeDirectoryH
   return (await ask.call(handle, { mode: "readwrite" })) === "granted";
 }
 
-async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array): Promise<void> {
-  if (!(await ensureWritePermission(handle, true))) throw new Error("Write permission was not granted for this file.");
+async function requestWritePermission(handle: NativeFileHandle | NativeDirectoryHandle): Promise<boolean> {
+  const ask = handle.requestPermission;
+  if (ask) return (await ask.call(handle, { mode: "readwrite" })) === "granted";
+  return ensureWritePermission(handle, true);
+}
+
+async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array, permissionPrepared = false): Promise<void> {
+  if (!permissionPrepared && !(await ensureWritePermission(handle, true))) throw new Error("Write permission was not granted for this file.");
   const writable = await handle.createWritable();
   try {
     await writable.write(data instanceof Blob ? data : data.slice());
@@ -189,38 +201,66 @@ async function rememberOutput(projectId: string, handle: NativeFileHandle, saved
   });
 }
 
-export async function savePdfAsNative(projectId: string, bytes: Uint8Array, suggestedName: string): Promise<NativePdfWriteResult | null> {
+export async function prepareNativePdfWrite(
+  projectId: string,
+  suggestedName: string,
+  mode: "save" | "save-as" | "replace-source"
+): Promise<PreparedNativePdfWrite | null> {
+  if (mode === "replace-source") {
+    const binding = await readNativeFileBinding(projectId);
+    if (!binding?.sourceHandle) throw new Error("This project is not linked to the PDF file it was opened from. Use Save as instead.");
+    if (!(await requestWritePermission(binding.sourceHandle))) throw new Error("Write permission was not granted for the original PDF.");
+    return { handle: binding.sourceHandle, filename: binding.sourceHandle.name, target: "source" };
+  }
+
+  if (!supportsNativeFileSave()) return null;
+  const binding = await readNativeFileBinding(projectId);
+  if (mode === "save" && binding?.outputHandle) {
+    if (!(await requestWritePermission(binding.outputHandle))) throw new Error("Write permission was not granted for the saved PDF.");
+    return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output" };
+  }
+
   const picker = pickerWindow().showSaveFilePicker;
   if (!picker) return null;
   const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
-  await writeFile(handle, bytes);
+  return { handle, filename: handle.name, target: "output" };
+}
+
+export async function commitPreparedNativePdfWrite(
+  projectId: string,
+  prepared: PreparedNativePdfWrite,
+  bytes: Uint8Array
+): Promise<NativePdfWriteResult> {
+  await writeFile(prepared.handle, bytes, true);
   const savedAt = Date.now();
-  await rememberOutput(projectId, handle, savedAt);
-  return { filename: handle.name, target: "output", savedAt };
+  if (prepared.target === "output") await rememberOutput(projectId, prepared.handle, savedAt);
+  else {
+    const binding = await readNativeFileBinding(projectId);
+    if (!binding?.sourceHandle) throw new Error("The original PDF link was lost before the verified output could be written.");
+    await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
+      ...binding,
+      projectId,
+      lastPdfSavedAt: savedAt,
+      updatedAt: savedAt
+    });
+  }
+  return { filename: prepared.filename, target: prepared.target, savedAt };
+}
+
+export async function savePdfAsNative(projectId: string, bytes: Uint8Array, suggestedName: string): Promise<NativePdfWriteResult | null> {
+  const prepared = await prepareNativePdfWrite(projectId, suggestedName, "save-as");
+  return prepared ? commitPreparedNativePdfWrite(projectId, prepared, bytes) : null;
 }
 
 export async function savePdfToNativeTarget(projectId: string, bytes: Uint8Array, suggestedName: string): Promise<NativePdfWriteResult | null> {
-  if (!supportsNativeFileSave()) return null;
-  const binding = await readNativeFileBinding(projectId);
-  if (!binding?.outputHandle) return savePdfAsNative(projectId, bytes, suggestedName);
-  await writeFile(binding.outputHandle, bytes);
-  const savedAt = Date.now();
-  await rememberOutput(projectId, binding.outputHandle, savedAt);
-  return { filename: binding.outputHandle.name, target: "output", savedAt };
+  const prepared = await prepareNativePdfWrite(projectId, suggestedName, "save");
+  return prepared ? commitPreparedNativePdfWrite(projectId, prepared, bytes) : null;
 }
 
 export async function replaceNativeSource(projectId: string, bytes: Uint8Array): Promise<NativePdfWriteResult> {
-  const binding = await readNativeFileBinding(projectId);
-  if (!binding?.sourceHandle) throw new Error("This project is not linked to the PDF file it was opened from. Use Save as instead.");
-  await writeFile(binding.sourceHandle, bytes);
-  const savedAt = Date.now();
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
-    ...binding,
-    projectId,
-    lastPdfSavedAt: savedAt,
-    updatedAt: savedAt
-  });
-  return { filename: binding.sourceHandle.name, target: "source", savedAt };
+  const prepared = await prepareNativePdfWrite(projectId, "document.pdf", "replace-source");
+  if (!prepared) throw new Error("Native file replacement is unavailable.");
+  return commitPreparedNativePdfWrite(projectId, prepared, bytes);
 }
 
 export async function chooseExternalBackupDirectory(projectId: string): Promise<NativeFileStatus | null> {
@@ -236,6 +276,12 @@ export async function chooseExternalBackupDirectory(projectId: string): Promise<
     updatedAt: Date.now()
   });
   return readNativeFileStatus(projectId);
+}
+
+export async function authorizeExternalBackupDirectory(projectId: string): Promise<boolean> {
+  const binding = await readNativeFileBinding(projectId);
+  if (!binding?.backupDirectoryHandle) return false;
+  return requestWritePermission(binding.backupDirectoryHandle);
 }
 
 export async function writeExternalProjectBackup(
