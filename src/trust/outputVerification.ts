@@ -258,6 +258,9 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
       const outputTextPages = sum(outputPdf, (item) => item.sampledPagesWithText);
       const sourceSampled = sum(sourcePdf, (item) => item.sampledPages);
       const outputSampled = sum(outputPdf, (item) => item.sampledPages);
+      const sourcePages = sum(sourcePdf, (item) => item.pageCount);
+      const outputPages = sum(outputPdf, (item) => item.pageCount);
+      const pageScopeChanged = pageChangingOperations.has(options.operationId) || sourcePdf.length !== outputPdf.length || sourcePages !== outputPages;
       const textExpected = !options.rasterized && !["flatten-pdf"].includes(options.operationId);
       const textFullyChecked = sourcePdf.every((item) => item.textChecked) && outputPdf.every((item) => item.textChecked) && sourcePdf.length === sourcePdfArtifacts.length && outputPdf.length === outputPdfArtifacts.length;
       checks.push(textFullyChecked ? {
@@ -271,13 +274,13 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
       const linksExpected = !options.rasterized && !["flatten-pdf"].includes(options.operationId);
       const annotationsFullyChecked = sourcePdf.every((item) => item.annotationsChecked) && outputPdf.every((item) => item.annotationsChecked) && sourcePdf.length === sourcePdfArtifacts.length && outputPdf.length === outputPdfArtifacts.length;
       checks.push(annotationsFullyChecked
-        ? comparisonCheck("Links", sourceLinks, outputLinks, "links on sampled pages", linksExpected && !pageChangingOperations.has(options.operationId))
+        ? comparisonCheck("Links", sourceLinks, outputLinks, "links on sampled pages", linksExpected && !pageScopeChanged)
         : { label: "Links", outcome: "not-checked", detail: "Link/annotation sampling did not complete for every compared PDF." });
 
       const sourceForms = sum(sourcePdf, (item) => item.formFieldCount);
       const outputForms = sum(outputPdf, (item) => item.formFieldCount);
       const formsExpected = !options.rasterized && options.operationId !== "flatten-pdf";
-      checks.push(comparisonCheck("Forms", sourceForms, outputForms, "form fields", formsExpected && !pageChangingOperations.has(options.operationId)));
+      checks.push(comparisonCheck("Forms", sourceForms, outputForms, "form fields", formsExpected && !pageScopeChanged));
 
       const sourceAttachments = sum(sourcePdf, (item) => item.attachmentCount);
       const outputAttachments = sum(outputPdf, (item) => item.attachmentCount);
