@@ -35,6 +35,7 @@ P4 is a progressive enhancement. Browsers without the File System Access API kee
 - It requires an explicit confirmation and write permission.
 - The existing validated export pipeline runs before any external file is written.
 - Before reusing a linked output or replacing the source, PDF Studio checks stored size/modified metadata and refuses to overwrite when the file changed externally.
+- That check runs again immediately before the verified bytes are committed, closing the render-time race window; failed stream writes are aborted rather than deliberately closed.
 
 ### External project backup
 
