@@ -15,4 +15,15 @@ describe("Phase 23 responsive layout policy", () => {
   it("does not treat small viewport changes as a keyboard", () => {
     expect(deriveViewportMetrics(844, 790, 0).keyboardOpen).toBe(false);
   });
+
+  it("preserves shifted VisualViewport geometry for keyboard-safe mobile sheets", () => {
+    expect(deriveViewportMetrics(844, 510, 42, 374, 8)).toMatchObject({
+      visualHeight: 510,
+      visualWidth: 374,
+      offsetTop: 42,
+      offsetLeft: 8,
+      keyboardInset: 292,
+      keyboardOpen: true
+    });
+  });
 });
