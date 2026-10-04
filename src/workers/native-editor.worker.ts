@@ -396,7 +396,10 @@ function retainedLineBreakOffsets(edit: any): number[] | null {
   );
   if (touched.length > 1) return null;
   if (touched.length === 1 && (change.sourceStart < touched[0].start || change.sourceEnd > touched[0].end)) return null;
-  return ranges.slice(0, -1).map((range) => range.end <= change.sourceStart ? range.end : range.end + change.delta);
+  return ranges.slice(0, -1).map((range) => {
+    const utf16Offset = range.end <= change.sourceStart ? range.end : range.end + change.delta;
+    return Array.from(edit.text.slice(0, utf16Offset)).length;
+  });
 }
 
 function withRetainedLineBreaks(chars: StyledChar[], offsets: number[]): StyledChar[] {
