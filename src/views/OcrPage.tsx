@@ -29,11 +29,20 @@ function newJob(project: ProjectManifest, pages: number[], languages: string[], 
 }
 
 function ocrResultsFingerprint(results: OcrPageResult[]): string {
-  return results
-    .filter((item) => item.status === "complete")
-    .map((item) => `${item.id}:${item.updatedAt}:${item.words.length}`)
-    .sort()
-    .join("|");
+  let hash = 0x811c9dc5;
+  const push = (value: string) => {
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+  };
+  for (const item of results.filter((entry) => entry.status === "complete").sort((left, right) => left.pageNumber - right.pageNumber)) {
+    push(`${item.id}:${item.pageNumber}:${item.width}:${item.height}|`);
+    for (const word of item.words) {
+      push(`${word.text}\u0001${word.correctedText ?? ""}\u0001${word.ignored ? 1 : 0}\u0001${word.bbox.x0},${word.bbox.y0},${word.bbox.x1},${word.bbox.y1}|`);
+    }
+  }
+  return hash.toString(16).padStart(8, "0");
 }
 
 export function OcrPage({ projectId, onTitleChange }: Props) {
