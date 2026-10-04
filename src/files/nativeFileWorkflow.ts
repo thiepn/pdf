@@ -335,7 +335,8 @@ export async function prepareNativePdfWrite(
   if (mode === "save-as") {
     const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
     await assertOutputIsNotSource(projectId, handle);
-    return { handle, filename: handle.name, target: "output" };
+    const file = await handle.getFile();
+    return { handle, filename: handle.name, target: "output", expectedSize: file.size, expectedLastModified: file.lastModified };
   }
 
   const binding = await readNativeFileBinding(projectId);
@@ -349,7 +350,8 @@ export async function prepareNativePdfWrite(
   }
   const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
   await assertOutputIsNotSource(projectId, handle);
-  return { handle, filename: handle.name, target: "output" };
+  const file = await handle.getFile();
+  return { handle, filename: handle.name, target: "output", expectedSize: file.size, expectedLastModified: file.lastModified };
 }
 
 export async function commitPreparedNativePdfWrite(
