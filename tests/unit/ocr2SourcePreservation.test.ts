@@ -4,6 +4,7 @@ import ocrClientSource from "../../src/ocr/ocrClient.ts?raw";
 import layerPdfSource from "../../src/ocr/ocrLayerPdf.ts?raw";
 import reviewSource from "../../src/ocr/OcrReviewCanvas.tsx?raw";
 import languagePanelSource from "../../src/ocr/OcrLanguagePanel.tsx?raw";
+import scanPageSource from "../../src/views/ScanPage.tsx?raw";
 
 describe("P3 OCR 2.0 source-preservation contracts", () => {
   it("does not ask Tesseract to generate replacement PDF pages", () => {
@@ -19,6 +20,13 @@ describe("P3 OCR 2.0 source-preservation contracts", () => {
     expect(ocrPageSource).toContain("Every original PDF page remains in the searchable output.");
     expect(layerPdfSource).toContain("BT 3 Tr");
     expect(layerPdfSource).toContain("OCR layer validation failed because the page count changed.");
+  });
+
+  it("uses the same source-preserving text layer for image scans", () => {
+    expect(scanPageSource).toContain("const imagePdf = buildJpegPdf(images");
+    expect(scanPageSource).toContain("applyOcrTextLayer(imagePdf, recognizedLayers");
+    expect(scanPageSource).not.toContain("mergePdfSources");
+    expect(scanPageSource).not.toContain("searchablePdf");
   });
 
   it("skips pages that already have substantial selectable text instead of duplicating OCR", () => {
