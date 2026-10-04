@@ -161,13 +161,13 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
         hardValidationPassed: true,
         signal
       });
-      setOutputTrust(trust);
       if (saveProject) {
         update({ stage: "committing", detail: "Saving a new local project…", progress: 0.94 });
         const created = await createDerivedProjectFromBytes(projectId, result.bytes, filename, "organize-pages");
         window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
       } else {
         downloadBlob(new Blob([Uint8Array.from(result.bytes).buffer], { type: "application/pdf" }), filename);
+        setOutputTrust(trust);
         setStatus(`Downloaded validated copy · ${result.pageCount} pages · ${formatBytes(result.outputBytes)}`);
       }
       update({ progress: 1 });
