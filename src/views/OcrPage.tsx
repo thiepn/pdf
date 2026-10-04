@@ -163,17 +163,47 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     let session: Awaited<ReturnType<typeof createOcrSession>> | null = null;
     try {
       const previous = new Map((await listOcrPages(runningJob.id)).map((item) => [item.pageNumber, item]));
-      session = await createOcrSession(languages, (message) => { setProgress(message.progress); setStatus(`${message.status} · ${Math.round(message.progress * 100)}%`); });
-      sessionRef.current = session;
-      const activeSession = session;
       const nextResults: OcrPageResult[] = [...previous.values()];
+      const ensureSession = async () => {
+        if (session) return session;
+        session = await createOcrSession(languages, (message) => { setProgress(message.progress); setStatus(`${message.status} · ${Math.round(message.progress * 100)}%`); });
+        sessionRef.current = session;
+        return session;
+      };
       await runProjectOperation(project.id, { label: "Running OCR", cancellable: false }, async ({ update, signal }) => {
       update({ detail: "Recognizing selected pages locally…", progress: 0.02 });
       for (let pageIndex = 0; pageIndex < parsedPages.pageArray.length; pageIndex += 1) {
         const pageNumber = parsedPages.pageArray[pageIndex];
         if (abortRef.current) throw new DOMException("OCR paused.", "AbortError");
         const existing = previous.get(pageNumber);
-        if (existing?.status === "complete" && (existing.words.length > 0 || !existing.text.trim())) continue;
+        if ((existing?.status === "complete" && (existing.words.length > 0 || !existing.text.trim())) || existing?.status === "skipped") continue;
+        update({ detail: `Checking page ${pageNumber} for existing selectable text…`, progress: Math.min(0.76, (pageIndex / parsedPages.pageArray.length) * 0.76) });
+        const existingText = await extractPageText(document, pageNumber);
+        if (existingText.trim().length >= 120) {
+          const skipped: OcrPageResult = {
+            id: `${runningJob.id}:${pageNumber}`,
+            jobId: runningJob.id,
+            projectId: project.id,
+            pageNumber,
+            status: "skipped",
+            text: existingText.trim(),
+            confidence: 100,
+            words: [],
+            width: 1,
+            height: 1,
+            error: "OCR skipped because this page already contains substantial selectable text.",
+            updatedAt: Date.now()
+          };
+          await writeOcrPage(skipped);
+          previous.set(pageNumber, skipped);
+          const index = nextResults.findIndex((item) => item.pageNumber === pageNumber);
+          if (index >= 0) nextResults[index] = skipped; else nextResults.push(skipped);
+          setResults([...nextResults].sort((a,b) => a.pageNumber-b.pageNumber));
+          const completedPages = [...previous.values()].filter((item) => item.status === "complete" || item.status === "skipped").length;
+          runningJob = { ...runningJob, completedPages, updatedAt: Date.now() };
+          setJob(runningJob); await writeOcrJob(runningJob);
+          continue;
+        }
         update({ detail: `Preparing page ${pageNumber}…`, progress: Math.min(0.78, (pageIndex / parsedPages.pageArray.length) * 0.78) });
         setStatus(`Preparing page ${pageNumber}…`);
         const rendered = await renderPdfPageForOcr(document, pageNumber, preprocess);
@@ -182,6 +212,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         setStatus(`Recognizing page ${pageNumber}…`);
         update({ detail: `Recognizing page ${pageNumber}…`, progress: Math.min(0.82, ((pageIndex + 0.5) / parsedPages.pageArray.length) * 0.82) });
         try {
+          const activeSession = await ensureSession();
           const recognized = await activeSession.recognize(rendered.blob, `${runningJob.id}-${pageNumber}`);
           const pageResult: OcrPageResult = { ...pending, status: "complete", text: recognized.text, confidence: recognized.confidence, words: recognized.words, hocr: recognized.hocr, tsv: recognized.tsv, updatedAt: Date.now() };
           await writeOcrPage(pageResult);
@@ -189,7 +220,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
           const index = nextResults.findIndex((item) => item.pageNumber === pageNumber);
           if (index >= 0) nextResults[index] = pageResult; else nextResults.push(pageResult);
           setResults([...nextResults].sort((a,b) => a.pageNumber-b.pageNumber));
-          const completedPages = [...previous.values()].filter((item) => item.status === "complete").length;
+          const completedPages = [...previous.values()].filter((item) => item.status === "complete" || item.status === "skipped").length;
           runningJob = { ...runningJob, completedPages, updatedAt: Date.now() };
           setJob(runningJob); await writeOcrJob(runningJob);
         } catch (reason) {
