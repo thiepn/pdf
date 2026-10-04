@@ -16,9 +16,11 @@ describe("P2 intelligent document entry wiring", () => {
     expect(workspaceSource).not.toContain('setError("Recommendation');
   });
 
-  it("reuses the same recommendations in document entry and the document-actions sheet", () => {
+  it("reuses the same recommendations in document entry and the document-actions sheet without moving document chrome", () => {
+    expect(workspaceSource).toContain('className="document-entry-overlay"');
     expect(workspaceSource).toContain("<DocumentEntryRecommendations recommendations={entryRecommendations}");
     expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
+    expect(workspaceSource.indexOf('className="document-entry-overlay"')).toBeGreaterThan(workspaceSource.indexOf('className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader"'));
   });
 
   it("avoids a full security-page walk for large ordinary PDFs", () => {
