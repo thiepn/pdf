@@ -1,4 +1,4 @@
-import { extractPageText, inspectPdfAnnotationInventory, inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjsBase";
+import { openPdfWithPdfJs } from "../engines/pdfjs";
 
 export type TrustOutcome = "passed" | "changed" | "warning" | "not-checked";
 export type TrustLevel = "verified" | "verified-with-notes";
@@ -96,52 +96,82 @@ function samplePageNumbers(pageCount: number): number[] {
 async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
   signal?.throwIfAborted();
   let inspectionPassword: string | undefined;
-  let summary: Awaited<ReturnType<typeof inspectPdfBytes>>;
+  let document;
   try {
-    summary = await inspectPdfBytes(artifact.bytes);
-  } catch (reason) {
-    if (!artifact.password || !/password|encrypted/i.test(reason instanceof Error ? reason.message : String(reason))) throw reason;
-    inspectionPassword = artifact.password;
-    summary = await inspectPdfBytes(artifact.bytes, inspectionPassword);
-  }
-  const pages = samplePageNumbers(summary.pageCount);
-  const [annotationsResult, textResult] = await Promise.allSettled([
-    inspectPdfAnnotationInventory(artifact.bytes, inspectionPassword, pages),
-    inspectSearchableText(artifact.bytes, inspectionPassword, pages, signal)
-  ]);
-  const annotations = annotationsResult.status === "fulfilled" ? annotationsResult.value : undefined;
-  const textCoverage = textResult.status === "fulfilled" ? textResult.value : 0;
-  return {
-    name: artifact.name,
-    byteLength: artifact.bytes.byteLength,
-    pageCount: summary.pageCount,
-    encrypted: Boolean(inspectionPassword),
-    formFieldCount: summary.formFieldCount,
-    attachmentCount: summary.attachmentCount,
-    hasOutline: summary.hasOutline,
-    hasJavaScript: summary.hasJavaScript,
-    sampledPages: pages.length,
-    sampledPagesWithText: textCoverage,
-    textChecked: textResult.status === "fulfilled",
-    annotationsChecked: annotationsResult.status === "fulfilled",
-    sampledAnnotationCount: annotations?.annotationCount ?? 0,
-    sampledLinkCount: annotations?.linkCount ?? 0,
-    sampledWidgetCount: annotations?.widgetCount ?? 0
-  };
-}
+    try {
+      document = await openPdfWithPdfJs(artifact.bytes);
+    } catch (reason) {
+      if (!artifact.password || !/password|encrypted/i.test(reason instanceof Error ? reason.message : String(reason))) throw reason;
+      inspectionPassword = artifact.password;
+      document = await openPdfWithPdfJs(artifact.bytes, inspectionPassword);
+    }
 
-async function inspectSearchableText(bytes: Uint8Array, password: string | undefined, pages: number[], signal?: AbortSignal): Promise<number> {
-  const document = await openPdfWithPdfJs(bytes, password);
-  try {
-    let withText = 0;
+    const pages = samplePageNumbers(document.numPages);
+    const [outlineResult, attachmentsResult, fieldsResult, actionsResult] = await Promise.allSettled([
+      document.getOutline(),
+      document.getAttachments(),
+      document.getFieldObjects(),
+      document.getJSActions()
+    ]);
+    const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
+    const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
+    const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
+    const actions = actionsResult.status === "fulfilled" ? actionsResult.value : null;
+    let formFieldCount = 0;
+    if (fields) for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
+
+    let sampledPagesWithText = 0;
+    let sampledAnnotationCount = 0;
+    let sampledLinkCount = 0;
+    let sampledWidgetCount = 0;
+    let textChecked = true;
+    let annotationsChecked = true;
+
     for (const pageNumber of pages) {
       signal?.throwIfAborted();
-      const text = await extractPageText(document, pageNumber);
-      if (text.trim()) withText += 1;
+      const page = await document.getPage(pageNumber);
+      try {
+        const [textResult, annotationResult] = await Promise.allSettled([
+          page.getTextContent({ includeMarkedContent: false }),
+          page.getAnnotations({ intent: "display" })
+        ]);
+        if (textResult.status === "fulfilled") {
+          const hasText = textResult.value.items.some((item) => "str" in item && typeof item.str === "string" && item.str.trim());
+          if (hasText) sampledPagesWithText += 1;
+        } else textChecked = false;
+
+        if (annotationResult.status === "fulfilled") {
+          for (const annotation of annotationResult.value) {
+            const subtype = typeof annotation.subtype === "string" ? annotation.subtype : "";
+            if (subtype === "Link") sampledLinkCount += 1;
+            else if (subtype === "Widget") sampledWidgetCount += 1;
+            else sampledAnnotationCount += 1;
+          }
+        } else annotationsChecked = false;
+      } finally {
+        page.cleanup();
+      }
     }
-    return withText;
+
+    return {
+      name: artifact.name,
+      byteLength: artifact.bytes.byteLength,
+      pageCount: document.numPages,
+      encrypted: Boolean(inspectionPassword),
+      formFieldCount,
+      attachmentCount: attachments ? Object.keys(attachments).length : 0,
+      hasOutline: Boolean(outline?.length),
+      hasJavaScript: Boolean(actions && Object.keys(actions).length),
+      sampledPages: pages.length,
+      sampledPagesWithText,
+      textChecked,
+      annotationsChecked,
+      sampledAnnotationCount,
+      sampledLinkCount,
+      sampledWidgetCount
+    };
   } finally {
-    await document.loadingTask.destroy();
+    if (document) await document.loadingTask.destroy();
   }
 }
 
