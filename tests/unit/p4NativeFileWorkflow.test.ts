@@ -57,9 +57,12 @@ describe("P4 native file workflow", () => {
     }
   });
 
-  it("guards against Save targeting the linked original", () => {
+  it("guards against Save targeting the linked original and render-time file changes", () => {
     expect(nativeWorkflowSource).toContain("isSameEntry");
     expect(nativeWorkflowSource).toContain("Save as cannot replace the original PDF");
+    expect(nativeWorkflowSource).toContain("expectedLastModified");
+    expect(nativeWorkflowSource).toContain("await assertExternalFileUnchanged(prepared.handle");
+    expect(nativeWorkflowSource).toContain("writable.abort?.(reason)");
   });
 
   it("keeps automatic backup permission-prompt free after save", () => {
