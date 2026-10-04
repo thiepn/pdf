@@ -5,7 +5,7 @@ import { deleteProject, exportProjectPackage, listProjects, renameProject } from
 import type { ProjectManifest } from "../types/project";
 import { readSettings } from "../settings/settingsStore";
 import { deleteWorkspaceProjectData } from "../workspace/workspaceRepository";
-import { chooseExternalBackupDirectory, readNativeFileStatus, writeExternalProjectBackup, type NativeFileStatus } from "../files/nativeFileWorkflow";
+import { authorizeExternalBackupDirectory, chooseExternalBackupDirectory, readNativeFileStatus, writeExternalProjectBackup, type NativeFileStatus } from "../files/nativeFileWorkflow";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectManifest[]>([]);
@@ -54,9 +54,11 @@ export function ProjectsPage() {
       if (chooseFolder) {
         const selected = await chooseExternalBackupDirectory(project.id);
         if (!selected) throw new Error("Folder backups are not supported by this browser. Download a project backup instead.");
+      } else if (!(await authorizeExternalBackupDirectory(project.id))) {
+        throw new Error("Write permission was not granted for the external backup folder.");
       }
       const blob = await exportProjectPackage(project);
-      const written = await writeExternalProjectBackup(project.id, blob, `${safeName(project.name)}.lpsproject`, { requestPermission: true });
+      const written = await writeExternalProjectBackup(project.id, blob, `${safeName(project.name)}.lpsproject`);
       if (!written) throw new Error("Choose an external backup folder first.");
       await refresh();
     } catch (reason) {
