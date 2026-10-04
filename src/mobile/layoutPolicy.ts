@@ -3,7 +3,9 @@ export type ResponsiveClass = "phone" | "tablet" | "desktop";
 export interface ViewportMetrics {
   layoutHeight: number;
   visualHeight: number;
+  visualWidth: number;
   offsetTop: number;
+  offsetLeft: number;
   keyboardInset: number;
   keyboardOpen: boolean;
 }
@@ -15,15 +17,25 @@ export function classifyResponsiveWidth(width: number): ResponsiveClass {
   return "desktop";
 }
 
-export function deriveViewportMetrics(layoutHeight: number, visualHeight: number, offsetTop = 0): ViewportMetrics {
+export function deriveViewportMetrics(
+  layoutHeight: number,
+  visualHeight: number,
+  offsetTop = 0,
+  visualWidth = 0,
+  offsetLeft = 0
+): ViewportMetrics {
   const safeLayout = Math.max(0, Number.isFinite(layoutHeight) ? layoutHeight : 0);
   const safeVisual = Math.max(0, Number.isFinite(visualHeight) ? visualHeight : safeLayout);
-  const safeOffset = Math.max(0, Number.isFinite(offsetTop) ? offsetTop : 0);
-  const keyboardInset = Math.max(0, Math.round(safeLayout - safeVisual - safeOffset));
+  const safeWidth = Math.max(0, Number.isFinite(visualWidth) ? visualWidth : 0);
+  const safeOffsetTop = Math.max(0, Number.isFinite(offsetTop) ? offsetTop : 0);
+  const safeOffsetLeft = Math.max(0, Number.isFinite(offsetLeft) ? offsetLeft : 0);
+  const keyboardInset = Math.max(0, Math.round(safeLayout - safeVisual - safeOffsetTop));
   return {
     layoutHeight: safeLayout,
     visualHeight: safeVisual || safeLayout,
-    offsetTop: safeOffset,
+    visualWidth: safeWidth,
+    offsetTop: safeOffsetTop,
+    offsetLeft: safeOffsetLeft,
     keyboardInset,
     keyboardOpen: keyboardInset >= 120
   };
