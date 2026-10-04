@@ -294,8 +294,12 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
       label: "Searchable text",
       value: outputTextChecked ? textCoverageLabel(outputPdf) : "Not fully checked",
       detail: outputTextChecked
-        ? outputPdf.some((item) => item.pageCount > item.sampledPages) ? "Representative pages were sampled for text; page count and document structure were checked separately." : "Every output page was checked for searchable text."
-        : "At least one output could not complete the text-layer sample."
+        ? sampledOutputArtifacts.length < outputPdfArtifacts.length
+          ? `Representative output files were sampled (${sampledOutputArtifacts.length} of ${outputPdfArtifacts.length}); searchable-text counts apply only to those files.`
+          : outputPdf.some((item) => item.pageCount > item.sampledPages)
+            ? "Representative pages were sampled for text; page count and document structure were checked separately."
+            : "Every output page was checked for searchable text."
+        : "At least one inspected output could not complete the text-layer sample."
     });
     checks.push({
       label: "Output opens",
@@ -366,6 +370,19 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
         });
       }
     }
+  } else if (outputPdfArtifacts.length) {
+    const knownOutputPages = outputPdfArtifacts.every((item) => Number.isInteger(item.pageCount))
+      ? sum(outputPdfArtifacts, (item) => item.pageCount ?? 0)
+      : undefined;
+    if (knownOutputPages !== undefined) facts.push({ label: "Pages", value: String(knownOutputPages) });
+    checks.push({
+      label: "Output opens",
+      outcome: options.hardValidationPassed ? "passed" : "warning",
+      detail: options.hardValidationPassed
+        ? `All ${outputPdfArtifacts.length} output PDF${outputPdfArtifacts.length === 1 ? "" : "s"} passed the workflow's hard validation gate.`
+        : "The workflow did not confirm its output reopen/validation gate."
+    });
+    checks.push({ label: "PDF structure", outcome: "not-checked", detail: "Detailed P5 structure inspection did not complete, so no preservation claim is made beyond the workflow's hard validation." });
   } else {
     checks.push({ label: "PDF structure", outcome: "not-checked", detail: "This operation creates a non-PDF format, so PDF structural preservation does not apply to the output." });
   }
