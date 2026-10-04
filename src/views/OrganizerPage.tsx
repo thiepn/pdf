@@ -93,13 +93,14 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
   const changed = useMemo(() => items.length !== document?.numPages || items.some((item, index) => item.sourcePageIndex !== index || item.rotation !== 0), [items, document]);
   const lastChange = history.at(-1)?.label;
   const selectedIndexes = useMemo(() => items.flatMap((item, index) => selectedIds.has(item.id) ? [index] : []), [items, selectedIds]);
+  const firstSelectedIndex = selectedIndexes[0] ?? -1;
   const maxMovePosition = Math.max(1, items.length - selectedCount + 1);
 
   useEffect(() => {
-    if (!selectedIndexes.length) { setReorderError(null); return; }
-    setMoveTarget(String(selectedIndexes[0] + 1));
+    if (firstSelectedIndex < 0) { setReorderError(null); return; }
+    setMoveTarget(String(firstSelectedIndex + 1));
     setReorderError(null);
-  }, [selectedIndexes.map((index) => index).join(",")]);
+  }, [firstSelectedIndex, selectedCount]);
 
   const commit = useCallback((label: string, next: PagePlanItem[]) => {
     setHistory((current) => [...current.slice(-39), { items, label }]);
