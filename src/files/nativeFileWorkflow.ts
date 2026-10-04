@@ -3,6 +3,7 @@ export type NativePermissionState = "granted" | "denied" | "prompt";
 export interface NativeWritableFileStream {
   write(data: Blob | Uint8Array | string): Promise<void>;
   close(): Promise<void>;
+  abort?(reason?: unknown): Promise<void>;
 }
 
 export interface NativeFileHandle {
@@ -82,6 +83,8 @@ export interface PreparedNativePdfWrite {
   handle: NativeFileHandle;
   filename: string;
   target: "output" | "source";
+  expectedSize?: number;
+  expectedLastModified?: number;
 }
 
 const PDF_TYPE = [{ description: "PDF document", accept: { "application/pdf": [".pdf"] } }];
@@ -211,16 +214,16 @@ export async function readNativeFileStatus(projectId: string): Promise<NativeFil
   };
 }
 
-export async function rememberNativeSourceHandle(projectId: string, handle: NativeFileHandle): Promise<void> {
-  const [current, file] = await Promise.all([readNativeFileBinding(projectId), handle.getFile()]);
+export async function rememberNativeSourceHandle(projectId: string, handle: NativeFileHandle, importedFile: File): Promise<void> {
+  const current = await readNativeFileBinding(projectId);
   const outputMatchesSource = current?.outputHandle ? await handlesReferToSameFile(handle, current.outputHandle) : false;
   const next: NativeFileBindingRecord = {
     ...current,
     projectId,
     sourceHandle: handle,
     sourceName: handle.name,
-    sourceSize: file.size,
-    sourceLastModified: file.lastModified,
+    sourceSize: importedFile.size,
+    sourceLastModified: importedFile.lastModified,
     updatedAt: Date.now()
   };
   if (outputMatchesSource) {
@@ -290,8 +293,10 @@ async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array, perm
   const writable = await handle.createWritable();
   try {
     await writable.write(data instanceof Blob ? data : data.slice());
-  } finally {
     await writable.close();
+  } catch (reason) {
+    try { await writable.abort?.(reason); } catch { /* Preserve the original write failure. */ }
+    throw reason;
   }
 }
 
@@ -321,7 +326,7 @@ export async function prepareNativePdfWrite(
     if (!binding?.sourceHandle) throw new Error("This project is not linked to the PDF file it was opened from. Use Save as instead.");
     if (!(await requestWritePermission(binding.sourceHandle))) throw new Error("Write permission was not granted for the original PDF.");
     await assertExternalFileUnchanged(binding.sourceHandle, binding.sourceSize, binding.sourceLastModified);
-    return { handle: binding.sourceHandle, filename: binding.sourceHandle.name, target: "source" };
+    return { handle: binding.sourceHandle, filename: binding.sourceHandle.name, target: "source", expectedSize: binding.sourceSize, expectedLastModified: binding.sourceLastModified };
   }
 
   if (!supportsNativeFileSave()) return null;
@@ -340,7 +345,7 @@ export async function prepareNativePdfWrite(
       throw new Error("The current Save target is the original PDF. Use Save as to choose a separate file, or Replace original for an intentional overwrite.");
     }
     await assertExternalFileUnchanged(binding.outputHandle, binding.outputSize, binding.outputLastModified);
-    return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output" };
+    return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output", expectedSize: binding.outputSize, expectedLastModified: binding.outputLastModified };
   }
   const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
   await assertOutputIsNotSource(projectId, handle);
@@ -352,6 +357,7 @@ export async function commitPreparedNativePdfWrite(
   prepared: PreparedNativePdfWrite,
   bytes: Uint8Array
 ): Promise<NativePdfWriteResult> {
+  await assertExternalFileUnchanged(prepared.handle, prepared.expectedSize, prepared.expectedLastModified);
   await writeFile(prepared.handle, bytes, true);
   const savedAt = Date.now();
   if (prepared.target === "output") await rememberOutput(projectId, prepared.handle, savedAt);
@@ -427,8 +433,10 @@ export async function writeExternalProjectBackup(
   const writable = await handle.createWritable();
   try {
     await writable.write(blob);
-  } finally {
     await writable.close();
+  } catch (reason) {
+    try { await writable.abort?.(reason); } catch { /* Preserve the original backup write failure. */ }
+    throw reason;
   }
   const now = Date.now();
   const next: NativeFileBindingRecord = {
