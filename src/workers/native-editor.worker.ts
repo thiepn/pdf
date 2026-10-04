@@ -357,6 +357,60 @@ function sameRect(left: NativeRect | undefined, right: NativeRect | undefined, t
     && Math.abs(left.h - right.h) <= tolerance;
 }
 
+function retainedSourceLines(edit: any): Array<{ text: string; bounds: NativeRect }> {
+  if (!Array.isArray(edit.sourceLines)) return [];
+  return edit.sourceLines.filter((line: any) => typeof line?.text === "string" && validRedactionRect(line?.bounds));
+}
+
+function changedRange(left: string, right: string): { sourceStart: number; sourceEnd: number; delta: number } {
+  let prefix = 0;
+  const limit = Math.min(left.length, right.length);
+  while (prefix < limit && left[prefix] === right[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < left.length - prefix
+    && suffix < right.length - prefix
+    && left[left.length - suffix - 1] === right[right.length - suffix - 1]
+  ) suffix += 1;
+  return { sourceStart: prefix, sourceEnd: left.length - suffix, delta: right.length - left.length };
+}
+
+function retainedLineBreakOffsets(edit: any): number[] | null {
+  const lines = retainedSourceLines(edit);
+  if (lines.length <= 1 || typeof edit.originalText !== "string" || typeof edit.text !== "string") return null;
+  const ranges: Array<{ start: number; end: number }> = [];
+  let cursor = 0;
+  for (const line of lines) {
+    const value = line.text.trim();
+    if (!value) return null;
+    const start = edit.originalText.indexOf(value, cursor);
+    if (start < 0) return null;
+    ranges.push({ start, end: start + value.length });
+    cursor = start + value.length;
+  }
+  const change = changedRange(edit.originalText, edit.text);
+  const touched = ranges.filter((range) =>
+    change.sourceStart === change.sourceEnd
+      ? change.sourceStart >= range.start && change.sourceStart <= range.end
+      : change.sourceStart < range.end && change.sourceEnd > range.start
+  );
+  if (touched.length > 1) return null;
+  if (touched.length === 1 && (change.sourceStart < touched[0].start || change.sourceEnd > touched[0].end)) return null;
+  return ranges.slice(0, -1).map((range) => range.end <= change.sourceStart ? range.end : range.end + change.delta);
+}
+
+function withRetainedLineBreaks(chars: StyledChar[], offsets: number[]): StyledChar[] {
+  if (!offsets.length) return chars;
+  const breaks = new Set(offsets.filter((offset) => offset > 0 && offset < chars.length));
+  if (!breaks.size) return chars;
+  const output: StyledChar[] = [];
+  for (let index = 0; index < chars.length; index += 1) {
+    if (breaks.has(index)) output.push({ ...chars[Math.max(0, index - 1)], char: "\n", width: 0 });
+    output.push(chars[index]);
+  }
+  return output;
+}
+
 function chunks(line: StyledLine): Array<{ style: PreparedStyle; text: string; width: number }> {
   const output: Array<{ style: PreparedStyle; text: string; width: number }> = [];
   for (const item of line.chars) {
@@ -383,15 +437,18 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
   const width = x1 - x0;
   const height = y1 - y0;
   const prepared = prepareStyles(pdf, page, edit);
+  const retainedLines = retainedSourceLines(edit);
   const sourceLineRegions = edit.layoutMode !== "expand-flow"
     && Boolean(edit.wrap)
     && sameRect(edit.bounds, edit.sourceBounds ?? edit.bounds)
-    ? textSourceLineRegions(edit)
+    ? (retainedLines.length > 1 ? retainedLines.map((line) => line.bounds) : textSourceLineRegions(edit))
     : [];
   const sourceLineWidths = sourceLineRegions.length > 1
     ? sourceLineRegions.map((region) => Math.max(region.w, edit.bounds.w - Math.max(0, region.x - edit.bounds.x)))
     : [];
-  const sourceLines = sourceLineWidths.length ? wrapStyled(prepared.chars, sourceLineWidths, true) : [];
+  const sourceBreaks = sourceLineWidths.length ? retainedLineBreakOffsets(edit) : null;
+  const sourceChars = sourceBreaks ? withRetainedLineBreaks(prepared.chars, sourceBreaks) : prepared.chars;
+  const sourceLines = sourceLineWidths.length ? wrapStyled(sourceChars, sourceLineWidths, true) : [];
   const sourceLayoutFits = sourceLineWidths.length > 0
     && sourceLines.length <= sourceLineRegions.length
     && sourceLines.every((line, index) => line.width <= Math.max(1, sourceLineWidths[index] - 3) + 0.01);
