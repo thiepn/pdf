@@ -16,6 +16,7 @@ import { AssemblyPanel } from "../quick/AssemblyPanel";
 import { createAssemblyPlan, validateAssemblyPlan } from "../quick/assemblyModel";
 import { VisualCrop } from "../quick/VisualCrop";
 import { handOffTaskFiles, takeTaskTransfer, isImageFile, isPdfFile } from "../product/fileHandoff";
+import { OutputTrustPanel } from "../components/OutputTrustPanel";
 
 const actionLabels: Record<QuickTaskId, string> = {
   "pdf-to-docx": "Export editable text to Word", "flatten-pdf": "Flatten PDF", "sanitize-pdf": "Clean up PDF", "remove-metadata": "Remove metadata", "repair-pdf": "Repair PDF",
@@ -243,6 +244,7 @@ function QuickWorkflow({ taskId, projectId }: { taskId: QuickTaskId; projectId?:
       <div className="task-action-dock"><button className="button quick-run" disabled={locked || Boolean(validation)} type="submit">{actionLabels[taskId]}<Icon name="chevron-right" size={19}/></button><small>Your original stays unchanged.</small></div>
     </fieldset></form></div> : null}
     {result ? <section className="quick-result" aria-label="Your files are ready" ref={resultRef} tabIndex={-1}><span className="task-success-mark" aria-hidden="true">✓</span><p className="eyebrow">COMPLETE</p><h2>Your {result.files.length === 1 ? "file is" : "files are"} ready</h2><p>{result.files.length} {result.files.length === 1 ? "file" : "files"} · {formatBytes(outputSize)}{taskId === "compress-pdf" ? ` · ${outputSize < inputSize ? `${Math.round((1 - outputSize / inputSize) * 100)}% smaller` : "Original size unchanged"} (was ${formatBytes(inputSize)})` : ""}</p>
+      {result.trust ? <OutputTrustPanel report={result.trust} /> : null}
       {result.files.length > 1 ? <button className="button" onClick={downloadAll} type="button">Download all as ZIP</button> : <button className="button" onClick={() => download(result.files[0])} type="button">Download {result.files[0].mime === "application/pdf" ? "PDF" : taskId === "pdf-to-docx" ? "Word document" : taskId === "pdf-to-text" ? "text" : taskId === "pdf-to-jpg" ? "JPG" : "PNG"}</button>}
       {result.files.length > 1 ? <details className="quick-individual"><summary>Download individual files ({result.files.length})</summary>{result.files.map((file) => <button key={file.name} onClick={() => download(file)} type="button">{file.name} · {formatBytes(file.bytes.byteLength)}</button>)}</details> : <p className="quick-hint">{result.files[0].name}</p>}
       {result.warnings.length ? <details className="quick-output-notes" open><summary>Output notes</summary>{result.warnings.map((warning) => <p key={warning}>{warning}</p>)}</details> : null}
