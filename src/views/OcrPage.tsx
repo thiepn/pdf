@@ -4,7 +4,7 @@ import { registerPreparedDocumentSnapshot } from "../product/documentSnapshot";
 import { readProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { routeHref } from "../core/appRouter";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
-import { inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
+import { extractPageText, inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
 import { OcrLanguagePanel } from "../ocr/OcrLanguagePanel";
 import { OcrReviewCanvas } from "../ocr/OcrReviewCanvas";
 import { applyOcrTextLayer } from "../ocr/ocrLayerClient";
@@ -113,7 +113,8 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     const parsed = document ? parsePageSelection(pageExpression, document.numPages) : { pages: new Set<number>(), errors: [] as string[] };
     return { ...parsed, pageArray: [...parsed.pages].sort((a, b) => a - b) };
   }, [pageExpression, document]);
-  const completed = results.filter((item) => item.status === "complete").length;
+  const completed = results.filter((item) => item.status === "complete" || item.status === "skipped").length;
+  const skippedSearchable = results.filter((item) => item.status === "skipped").length;
   const running = job?.status === "running";
 
   const currentRecipe = buildOcrRecipeFingerprint({ pageNumbers: parsedPages.pageArray, languages, preprocess });
