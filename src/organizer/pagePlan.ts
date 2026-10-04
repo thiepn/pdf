@@ -50,6 +50,35 @@ export function moveItems(items: PagePlanItem[], ids: Set<string>, targetIndex: 
   return [...remaining.slice(0, insertAt), ...moving, ...remaining.slice(insertAt)];
 }
 
+export function moveItemsBy(items: PagePlanItem[], ids: Set<string>, direction: -1 | 1): PagePlanItem[] {
+  if (!ids.size) return items;
+  const next = [...items];
+  let changed = false;
+  if (direction < 0) {
+    for (let index = 1; index < next.length; index += 1) {
+      if (!ids.has(next[index].id) || ids.has(next[index - 1].id)) continue;
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      changed = true;
+    }
+  } else {
+    for (let index = next.length - 2; index >= 0; index -= 1) {
+      if (!ids.has(next[index].id) || ids.has(next[index + 1].id)) continue;
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      changed = true;
+    }
+  }
+  return changed ? next : items;
+}
+
+export function moveItemsToPosition(items: PagePlanItem[], ids: Set<string>, position: number): PagePlanItem[] {
+  const moving = items.filter((item) => ids.has(item.id));
+  if (!moving.length || !Number.isInteger(position)) return items;
+  const remaining = items.filter((item) => !ids.has(item.id));
+  const insertAt = Math.max(0, Math.min(remaining.length, position - 1));
+  const next = [...remaining.slice(0, insertAt), ...moving, ...remaining.slice(insertAt)];
+  return next.every((item, index) => item.id === items[index]?.id) ? items : next;
+}
+
 export function reverseItems(items: PagePlanItem[], selectedOnly = false): PagePlanItem[] {
   if (!selectedOnly) return [...items].reverse();
   const selected = items.filter((item) => item.selected).reverse();
