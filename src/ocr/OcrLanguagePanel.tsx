@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InstalledOcrLanguage } from "../types/ocr";
 import { COMMON_OCR_LANGUAGES, importLanguagePack, installLanguageFromNetwork, removeLanguagePack } from "./languagePackManager";
 import { listInstalledLanguages } from "./ocrRepository";
+import { suggestInstalledOcrLanguages } from "./ocrLayer";
 
 interface Props {
   selected: string[];
@@ -17,7 +18,14 @@ export function OcrLanguagePanel({ selected, onChange, disabled = false }: Props
   const fileRef = useRef<HTMLInputElement | null>(null);
   const importCodeRef = useRef("eng");
 
-  async function refresh() { setInstalled(await listInstalledLanguages()); }
+  async function refresh() {
+    const next = await listInstalledLanguages();
+    setInstalled(next);
+    if (!selected.length) {
+      const suggested = suggestInstalledOcrLanguages(next, navigator.languages?.length ? navigator.languages : [navigator.language]);
+      if (suggested.length) onChange(suggested);
+    }
+  }
   useEffect(() => {
     void refresh();
     const update = () => setOnline(navigator.onLine);
