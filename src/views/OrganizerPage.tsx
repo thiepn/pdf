@@ -8,7 +8,7 @@ import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import type { ProjectManifest } from "../types/project";
 import type { PagePlanItem } from "../types/organizer";
 import { compilePagePlan } from "../tools/pageOperationsClient";
-import { createPagePlan, deleteItems, duplicateItems, moveItems, reverseItems, rotateItems, selectItems } from "../organizer/pagePlan";
+import { createPagePlan, deleteItems, duplicateItems, moveItems, moveItemsBy, moveItemsToPosition, reverseItems, rotateItems, selectItems } from "../organizer/pagePlan";
 import { parsePageSelection } from "../organizer/pageSelection";
 import { OrganizerThumbnail } from "../organizer/OrganizerThumbnail";
 import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
@@ -29,6 +29,8 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
   const [future, setFuture] = useState<HistoryState[]>([]);
   const [selectionText, setSelectionText] = useState("");
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState("1");
+  const [reorderError, setReorderError] = useState<string | null>(null);
   const [status, setStatus] = useState("Opening project…");
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -90,6 +92,14 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
   const selectedCount = selectedIds.size;
   const changed = useMemo(() => items.length !== document?.numPages || items.some((item, index) => item.sourcePageIndex !== index || item.rotation !== 0), [items, document]);
   const lastChange = history.at(-1)?.label;
+  const selectedIndexes = useMemo(() => items.flatMap((item, index) => selectedIds.has(item.id) ? [index] : []), [items, selectedIds]);
+  const maxMovePosition = Math.max(1, items.length - selectedCount + 1);
+
+  useEffect(() => {
+    if (!selectedIndexes.length) { setReorderError(null); return; }
+    setMoveTarget(String(selectedIndexes[0] + 1));
+    setReorderError(null);
+  }, [selectedIndexes.map((index) => index).join(",")]);
 
   const commit = useCallback((label: string, next: PagePlanItem[]) => {
     setHistory((current) => [...current.slice(-39), { items, label }]);
@@ -114,6 +124,36 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
   function moveDragged(id: string, targetIndex: number): void {
     const ids = selectedIds.has(id) ? selectedIds : new Set([id]);
     commit("Moved pages", moveItems(items, ids, targetIndex));
+  }
+
+  function moveGroupFor(id: string): Set<string> {
+    return selectedIds.has(id) ? selectedIds : new Set([id]);
+  }
+
+  function canMoveGroup(id: string, direction: -1 | 1): boolean {
+    const ids = moveGroupFor(id);
+    const indexes = items.flatMap((item, index) => ids.has(item.id) ? [index] : []);
+    if (!indexes.length) return false;
+    return direction < 0 ? indexes[0] > 0 : indexes[indexes.length - 1] < items.length - 1;
+  }
+
+  function moveByTouch(id: string, direction: -1 | 1): void {
+    const ids = moveGroupFor(id);
+    const next = moveItemsBy(items, ids, direction);
+    if (next === items) return;
+    commit(direction < 0 ? "Moved pages earlier" : "Moved pages later", next);
+  }
+
+  function moveSelectionToTarget(): void {
+    const position = Number(moveTarget);
+    if (!Number.isInteger(position) || position < 1 || position > maxMovePosition) {
+      setReorderError(`Choose a position from 1 to ${maxMovePosition}.`);
+      return;
+    }
+    const next = moveItemsToPosition(items, selectedIds, position);
+    setReorderError(null);
+    if (next === items) { setStatus("Selected pages are already at that position"); return; }
+    commit(`Moved selected pages to position ${position}`, next);
   }
 
   function undo(): void {
@@ -208,18 +248,20 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
       </section>
 
       {selectedCount ? <section className="organizer-selection-actions" aria-label="Selected page actions"><div><strong>{selectedCount} selected</strong><span>These changes are staged and can be undone.</span></div><div>
+        <button disabled={processing || selectedIndexes[0] === 0} onClick={() => { const next = moveItemsBy(items, selectedIds, -1); if (next !== items) commit("Moved selected pages earlier", next); }} type="button">Move earlier</button>
+        <button disabled={processing || selectedIndexes[selectedIndexes.length - 1] === items.length - 1} onClick={() => { const next = moveItemsBy(items, selectedIds, 1); if (next !== items) commit("Moved selected pages later", next); }} type="button">Move later</button>
         <button disabled={processing} onClick={() => commit("Rotated pages left", rotateItems(items, selectedIds, -90))} type="button">Rotate left</button>
         <button disabled={processing} onClick={() => commit("Rotated pages right", rotateItems(items, selectedIds, 90))} type="button">Rotate right</button>
         <button disabled={processing} onClick={() => commit("Duplicated pages", duplicateItems(items, selectedIds))} type="button">Duplicate</button>
         <button disabled={processing || selectedCount === items.length} onClick={() => commit("Deleted pages", deleteItems(items, selectedIds))} type="button">Delete</button>
         {selectedCount > 1 ? <button disabled={processing} onClick={() => commit("Reversed selected pages", reverseItems(items, true))} type="button">Reverse selection</button> : null}
         <button className="button button--secondary button--small" disabled={processing} onClick={() => void exportPlan("selected", false)} type="button">Extract selected</button>
-      </div></section> : <section className="organizer-selection-actions organizer-selection-actions--empty"><div><strong>Select pages to act on them</strong><span>Rotate, duplicate, delete, extract, or drag selected thumbnails into a new order.</span></div><button disabled={processing} onClick={() => commit("Reversed all pages", reverseItems(items, false))} type="button">Reverse all pages</button></section>}
+      </div><div className="organizer-selection-actions__move"><label><span>Move selected to position</span><input aria-label="Move selected pages to position" inputMode="numeric" min={1} max={maxMovePosition} onChange={(event) => { setMoveTarget(event.target.value); setReorderError(null); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); moveSelectionToTarget(); } }} type="number" value={moveTarget}/>{reorderError ? <small className="selection-help selection-help--error">{reorderError}</small> : <small>First selected page · 1–{maxMovePosition}</small>}</label><button disabled={processing} onClick={moveSelectionToTarget} type="button">Move</button></div></section> : <section className="organizer-selection-actions organizer-selection-actions--empty"><div><strong>Select pages to act on them</strong><span>Rotate, duplicate, delete, extract, or reorder them. Drag on desktop; use the move controls on touch devices.</span></div><button disabled={processing} onClick={() => commit("Reversed all pages", reverseItems(items, false))} type="button">Reverse all pages</button></section>}
 
       <details className="organizer-output-info"><summary>What happens when I create an output?</summary><p>The original project is not overwritten. Page appearance and page annotations are targeted for preservation, but rebuilt outputs may lose bookmarks, attachments, cryptographic signatures, and complex form relationships.{project.summary.encrypted ? " The new copy will not retain the source password." : ""}</p></details>
 
       <main className="organizer-grid">
-        {items.map((item, index) => <OrganizerThumbnail displayIndex={index + 1} document={document} item={item} key={item.id} onDropAt={moveDragged} onToggle={toggleSelection} />)}
+        {items.map((item, index) => <OrganizerThumbnail canMoveEarlier={canMoveGroup(item.id, -1)} canMoveLater={canMoveGroup(item.id, 1)} displayIndex={index + 1} document={document} item={item} key={item.id} onDropAt={moveDragged} onMoveBy={moveByTouch} onToggle={toggleSelection} />)}
       </main>
     </div>
   );
