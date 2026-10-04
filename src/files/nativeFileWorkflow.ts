@@ -82,6 +82,7 @@ export interface PreparedNativePdfWrite {
 }
 
 const PDF_TYPE = [{ description: "PDF document", accept: { "application/pdf": [".pdf"] } }];
+const bindingCache = new Map<string, NativeFileBindingRecord | null>();
 
 function pickerWindow(): NativePickerWindow {
   return window as NativePickerWindow;
@@ -125,7 +126,10 @@ export async function openNativePdf(): Promise<NativeOpenResult | null> {
 }
 
 export async function readNativeFileBinding(projectId: string): Promise<NativeFileBindingRecord | undefined> {
-  return idbGet<NativeFileBindingRecord>("nativeFileBindings", projectId);
+  if (bindingCache.has(projectId)) return bindingCache.get(projectId) ?? undefined;
+  const binding = await idbGet<NativeFileBindingRecord>("nativeFileBindings", projectId);
+  bindingCache.set(projectId, binding ?? null);
+  return binding;
 }
 
 export async function readNativeFileStatus(projectId: string): Promise<NativeFileStatus> {
@@ -147,17 +151,20 @@ export async function readNativeFileStatus(projectId: string): Promise<NativeFil
 
 export async function rememberNativeSourceHandle(projectId: string, handle: NativeFileHandle): Promise<void> {
   const current = await readNativeFileBinding(projectId);
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
+  const next: NativeFileBindingRecord = {
     ...current,
     projectId,
     sourceHandle: handle,
     sourceName: handle.name,
     updatedAt: Date.now()
-  });
+  };
+  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  bindingCache.set(projectId, next);
 }
 
 export async function clearNativeFileBinding(projectId: string): Promise<void> {
   await idbDelete("nativeFileBindings", projectId);
+  bindingCache.delete(projectId);
 }
 
 async function ensureWritePermission(handle: NativeFileHandle | NativeDirectoryHandle, request: boolean): Promise<boolean> {
@@ -191,14 +198,16 @@ async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array, perm
 
 async function rememberOutput(projectId: string, handle: NativeFileHandle, savedAt: number): Promise<void> {
   const current = await readNativeFileBinding(projectId);
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
+  const next: NativeFileBindingRecord = {
     ...current,
     projectId,
     outputHandle: handle,
     outputName: handle.name,
     lastPdfSavedAt: savedAt,
     updatedAt: savedAt
-  });
+  };
+  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  bindingCache.set(projectId, next);
 }
 
 export async function prepareNativePdfWrite(
@@ -214,14 +223,18 @@ export async function prepareNativePdfWrite(
   }
 
   if (!supportsNativeFileSave()) return null;
+  const picker = pickerWindow().showSaveFilePicker;
+  if (!picker) return null;
+  if (mode === "save-as") {
+    const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
+    return { handle, filename: handle.name, target: "output" };
+  }
+
   const binding = await readNativeFileBinding(projectId);
-  if (mode === "save" && binding?.outputHandle) {
+  if (binding?.outputHandle) {
     if (!(await requestWritePermission(binding.outputHandle))) throw new Error("Write permission was not granted for the saved PDF.");
     return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output" };
   }
-
-  const picker = pickerWindow().showSaveFilePicker;
-  if (!picker) return null;
   const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
   return { handle, filename: handle.name, target: "output" };
 }
@@ -237,12 +250,14 @@ export async function commitPreparedNativePdfWrite(
   else {
     const binding = await readNativeFileBinding(projectId);
     if (!binding?.sourceHandle) throw new Error("The original PDF link was lost before the verified output could be written.");
-    await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
+    const next: NativeFileBindingRecord = {
       ...binding,
       projectId,
       lastPdfSavedAt: savedAt,
       updatedAt: savedAt
-    });
+    };
+    await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+    bindingCache.set(projectId, next);
   }
   return { filename: prepared.filename, target: prepared.target, savedAt };
 }
@@ -269,12 +284,14 @@ export async function chooseExternalBackupDirectory(projectId: string): Promise<
   const handle = await picker({ mode: "readwrite" });
   if (!(await ensureWritePermission(handle, true))) throw new Error("Write permission was not granted for this backup folder.");
   const current = await readNativeFileBinding(projectId);
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
+  const next: NativeFileBindingRecord = {
     ...current,
     projectId,
     backupDirectoryHandle: handle,
     updatedAt: Date.now()
-  });
+  };
+  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  bindingCache.set(projectId, next);
   return readNativeFileStatus(projectId);
 }
 
@@ -303,11 +320,13 @@ export async function writeExternalProjectBackup(
     await writable.close();
   }
   const now = Date.now();
-  await idbPut<NativeFileBindingRecord>("nativeFileBindings", {
+  const next: NativeFileBindingRecord = {
     ...binding,
     projectId,
     lastBackupAt: now,
     updatedAt: now
-  });
+  };
+  await idbPut<NativeFileBindingRecord>("nativeFileBindings", next);
+  bindingCache.set(projectId, next);
   return true;
 }
