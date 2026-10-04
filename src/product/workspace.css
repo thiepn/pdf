@@ -7,12 +7,26 @@
 
 /* P2 intelligent document entry: compact, task-first recommendations rather than
    another dashboard. Evidence is computed locally and the strip never blocks the workspace. */
+.product-app .document-entry-overlay {
+  position: absolute;
+  z-index: 70;
+  top: 60px;
+  right: 14px;
+  width: min(760px, calc(100% - 28px));
+  max-height: min(52vh, 480px);
+  overflow: auto;
+  pointer-events: auto;
+}
+.product-app .workspace-body {
+  position: relative;
+}
 .product-app .document-entry-recommendations {
-  margin: 10px 14px 0;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
   overflow: hidden;
+  box-shadow: var(--shadow-lg);
 }
 .product-app .document-entry-recommendations__header {
   display: flex;
@@ -102,9 +116,11 @@
   padding: 9px 10px;
 }
 @media (max-width: 720px) {
-  .product-app .document-entry-recommendations {
-    margin: 8px 8px 0;
-    border-radius: 12px;
+  .product-app .document-entry-overlay {
+    display: none;
+  }
+  .product-app .document-entry-recommendations--compact {
+    display: block;
   }
   .product-app .document-entry-recommendations__list {
     grid-template-columns: 1fr;
