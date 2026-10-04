@@ -23,6 +23,8 @@ The P3 writer:
 
 Only selected pages are recognized. Selection does **not** remove other pages from the output.
 
+The standalone **Scan images → PDF** workflow uses the same rule: it first creates the image-page PDF, then adds recognized words through the shared invisible text-layer writer. Tesseract never supplies replacement PDF pages.
+
 ### Persistent recognition evidence
 
 OCR page results remain in the existing local IndexedDB OCR stores. Each word keeps:
