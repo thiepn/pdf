@@ -158,6 +158,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
         outputs: [{ name: filename, bytes: result.bytes, mime: "application/pdf", pageCount: summary.pageCount }],
         warnings: result.warnings,
         expectedPageCount: plan.length,
+        hardValidationPassed: true,
         signal
       });
       setOutputTrust(trust);
