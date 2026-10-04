@@ -17,6 +17,11 @@ export interface OcrWord {
   text: string;
   confidence: number;
   bbox: { x0: number; y0: number; x1: number; y1: number };
+  /** User-reviewed replacement. Original OCR text remains available for provenance. */
+  correctedText?: string;
+  corrected?: boolean;
+  /** Excluded from the searchable layer without deleting the recognition evidence. */
+  ignored?: boolean;
 }
 
 export interface OcrPageResult {

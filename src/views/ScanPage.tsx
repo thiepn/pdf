@@ -3,12 +3,13 @@ import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes, openPdfWithPdfJs, extractPageText } from "../engines/pdfjs";
 import { OcrLanguagePanel } from "../ocr/OcrLanguagePanel";
 import { createOcrSession } from "../ocr/ocrClient";
+import { applyOcrTextLayer } from "../ocr/ocrLayerClient";
+import type { OcrLayerPage } from "../ocr/ocrLayer";
 import { applyPreprocess, canvasToBlob, DEFAULT_OCR_PREPROCESS } from "../ocr/preprocess";
 import { buildJpegPdf, imageBlobToJpegPage, type JpegPdfPage } from "../pdf/jpegPdf";
 import { downloadBlob } from "../projects/download";
 import { createProjectFromBytes } from "../projects/projectRepository";
 import { buildScanOutputFingerprint } from "../scan/scanOutputFingerprint";
-import { mergePdfSources } from "../tools/pageOperationsClient";
 import type { OcrPreprocessSettings } from "../types/ocr";
 import { inspectIncomingFiles, isImageFile, takeTaskTransfer } from "../product/fileHandoff";
 import { MAX_CANVAS_PIXELS, MAX_OUTPUT_BYTES, safeOutputName } from "../quick/quickModel";
@@ -151,7 +152,7 @@ export function ScanPage() {
         session = await createOcrSession(languages, (message) => { if (alive.current && !abort.signal.aborted) setStatus(`${message.status} · ${Math.round(message.progress * 100)}%`); });
         sessionRef.current = session;
       }
-      const recognized: Array<{ name: string; bytes: Uint8Array }> = []; const images: JpegPdfPage[] = [];
+      const recognizedLayers: OcrLayerPage[] = []; const images: JpegPdfPage[] = [];
       let outputBytes = 0;
       // Normalize/recognize one image at a time rather than keeping every full-
       // resolution canvas and normalized bitmap alive simultaneously.
@@ -160,19 +161,36 @@ export function ScanPage() {
         setStatus(`Preparing page ${index + 1} of ${items.length}…`);
         const normalized = await normalizedImage(item, preprocess, abort.signal);
         abort.signal.throwIfAborted();
+        const image = await imageBlobToJpegPage(normalized, 0.88);
+        outputBytes += image.jpeg.byteLength;
+        images.push(image);
         if (session) {
           setStatus(`Recognizing page ${index + 1} of ${items.length}…`);
           const result = await session.recognize(normalized, `scan-${index + 1}`);
           abort.signal.throwIfAborted();
-          if (!result.searchablePdf) throw new Error("Text recognition did not produce a PDF. Try again or turn off searchable text.");
-          outputBytes += result.searchablePdf.byteLength; recognized.push({ name: `scan-${index + 1}.pdf`, bytes: result.searchablePdf });
-        } else {
-          const image = await imageBlobToJpegPage(normalized, 0.88); outputBytes += image.jpeg.byteLength; images.push(image);
+          recognizedLayers.push({
+            pageNumber: index + 1,
+            words: result.words
+              .filter((word) => Boolean(word.text.trim()))
+              .map((word) => ({
+                text: word.text.trim(),
+                confidence: word.confidence,
+                rect: {
+                  x0: Math.max(0, Math.min(1, word.bbox.x0 / Math.max(1, image.pixelWidth))),
+                  y0: Math.max(0, Math.min(1, word.bbox.y0 / Math.max(1, image.pixelHeight))),
+                  x1: Math.max(0, Math.min(1, word.bbox.x1 / Math.max(1, image.pixelWidth))),
+                  y1: Math.max(0, Math.min(1, word.bbox.y1 / Math.max(1, image.pixelHeight)))
+                }
+              }))
+          });
         }
         if (outputBytes > MAX_OUTPUT_BYTES) throw new Error("The output is too large for this browser. Convert a smaller batch.");
         abort.signal.throwIfAborted(); setProgress((index + 1) / items.length);
       }
-      const bytes = session ? (await mergePdfSources(recognized, abort.signal)).bytes : buildJpegPdf(images, { title: outputName.trim() || "Scanned document" });
+      const imagePdf = buildJpegPdf(images, { title: outputName.trim() || "Scanned document" });
+      const bytes = session
+        ? (await applyOcrTextLayer(imagePdf, recognizedLayers, undefined, abort.signal)).bytes
+        : imagePdf;
       abort.signal.throwIfAborted();
       if (bytes.byteLength > MAX_OUTPUT_BYTES) throw new Error("The PDF exceeds the safe browser output size. Convert fewer images.");
       const summary = await inspectPdfBytes(bytes); abort.signal.throwIfAborted();
