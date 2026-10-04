@@ -48,7 +48,7 @@ export function HomePage() {
     try {
       const project = kind === "package" ? await importProjectPackage(file, suppliedPassword) : await importPdfProject(file, suppliedPassword);
       if (kind === "pdf" && suppliedPassword) rememberProjectSessionPassword(project.id, suppliedPassword);
-      if (kind === "pdf" && nativeSourceHandle) await rememberNativeSourceHandle(project.id, nativeSourceHandle);
+      if (kind === "pdf" && nativeSourceHandle) await rememberNativeSourceHandle(project.id, nativeSourceHandle, file);
       if (launchId) { acknowledgePendingPwaLaunchFiles([launchId]); deferredLaunchIds.current.delete(launchId); }
       if (inboxId) {
         // Persist logical acknowledgement before best-effort Cache Storage deletion.
