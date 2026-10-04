@@ -63,6 +63,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [output, setOutput] = useState<Uint8Array | null>(null);
   const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
+  const [outputWarnings, setOutputWarnings] = useState<string[]>([]);
   const [reviewPageNumber, setReviewPageNumber] = useState<number | null>(null);
   const [selectedWord, setSelectedWord] = useState<number | null>(null);
   const [correctionDraft, setCorrectionDraft] = useState("");
@@ -145,7 +146,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     if (parsedPages.errors.length) { setError(parsedPages.errors.join(" ")); return; }
     if (!parsedPages.pageArray.length) { setError("Select at least one page."); return; }
     if (!languages.length) { setError("Install and select at least one OCR language."); return; }
-    setError(null); setOutput(null); setOutputFingerprint(null); abortRef.current = false;
+    setError(null); setOutput(null); setOutputFingerprint(null); setOutputWarnings([]); abortRef.current = false;
     const recipeFingerprint = buildOcrRecipeFingerprint({ pageNumbers: parsedPages.pageArray, languages, preprocess });
     let activeJob = job;
     const recipeChanged = Boolean(activeJob && activeJob.recipeFingerprint !== recipeFingerprint);
@@ -209,6 +210,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
       if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
       setOutput(layered.bytes);
+      setOutputWarnings(layered.warnings);
       setOutputFingerprint(ocrResultsFingerprint(finalPages));
       setReviewPageNumber((current) => current ?? finalPages[0]?.pageNumber ?? null);
       runningJob = { ...runningJob, status: "complete", completedPages: finalPages.length, updatedAt: Date.now() };
@@ -281,6 +283,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
         if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
         setOutput(layered.bytes);
+        setOutputWarnings(layered.warnings);
         setOutputFingerprint(ocrResultsFingerprint(completePages));
         setStatus(layered.warnings.length ? "Searchable PDF ready · some unsupported-script words were omitted" : "Searchable PDF ready · original page visuals preserved");
         update({ progress: 1 });
@@ -341,7 +344,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         <button className="button" disabled={!document || running || !languages.length} onClick={() => void run()} type="button">{job?.status === "complete" ? "Run OCR again" : job?.status === "paused" || completed ? "Resume OCR" : "Start OCR"}</button>
         {running ? <button className="button button--secondary" onClick={() => { abortRef.current = true; void sessionRef.current?.terminate(); }} type="button">Pause</button> : null}
         {job ? <button className="button button--ghost" disabled={running || reviewBusy} onClick={() => void deleteOcrJob(job.id).then(() => {
-          setJob(null); setResults([]); setOutput(null); setOutputFingerprint(null); setReviewPageNumber(null); setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null); setStatus("Ready");
+          setJob(null); setResults([]); setOutput(null); setOutputFingerprint(null); setOutputWarnings([]); setReviewPageNumber(null); setSelectedWord(null); setCorrectionDraft(""); setReviewRegion(null); setStatus("Ready");
         })} type="button">Discard progress</button> : null}
       </div>
     </aside>
@@ -419,7 +422,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       </div> : null}
 
       {outputIsCurrent && output ? <footer className="output-bar">
-        <div><strong>Source-preserving searchable PDF checked and ready</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB · original pages retained</span></div>
+        <div><strong>Source-preserving searchable PDF checked and ready</strong><span>{(output.byteLength / 1024 / 1024).toFixed(2)} MB · original pages retained</span>{outputWarnings.map((warning) => <small className="ocr-output-warning" key={warning}>{warning}</small>)}</div>
         <button className="button" onClick={() => void saveOutput(false)} type="button">Download searchable PDF</button>
         <button className="button button--secondary" onClick={() => downloadBlob(new Blob([
           results.filter((item) => item.status === "complete").map((item) => `Page ${item.pageNumber}\n${item.words.filter((word) => !word.ignored).map(ocrWordText).filter(Boolean).join(" ")}`).join("\n\n")
