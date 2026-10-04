@@ -30,6 +30,7 @@ function newJob(project: ProjectManifest, pages: number[], languages: string[], 
 
 export function OcrPage({ projectId, onTitleChange }: Props) {
   const documentRef = useRef<PDFDocumentProxy | null>(null);
+  const sourceBytesRef = useRef<Uint8Array | null>(null);
   const sessionRef = useRef<Awaited<ReturnType<typeof createOcrSession>> | null>(null);
   const abortRef = useRef(false);
   const activePasswordRef = useRef<string | undefined>(undefined);
@@ -44,6 +45,11 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const [status, setStatus] = useState("Opening project…");
   const [error, setError] = useState<string | null>(null);
   const [output, setOutput] = useState<Uint8Array | null>(null);
+  const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
+  const [reviewPageNumber, setReviewPageNumber] = useState<number | null>(null);
+  const [selectedWord, setSelectedWord] = useState<number | null>(null);
+  const [reviewRegion, setReviewRegion] = useState<NormalizedOcrRect | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
 
@@ -56,10 +62,11 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         const bytes = await loadProjectBytes(manifest);
         if (cancelled) return;
         setProject(manifest);
+        sourceBytesRef.current = bytes;
         await openDocument(manifest, bytes, readProjectSessionPassword(projectId));
       } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); }
     })();
-    return () => { cancelled = true; abortRef.current = true; void sessionRef.current?.terminate(); sessionRef.current = null; const current = documentRef.current; documentRef.current = null; if (current) void current.loadingTask.destroy(); };
+    return () => { cancelled = true; abortRef.current = true; void sessionRef.current?.terminate(); sessionRef.current = null; sourceBytesRef.current = null; const current = documentRef.current; documentRef.current = null; if (current) void current.loadingTask.destroy(); };
   }, [projectId]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string) {
@@ -67,7 +74,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       const pdf = await openPdfWithPdfJs(bytes, suppliedPassword);
       if (suppliedPassword) rememberProjectSessionPassword(projectId, suppliedPassword);
       setPassword(""); setError(null);
-      documentRef.current = pdf; activePasswordRef.current = suppliedPassword; setDocument(pdf); setPageExpression(`1-${pdf.numPages}`); setPasswordRequired(false); setStatus("Ready");
+      documentRef.current = pdf; sourceBytesRef.current = bytes; activePasswordRef.current = suppliedPassword; setDocument(pdf); setPageExpression(`1-${pdf.numPages}`); setPasswordRequired(false); setStatus("Ready");
       onTitleChange?.(`OCR · ${manifest.name}`, `${pdf.numPages} pages · Searchable output is generated locally.`);
       const existing = (await listOcrJobs(manifest.id)).find((candidate) => candidate.status !== "complete" && candidate.status !== "cancelled");
       if (existing) { setJob(existing); setLanguages(existing.languages); setPreprocess(existing.preprocess); setPageExpression(existing.pageNumbers.join(",")); setResults(await listOcrPages(existing.id)); setStatus("Resumed an unfinished OCR session."); }
