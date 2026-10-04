@@ -1006,6 +1006,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         outputs: [{ name: filename, bytes: result.bytes, mime: "application/pdf", password: passwordRef.current, pageCount: summary.pageCount }],
         warnings: exportWarnings,
         expectedPageCount: document?.numPages,
+        hardValidationPassed: true,
         signal
       });
       setOutputTrust(trust);
