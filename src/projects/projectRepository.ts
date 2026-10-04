@@ -1,4 +1,5 @@
 import { sha256 } from "../core/checksum";
+import { clearNativeFileBinding } from "../files/nativeFileWorkflow";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
@@ -238,6 +239,7 @@ export async function deleteProject(projectId: string): Promise<void> {
     idbDeleteAllByIndex("ocrPages", "projectId", projectId),
     idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
   ]);
+  await clearNativeFileBinding(projectId);
   await idbDelete("projects", projectId);
   forgetProjectSessionPassword(projectId);
 }
