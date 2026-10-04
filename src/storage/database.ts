@@ -2,9 +2,9 @@ import { measureRuntimeAsync } from "../performance/runtimeMetrics";
 import type { ProjectManifest, ViewerPreferences } from "../types/project";
 
 const DB_NAME = "local-pdf-studio";
-const DB_VERSION = 13;
+const DB_VERSION = 14;
 
-export type StoreName = "projects" | "viewerStates" | "sourceFiles" | "diagnostics" | "editorStates" | "editorAssets" | "securityStates" | "ocrJobs" | "ocrPages" | "ocrLanguages" | "batchRecipes" | "activityReceipts" | "workspaceSessions" | "workspaceEvents" | "workspaceCheckpoints" | "nativeStates" | "complianceStates" | "documentRevisions" | "documentTransactions";
+export type StoreName = "projects" | "viewerStates" | "sourceFiles" | "diagnostics" | "editorStates" | "editorAssets" | "securityStates" | "ocrJobs" | "ocrPages" | "ocrLanguages" | "batchRecipes" | "activityReceipts" | "workspaceSessions" | "workspaceEvents" | "workspaceCheckpoints" | "nativeStates" | "complianceStates" | "documentRevisions" | "documentTransactions" | "nativeFileBindings";
 
 export function openDatabase(): Promise<IDBDatabase> {
   return measureRuntimeAsync("storage", "indexeddb.open", () => new Promise((resolve, reject) => {
@@ -64,6 +64,7 @@ export function openDatabase(): Promise<IDBDatabase> {
         store.createIndex("projectId", "projectId");
         store.createIndex("startedAt", "startedAt");
       }
+      if (!database.objectStoreNames.contains("nativeFileBindings")) database.createObjectStore("nativeFileBindings", { keyPath: "projectId" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("IndexedDB could not be opened."));
