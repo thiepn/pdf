@@ -95,11 +95,19 @@ function samplePageNumbers(pageCount: number): number[] {
 
 async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
   signal?.throwIfAborted();
-  const summary = await inspectPdfBytes(artifact.bytes, artifact.password);
+  let inspectionPassword: string | undefined;
+  let summary;
+  try {
+    summary = await inspectPdfBytes(artifact.bytes);
+  } catch (reason) {
+    if (!artifact.password || !/password|encrypted/i.test(reason instanceof Error ? reason.message : String(reason))) throw reason;
+    inspectionPassword = artifact.password;
+    summary = await inspectPdfBytes(artifact.bytes, inspectionPassword);
+  }
   const pages = samplePageNumbers(summary.pageCount);
   const [annotationsResult, textResult] = await Promise.allSettled([
-    inspectPdfAnnotationInventory(artifact.bytes, artifact.password, pages),
-    inspectSearchableText(artifact.bytes, artifact.password, pages, signal)
+    inspectPdfAnnotationInventory(artifact.bytes, inspectionPassword, pages),
+    inspectSearchableText(artifact.bytes, inspectionPassword, pages, signal)
   ]);
   const annotations = annotationsResult.status === "fulfilled" ? annotationsResult.value : undefined;
   const textCoverage = textResult.status === "fulfilled" ? textResult.value : 0;
@@ -107,7 +115,7 @@ async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSi
     name: artifact.name,
     byteLength: artifact.bytes.byteLength,
     pageCount: summary.pageCount,
-    encrypted: summary.encrypted,
+    encrypted: Boolean(inspectionPassword),
     formFieldCount: summary.formFieldCount,
     attachmentCount: summary.attachmentCount,
     hasOutline: summary.hasOutline,
