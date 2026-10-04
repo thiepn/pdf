@@ -151,5 +151,6 @@ P3 coverage verifies:
 - OCR review/correction/region controls are wired
 - Continue in Edit uses the normal unified editor route
 - recognition remains local
+- a real browser flow can reopen persisted OCR evidence, correct a low-confidence word, build the source-preserving searchable PDF, and continue the derived copy into the unified editor without downloading an OCR pack
 
 Physical human/device usability qualification remains part of the later roadmap-wide manual qualification phase and is not synthesized by automation.
