@@ -8,9 +8,12 @@ interface OrganizerThumbnailProps {
   displayIndex: number;
   onToggle: (id: string, additive: boolean) => void;
   onDropAt: (id: string, targetIndex: number) => void;
+  onMoveBy: (id: string, direction: -1 | 1) => void;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
 }
 
-function OrganizerThumbnailComponent({ document, item, displayIndex, onToggle, onDropAt }: OrganizerThumbnailProps) {
+function OrganizerThumbnailComponent({ document, item, displayIndex, onToggle, onDropAt, onMoveBy, canMoveEarlier, canMoveLater }: OrganizerThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const [visible, setVisible] = useState(displayIndex <= 12);
@@ -61,6 +64,10 @@ function OrganizerThumbnailComponent({ document, item, displayIndex, onToggle, o
         <span className="organizer-page__check">{item.selected ? "✓" : ""}</span>
       </button>
       <div className="organizer-page__meta"><strong>{displayIndex}</strong><span>Source {item.sourcePageIndex + 1}</span></div>
+      <div className="organizer-page__touch-actions" aria-label={`Reorder page ${displayIndex}`}>
+        <button aria-label={`Move page ${displayIndex} earlier`} disabled={!canMoveEarlier} onClick={() => onMoveBy(item.id, -1)} type="button">← Earlier</button>
+        <button aria-label={`Move page ${displayIndex} later`} disabled={!canMoveLater} onClick={() => onMoveBy(item.id, 1)} type="button">Later →</button>
+      </div>
     </div>
   );
 }
