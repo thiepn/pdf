@@ -4162,3 +4162,5 @@ textarea { touch-action: manipulation; }
   .editor-tool-group > strong { align-self: center; width: 42px; padding: 0 2px; text-align: left; }
   .editor-tool-group button { width: auto; }
 }
+
+.ocr-searchable-skip{margin:10px 14px 0;padding:9px 11px;border:1px solid #b9d8c5;border-radius:8px;background:#edf8f1;color:#326347;font-size:.8rem;line-height:1.4}
