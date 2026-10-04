@@ -437,6 +437,17 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
               <span><strong>{reviewResult.words.filter((word) => word.corrected).length}</strong> corrected</span>
             </div>
             <p className="muted-copy">Red boxes need the most attention. Yellow boxes are worth reviewing. Corrections change only the searchable text layer; the scanned page image stays untouched.</p>
+            <details className="ocr-review-details">
+              <summary>Recognition details</summary>
+              <dl>
+                <div><dt>Page confidence</dt><dd>{Math.round(reviewResult.confidence)}%</dd></div>
+                <div><dt>Recognized words</dt><dd>{reviewResult.words.length}</dd></div>
+                <div><dt>Low confidence</dt><dd>{lowConfidenceCount}</dd></div>
+                <div><dt>Corrected</dt><dd>{reviewResult.words.filter((word) => word.corrected).length}</dd></div>
+                <div><dt>Excluded</dt><dd>{reviewResult.words.filter((word) => word.ignored).length}</dd></div>
+                <div><dt>Languages</dt><dd>{languages.join(" + ") || "None selected"}</dd></div>
+              </dl>
+            </details>
 
             {selectedReviewWord ? <section className="ocr-word-editor">
               <p className="eyebrow">Selected word · {Math.round(selectedReviewWord.confidence)}% confidence</p>
