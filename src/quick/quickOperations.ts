@@ -94,6 +94,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
       outputs: files.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.mime, password: item.password, pageCount: item.pageCount })),
       warnings: uniqueWarnings,
       rasterized: options.compression !== "lossless",
+      hardValidationPassed: true,
       signal
     });
     return { files, warnings: uniqueWarnings, trust };
@@ -230,6 +231,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
     outputs: files.map((item) => ({ name: item.name, bytes: item.bytes, mime: item.mime, password: item.password, pageCount: item.pageCount })),
     warnings: uniqueWarnings,
     rasterized: task === "compress-pdf" && options.compression !== "lossless",
+    hardValidationPassed: true,
     signal
   });
   check(signal);
