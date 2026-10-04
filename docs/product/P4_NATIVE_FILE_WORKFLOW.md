@@ -34,6 +34,7 @@ P4 is a progressive enhancement. Browsers without the File System Access API kee
 - It is only offered when the project was opened with a retained source handle.
 - It requires an explicit confirmation and write permission.
 - The existing validated export pipeline runs before any external file is written.
+- Before reusing a linked output or replacing the source, PDF Studio checks stored size/modified metadata and refuses to overwrite when the file changed externally.
 
 ### External project backup
 
@@ -63,5 +64,6 @@ P4 is complete when:
 5. external project backup can be configured and refreshed;
 6. Saved Documents shows linked-file / external-backup state;
 7. native writes use the same verified output bytes as normal editor export;
-8. project deletion removes retained file and directory handles;
-9. unit/source tests cover feature detection, safe filenames, non-overwrite defaults, and P4 wiring.
+8. externally modified linked files are not silently overwritten;
+9. project deletion removes retained file and directory handles;
+10. unit/source tests cover feature detection, safe filenames, non-overwrite defaults, permission ordering, and P4 wiring.
