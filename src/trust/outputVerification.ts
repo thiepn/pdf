@@ -96,7 +96,7 @@ function samplePageNumbers(pageCount: number): number[] {
 async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
   signal?.throwIfAborted();
   let inspectionPassword: string | undefined;
-  let document;
+  let document: Awaited<ReturnType<typeof openPdfWithPdfJs>> | undefined;
   try {
     try {
       document = await openPdfWithPdfJs(artifact.bytes);
