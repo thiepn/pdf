@@ -153,7 +153,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     let activeJob = job;
     const recipeChanged = Boolean(activeJob && activeJob.recipeFingerprint !== recipeFingerprint);
     if (!activeJob || activeJob.status === "complete" || recipeChanged) {
-      if (activeJob && activeJob.status !== "complete") await deleteOcrJob(activeJob.id);
+      if (activeJob) await deleteOcrJob(activeJob.id);
       activeJob = newJob(project, parsedPages.pageArray, languages, preprocess);
       setJob(activeJob); setResults([]); await writeOcrJob(activeJob);
       if (recipeChanged) setStatus("OCR settings changed · previous saved page results were cleared.");
