@@ -103,10 +103,10 @@ Recommendation sets are:
 
 The same recommendation set is reused in two places:
 
-1. a compact entry strip in Read/Edit workspace modes
+1. a compact desktop entry overlay inside the document workspace
 2. the existing **Document actions** dialog
 
-The strip can be dismissed for the current workspace session. It does not create a new navigation layer.
+The entry overlay is positioned outside document flow so it never pushes the reader/editor toolbar or canvas down. On compact/mobile layouts, the overlay is suppressed and the same recommendations remain available in **Document actions**. The overlay can be dismissed for the current workspace session and does not create a new navigation layer.
 
 The UI explicitly states:
 
