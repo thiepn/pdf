@@ -132,7 +132,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
     if (parsedPages.errors.length) { setError(parsedPages.errors.join(" ")); return; }
     if (!parsedPages.pageArray.length) { setError("Select at least one page."); return; }
     if (!languages.length) { setError("Install and select at least one OCR language."); return; }
-    setError(null); setOutput(null); abortRef.current = false;
+    setError(null); setOutput(null); setOutputFingerprint(null); abortRef.current = false;
     const recipeFingerprint = buildOcrRecipeFingerprint({ pageNumbers: parsedPages.pageArray, languages, preprocess });
     let activeJob = job;
     const recipeChanged = Boolean(activeJob && activeJob.recipeFingerprint !== recipeFingerprint);
@@ -152,13 +152,13 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       sessionRef.current = session;
       const activeSession = session;
       const nextResults: OcrPageResult[] = [...previous.values()];
-      await runProjectOperation(project.id, { label: "Running OCR", cancellable: false }, async ({ update }) => {
+      await runProjectOperation(project.id, { label: "Running OCR", cancellable: false }, async ({ update, signal }) => {
       update({ detail: "Recognizing selected pages locally…", progress: 0.02 });
       for (let pageIndex = 0; pageIndex < parsedPages.pageArray.length; pageIndex += 1) {
         const pageNumber = parsedPages.pageArray[pageIndex];
         if (abortRef.current) throw new DOMException("OCR paused.", "AbortError");
         const existing = previous.get(pageNumber);
-        if (existing?.status === "complete" && existing.searchablePdf) continue;
+        if (existing?.status === "complete" && (existing.words.length > 0 || !existing.text.trim())) continue;
         update({ detail: `Preparing page ${pageNumber}…`, progress: Math.min(0.78, (pageIndex / parsedPages.pageArray.length) * 0.78) });
         setStatus(`Preparing page ${pageNumber}…`);
         const rendered = await renderPdfPageForOcr(document, pageNumber, preprocess);
@@ -168,8 +168,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
         update({ detail: `Recognizing page ${pageNumber}…`, progress: Math.min(0.82, ((pageIndex + 0.5) / parsedPages.pageArray.length) * 0.82) });
         try {
           const recognized = await activeSession.recognize(rendered.blob, `${runningJob.id}-${pageNumber}`);
-          if (!recognized.searchablePdf) throw new Error("OCR could not create searchable output for this page.");
-          const pageResult: OcrPageResult = { ...pending, status: "complete", text: recognized.text, confidence: recognized.confidence, words: recognized.words, hocr: recognized.hocr, tsv: recognized.tsv, searchablePdf: toOwnedArrayBuffer(recognized.searchablePdf), updatedAt: Date.now() };
+          const pageResult: OcrPageResult = { ...pending, status: "complete", text: recognized.text, confidence: recognized.confidence, words: recognized.words, hocr: recognized.hocr, tsv: recognized.tsv, updatedAt: Date.now() };
           await writeOcrPage(pageResult);
           previous.set(pageNumber, pageResult);
           const index = nextResults.findIndex((item) => item.pageNumber === pageNumber);
@@ -183,30 +182,25 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
           await writeOcrPage(failed); previous.set(pageNumber, failed); setResults([...previous.values()].sort((a,b) => a.pageNumber-b.pageNumber));
         }
       }
-      const finalPages = parsedPages.pageArray.map((number) => previous.get(number)).filter((item): item is OcrPageResult => Boolean(item?.searchablePdf));
+      const finalPages = parsedPages.pageArray
+        .map((number) => previous.get(number))
+        .filter((item): item is OcrPageResult => Boolean(item?.status === "complete"));
       if (finalPages.length !== parsedPages.pageArray.length) throw new Error(`${parsedPages.pageArray.length - finalPages.length} page(s) failed. Retry them before exporting.`);
-      setStatus("Combining searchable pages…");
-      update({ detail: "Combining searchable pages…", progress: 0.86 });
-      // A one-page Tesseract PDF is already the exact desired output. Passing
-      // it through MuPDF's page grafting worker can stall on Tesseract's image
-      // object layout and needlessly recompresses the page.
-      const merged = finalPages.length === 1
-        ? { bytes: new Uint8Array(finalPages[0].searchablePdf!) }
-        : await mergePdfSources(finalPages.map((item) => ({ name: `page-${item.pageNumber}.pdf`, bytes: new Uint8Array(item.searchablePdf!) })));
-      update({ stage: "validating", detail: "Checking searchable PDF…", progress: 0.93 });
-      const summary = await inspectPdfBytes(merged.bytes);
-      if (summary.pageCount !== finalPages.length) throw new Error("The searchable PDF could not be verified because its page count changed.");
-      const searchableIndex = finalPages.findIndex((item) => item.text.trim().length >= 4);
-      if (searchableIndex >= 0) {
-        const check = await openPdfWithPdfJs(merged.bytes);
-        try {
-          const extracted = await extractPageText(check, searchableIndex + 1);
-          if (!extracted.trim()) throw new Error("The searchable PDF could not be verified because recognized text was missing from the saved page.");
-        } finally { await check.loadingTask.destroy(); }
-      }
-      setOutput(merged.bytes);
+      const layerPages = buildOcrLayerPages(finalPages);
+      if (!layerPages.length) throw new Error("OCR completed, but no searchable words were recognized on the selected pages.");
+      if (!sourceBytesRef.current) throw new Error("The original PDF bytes are no longer available in this session.");
+      setStatus("Adding searchable text to the original PDF…");
+      update({ detail: "Adding a positioned text layer without replacing page artwork…", progress: 0.86 });
+      const layered = await applyOcrTextLayer(sourceBytesRef.current, layerPages, activePasswordRef.current, signal);
+      update({ stage: "validating", detail: "Checking source-preserving searchable PDF…", progress: 0.93 });
+      const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
+      if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
+      setOutput(layered.bytes);
+      setOutputFingerprint(ocrResultsFingerprint(finalPages));
+      setReviewPageNumber((current) => current ?? finalPages[0]?.pageNumber ?? null);
       runningJob = { ...runningJob, status: "complete", completedPages: finalPages.length, updatedAt: Date.now() };
-      setJob(runningJob); await writeOcrJob(runningJob); setStatus("Searchable PDF ready");
+      setJob(runningJob); await writeOcrJob(runningJob);
+      setStatus(layered.warnings.length ? "Searchable PDF ready · review skipped script warnings before saving" : "Searchable PDF ready · original page visuals preserved");
       update({ progress: 1 });
       });
     } catch (reason) {
