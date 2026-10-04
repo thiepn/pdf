@@ -8,7 +8,7 @@ import { inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
 import { OcrLanguagePanel } from "../ocr/OcrLanguagePanel";
 import { OcrReviewCanvas } from "../ocr/OcrReviewCanvas";
 import { applyOcrTextLayer } from "../ocr/ocrLayerClient";
-import { buildOcrLayerPages, mergeRegionRecognition, ocrConfidenceBand, ocrWordText, updateOcrWord, type NormalizedOcrRect } from "../ocr/ocrLayer";
+import { buildOcrLayerPages, mergeRegionRecognition, ocrConfidenceBand, ocrWordText, restoreOcrWord, updateOcrWord, type NormalizedOcrRect } from "../ocr/ocrLayer";
 import { createOcrSession } from "../ocr/ocrClient";
 import { DEFAULT_OCR_PREPROCESS } from "../ocr/preprocess";
 import { renderPdfPageForOcr, renderPdfRegionForOcr } from "../ocr/renderPage";
@@ -56,6 +56,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const [outputFingerprint, setOutputFingerprint] = useState<string | null>(null);
   const [reviewPageNumber, setReviewPageNumber] = useState<number | null>(null);
   const [selectedWord, setSelectedWord] = useState<number | null>(null);
+  const [correctionDraft, setCorrectionDraft] = useState("");
   const [reviewRegion, setReviewRegion] = useState<NormalizedOcrRect | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [passwordRequired, setPasswordRequired] = useState(false);
