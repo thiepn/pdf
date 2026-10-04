@@ -52,7 +52,7 @@ import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorH
 import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
 import { Thumbnail } from "../viewer/Thumbnail";
-import { readNativeFileStatus, replaceNativeSource, savePdfAsNative, savePdfToNativeTarget, supportsNativeFileSave, writeExternalProjectBackup, type NativeFileStatus } from "../files/nativeFileWorkflow";
+import { commitPreparedNativePdfWrite, prepareNativePdfWrite, readNativeFileStatus, supportsNativeFileSave, writeExternalProjectBackup, type NativeFileStatus, type PreparedNativePdfWrite } from "../files/nativeFileWorkflow";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
@@ -935,6 +935,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   async function exportPdf(target: EditorExportTarget): Promise<void> {
     if (!project || !sourceBytesRef.current || processing || abortRef.current) return;
+    const filename = `${safeName(project.name)}_edited.pdf`;
+    let preparedNative: PreparedNativePdfWrite | null = null;
+    if (target === "save" || target === "save-as" || target === "replace-original") {
+      const mode = target === "replace-original" ? "replace-source"
+        : target === "save-as" || !nativeFileStatus?.outputLinked ? "save-as" : "save";
+      try {
+        preparedNative = await prepareNativePdfWrite(project.id, filename, mode);
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(reason instanceof Error ? reason.message : String(reason));
+        return;
+      }
+      if (target === "replace-original" && !preparedNative) {
+        setError("Native file replacement is unavailable in this browser.");
+        return;
+      }
+    }
     const sourceBytes = sourceBytesRef.current;
     const saveProject = target === "project";
     (window.document.activeElement as HTMLElement | null)?.blur();
@@ -978,7 +995,6 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       setWarnings([...(nativeReport?.warnings ?? []), ...result.report.warnings]);
       const pdfEditCount = nativeReport ? nativeReport.textEdits + nativeReport.imageEdits + nativeReport.vectorEdits + nativeReport.tableCellEdits + nativeReport.formEdits : 0;
       setLastReport(`${pdfEditCount} PDF content edit${pdfEditCount === 1 ? "" : "s"} · ${result.report.objectCount} added object${result.report.objectCount === 1 ? "" : "s"} · ${formatBytes(result.report.outputBytes)}`);
-      const filename = `${safeName(project.name)}_edited.pdf`;
       if (saveProject) {
         update({ stage: "committing", detail: "Saving edited PDF as a new project…", progress: 0.94 });
         const created = await createDerivedProjectFromBytes(project.id, result.bytes, filename, "unified-editor", "application/pdf", passwordRef.current);
@@ -991,14 +1007,13 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         update({ stage: "committing", detail: target === "download" ? "Preparing download…" : "Writing verified PDF…", progress: 0.94 });
         let savedAt = Date.now();
         if (target === "replace-original") {
-          const saved = await replaceNativeSource(project.id, result.bytes);
+          if (!preparedNative) throw new Error("The original PDF write target is no longer available.");
+          const saved = await commitPreparedNativePdfWrite(project.id, preparedNative, result.bytes);
           savedAt = saved.savedAt;
           setStatus(`Original file replaced · ${saved.filename}`);
         } else if (target === "save" || target === "save-as") {
-          const saved = target === "save"
-            ? await savePdfToNativeTarget(project.id, result.bytes, filename)
-            : await savePdfAsNative(project.id, result.bytes, filename);
-          if (saved) {
+          if (preparedNative) {
+            const saved = await commitPreparedNativePdfWrite(project.id, preparedNative, result.bytes);
             savedAt = saved.savedAt;
             setStatus(`Edited PDF saved · ${saved.filename}`);
           } else {
