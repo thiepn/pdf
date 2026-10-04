@@ -43,6 +43,48 @@ describe("P3 source-preserving OCR PDF layer", () => {
     } finally { reopened.destroy(); }
   });
 
+  it("preserves password protection and validates OCR text after reopening", () => {
+    const pdf = new mupdf.PDFDocument(sourcePdf());
+    try {
+      const secured = pdf.saveToBuffer({
+        encrypt: "aes-256",
+        "user-password": "scan-secret",
+        "owner-password": "scan-owner"
+      });
+      try {
+        const result = applyOcrLayerPdf(Uint8Array.from(secured.asUint8Array()), [{
+          pageNumber: 1,
+          words: [{ text: "PROTECTEDOCR", confidence: 96, rect: { x0: .1, y0: .3, x1: .34, y1: .35 } }]
+        }], "scan-secret");
+
+        const reopened = new mupdf.PDFDocument(result.output);
+        try {
+          expect(reopened.needsPassword()).toBe(true);
+          expect(reopened.authenticatePassword("scan-secret")).toBeGreaterThan(0);
+          const page = reopened.loadPage(0);
+          try {
+            const text = page.toStructuredText().asText();
+            expect(text).toContain("ORIGINAL PAGE CONTENT");
+            expect(text).toContain("PROTECTEDOCR");
+          } finally { page.destroy(); }
+        } finally { reopened.destroy(); }
+      } finally { secured.destroy(); }
+    } finally { pdf.destroy(); }
+  });
+
+  it("embeds supported Korean OCR text as extractable invisible text", () => {
+    const result = applyOcrLayerPdf(sourcePdf(), [{
+      pageNumber: 1,
+      words: [{ text: "한글", confidence: 93, rect: { x0: .1, y0: .4, x1: .24, y1: .46 } }]
+    }]);
+    const reopened = new mupdf.PDFDocument(result.output);
+    try {
+      const page = reopened.loadPage(0);
+      try { expect(page.toStructuredText().asText()).toContain("한글"); }
+      finally { page.destroy(); }
+    } finally { reopened.destroy(); }
+  });
+
   it("retains every original page when OCR targets only a subset", () => {
     const pdf = new mupdf.PDFDocument();
     try {
