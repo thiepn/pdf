@@ -43,7 +43,7 @@ import { applyNativeEdits, inspectNativePdf } from "../native/nativeClient";
 import { discardNativeObjectEdits, hiddenNativeObjectIds, mergeNativeEdits } from "../native/nativeEditQueue";
 import { readNativeState, writeNativeState } from "../native/nativeRepository";
 import { downloadBlob } from "../projects/download";
-import { createDerivedProjectFromBytes, getProject, loadProjectBytes, updateProject } from "../projects/projectRepository";
+import { createDerivedProjectFromBytes, exportProjectPackage, getProject, loadProjectBytes, updateProject } from "../projects/projectRepository";
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import { scheduleDeferredHydration, type DeferredHydrationHandle } from "../performance/deferredHydration";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
@@ -52,10 +52,12 @@ import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorH
 import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
 import { Thumbnail } from "../viewer/Thumbnail";
+import { readNativeFileStatus, replaceNativeSource, savePdfAsNative, savePdfToNativeTarget, supportsNativeFileSave, writeExternalProjectBackup, type NativeFileStatus } from "../files/nativeFileWorkflow";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
 type LocalSaveSnapshot = { editor: EditorDocumentState; native: Parameters<typeof writeNativeState>[0]; project: ProjectManifest };
+type EditorExportTarget = "download" | "project" | "save" | "save-as" | "replace-original";
 
 const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: string; key?: string; icon: IconName }> }> = [
   { label: "Navigate", tools: [
@@ -142,6 +144,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
   const [reviewOriginal, setReviewOriginal] = useState(false);
+  const [nativeFileStatus, setNativeFileStatus] = useState<NativeFileStatus | null>(null);
   const mobileToolsRef = useRef<HTMLDivElement | null>(null);
   const mobileToolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
@@ -154,6 +157,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     return { bytes: sourceBytesRef.current, objects: history.present.objects, nativeEdits, password: passwordRef.current, filename: project.sourceFilename || project.name };
   };
   useEffect(() => registerDocumentSnapshot(projectId, () => liveSnapshotRef.current()), [projectId]);
+  const refreshNativeFileStatus = useCallback(async () => {
+    try { setNativeFileStatus(await readNativeFileStatus(projectId)); }
+    catch { setNativeFileStatus(null); }
+  }, [projectId]);
+  useEffect(() => { void refreshNativeFileStatus(); }, [refreshNativeFileStatus]);
 
   const enqueueLocalSave = useCallback((revision: number, snapshot: LocalSaveSnapshot) => {
     localSaveQueuedRevisionRef.current = Math.max(localSaveQueuedRevisionRef.current, revision);
@@ -349,6 +357,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       // Undo/Redo are document transactions, including when a properties field
       // still owns focus. Letting the browser perform a native field undo would
       // change the controlled input without moving PDF Studio's history/checkpoint.
+      if (command && event.key.toLowerCase() === "s") { event.preventDefault(); void exportPdf(supportsNativeFileSave() ? "save" : "download"); return; }
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
@@ -924,15 +933,19 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
-  async function exportPdf(saveProject: boolean): Promise<void> {
+  async function exportPdf(target: EditorExportTarget): Promise<void> {
     if (!project || !sourceBytesRef.current || processing || abortRef.current) return;
     const sourceBytes = sourceBytesRef.current;
+    const saveProject = target === "project";
     (window.document.activeElement as HTMLElement | null)?.blur();
     const controller = new AbortController();
     abortRef.current = controller;
     setProcessing(true); setError(null); setWarnings([]); setLastReport(null); setStatus("Preparing edited PDF…");
     try {
-      await runProjectOperation(project.id, { label: saveProject ? "Saving edited PDF" : "Exporting edited PDF", signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
+      const operationLabel = target === "download" ? "Exporting edited PDF"
+        : target === "replace-original" ? "Replacing original PDF"
+          : saveProject ? "Saving edited PDF as project" : "Saving edited PDF";
+      await runProjectOperation(project.id, { label: operationLabel, signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
       update({ detail: "Preparing edited PDF…", progress: 0.05 });
       const visibleObjects = history.present.objects.filter((object) => !object.hidden);
       const affectedPages = new Set([...visibleObjects.map((object) => object.pageNumber), ...nativeEdits.map((edit) => edit.pageNumber)]);
@@ -975,20 +988,47 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         ]);
         window.location.hash = routeHref({ name: "viewer", projectId: created.id }).slice(1);
       } else {
-        downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), filename);
-        const savedAt = Date.now();
+        update({ stage: "committing", detail: target === "download" ? "Preparing download…" : "Writing verified PDF…", progress: 0.94 });
+        let savedAt = Date.now();
+        if (target === "replace-original") {
+          const saved = await replaceNativeSource(project.id, result.bytes);
+          savedAt = saved.savedAt;
+          setStatus(`Original file replaced · ${saved.filename}`);
+        } else if (target === "save" || target === "save-as") {
+          const saved = target === "save"
+            ? await savePdfToNativeTarget(project.id, result.bytes, filename)
+            : await savePdfAsNative(project.id, result.bytes, filename);
+          if (saved) {
+            savedAt = saved.savedAt;
+            setStatus(`Edited PDF saved · ${saved.filename}`);
+          } else {
+            downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), filename);
+            setStatus("Edited PDF downloaded");
+          }
+        } else {
+          downloadBlob(new Blob([toOwnedArrayBuffer(result.bytes)], { type: "application/pdf" }), filename);
+          setStatus("Edited PDF downloaded");
+        }
+
         const cleanState = { ...editorState, objects: cloneObjects(history.present.objects), dirty: false, lastSavedAt: savedAt, updatedAt: savedAt };
         await writeEditorState(cleanState);
         await updateProject({ ...project, recovery: { ...project.recovery, dirty: false, lastValidSnapshotAt: savedAt } });
-        // Export is mutation-locked, and the bytes above were produced from
-        // this render's exact history snapshot. Record that content identity
-        // synchronously before the UI can expose a clean state; do not hide the
-        // checkpoint assignment inside React's deferred state updater.
         const exportedContentId = history.present.contentId;
         setCleanHistoryContentId(exportedContentId);
         setHistory((current) => sealHistoryMergeBoundary(current));
         setEditorState((current) => ({ ...current, dirty: false, lastSavedAt: savedAt, updatedAt: savedAt }));
-        setStatus("Edited PDF downloaded");
+
+        if (target !== "download") await refreshNativeFileStatus();
+        try {
+          const backupProject = await getProject(project.id);
+          if (backupProject) {
+            const backup = await exportProjectPackage(backupProject);
+            const backedUp = await writeExternalProjectBackup(project.id, backup, `${safeName(backupProject.name)}.lpsproject`);
+            if (backedUp) await refreshNativeFileStatus();
+          }
+        } catch {
+          setWarnings((current) => [...current, "The PDF was saved, but the configured external project backup could not be refreshed. Use Saved documents to back it up manually."]);
+        }
       }
       update({ progress: 1 });
       });
@@ -996,6 +1036,16 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason));
       setStatus("Ready");
     } finally { setProcessing(false); abortRef.current = null; }
+  }
+
+  function replaceOriginalPdf(): void {
+    if (!nativeFileStatus?.sourceLinked) {
+      setError("This project is not linked to its original PDF file. Use Save as instead.");
+      return;
+    }
+    const name = nativeFileStatus.sourceName ?? "the original PDF";
+    if (!window.confirm(`Replace “${name}” with the verified edited PDF? This changes the external source file. PDF Studio’s local project remains recoverable separately.`)) return;
+    void exportPdf("replace-original");
   }
 
   function retryLocalSave(): void {
@@ -1022,6 +1072,8 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const activeTool = tools.find((tool) => tool.id === editorState.activeTool) ?? tools[0];
   const localSaveLabel = localSaveStatusLabel(localSave, lastReport, contentDirty);
   const detectedPdfItemCount = nativeInspection ? nativeInspection.totals.text + nativeInspection.totals.images + nativeInspection.totals.vectors + nativeInspection.totals.tables + nativeInspection.totals.forms : 0;
+  const nativeSaveAvailable = supportsNativeFileSave();
+  const primarySaveLabel = nativeSaveAvailable ? (nativeFileStatus?.outputLinked ? "Save PDF" : "Save as PDF") : "Download PDF";
   const chooseMobileTool = (tool: EditorTool) => {
     activateTool(tool);
     setMobileToolsOpen(false);
@@ -1055,7 +1107,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
           <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => navigateToPage(editorState.currentPage - 1)} type="button"><Icon name="chevron-left" /></button><ReaderPageInput page={editorState.currentPage} total={document.numPages} onChange={navigateToPage} /><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => navigateToPage(editorState.currentPage + 1)} type="button"><Icon name="chevron-right" /></button><span />
           <button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><select aria-label="Zoom" onChange={(event) => setEditorState((state) => ({ ...state, zoom: Number(event.target.value) }))} value={editorState.zoom}>{[...new Set([.5,.75,1,1.25,1.5,1.75,2,2.25,2.5,2.75,3,editorState.zoom])].sort((a,b) => a-b).map((zoom) => <option key={zoom} value={zoom}>{Math.round(zoom * 100)}%</option>)}</select><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button>
         </div>
-        <div className="editor-commandbar__actions"><details className="editor-save-options"><summary aria-label="More save options"><Icon name="more"/></summary><button disabled={!changeCount || processing} onClick={() => void exportPdf(true)} type="button">Save as project</button></details><button className="button button--small" disabled={processing} onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={17}/>Download PDF</button>{processing ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
+        <div className="editor-commandbar__actions"><details className="editor-save-options"><summary aria-label="More save options"><Icon name="more"/></summary>{nativeSaveAvailable ? <button disabled={processing} onClick={() => void exportPdf("save-as")} type="button">Save as PDF…</button> : null}<button disabled={processing} onClick={() => void exportPdf("download")} type="button">Download copy</button>{nativeFileStatus?.sourceLinked ? <button disabled={processing} onClick={replaceOriginalPdf} type="button">Replace original…</button> : null}<button disabled={!changeCount || processing} onClick={() => void exportPdf("project")} type="button">Save as project</button></details><button className="button button--small" disabled={processing} onClick={() => void exportPdf(nativeSaveAvailable ? "save" : "download")} type="button"><Icon name={nativeSaveAvailable ? "save" : "download"} size={17}/>{primarySaveLabel}</button>{processing ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
       </header> : null}
 
       {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
@@ -1065,7 +1117,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <CompactDocumentHome />
         {["select", "text", !["select", "text"].includes(editorState.activeTool) ? editorState.activeTool : "highlight"].map(id => tools.find(tool => tool.id === id)!).map(tool => <button className="icon-button" aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} disabled={processing} key={tool.id} title={tool.label} onClick={() => activateTool(tool.id)} type="button"><Icon name={tool.icon} size={20} /></button>)}
         <button className="icon-button" aria-label="Undo" title="Undo" disabled={!history.past.length || processing} onClick={undo} type="button"><Icon name="undo" /></button>
-        {processing ? <button className="icon-button" aria-label="Cancel" title="Cancel export" onClick={() => abortRef.current?.abort()} type="button"><Icon name="close" /></button> : <button className="icon-button compact-download" aria-label="Download PDF" title="Download PDF" onClick={() => void exportPdf(false)} type="button"><Icon name="download" size={20} /></button>}
+        {processing ? <button className="icon-button" aria-label="Cancel" title="Cancel export" onClick={() => abortRef.current?.abort()} type="button"><Icon name="close" /></button> : <button className="icon-button compact-download" aria-label={primarySaveLabel} title={primarySaveLabel} onClick={() => void exportPdf(nativeSaveAvailable ? "save" : "download")} type="button"><Icon name={nativeSaveAvailable ? "save" : "download"} size={20} /></button>}
         <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} disabled={processing} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button>
       </nav>}
         <input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" />
@@ -1108,7 +1160,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
           </div> : null}
           <div className="editor-tools-sheet__groups">{toolGroups.map((group) => <section key={group.label}><h3>{group.label}</h3><div>{group.tools.map((tool) => <button aria-label={tool.label} aria-keyshortcuts={tool.key} aria-pressed={editorState.activeTool === tool.id} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => chooseMobileTool(tool.id)} type="button"><Icon name={tool.icon} /><span>{tool.label}</span>{tool.key ? <kbd>{tool.key}</kbd> : null}</button>)}</div></section>)}</div>
           <section className="editor-tools-sheet__document"><h3>Document</h3><div className="editor-tools-sheet__zoom"><button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><strong>{Math.round(editorState.zoom * 100)}%</strong><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button></div><button aria-pressed={editorState.snapEnabled} onClick={() => setEditorState((state) => ({ ...state, snapEnabled: !state.snapEnabled }))} type="button">Snap {editorState.snapEnabled ? "on" : "off"}</button><button aria-pressed={showNativeContent} onClick={() => setShowNativeContent(!showNativeContent)} type="button">Original PDF content {showNativeContent ? "on" : "off"}</button></section>
-          <div className="editor-tools-sheet__actions"><button disabled={processing} onClick={() => { closeMobileTools(); void exportPdf(false); }} type="button"><Icon name="download" />Download PDF</button><button disabled={!changeCount || processing} onClick={() => { closeMobileTools(); void exportPdf(true); }} type="button"><Icon name="save" />Save as project</button></div>
+          <div className="editor-tools-sheet__actions"><button disabled={processing} onClick={() => { closeMobileTools(); void exportPdf(nativeSaveAvailable ? "save" : "download"); }} type="button"><Icon name={nativeSaveAvailable ? "save" : "download"} />{primarySaveLabel}</button>{nativeSaveAvailable ? <button disabled={processing} onClick={() => { closeMobileTools(); void exportPdf("save-as"); }} type="button"><Icon name="save" />Save as PDF…</button> : null}<button disabled={processing} onClick={() => { closeMobileTools(); void exportPdf("download"); }} type="button"><Icon name="download" />Download copy</button>{nativeFileStatus?.sourceLinked ? <button disabled={processing} onClick={() => { closeMobileTools(); replaceOriginalPdf(); }} type="button"><Icon name="save" />Replace original…</button> : null}<button disabled={!changeCount || processing} onClick={() => { closeMobileTools(); void exportPdf("project"); }} type="button"><Icon name="documents" />Save as project</button></div>
         </div>
       </div> : null}
     </div>
