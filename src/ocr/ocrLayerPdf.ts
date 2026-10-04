@@ -106,9 +106,14 @@ export function applyOcrLayerPdf(bytes: Uint8Array, pages: OcrLayerPage[], passw
     const output=save(pdf);
     const reopened=new mupdf.PDFDocument(output);
     try {
+      if(reopened.needsPassword() && (!password || !reopened.authenticatePassword(password))) throw new Error("OCR layer validation failed because the protected output could not be reopened.");
       if(reopened.countPages()!==pageCount) throw new Error("OCR layer validation failed because the page count changed.");
-      const sample=pages.find(p=>p.words.some(w=>w.text.trim().length>=3));
-      if(sample){const page=reopened.loadPage(sample.pageNumber-1);try{const extracted=page.toStructuredText().asText().replace(/\s+/g," ");const target=sample.words.find(w=>w.text.trim().length>=3)?.text.trim();if(target&&!extracted.includes(target))throw new Error("OCR layer validation failed because recognized text was not extractable after reopening.");}finally{page.destroy();}}
+      let sample: { pageNumber: number; text: string } | undefined;
+      for (const layer of pages) {
+        const word = layer.words.find((candidate) => candidate.text.trim().length >= 3 && language(candidate.text.trim()) !== null);
+        if (word) { sample = { pageNumber: layer.pageNumber, text: word.text.trim() }; break; }
+      }
+      if(sample){const page=reopened.loadPage(sample.pageNumber-1);try{const extracted=page.toStructuredText().asText().replace(/\s+/g," ");if(!extracted.includes(sample.text))throw new Error("OCR layer validation failed because recognized text was not extractable after reopening.");}finally{page.destroy();}}
     } finally { reopened.destroy(); }
     return {output,pageCount,changedPages,appliedWords,skippedWords};
   } finally { pdf.destroy(); }
