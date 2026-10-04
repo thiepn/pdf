@@ -11,6 +11,8 @@ import { compilePagePlan } from "../tools/pageOperationsClient";
 import { createPagePlan, deleteItems, duplicateItems, moveItems, reverseItems, rotateItems, selectItems } from "../organizer/pagePlan";
 import { parsePageSelection } from "../organizer/pageSelection";
 import { OrganizerThumbnail } from "../organizer/OrganizerThumbnail";
+import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
+import { OutputTrustPanel } from "../components/OutputTrustPanel";
 
 interface OrganizerPageProps { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 interface HistoryState { items: PagePlanItem[]; label: string }
@@ -30,6 +32,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
   const [status, setStatus] = useState("Opening project…");
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [outputTrust, setOutputTrust] = useState<OutputTrustReport | null>(null);
   const [processing, setProcessing] = useState(false);
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [password, setPassword] = useState("");
@@ -93,6 +96,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
     setItems(next);
     setFuture([]);
     setWarnings([]);
+    setOutputTrust(null);
     setStatus(label);
   }, [items]);
 
@@ -134,7 +138,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
     if (!project) return;
     const plan = mode === "selected" ? items.filter((item) => item.selected) : items;
     if (!plan.length) { setError("Select at least one page to extract."); return; }
-    setProcessing(true); setError(null); setWarnings([]); setStatus(mode === "selected" ? "Extracting selected pages…" : "Creating PDF…");
+    setProcessing(true); setError(null); setWarnings([]); setOutputTrust(null); setStatus(mode === "selected" ? "Extracting selected pages…" : "Creating PDF…");
     const controller = new AbortController(); abortRef.current = controller;
     try {
       await runProjectOperation(projectId, { label: mode === "selected" ? "Extracting selected pages" : saveProject ? "Saving organized PDF" : "Exporting organized PDF", signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
@@ -147,6 +151,16 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
       setWarnings(result.warnings);
       const suffix = mode === "selected" ? "extracted" : "organized";
       const filename = `${safeName(project.name)}_${suffix}.pdf`;
+      update({ stage: "validating", detail: "Building output verification evidence…", progress: 0.9 });
+      const trust = await verifyOutputTrust({
+        operationId: "organizer",
+        sources: [{ name: project.sourceFilename || project.name, bytes: source, mime: "application/pdf", password: activePasswordRef.current, pageCount: document?.numPages }],
+        outputs: [{ name: filename, bytes: result.bytes, mime: "application/pdf", pageCount: summary.pageCount }],
+        warnings: result.warnings,
+        expectedPageCount: plan.length,
+        signal
+      });
+      setOutputTrust(trust);
       if (saveProject) {
         update({ stage: "committing", detail: "Saving a new local project…", progress: 0.94 });
         const created = await createDerivedProjectFromBytes(projectId, result.bytes, filename, "organize-pages");
@@ -183,6 +197,7 @@ export function OrganizerPage({ projectId, onTitleChange }: OrganizerPageProps) 
 
       {error ? <div className="error-banner organizer-banner"><strong>Could not complete that action</strong><span>{error}</span><button onClick={() => setError(null)} type="button">Dismiss</button></div> : null}
       {warnings.length ? <div className="warning-banner organizer-banner"><strong>Output note</strong><span>{warnings.join(" ")}</span></div> : null}
+      {outputTrust ? <div className="organizer-banner"><OutputTrustPanel compact report={outputTrust} /></div> : null}
 
       <section className="organizer-selectionbar organizer-selectionbar--r3">
         <div className="organizer-selectionbar__range"><label><span>Select pages</span><input onChange={(event) => setSelectionText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") applySelectionExpression(); }} placeholder="1-5, 8" value={selectionText} /></label><button onClick={applySelectionExpression} type="button">Select</button></div>
