@@ -265,7 +265,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       const paused = reason instanceof DOMException && reason.name === "AbortError";
       runningJob = { ...runningJob, status: paused ? "paused" : "failed", error: paused ? undefined : reason instanceof Error ? reason.message : String(reason), updatedAt: Date.now() };
       setJob(runningJob); await writeOcrJob(runningJob); if (!paused) setError(runningJob.error ?? "OCR failed."); setStatus(paused ? "Paused" : "Failed");
-    } finally { await session?.terminate(); sessionRef.current = null; setProgress(0); }
+    } finally { const activeSession = sessionRef.current; sessionRef.current = null; if (activeSession) await activeSession.terminate(); setProgress(0); }
   }
 
   async function persistReviewedPage(next: OcrPageResult, message: string): Promise<void> {
