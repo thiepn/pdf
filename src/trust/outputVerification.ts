@@ -43,6 +43,7 @@ export interface VerifyOutputOptions {
   rasterized?: boolean;
   expectedPageCount?: number;
   explicitLossNotes?: string[];
+  signal?: AbortSignal;
 }
 
 interface PdfTrustSnapshot {
@@ -91,12 +92,13 @@ function samplePageNumbers(pageCount: number): number[] {
   return [...pages].sort((left, right) => left - right);
 }
 
-async function inspectPdfTrustSnapshot(artifact: TrustArtifact): Promise<PdfTrustSnapshot> {
+async function inspectPdfTrustSnapshot(artifact: TrustArtifact, signal?: AbortSignal): Promise<PdfTrustSnapshot> {
+  signal?.throwIfAborted();
   const summary = await inspectPdfBytes(artifact.bytes, artifact.password);
   const pages = samplePageNumbers(summary.pageCount);
   const [annotationsResult, textResult] = await Promise.allSettled([
     inspectPdfAnnotationInventory(artifact.bytes, artifact.password, pages),
-    inspectSearchableText(artifact.bytes, artifact.password, pages)
+    inspectSearchableText(artifact.bytes, artifact.password, pages, signal)
   ]);
   const annotations = annotationsResult.status === "fulfilled" ? annotationsResult.value : undefined;
   const textCoverage = textResult.status === "fulfilled" ? textResult.value : 0;
@@ -119,11 +121,12 @@ async function inspectPdfTrustSnapshot(artifact: TrustArtifact): Promise<PdfTrus
   };
 }
 
-async function inspectSearchableText(bytes: Uint8Array, password: string | undefined, pages: number[]): Promise<number> {
+async function inspectSearchableText(bytes: Uint8Array, password: string | undefined, pages: number[], signal?: AbortSignal): Promise<number> {
   const document = await openPdfWithPdfJs(bytes, password);
   try {
     let withText = 0;
     for (const pageNumber of pages) {
+      signal?.throwIfAborted();
       const text = await extractPageText(document, pageNumber);
       if (text.trim()) withText += 1;
     }
@@ -198,13 +201,14 @@ function operationLossNotes(operationId: string, rasterized: boolean): string[] 
 }
 
 export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<OutputTrustReport> {
+  options.signal?.throwIfAborted();
   const sourceBytes = sum(options.sources, (item) => item.bytes.byteLength);
   const outputBytes = sum(options.outputs, (item) => item.bytes.byteLength);
   const sourcePdfArtifacts = options.sources.filter((item) => item.mime === PDF);
   const outputPdfArtifacts = options.outputs.filter((item) => item.mime === PDF);
   const [sourceResults, outputResults] = await Promise.all([
-    Promise.allSettled(sourcePdfArtifacts.map(inspectPdfTrustSnapshot)),
-    Promise.allSettled(outputPdfArtifacts.map(inspectPdfTrustSnapshot))
+    Promise.allSettled(sourcePdfArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal))),
+    Promise.allSettled(outputPdfArtifacts.map((artifact) => inspectPdfTrustSnapshot(artifact, options.signal)))
   ]);
   const sourcePdf = sourceResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
   const outputPdf = outputResults.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
@@ -306,6 +310,7 @@ export async function verifyOutputTrust(options: VerifyOutputOptions): Promise<O
     if (changedBytes) notes.push("The PDF bytes changed. Existing cryptographic/digital signatures require re-validation and generally cannot remain valid after document modification.");
   }
 
+  options.signal?.throwIfAborted();
   const warningChecks = checks.filter((item) => item.outcome === "warning").length;
   const level: TrustLevel = warningChecks || notes.length ? "verified-with-notes" : "verified";
   return {
