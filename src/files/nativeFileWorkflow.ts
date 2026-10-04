@@ -1,0 +1,453 @@
+export type NativePermissionState = "granted" | "denied" | "prompt";
+
+export interface NativeWritableFileStream {
+  write(data: Blob | Uint8Array | string): Promise<void>;
+  close(): Promise<void>;
+  abort?(reason?: unknown): Promise<void>;
+}
+
+export interface NativeFileHandle {
+  readonly kind: "file";
+  readonly name: string;
+  getFile(): Promise<File>;
+  createWritable(): Promise<NativeWritableFileStream>;
+  queryPermission?(options?: { mode?: "read" | "readwrite" }): Promise<NativePermissionState>;
+  requestPermission?(options?: { mode?: "read" | "readwrite" }): Promise<NativePermissionState>;
+  isSameEntry?(other: NativeFileHandle): Promise<boolean>;
+}
+
+export interface NativeDirectoryHandle {
+  readonly kind: "directory";
+  readonly name: string;
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<NativeFileHandle>;
+  queryPermission?(options?: { mode?: "read" | "readwrite" }): Promise<NativePermissionState>;
+  requestPermission?(options?: { mode?: "read" | "readwrite" }): Promise<NativePermissionState>;
+}
+
+interface NativePickerWindow extends Window {
+  showOpenFilePicker?: (options?: {
+    multiple?: boolean;
+    excludeAcceptAllOption?: boolean;
+    types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+  }) => Promise<NativeFileHandle[]>;
+  showSaveFilePicker?: (options?: {
+    suggestedName?: string;
+    excludeAcceptAllOption?: boolean;
+    types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+  }) => Promise<NativeFileHandle>;
+  showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<NativeDirectoryHandle>;
+}
+
+export interface NativeFileBindingRecord {
+  projectId: string;
+  sourceHandle?: NativeFileHandle;
+  outputHandle?: NativeFileHandle;
+  backupDirectoryHandle?: NativeDirectoryHandle;
+  sourceName?: string;
+  sourceSize?: number;
+  sourceLastModified?: number;
+  outputName?: string;
+  outputSize?: number;
+  outputLastModified?: number;
+  lastPdfSavedAt?: number;
+  lastBackupAt?: number;
+  updatedAt: number;
+}
+
+export interface NativeFileStatus {
+  nativeOpenAvailable: boolean;
+  nativeSaveAvailable: boolean;
+  directoryBackupAvailable: boolean;
+  sourceLinked: boolean;
+  sourceName?: string;
+  outputLinked: boolean;
+  outputName?: string;
+  backupFolderLinked: boolean;
+  backupFolderName?: string;
+  lastPdfSavedAt?: number;
+  lastBackupAt?: number;
+}
+
+export interface NativeOpenResult {
+  file: File;
+  handle: NativeFileHandle;
+}
+
+export interface NativePdfWriteResult {
+  filename: string;
+  target: "output" | "source";
+  savedAt: number;
+}
+
+export interface PreparedNativePdfWrite {
+  handle: NativeFileHandle;
+  filename: string;
+  target: "output" | "source";
+  expectedSize?: number;
+  expectedLastModified?: number;
+}
+
+const PDF_TYPE = [{ description: "PDF document", accept: { "application/pdf": [".pdf"] } }];
+const NATIVE_FILE_DB_NAME = "local-pdf-studio-native-files";
+const NATIVE_FILE_DB_VERSION = 1;
+const NATIVE_FILE_STORE = "bindings";
+const bindingCache = new Map<string, NativeFileBindingRecord | null>();
+
+function openNativeFileDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NATIVE_FILE_DB_NAME, NATIVE_FILE_DB_VERSION);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(NATIVE_FILE_STORE)) {
+        request.result.createObjectStore(NATIVE_FILE_STORE, { keyPath: "projectId" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Native file binding storage could not be opened."));
+  });
+}
+
+async function getStoredNativeFileBinding(projectId: string): Promise<NativeFileBindingRecord | undefined> {
+  const database = await openNativeFileDatabase();
+  try {
+    return await new Promise<NativeFileBindingRecord | undefined>((resolve, reject) => {
+      const request = database.transaction(NATIVE_FILE_STORE, "readonly").objectStore(NATIVE_FILE_STORE).get(projectId);
+      request.onsuccess = () => resolve(request.result as NativeFileBindingRecord | undefined);
+      request.onerror = () => reject(request.error ?? new Error("Native file binding could not be read."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+async function putStoredNativeFileBinding(binding: NativeFileBindingRecord): Promise<void> {
+  const database = await openNativeFileDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(NATIVE_FILE_STORE, "readwrite");
+      transaction.objectStore(NATIVE_FILE_STORE).put(binding);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Native file binding could not be saved."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Native file binding save was aborted."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+async function deleteStoredNativeFileBinding(projectId: string): Promise<void> {
+  const database = await openNativeFileDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(NATIVE_FILE_STORE, "readwrite");
+      transaction.objectStore(NATIVE_FILE_STORE).delete(projectId);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Native file binding could not be deleted."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Native file binding deletion was aborted."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+function pickerWindow(): NativePickerWindow {
+  return window as NativePickerWindow;
+}
+
+export function supportsNativeFileOpen(): boolean {
+  return typeof pickerWindow().showOpenFilePicker === "function";
+}
+
+export function supportsNativeFileSave(): boolean {
+  return typeof pickerWindow().showSaveFilePicker === "function";
+}
+
+export function supportsNativeDirectoryBackup(): boolean {
+  return typeof pickerWindow().showDirectoryPicker === "function";
+}
+
+export function safeNativePdfName(value: string): string {
+  const trimmed = value.trim().replace(/[\\/:*?"<>|]+/g, "-");
+  const base = trimmed || "document.pdf";
+  return /\.pdf$/i.test(base) ? base : `${base}.pdf`;
+}
+
+export function safeNativeBackupName(value: string): string {
+  const trimmed = value.trim().replace(/[\\/:*?"<>|]+/g, "-");
+  const base = trimmed || "local-pdf-project";
+  return /\.lpsproject$/i.test(base) ? base : `${base}.lpsproject`;
+}
+
+export async function openNativePdf(): Promise<NativeOpenResult | null> {
+  const picker = pickerWindow().showOpenFilePicker;
+  if (!picker) return null;
+  const handles = await picker({ multiple: false, excludeAcceptAllOption: false, types: PDF_TYPE });
+  const handle = handles[0];
+  if (!handle) return null;
+  const file = await handle.getFile();
+  if (!/\.pdf$/i.test(file.name) && file.type.toLowerCase() !== "application/pdf") {
+    throw new Error("Choose a PDF file.");
+  }
+  return { file, handle };
+}
+
+export async function readNativeFileBinding(projectId: string): Promise<NativeFileBindingRecord | undefined> {
+  if (bindingCache.has(projectId)) return bindingCache.get(projectId) ?? undefined;
+  const binding = await getStoredNativeFileBinding(projectId);
+  bindingCache.set(projectId, binding ?? null);
+  return binding;
+}
+
+export async function readNativeFileStatus(projectId: string): Promise<NativeFileStatus> {
+  const binding = await readNativeFileBinding(projectId);
+  return {
+    nativeOpenAvailable: supportsNativeFileOpen(),
+    nativeSaveAvailable: supportsNativeFileSave(),
+    directoryBackupAvailable: supportsNativeDirectoryBackup(),
+    sourceLinked: Boolean(binding?.sourceHandle),
+    sourceName: binding?.sourceName,
+    outputLinked: Boolean(binding?.outputHandle),
+    outputName: binding?.outputName,
+    backupFolderLinked: Boolean(binding?.backupDirectoryHandle),
+    backupFolderName: binding?.backupDirectoryHandle?.name,
+    lastPdfSavedAt: binding?.lastPdfSavedAt,
+    lastBackupAt: binding?.lastBackupAt
+  };
+}
+
+export async function rememberNativeSourceHandle(projectId: string, handle: NativeFileHandle, importedFile: File): Promise<void> {
+  const current = await readNativeFileBinding(projectId);
+  const outputMatchesSource = current?.outputHandle ? await handlesReferToSameFile(handle, current.outputHandle) : false;
+  const next: NativeFileBindingRecord = {
+    ...current,
+    projectId,
+    sourceHandle: handle,
+    sourceName: handle.name,
+    sourceSize: importedFile.size,
+    sourceLastModified: importedFile.lastModified,
+    updatedAt: Date.now()
+  };
+  if (outputMatchesSource) {
+    delete next.outputHandle;
+    delete next.outputName;
+    delete next.outputSize;
+    delete next.outputLastModified;
+  }
+  await putStoredNativeFileBinding(next);
+  bindingCache.set(projectId, next);
+}
+
+export async function clearNativeFileBinding(projectId: string): Promise<void> {
+  await deleteStoredNativeFileBinding(projectId);
+  bindingCache.delete(projectId);
+}
+
+async function ensureWritePermission(handle: NativeFileHandle | NativeDirectoryHandle, request: boolean): Promise<boolean> {
+  const query = handle.queryPermission;
+  if (query) {
+    const state = await query.call(handle, { mode: "readwrite" });
+    if (state === "granted") return true;
+    if (state === "denied" && !request) return false;
+  }
+  if (!request) return false;
+  const ask = handle.requestPermission;
+  if (!ask) return true;
+  return (await ask.call(handle, { mode: "readwrite" })) === "granted";
+}
+
+async function requestWritePermission(handle: NativeFileHandle | NativeDirectoryHandle): Promise<boolean> {
+  const ask = handle.requestPermission;
+  if (ask) return (await ask.call(handle, { mode: "readwrite" })) === "granted";
+  return ensureWritePermission(handle, true);
+}
+
+async function assertExternalFileUnchanged(handle: NativeFileHandle, size?: number, lastModified?: number): Promise<void> {
+  if (size === undefined || lastModified === undefined) return;
+  const current = await handle.getFile();
+  if (current.size !== size || current.lastModified !== lastModified) {
+    throw new Error(`“${handle.name}” changed outside PDF Studio since it was linked. Reopen that file or use Save as so external changes are not overwritten.`);
+  }
+}
+
+async function handlesReferToSameFile(left: NativeFileHandle, right: NativeFileHandle): Promise<boolean> {
+  if (left === right) return true;
+  if (left.isSameEntry) {
+    try { return await left.isSameEntry(right); }
+    catch { return false; }
+  }
+  if (right.isSameEntry) {
+    try { return await right.isSameEntry(left); }
+    catch { return false; }
+  }
+  return false;
+}
+
+async function assertOutputIsNotSource(projectId: string, output: NativeFileHandle): Promise<void> {
+  const binding = await readNativeFileBinding(projectId);
+  if (binding?.sourceHandle && await handlesReferToSameFile(binding.sourceHandle, output)) {
+    throw new Error("Save as cannot replace the original PDF. Choose a different filename, or use Replace original for an intentional overwrite.");
+  }
+}
+
+async function writeFile(handle: NativeFileHandle, data: Blob | Uint8Array, permissionPrepared = false): Promise<void> {
+  if (!permissionPrepared && !(await ensureWritePermission(handle, true))) throw new Error("Write permission was not granted for this file.");
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(data instanceof Blob ? data : data.slice());
+    await writable.close();
+  } catch (reason) {
+    try { await writable.abort?.(reason); } catch { /* Preserve the original write failure. */ }
+    throw reason;
+  }
+}
+
+async function rememberOutput(projectId: string, handle: NativeFileHandle, savedAt: number): Promise<void> {
+  const [current, file] = await Promise.all([readNativeFileBinding(projectId), handle.getFile()]);
+  const next: NativeFileBindingRecord = {
+    ...current,
+    projectId,
+    outputHandle: handle,
+    outputName: handle.name,
+    outputSize: file.size,
+    outputLastModified: file.lastModified,
+    lastPdfSavedAt: savedAt,
+    updatedAt: savedAt
+  };
+  await putStoredNativeFileBinding(next);
+  bindingCache.set(projectId, next);
+}
+
+export async function prepareNativePdfWrite(
+  projectId: string,
+  suggestedName: string,
+  mode: "save" | "save-as" | "replace-source"
+): Promise<PreparedNativePdfWrite | null> {
+  if (mode === "replace-source") {
+    const binding = await readNativeFileBinding(projectId);
+    if (!binding?.sourceHandle) throw new Error("This project is not linked to the PDF file it was opened from. Use Save as instead.");
+    if (!(await requestWritePermission(binding.sourceHandle))) throw new Error("Write permission was not granted for the original PDF.");
+    await assertExternalFileUnchanged(binding.sourceHandle, binding.sourceSize, binding.sourceLastModified);
+    return { handle: binding.sourceHandle, filename: binding.sourceHandle.name, target: "source", expectedSize: binding.sourceSize, expectedLastModified: binding.sourceLastModified };
+  }
+
+  if (!supportsNativeFileSave()) return null;
+  const picker = pickerWindow().showSaveFilePicker;
+  if (!picker) return null;
+  if (mode === "save-as") {
+    const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
+    await assertOutputIsNotSource(projectId, handle);
+    const file = await handle.getFile();
+    return { handle, filename: handle.name, target: "output", expectedSize: file.size, expectedLastModified: file.lastModified };
+  }
+
+  const binding = await readNativeFileBinding(projectId);
+  if (binding?.outputHandle) {
+    if (!(await requestWritePermission(binding.outputHandle))) throw new Error("Write permission was not granted for the saved PDF.");
+    if (binding.sourceHandle && await handlesReferToSameFile(binding.sourceHandle, binding.outputHandle)) {
+      throw new Error("The current Save target is the original PDF. Use Save as to choose a separate file, or Replace original for an intentional overwrite.");
+    }
+    await assertExternalFileUnchanged(binding.outputHandle, binding.outputSize, binding.outputLastModified);
+    return { handle: binding.outputHandle, filename: binding.outputHandle.name, target: "output", expectedSize: binding.outputSize, expectedLastModified: binding.outputLastModified };
+  }
+  const handle = await picker({ suggestedName: safeNativePdfName(suggestedName), excludeAcceptAllOption: false, types: PDF_TYPE });
+  await assertOutputIsNotSource(projectId, handle);
+  const file = await handle.getFile();
+  return { handle, filename: handle.name, target: "output", expectedSize: file.size, expectedLastModified: file.lastModified };
+}
+
+export async function commitPreparedNativePdfWrite(
+  projectId: string,
+  prepared: PreparedNativePdfWrite,
+  bytes: Uint8Array
+): Promise<NativePdfWriteResult> {
+  await assertExternalFileUnchanged(prepared.handle, prepared.expectedSize, prepared.expectedLastModified);
+  await writeFile(prepared.handle, bytes, true);
+  const savedAt = Date.now();
+  if (prepared.target === "output") await rememberOutput(projectId, prepared.handle, savedAt);
+  else {
+    const binding = await readNativeFileBinding(projectId);
+    if (!binding?.sourceHandle) throw new Error("The original PDF link was lost before the verified output could be written.");
+    const file = await prepared.handle.getFile();
+    const next: NativeFileBindingRecord = {
+      ...binding,
+      projectId,
+      sourceSize: file.size,
+      sourceLastModified: file.lastModified,
+      lastPdfSavedAt: savedAt,
+      updatedAt: savedAt
+    };
+    await putStoredNativeFileBinding(next);
+    bindingCache.set(projectId, next);
+  }
+  return { filename: prepared.filename, target: prepared.target, savedAt };
+}
+
+export async function savePdfAsNative(projectId: string, bytes: Uint8Array, suggestedName: string): Promise<NativePdfWriteResult | null> {
+  const prepared = await prepareNativePdfWrite(projectId, suggestedName, "save-as");
+  return prepared ? commitPreparedNativePdfWrite(projectId, prepared, bytes) : null;
+}
+
+export async function savePdfToNativeTarget(projectId: string, bytes: Uint8Array, suggestedName: string): Promise<NativePdfWriteResult | null> {
+  const prepared = await prepareNativePdfWrite(projectId, suggestedName, "save");
+  return prepared ? commitPreparedNativePdfWrite(projectId, prepared, bytes) : null;
+}
+
+export async function replaceNativeSource(projectId: string, bytes: Uint8Array): Promise<NativePdfWriteResult> {
+  const prepared = await prepareNativePdfWrite(projectId, "document.pdf", "replace-source");
+  if (!prepared) throw new Error("Native file replacement is unavailable.");
+  return commitPreparedNativePdfWrite(projectId, prepared, bytes);
+}
+
+export async function chooseExternalBackupDirectory(projectId: string): Promise<NativeFileStatus | null> {
+  const picker = pickerWindow().showDirectoryPicker;
+  if (!picker) return null;
+  const handle = await picker({ mode: "readwrite" });
+  if (!(await ensureWritePermission(handle, true))) throw new Error("Write permission was not granted for this backup folder.");
+  const current = await readNativeFileBinding(projectId);
+  const next: NativeFileBindingRecord = {
+    ...current,
+    projectId,
+    backupDirectoryHandle: handle,
+    updatedAt: Date.now()
+  };
+  await putStoredNativeFileBinding(next);
+  bindingCache.set(projectId, next);
+  return readNativeFileStatus(projectId);
+}
+
+export async function authorizeExternalBackupDirectory(projectId: string): Promise<boolean> {
+  const binding = await readNativeFileBinding(projectId);
+  if (!binding?.backupDirectoryHandle) return false;
+  return requestWritePermission(binding.backupDirectoryHandle);
+}
+
+export async function writeExternalProjectBackup(
+  projectId: string,
+  blob: Blob,
+  filename: string,
+  options: { requestPermission?: boolean } = {}
+): Promise<boolean> {
+  const binding = await readNativeFileBinding(projectId);
+  const directory = binding?.backupDirectoryHandle;
+  if (!directory) return false;
+  const allowed = await ensureWritePermission(directory, options.requestPermission === true);
+  if (!allowed) return false;
+  const handle = await directory.getFileHandle(safeNativeBackupName(filename), { create: true });
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(blob);
+    await writable.close();
+  } catch (reason) {
+    try { await writable.abort?.(reason); } catch { /* Preserve the original backup write failure. */ }
+    throw reason;
+  }
+  const now = Date.now();
+  const next: NativeFileBindingRecord = {
+    ...binding,
+    projectId,
+    lastBackupAt: now,
+    updatedAt: now
+  };
+  await putStoredNativeFileBinding(next);
+  bindingCache.set(projectId, next);
+  return true;
+}

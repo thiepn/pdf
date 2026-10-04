@@ -1,14 +1,18 @@
 import type { ProjectManifest } from "../types/project";
 import { routeHref } from "../core/appRouter";
+import type { NativeFileStatus } from "../files/nativeFileWorkflow";
 
 interface ProjectCardProps {
   project: ProjectManifest;
   onDelete?: (project: ProjectManifest) => void;
   onRename?: (project: ProjectManifest) => void;
   onBackup?: (project: ProjectManifest) => void;
+  nativeFileStatus?: NativeFileStatus;
+  onChooseExternalBackup?: (project: ProjectManifest) => void;
+  onExternalBackup?: (project: ProjectManifest) => void;
 }
 
-export function ProjectCard({ project, onDelete, onRename, onBackup }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onRename, onBackup, nativeFileStatus, onChooseExternalBackup, onExternalBackup }: ProjectCardProps) {
   return (
     <article className="project-card">
       <a className="project-card__preview" href={routeHref({ name: "viewer", projectId: project.id })}>
@@ -26,11 +30,16 @@ export function ProjectCard({ project, onDelete, onRename, onBackup }: ProjectCa
           <span>{project.storageKind === "opfs" ? "Local file storage" : "Local browser storage"}</span>
           {project.summary.encrypted ? <span>Protected</span> : null}
           {project.recovery.dirty ? <span className="warning-chip">Local edits</span> : null}
+          {nativeFileStatus?.sourceLinked ? <span>Original linked</span> : null}
+          {nativeFileStatus?.outputLinked ? <span>Save target linked</span> : null}
+          {nativeFileStatus?.backupFolderLinked ? <span>{nativeFileStatus.lastBackupAt ? `External backup · ${formatRelative(nativeFileStatus.lastBackupAt)}` : "External backup folder set"}</span> : null}
         </div>
         <div className="project-card__actions">
           <a className="button button--small" href={routeHref({ name: "workspace", projectId: project.id, mode: "viewer" })}>Open workspace</a>
           {onRename ? <button className="button button--ghost button--small" onClick={() => onRename(project)} type="button">Rename</button> : null}
-          {onBackup ? <button className="button button--ghost button--small" onClick={() => onBackup(project)} type="button">Backup</button> : null}
+          {onBackup ? <button className="button button--ghost button--small" onClick={() => onBackup(project)} type="button">Download backup</button> : null}
+          {nativeFileStatus?.directoryBackupAvailable && !nativeFileStatus.backupFolderLinked && onChooseExternalBackup ? <button className="button button--ghost button--small" onClick={() => onChooseExternalBackup(project)} type="button">Set backup folder</button> : null}
+          {nativeFileStatus?.backupFolderLinked && onExternalBackup ? <button className="button button--ghost button--small" onClick={() => onExternalBackup(project)} type="button">Back up now</button> : null}
           {onDelete ? <button className="button button--danger-ghost button--small" onClick={() => onDelete(project)} type="button">Delete</button> : null}
         </div>
       </div>
