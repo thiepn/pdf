@@ -1,0 +1,104 @@
+/* P6 — Mobile Interaction Excellence
+ * Final interaction overrides. These rules improve touch/viewport behavior only;
+ * processing, persistence, and output semantics remain shared with desktop.
+ */
+
+.organizer-page__touch-actions { display:none; }
+
+@media (pointer: coarse), (max-width: 760px) {
+  .organizer-page__touch-actions {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:6px;
+  }
+
+  .organizer-page__touch-actions button {
+    min-width:0;
+    min-height:44px;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--ink);
+    background:var(--surface-strong);
+    font-size:12px;
+    font-weight:650;
+  }
+
+  .organizer-page__touch-actions button:disabled { opacity:.45; }
+
+  .organizer-selection-actions__move {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:end;
+    gap:6px;
+    min-width:min(260px,100%);
+  }
+
+  .organizer-selection-actions__move label {
+    display:grid;
+    gap:3px;
+    color:var(--muted);
+    font-size:11px;
+  }
+
+  .organizer-selection-actions__move input {
+    width:100%;
+    min-width:0;
+    min-height:44px;
+    font-size:16px;
+  }
+
+  .organizer-selection-actions__move button { min-height:44px; }
+
+  /* Fixed mobile dialogs follow the live VisualViewport, which can shift on
+   * iOS/Android while the software keyboard or browser chrome is animating. */
+  .product-modal-backdrop,
+  .product-dialog-backdrop,
+  .compact-options-backdrop,
+  .workspace-mobile-sheet-backdrop,
+  .editor-tools-sheet-backdrop {
+    inset:auto;
+    left:var(--visual-viewport-offset-left,0px);
+    top:var(--visual-viewport-offset-top,0px);
+    width:var(--app-viewport-width,100vw);
+    height:var(--app-viewport-height,100dvh);
+    max-width:var(--app-viewport-width,100vw);
+    max-height:var(--app-viewport-height,100dvh);
+    box-sizing:border-box;
+  }
+
+  .product-modal,
+  .product-dialog,
+  .compact-options,
+  .workspace-mobile-sheet,
+  .editor-tools-sheet {
+    max-height:calc(var(--app-viewport-height,100dvh) - max(8px,env(safe-area-inset-top)));
+    overscroll-behavior:contain;
+    scroll-padding-bottom:calc(12px + env(safe-area-inset-bottom) + var(--keyboard-inset,0px));
+  }
+
+  :root[data-keyboard-open="true"] .product-modal-backdrop,
+  :root[data-keyboard-open="true"] .product-dialog-backdrop,
+  :root[data-keyboard-open="true"] .compact-options-backdrop,
+  :root[data-keyboard-open="true"] .workspace-mobile-sheet-backdrop,
+  :root[data-keyboard-open="true"] .editor-tools-sheet-backdrop {
+    padding-top:4px;
+  }
+
+  :root[data-keyboard-open="true"] .product-modal,
+  :root[data-keyboard-open="true"] .product-dialog,
+  :root[data-keyboard-open="true"] .compact-options,
+  :root[data-keyboard-open="true"] .workspace-mobile-sheet,
+  :root[data-keyboard-open="true"] .editor-tools-sheet {
+    max-height:calc(var(--app-viewport-height,100dvh) - 4px);
+  }
+}
+
+@media (max-width: 520px) {
+  .organizer-selection-actions__move {
+    grid-template-columns:minmax(0,1fr);
+    width:100%;
+  }
+
+  .organizer-selection-actions__move button { width:100%; }
+}
