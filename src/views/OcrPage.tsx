@@ -230,24 +230,35 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       }
       const finalPages = parsedPages.pageArray
         .map((number) => previous.get(number))
-        .filter((item): item is OcrPageResult => Boolean(item?.status === "complete"));
+        .filter((item): item is OcrPageResult => Boolean(item && (item.status === "complete" || item.status === "skipped")));
       if (finalPages.length !== parsedPages.pageArray.length) throw new Error(`${parsedPages.pageArray.length - finalPages.length} page(s) failed. Retry them before exporting.`);
-      const layerPages = buildOcrLayerPages(finalPages);
-      if (!layerPages.length) throw new Error("OCR completed, but no searchable words were recognized on the selected pages.");
       if (!sourceBytesRef.current) throw new Error("The original PDF bytes are no longer available in this session.");
-      setStatus("Adding searchable text to the original PDF…");
-      update({ detail: "Adding a positioned text layer without replacing page artwork…", progress: 0.86 });
-      const layered = await applyOcrTextLayer(sourceBytesRef.current, layerPages, activePasswordRef.current, signal);
+      const recognizedPages = finalPages.filter((item) => item.status === "complete");
+      const layerPages = buildOcrLayerPages(recognizedPages);
+      let outputBytes: Uint8Array;
+      let layerWarnings: string[] = [];
+      if (layerPages.length) {
+        setStatus("Adding searchable text to the original PDF…");
+        update({ detail: "Adding a positioned text layer without replacing page artwork…", progress: 0.86 });
+        const layered = await applyOcrTextLayer(sourceBytesRef.current, layerPages, activePasswordRef.current, signal);
+        outputBytes = layered.bytes;
+        layerWarnings = layered.warnings;
+      } else {
+        outputBytes = Uint8Array.from(sourceBytesRef.current);
+        update({ detail: "Selected pages already contain selectable text; keeping the original PDF unchanged…", progress: 0.86 });
+      }
       update({ stage: "validating", detail: "Checking source-preserving searchable PDF…", progress: 0.93 });
-      const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
+      const summary = await inspectPdfBytes(outputBytes, activePasswordRef.current);
       if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
-      setOutput(layered.bytes);
-      setOutputWarnings(layered.warnings);
+      setOutput(outputBytes);
+      setOutputWarnings(layerWarnings);
       setOutputFingerprint(ocrResultsFingerprint(finalPages));
-      setReviewPageNumber((current) => current ?? finalPages[0]?.pageNumber ?? null);
+      setReviewPageNumber((current) => current ?? recognizedPages[0]?.pageNumber ?? null);
       runningJob = { ...runningJob, status: "complete", completedPages: finalPages.length, updatedAt: Date.now() };
       setJob(runningJob); await writeOcrJob(runningJob);
-      setStatus(layered.warnings.length ? "Searchable PDF ready · review skipped script warnings before saving" : "Searchable PDF ready · original page visuals preserved");
+      setStatus(layerPages.length
+        ? layerWarnings.length ? "Searchable PDF ready · review skipped script warnings before saving" : "Searchable PDF ready · original page visuals preserved"
+        : "Selected pages already contain selectable text · OCR was not duplicated");
       update({ progress: 1 });
       });
     } catch (reason) {
@@ -302,22 +313,26 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
 
   async function rebuildSearchableOutput(): Promise<void> {
     if (!project || !document || !sourceBytesRef.current || reviewBusy) return;
-    const completePages = results.filter((item) => item.status === "complete");
+    const readyPages = results.filter((item) => item.status === "complete" || item.status === "skipped");
+    const completePages = readyPages.filter((item) => item.status === "complete");
     const layerPages = buildOcrLayerPages(completePages);
-    if (!layerPages.length) { setError("No recognized text is available to add to the PDF."); return; }
     setReviewBusy(true); setError(null);
     try {
       await runProjectOperation(project.id, { label: "Building searchable PDF", cancellable: true }, async ({ signal, update }) => {
         setStatus("Adding reviewed OCR text to the original PDF…");
         update({ detail: "Keeping original pages and adding an invisible positioned text layer…", progress: .25 });
-        const layered = await applyOcrTextLayer(sourceBytesRef.current!, layerPages, activePasswordRef.current, signal);
+        const layered = layerPages.length
+          ? await applyOcrTextLayer(sourceBytesRef.current!, layerPages, activePasswordRef.current, signal)
+          : { bytes: Uint8Array.from(sourceBytesRef.current!), warnings: [] as string[] };
         update({ stage: "validating", detail: "Checking source-preserving OCR output…", progress: .82 });
         const summary = await inspectPdfBytes(layered.bytes, activePasswordRef.current);
         if (summary.pageCount !== document.numPages) throw new Error("The searchable PDF could not be verified because its original page count changed.");
         setOutput(layered.bytes);
         setOutputWarnings(layered.warnings);
-        setOutputFingerprint(ocrResultsFingerprint(completePages));
-        setStatus(layered.warnings.length ? "Searchable PDF ready · some unsupported-script words were omitted" : "Searchable PDF ready · original page visuals preserved");
+        setOutputFingerprint(ocrResultsFingerprint(readyPages));
+        setStatus(layerPages.length
+          ? layered.warnings.length ? "Searchable PDF ready · some unsupported-script words were omitted" : "Searchable PDF ready · original page visuals preserved"
+          : "Selected pages already contain selectable text · original PDF is already searchable");
         update({ progress: 1 });
       });
     } catch (reason) {
