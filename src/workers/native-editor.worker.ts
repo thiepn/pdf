@@ -23,6 +23,7 @@ import type {
   NativeTextObject,
   NativeVectorObject
 } from "../types/nativeEditor";
+import { encodeWinAnsiHex } from "../native/textEncoding";
 
 type Request =
   | { type: "INSPECT_NATIVE" | "APPLY_NATIVE"; requestId: string; bytes: ArrayBuffer; password?: string; edits?: NativeEdit[] }
@@ -117,24 +118,6 @@ function colorFromStructuredText(value: unknown): string | undefined {
   return `#${(numeric >>> 0 & 0xffffff).toString(16).padStart(6, "0")}`;
 }
 
-const winAnsiExtras = new Map<number, number>([
-  [0x20ac, 0x80], [0x201a, 0x82], [0x0192, 0x83], [0x201e, 0x84], [0x2026, 0x85], [0x2020, 0x86], [0x2021, 0x87],
-  [0x02c6, 0x88], [0x2030, 0x89], [0x0160, 0x8a], [0x2039, 0x8b], [0x0152, 0x8c], [0x017d, 0x8e], [0x2018, 0x91],
-  [0x2019, 0x92], [0x201c, 0x93], [0x201d, 0x94], [0x2022, 0x95], [0x2013, 0x96], [0x2014, 0x97], [0x02dc, 0x98],
-  [0x2122, 0x99], [0x0161, 0x9a], [0x203a, 0x9b], [0x0153, 0x9c], [0x017e, 0x9e], [0x0178, 0x9f]
-]);
-
-function winAnsiHex(text: string): string {
-  const bytes: number[] = [];
-  for (const char of text) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code <= 0xff) bytes.push(code);
-    else if (winAnsiExtras.has(code)) bytes.push(winAnsiExtras.get(code) as number);
-    else throw new Error(`Character ${char} cannot be encoded by the selected built-in Latin font.`);
-  }
-  return `<${bytes.map((value) => value.toString(16).padStart(2, "0")).join("")}>`;
-}
-
 function utf16Hex(text: string): string {
   let hex = "feff";
   for (let i = 0; i < text.length; i += 1) hex += text.charCodeAt(i).toString(16).padStart(4, "0");
@@ -206,11 +189,11 @@ function addFontResource(pdf: PdfDocument, page: PdfPage, edit: any): AddedFont 
   if (edit.fontSource === "imported-latin" && edit.fontBytes?.byteLength) {
     const font = new (mupdf as any).Font(edit.fontName || "Imported Latin", new Uint8Array(edit.fontBytes));
     fonts.put(resource, pdf.addSimpleFont(font, "Latin"));
-    return { resource, encode: winAnsiHex, font, wmode: 0 };
+    return { resource, encode: encodeWinAnsiHex, font, wmode: 0 };
   }
   const font = new (mupdf as any).Font(fontVariant(edit));
   fonts.put(resource, pdf.addSimpleFont(font, "Latin"));
-  return { resource, encode: winAnsiHex, font, wmode };
+  return { resource, encode: encodeWinAnsiHex, font, wmode };
 }
 
 function measuredTextWidth(font: AddedFont, text: string, size: number): number {
@@ -299,8 +282,9 @@ function lineOf(chars: StyledChar[]): StyledLine {
   return { chars: clean, width: clean.reduce((sum, item) => sum + item.width, 0) };
 }
 
-function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLine[] {
-  const safeWidth = Math.max(1, width - 3);
+function wrapStyled(chars: StyledChar[], width: number | number[], wrap: boolean): StyledLine[] {
+  const widths = Array.isArray(width) && width.length ? width : [Number(width)];
+  const safeWidth = () => Math.max(1, (widths[Math.min(lines.length, widths.length - 1)] ?? 1) - 3);
   const lines: StyledLine[] = [];
   let current: StyledChar[] = [];
   let currentWidth = 0;
@@ -318,7 +302,7 @@ function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLi
       currentWidth += item.width;
       continue;
     }
-    if (current.length && currentWidth + item.width > safeWidth) {
+    if (current.length && currentWidth + item.width > safeWidth()) {
       let breakIndex = -1;
       for (let index = current.length - 1; index >= 0; index -= 1) {
         if (/\s/u.test(current[index].char)) { breakIndex = index; break; }
@@ -334,10 +318,100 @@ function wrapStyled(chars: StyledChar[], width: number, wrap: boolean): StyledLi
     if (!current.length && /\s/u.test(item.char)) continue;
     current.push(item);
     currentWidth += item.width;
-    if (wrap && currentWidth > safeWidth && current.length === 1) flush();
+    if (wrap && currentWidth > safeWidth() && current.length === 1) flush();
   }
   if (current.length || !lines.length) lines.push(lineOf(current));
   return lines;
+}
+
+function axisOverlap(a0: number, a1: number, b0: number, b1: number): number {
+  return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0)) / Math.max(1, Math.min(a1 - a0, b1 - b0));
+}
+
+function textSourceLineRegions(edit: any): NativeRect[] {
+  const regions = textSourceRegions(edit);
+  if (regions.length <= 1 || Number(edit.writingMode) === 1) return regions;
+  const groups: NativeRect[][] = [];
+  const ordered = [...regions].sort((left, right) => left.y - right.y || left.x - right.x);
+  for (const region of ordered) {
+    const group = groups.find((items) => items.some((item) =>
+      axisOverlap(item.y, item.y + item.h, region.y, region.y + region.h) >= 0.55
+      || Math.abs(item.y - region.y) <= Math.max(item.h, region.h) * 0.35
+    ));
+    group ? group.push(region) : groups.push([region]);
+  }
+  return groups.map((items) => {
+    const x = Math.min(...items.map((item) => item.x));
+    const y = Math.min(...items.map((item) => item.y));
+    const x1 = Math.max(...items.map((item) => item.x + item.w));
+    const y1 = Math.max(...items.map((item) => item.y + item.h));
+    return { x, y, w: x1 - x, h: y1 - y };
+  }).sort((left, right) => left.y - right.y || left.x - right.x);
+}
+
+function sameRect(left: NativeRect | undefined, right: NativeRect | undefined, tolerance = 0.5): boolean {
+  if (!left || !right) return false;
+  return Math.abs(left.x - right.x) <= tolerance
+    && Math.abs(left.y - right.y) <= tolerance
+    && Math.abs(left.w - right.w) <= tolerance
+    && Math.abs(left.h - right.h) <= tolerance;
+}
+
+function retainedSourceLines(edit: any): Array<{ text: string; bounds: NativeRect }> {
+  if (!Array.isArray(edit.sourceLines)) return [];
+  return edit.sourceLines.filter((line: any) => typeof line?.text === "string" && validRedactionRect(line?.bounds));
+}
+
+function changedRange(left: string, right: string): { sourceStart: number; sourceEnd: number; delta: number } {
+  let prefix = 0;
+  const limit = Math.min(left.length, right.length);
+  while (prefix < limit && left[prefix] === right[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < left.length - prefix
+    && suffix < right.length - prefix
+    && left[left.length - suffix - 1] === right[right.length - suffix - 1]
+  ) suffix += 1;
+  return { sourceStart: prefix, sourceEnd: left.length - suffix, delta: right.length - left.length };
+}
+
+function retainedLineBreakOffsets(edit: any): number[] | null {
+  const lines = retainedSourceLines(edit);
+  if (lines.length <= 1 || typeof edit.originalText !== "string" || typeof edit.text !== "string") return null;
+  const ranges: Array<{ start: number; end: number }> = [];
+  let cursor = 0;
+  for (const line of lines) {
+    const value = line.text.trim();
+    if (!value) return null;
+    const start = edit.originalText.indexOf(value, cursor);
+    if (start < 0) return null;
+    ranges.push({ start, end: start + value.length });
+    cursor = start + value.length;
+  }
+  const change = changedRange(edit.originalText, edit.text);
+  const touched = ranges.filter((range) =>
+    change.sourceStart === change.sourceEnd
+      ? change.sourceStart >= range.start && change.sourceStart <= range.end
+      : change.sourceStart < range.end && change.sourceEnd > range.start
+  );
+  if (touched.length > 1) return null;
+  if (touched.length === 1 && (change.sourceStart < touched[0].start || change.sourceEnd > touched[0].end)) return null;
+  return ranges.slice(0, -1).map((range) => {
+    const utf16Offset = range.end <= change.sourceStart ? range.end : range.end + change.delta;
+    return Array.from(edit.text.slice(0, utf16Offset)).length;
+  });
+}
+
+function withRetainedLineBreaks(chars: StyledChar[], offsets: number[]): StyledChar[] {
+  if (!offsets.length) return chars;
+  const breaks = new Set(offsets.filter((offset) => offset > 0 && offset < chars.length));
+  if (!breaks.size) return chars;
+  const output: StyledChar[] = [];
+  for (let index = 0; index < chars.length; index += 1) {
+    if (breaks.has(index)) output.push({ ...chars[Math.max(0, index - 1)], char: "\n", width: 0 });
+    output.push(chars[index]);
+  }
+  return output;
 }
 
 function chunks(line: StyledLine): Array<{ style: PreparedStyle; text: string; width: number }> {
@@ -366,10 +440,25 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
   const width = x1 - x0;
   const height = y1 - y0;
   const prepared = prepareStyles(pdf, page, edit);
-  const lines = wrapStyled(prepared.chars, width, Boolean(edit.wrap));
+  const retainedLines = retainedSourceLines(edit);
+  const sourceLineRegions = edit.layoutMode !== "expand-flow"
+    && Boolean(edit.wrap)
+    && sameRect(edit.bounds, edit.sourceBounds ?? edit.bounds)
+    ? (retainedLines.length > 1 ? retainedLines.map((line) => line.bounds) : textSourceLineRegions(edit))
+    : [];
+  const sourceLineWidths = sourceLineRegions.length > 1
+    ? sourceLineRegions.map((region) => Math.max(region.w, edit.bounds.w - Math.max(0, region.x - edit.bounds.x)))
+    : [];
+  const sourceBreaks = sourceLineWidths.length ? retainedLineBreakOffsets(edit) : null;
+  const sourceChars = sourceBreaks ? withRetainedLineBreaks(prepared.chars, sourceBreaks) : prepared.chars;
+  const sourceLines = sourceLineWidths.length ? wrapStyled(sourceChars, sourceLineWidths, true) : [];
+  const sourceLayoutFits = sourceLineWidths.length > 0
+    && sourceLines.length <= sourceLineRegions.length
+    && sourceLines.every((line, index) => line.width <= Math.max(1, sourceLineWidths[index] - 3) + 0.01);
+  const lines = sourceLayoutFits ? sourceLines : wrapStyled(prepared.chars, width, Boolean(edit.wrap));
   const lineHeight = Math.max(prepared.maxSize, Number(edit.lineHeight) || prepared.maxSize * 1.2);
   const requiredHeight = lines.length * lineHeight;
-  if (requiredHeight > height + 0.01) throw new Error(`Replacement text does not fit the destination at the retained line spacing (${lines.length} lines require ${Number(requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Expand the text flow, lower the font size, or shorten the text.`);
+  if (!sourceLayoutFits && requiredHeight > height + 0.01) throw new Error(`Replacement text does not fit the destination at the retained line spacing (${lines.length} lines require ${Number(requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Expand the text flow, lower the font size, or shorten the text.`);
   if (!edit.wrap && lines.some((line) => line.width > Math.max(1, width - 3))) throw new Error(`Replacement text is wider than the destination at the selected font metrics. Enable paragraph reflow, lower the font size, or shorten the text.`);
   let content = "";
   if (edit.backgroundColor && edit.backgroundColor !== "transparent") {
@@ -377,9 +466,14 @@ function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
     content += `q ${br} ${bg} ${bb} rg ${x0} ${y0} ${width} ${height} re f Q\n`;
   }
   lines.forEach((line, index) => {
-    const startX = edit.align === "center" ? x0 + Math.max(0, (width - line.width) / 2) : edit.align === "right" ? Math.max(x0, x1 - line.width) : x0 + 1.5;
+    const sourceRegion = sourceLayoutFits ? sourceLineRegions[index] : undefined;
+    const [sourceX0, _lineY0, sourceX1, lineY1] = sourceRegion ? pdfRect(page, sourceRegion) : [x0, y0, x1, y1];
+    const lineX0 = sourceRegion ? Math.max(x0, sourceX0) : x0;
+    const lineX1 = sourceRegion ? Math.max(sourceX1, x1) : x1;
+    const lineWidth = lineX1 - lineX0;
+    const startX = edit.align === "center" ? lineX0 + Math.max(0, (lineWidth - line.width) / 2) : edit.align === "right" ? Math.max(lineX0, lineX1 - line.width) : lineX0 + 1.5;
     const baselineSize = Math.max(prepared.maxSize, ...line.chars.map((item) => item.style.fontSize));
-    const y = y1 - baselineSize - index * lineHeight;
+    const y = sourceRegion ? lineY1 - baselineSize : y1 - baselineSize - index * lineHeight;
     let cursor = startX;
     for (const chunk of chunks(line)) {
       const [r, g, b] = rgb(chunk.style.color);
@@ -580,6 +674,36 @@ function redactRegion(page: PdfPage, bounds: NativeRect): void {
   page.applyRedactions(false, (mupdf as any).PDFPage.REDACT_IMAGE_PIXELS, (mupdf as any).PDFPage.REDACT_LINE_ART_REMOVE_IF_TOUCHED, (mupdf as any).PDFPage.REDACT_TEXT_REMOVE);
 }
 
+function validRedactionRect(value: unknown): value is NativeRect {
+  if (!value || typeof value !== "object") return false;
+  const rect = value as Partial<NativeRect>;
+  return [rect.x, rect.y, rect.w, rect.h].every((item) => Number.isFinite(item))
+    && Number(rect.w) > 0
+    && Number(rect.h) > 0;
+}
+
+function textSourceRegions(edit: any): NativeRect[] {
+  const precise = Array.isArray(edit.sourceRects) ? edit.sourceRects.filter(validRedactionRect) : [];
+  if (precise.length) return precise;
+  const fallback = edit.sourceBounds ?? edit.bounds;
+  return validRedactionRect(fallback) ? [fallback] : [];
+}
+
+function redactTextOnly(page: PdfPage, regions: NativeRect[]): void {
+  if (!regions.length) throw new Error("Native text edit has no valid source geometry to remove.");
+  for (const bounds of regions) {
+    const redaction = page.createAnnotation("Redact");
+    redaction.setRect(pageRect(bounds));
+    redaction.update?.();
+  }
+  page.applyRedactions(
+    false,
+    (mupdf as any).PDFPage.REDACT_IMAGE_NONE,
+    (mupdf as any).PDFPage.REDACT_LINE_ART_NONE,
+    (mupdf as any).PDFPage.REDACT_TEXT_REMOVE
+  );
+}
+
 function applyFormEdit(page: PdfPage, edit: any): boolean {
   const widgets = safe(() => page.getWidgets(), [] as any[]);
   const widget = widgets[edit.widgetIndex] ?? widgets.find((candidate: any) => safe(() => candidate.getName(), "") === edit.name);
@@ -646,7 +770,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
         const page = pdf.loadPage(edit.pageNumber - 1);
         try {
           changed.add(edit.pageNumber);
-          redactRegion(page, (edit as any).sourceBounds ?? edit.bounds);
+          redactTextOnly(page, textSourceRegions(edit));
         } finally { page.destroy(); }
       }
 
@@ -660,7 +784,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
               ...edit,
               fontFamily: (edit as any).fontFamily ?? "Helvetica",
               color: (edit as any).color ?? "#111111",
-              backgroundColor: (edit as any).backgroundColor ?? "#ffffff",
+              backgroundColor: (edit as any).backgroundColor ?? "transparent",
               align: (edit as any).align ?? "left",
               wrap: (edit as any).wrap ?? true,
               fontSource: (edit as any).fontSource ?? "built-in"

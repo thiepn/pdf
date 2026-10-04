@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cjkLanguageForScript, detectScript } from "../../native/nativeModel";
 import { pageForNativeObject } from "../../native/nativeInspectionRegistry";
 import { evaluateTextFit, findFittingFontSize } from "../../native/textFit";
+import { nativeTextSourceRects } from "../../native/textSourceGeometry";
 import type {
   NativeEdit,
   NativeFormObject,
@@ -75,7 +76,7 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
     setWrap(queued?.wrap ?? true);
     setFontBytes(queued?.fontBytes);
     setFontName(queued?.fontName ?? "");
-  }, [object.id]);
+  }, [object.id, queued]);
 
   const unsupported = object.editability === "unsupported";
   const complex = object.editability === "overlay-only";
@@ -100,6 +101,8 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
       pageNumber: object.pageNumber,
       originalText: object.text,
       text,
+      sourceBounds: object.bounds,
+      sourceRects: queued?.sourceRects ?? nativeTextSourceRects(object),
       bounds: object.bounds,
       fontFamily,
       fontSize: Math.max(1, fontSize),
@@ -127,6 +130,8 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
       pageNumber: object.pageNumber,
       originalText: object.text,
       text: "",
+      sourceBounds: object.bounds,
+      sourceRects: queued?.sourceRects ?? nativeTextSourceRects(object),
       bounds: object.bounds,
       fontFamily: language ?? familyForObject(object),
       fontSize: Math.max(1, object.size),
