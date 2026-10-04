@@ -13,7 +13,8 @@ import { classifyIncomingFile } from "../pwa/fileIngress";
 import type { ProjectManifest } from "../types/project";
 import { rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { Icon } from "../components/Icon";
-interface PendingPassword { file: File; kind: "pdf" | "package"; inboxId?: string; launchId?: string }
+import { openNativePdf, rememberNativeSourceHandle, supportsNativeFileOpen, type NativeFileHandle } from "../files/nativeFileWorkflow";
+interface PendingPassword { file: File; kind: "pdf" | "package"; inboxId?: string; launchId?: string; nativeSourceHandle?: NativeFileHandle }
 export function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const projectInputRef = useRef<HTMLInputElement | null>(null);
@@ -42,11 +43,12 @@ export function HomePage() {
   async function refresh(): Promise<void> {
     try { setProjects((await listProjects()).slice(0, 6)); } catch { /* Quick tools remain usable without project storage. */ }
   }
-  async function processFile(file: File, kind: "pdf" | "package", suppliedPassword?: string, inboxId?: string, launchId?: string): Promise<boolean> {
+  async function processFile(file: File, kind: "pdf" | "package", suppliedPassword?: string, inboxId?: string, launchId?: string, nativeSourceHandle?: NativeFileHandle): Promise<boolean> {
     setBusy(true); setError(null); setStatus(`Opening ${file.name}…`);
     try {
       const project = kind === "package" ? await importProjectPackage(file, suppliedPassword) : await importPdfProject(file, suppliedPassword);
       if (kind === "pdf" && suppliedPassword) rememberProjectSessionPassword(project.id, suppliedPassword);
+      if (kind === "pdf" && nativeSourceHandle) await rememberNativeSourceHandle(project.id, nativeSourceHandle);
       if (launchId) { acknowledgePendingPwaLaunchFiles([launchId]); deferredLaunchIds.current.delete(launchId); }
       if (inboxId) {
         // Persist logical acknowledgement before best-effort Cache Storage deletion.
@@ -56,7 +58,7 @@ export function HomePage() {
       setStatus("Opening document…"); navigateTo({ name: "workspace", projectId: project.id, mode: "editor" }); return true;
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
-      if (/password|encrypted/i.test(message)) { setPendingPassword({ file, kind, inboxId, launchId }); setError("This PDF requires a password. The password is used only to open this file and is not stored."); }
+      if (/password|encrypted/i.test(message)) { setPendingPassword({ file, kind, inboxId, launchId, nativeSourceHandle }); setError("This PDF requires a password. The password is used only to open this file and is not stored."); }
       else {
         if (inboxId) deferredInboxIds.current.add(inboxId);
         if (launchId) deferredLaunchIds.current.add(launchId);
@@ -64,6 +66,17 @@ export function HomePage() {
       }
       return false;
     } finally { setBusy(false); setStatus(null); }
+  }
+  async function openNativeDocument(): Promise<void> {
+    setError(null);
+    try {
+      const selected = await openNativePdf();
+      if (!selected) return;
+      await processFile(selected.file, "pdf", undefined, undefined, undefined, selected.handle);
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
   }
   async function createFixture(): Promise<void> {
     setBusy(true); setError(null);
@@ -74,7 +87,7 @@ export function HomePage() {
   async function retryPassword(): Promise<void> {
     if (!pendingPassword || !password) return;
     const pending = pendingPassword; setPendingPassword(null);
-    await processFile(pending.file, pending.kind, password, pending.inboxId, pending.launchId); setPassword("");
+    await processFile(pending.file, pending.kind, password, pending.inboxId, pending.launchId, pending.nativeSourceHandle); setPassword("");
   }
   useEffect(() => {
     let cancelled = false; let consuming = false;
@@ -117,6 +130,6 @@ export function HomePage() {
     {stagedFiles.length && inputKind === "pdf" ? <p className="product-fine-print">Quick tools use temporary files. Editing, form filling and other document work saves a local project on this device.</p> : null}
     {!stagedFiles.length ? <section className="product-home-bottom"><div><h2>Just need to look around?</h2><p>Try the editor with a sample document. No file of your own needed.</p></div><button className="button button--secondary" disabled={busy} onClick={() => void createFixture()} type="button">Try an example <span aria-hidden="true">→</span></button></section> : null}
     {projects.length ? <details className="product-recents"><summary>Continue a saved document <span>{projects.length}</span></summary><div>{projects.map((project) => <a key={project.id} href={routeHref({ name: "workspace", projectId: project.id, mode: "editor" })}><Icon name="documents" /><strong>{project.name}</strong><span>{project.summary.pageCount} pages</span><Icon name="chevron-right" /></a>)}</div><a href={routeHref({ name: "projects" })}>All saved documents</a></details> : null}
-    <div className="product-home-links"><a href={routeHref({ name: "projects" })}>Saved documents</a><button disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore a project backup</button></div>
+    <div className="product-home-links"><a href={routeHref({ name: "projects" })}>Saved documents</a>{supportsNativeFileOpen() ? <button disabled={busy} onClick={() => void openNativeDocument()} type="button">Open PDF</button> : null}<button disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore a project backup</button></div>
   </div>;
 }
