@@ -28,6 +28,14 @@ function newJob(project: ProjectManifest, pages: number[], languages: string[], 
   return { schemaVersion: OCR_SCHEMA_VERSION, id: crypto.randomUUID(), kind: "pdf", projectId: project.id, name: `${project.name} OCR`, languages, pageNumbers: pages, preprocess, recipeFingerprint: buildOcrRecipeFingerprint({ pageNumbers: pages, languages, preprocess }), status: "draft", completedPages: 0, totalPages: pages.length, createdAt: now, updatedAt: now };
 }
 
+function ocrResultsFingerprint(results: OcrPageResult[]): string {
+  return results
+    .filter((item) => item.status === "complete")
+    .map((item) => `${item.id}:${item.updatedAt}:${item.words.length}`)
+    .sort()
+    .join("|");
+}
+
 export function OcrPage({ projectId, onTitleChange }: Props) {
   const documentRef = useRef<PDFDocumentProxy | null>(null);
   const sourceBytesRef = useRef<Uint8Array | null>(null);
@@ -76,8 +84,13 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       setPassword(""); setError(null);
       documentRef.current = pdf; sourceBytesRef.current = bytes; activePasswordRef.current = suppliedPassword; setDocument(pdf); setPageExpression(`1-${pdf.numPages}`); setPasswordRequired(false); setStatus("Ready");
       onTitleChange?.(`OCR · ${manifest.name}`, `${pdf.numPages} pages · Searchable output is generated locally.`);
-      const existing = (await listOcrJobs(manifest.id)).find((candidate) => candidate.status !== "complete" && candidate.status !== "cancelled");
-      if (existing) { setJob(existing); setLanguages(existing.languages); setPreprocess(existing.preprocess); setPageExpression(existing.pageNumbers.join(",")); setResults(await listOcrPages(existing.id)); setStatus("Resumed an unfinished OCR session."); }
+      const existing = (await listOcrJobs(manifest.id)).find((candidate) => candidate.status !== "cancelled");
+      if (existing) {
+        const savedResults = await listOcrPages(existing.id);
+        setJob(existing); setLanguages(existing.languages); setPreprocess(existing.preprocess); setPageExpression(existing.pageNumbers.join(",")); setResults(savedResults);
+        setReviewPageNumber(savedResults.find((item) => item.status === "complete")?.pageNumber ?? null);
+        setStatus(existing.status === "complete" ? "Loaded reusable OCR results. Review or rebuild the searchable layer." : "Resumed an unfinished OCR session.");
+      }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (/password|encrypted/i.test(message)) { setPasswordRequired(true); setError("Enter the PDF password. It is used only in this tab and is not saved."); }
@@ -93,7 +106,8 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const running = job?.status === "running";
 
   const currentRecipe = buildOcrRecipeFingerprint({ pageNumbers: parsedPages.pageArray, languages, preprocess });
-  const outputIsCurrent = Boolean(output && job?.recipeFingerprint === currentRecipe);
+  const currentResultsFingerprint = ocrResultsFingerprint(results);
+  const outputIsCurrent = Boolean(output && job?.recipeFingerprint === currentRecipe && outputFingerprint === currentResultsFingerprint);
   useEffect(() => {
     if (!running && !outputIsCurrent) return;
     return registerPreparedDocumentSnapshot(projectId, async (signal) => {
@@ -101,7 +115,7 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
       if (running || !output) throw new Error("Finish or pause OCR before switching tools. Your original document has not been substituted.");
       const bytes = Uint8Array.from(output);
       return { file: new File([bytes.buffer], `${project?.name ?? "document"}-searchable.pdf`, { type: "application/pdf" }), bytes, changed: true,
-        warnings: ["OCR output contains the selected pages as scanned images with a searchable text layer. Original interactive forms, bookmarks, and digital signatures are not retained."] };
+        warnings: ["OCR adds a positioned invisible text layer to the original PDF pages. Original page graphics and structure are retained; modifying PDF bytes means existing digital signatures require re-validation."] };
     });
   }, [projectId, output, outputIsCurrent, running, project?.name]);
 
