@@ -12,7 +12,7 @@ P4 is a progressive enhancement. Browsers without the File System Access API kee
 
 - Home keeps the existing drag/drop and file-input entry paths.
 - Supported browsers also expose **Open PDF** through the native file picker.
-- A PDF opened this way keeps its `FileSystemFileHandle` in local IndexedDB for the resulting project.
+- A PDF opened this way keeps its `FileSystemFileHandle` in a dedicated local capability IndexedDB for the resulting project.
 - File handles never enter URLs, project packages, analytics, diagnostics, or network requests.
 
 ### Save
@@ -50,6 +50,7 @@ P4 is a progressive enhancement. Browsers without the File System Access API kee
 - Native file writes happen only after the existing export/reopen validation succeeds.
 - Native source replacement is never the default action.
 - No absolute local path is exposed or persisted; only opaque browser file/directory handles are stored.
+- Native capabilities live in a separate `local-pdf-studio-native-files` database, so P4 does not change the frozen project database or `.lpsproject` format.
 - Deleting a local project also deletes its stored native file bindings.
 - Downloads remain the universal fallback.
 
@@ -60,7 +61,7 @@ P4 is complete when:
 1. supported Chromium-class browsers can Open → edit → Save as → Save without a download round-trip;
 2. source replacement requires a separate explicit action;
 3. unsupported browsers retain existing file-input/download behavior;
-4. native handles persist through IndexedDB without entering project packages;
+4. native handles persist through a separate capability IndexedDB without changing the project database or entering project packages;
 5. external project backup can be configured and refreshed;
 6. Saved Documents shows linked-file / external-backup state;
 7. native writes use the same verified output bytes as normal editor export;
