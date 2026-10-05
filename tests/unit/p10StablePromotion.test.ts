@@ -21,8 +21,11 @@ describe("P10 stable release promotion", () => {
     expect(promotionWorkflow).toContain("P10 never replaces a Stable tag");
     expect(promotionWorkflow).toContain("v7.1.4-release-certificate");
     expect(promotionWorkflow).toContain("verify-promotion-certificate.mjs");
+    expect(promotionWorkflow).toContain('git worktree add --detach /tmp/p10-candidate "$CANDIDATE_SHA"');
+    expect(promotionWorkflow).toContain("STABLE_PROMOTION_TOKEN");
+    expect(promotionWorkflow).toContain("default GITHUB_TOKEN is deliberately not used");
     expect(promotionWorkflow).toContain('git tag -a "$TAG" "$CANDIDATE_SHA"');
-    expect(promotionWorkflow).toContain('git push origin "refs/tags/$TAG"');
+    expect(promotionWorkflow).toContain('x-access-token:${PROMOTION_TOKEN}');
   });
 
   it("verifies the full ten-cell certificate and frozen release hashes", () => {
