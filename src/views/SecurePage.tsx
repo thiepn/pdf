@@ -18,7 +18,7 @@ import { SecurityPreviewPage } from "../security/SecurityPreviewPage";
 import { FormAuthoringPanel } from "../security/FormAuthoringPanel";
 import { RedactionDiscoveryPanel } from "../security/RedactionDiscoveryPanel";
 import type { RedactionCandidate } from "../security/redactionDiscovery";
-import { validateFormCreates } from "../security/formAuthoring";
+import { validateFormCreates, type FormFieldCandidate } from "../security/formAuthoring";
 import { collectRedactionTokens, validateSecurityOutput, type SecurityValidationReport } from "../security/securityValidation";
 import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorObject, ImageEditorObject, RedactionEditorObject } from "../types/editor";
 import type { ProjectManifest } from "../types/project";
@@ -54,6 +54,7 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
   const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>();
   const [formCreates, setFormCreates] = useState<FormFieldCreate[]>([]);
   const [redactionPreview, setRedactionPreview] = useState<RedactionCandidate | null>(null);
+  const [formCandidatePreview, setFormCandidatePreview] = useState<FormFieldCandidate | null>(null);
   const [status, setStatus] = useState("Opening protection tools…");
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -237,8 +238,8 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
 
     <div className="security-layout">
 
-      <aside className="security-panel"><fieldset disabled={busy} className="security-settings"><legend className="visually-hidden">Document settings</legend>{renderPanel(tab, { projectId, document, inspection, security, setSecurity, initialFormValues, selectedField, setSelectedFieldId, formCreates, setFormCreates, selectedDraftId, setSelectedDraftId, redactionObjects, onAcceptRedactions: acceptAutomaticRedactions, onPreviewRedaction: setRedactionPreview, visualSignatures, ownerPasswordConfirm, setOwnerPasswordConfirm })}</fieldset><details className="security-other-tasks"><summary>Related document settings</summary><label>Settings to show<select value={tab} disabled={busy} onChange={(event) => setTab(event.target.value as SecurityTab)}>{securityTasks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><p>All selected changes are included in the output. Review the final check before sharing.</p></details></aside>
-      <main className="security-stage"><SecurityPreviewPage document={document} draftFields={formCreates} fields={inspection.formFields} objects={securityObjects} values={security.formValues} onSelectDraft={(field) => { setSelectedDraftId(field.id); setSelectedFieldId(undefined); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} onSelectField={(field) => { setSelectedFieldId(field.id); setSelectedDraftId(undefined); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} pageNumber={security.currentPage} redactionCandidate={tab === "redaction" ? redactionPreview : null} selectedDraftId={selectedDraft?.id} selectedFieldId={selectedFieldId} zoom={security.zoom} /></main>
+      <aside className="security-panel"><fieldset disabled={busy} className="security-settings"><legend className="visually-hidden">Document settings</legend>{renderPanel(tab, { projectId, document, inspection, security, setSecurity, initialFormValues, selectedField, setSelectedFieldId, formCreates, setFormCreates, selectedDraftId, setSelectedDraftId, onPreviewFormCandidate: setFormCandidatePreview, redactionObjects, onAcceptRedactions: acceptAutomaticRedactions, onPreviewRedaction: setRedactionPreview, visualSignatures, ownerPasswordConfirm, setOwnerPasswordConfirm })}</fieldset><details className="security-other-tasks"><summary>Related document settings</summary><label>Settings to show<select value={tab} disabled={busy} onChange={(event) => setTab(event.target.value as SecurityTab)}>{securityTasks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><p>All selected changes are included in the output. Review the final check before sharing.</p></details></aside>
+      <main className="security-stage"><SecurityPreviewPage document={document} draftFields={formCreates} fields={inspection.formFields} formCandidate={tab === "forms" ? formCandidatePreview : null} objects={securityObjects} values={security.formValues} onSelectDraft={(field) => { setSelectedDraftId(field.id); setSelectedFieldId(undefined); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} onSelectField={(field) => { setSelectedFieldId(field.id); setSelectedDraftId(undefined); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} pageNumber={security.currentPage} redactionCandidate={tab === "redaction" ? redactionPreview : null} selectedDraftId={selectedDraft?.id} selectedFieldId={selectedFieldId} zoom={security.zoom} /></main>
       <aside className="security-validation-panel"><details open={validation?.valid === false}><summary>{validation ? validation.valid ? "Output verified · view checks" : "Output blocked · review checks" : "Safety checks & document details"}</summary><ValidationPanel validation={validation} inspection={inspection} /></details></aside>
     </div>
   </div>;
@@ -257,6 +258,7 @@ interface PanelContext {
   setFormCreates: (value: FormFieldCreate[]) => void;
   selectedDraftId?: string;
   setSelectedDraftId: (id: string | undefined) => void;
+  onPreviewFormCandidate: (candidate: FormFieldCandidate | null) => void;
   redactionObjects: Array<Extract<EditorObject, { type: "redaction" }>>;
   onAcceptRedactions: (objects: RedactionEditorObject[]) => Promise<void>;
   onPreviewRedaction: (candidate: RedactionCandidate | null) => void;
@@ -281,7 +283,7 @@ function FormsPanel(context: PanelContext) {
   return <div className="security-panel-body">
     <PanelTitle title="Forms" subtitle={`${fields.length} existing · ${context.formCreates.length} new · PDF scripts are not run`} />
     {editable.length ? <><div className="security-form-list">{fields.map((field) => <FormControl field={field} key={field.id} selected={context.selectedField?.id === field.id} value={context.security.formValues[field.id] ?? field.value} onChange={(value) => context.setSecurity((state) => ({ ...state, formValues: { ...state.formValues, [field.id]: value }, currentPage: field.pageNumber }))} onSelect={() => { context.setSelectedFieldId(field.id); context.setSelectedDraftId(undefined); }} />)}</div><button className="button button--ghost button--block" onClick={() => context.setSecurity((state) => ({ ...state, formValues: { ...context.initialFormValues } }))} type="button">Reset pending values</button><p className="property-note">Read-only and digital signature fields are displayed but cannot be changed here.</p></> : <div className="security-empty"><strong>No fillable fields detected</strong><p>You can create supported interactive text and checkbox fields below. Existing visual content is not automatically converted without review.</p></div>}
-    <FormAuthoringPanel currentPage={context.security.currentPage} disabled={false} document={context.document} drafts={context.formCreates} existingFields={fields} onDrafts={context.setFormCreates} onPage={(pageNumber) => context.setSecurity((state) => ({ ...state, currentPage: pageNumber }))} />
+    <FormAuthoringPanel currentPage={context.security.currentPage} disabled={false} document={context.document} drafts={context.formCreates} existingFields={fields} onDrafts={context.setFormCreates} onPage={(pageNumber) => context.setSecurity((state) => ({ ...state, currentPage: pageNumber }))} onPreview={context.onPreviewFormCandidate} />
   </div>;
 }
 
