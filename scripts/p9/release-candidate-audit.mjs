@@ -73,6 +73,8 @@ check(stable.includes("smoke-stable") && stable.includes("action-gh-release"), "
 check(stable.includes("body_path: release-assets/pdf-studio-v7.1.4-release-notes.md"), "Stable GitHub Release uses curated frozen release notes");
 check(stable.includes("release-freeze.json") && stable.includes("release-metadata.json") && stable.includes("release-integrity.json") && stable.includes("license-inventory.json"), "Stable release assets include freeze, build identity, integrity and licence evidence");
 check(completion.includes(`name: v${VERSION}-release-certificate`) && completion.includes("Certify every browser and channel from actual reports"), "Release completion emits the exact-version browser certificate");
+check(completion.includes("pull_request:") && completion.includes("docs/p9/release-freeze.json"), "P9 freeze changes automatically trigger Release completion verification");
+check(completion.includes("github.event.pull_request.head.sha || github.sha") && completion.includes('RELEASE_SOURCE_SHA'), "Release completion binds preparation/browser/certificate evidence to the exact PR head");
 check(completion.includes("channel: [release-candidate, stable]") && completion.includes("retries=0"), "Release completion qualifies both channels without retry-based flake masking");
 
 check(deploy.includes("VITE_RELEASE_CHANNEL: release-candidate") && deploy.includes("npm run audit:p9:release-candidate") && deploy.includes("npm run test:runtime:v7.0.0"), "candidate deployment is P9-gated and cannot masquerade as Stable");
