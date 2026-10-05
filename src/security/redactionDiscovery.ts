@@ -98,7 +98,7 @@ function patternsFor(options: RedactionDiscoveryOptions): Array<{ kind: Redactio
   return priority.filter((kind) => selected.has(kind)).map((kind) => ({ kind, expression: new RegExp(PATTERNS[kind].source, PATTERNS[kind].flags), confidence: kind === "phone" ? "medium" : "high" }));
 }
 
-export async function discoverRedactionCandidates(document: PDFDocumentProxy, options: RedactionDiscoveryOptions, signal?: AbortSignal): Promise<RedactionCandidate[]> {
+export async function discoverRedactionCandidates(document: PDFDocumentProxy, options: RedactionDiscoveryOptions, signal?: AbortSignal, onProgress?: (completedPages: number, totalPages: number) => void): Promise<RedactionCandidate[]> {
   const maxMatches = Math.max(1, Math.min(1000, options.maxMatches ?? 500));
   const pageNumbers = options.pages?.length ? options.pages : Array.from({ length: document.numPages }, (_, index) => index + 1);
   const patterns = patternsFor(options);
@@ -106,7 +106,8 @@ export async function discoverRedactionCandidates(document: PDFDocumentProxy, op
   const seen = new Set<string>();
   let sequence = 0;
 
-  for (const pageNumber of pageNumbers) {
+  for (let pageOffset = 0; pageOffset < pageNumbers.length; pageOffset += 1) {
+    const pageNumber = pageNumbers[pageOffset];
     signal?.throwIfAborted();
     if (pageNumber < 1 || pageNumber > document.numPages) continue;
     const page = await document.getPage(pageNumber);
@@ -141,6 +142,7 @@ export async function discoverRedactionCandidates(document: PDFDocumentProxy, op
     } finally {
       page.cleanup();
     }
+    onProgress?.(pageOffset + 1, pageNumbers.length);
   }
   return candidates;
 }
