@@ -16,8 +16,10 @@ PDF Studio is a private, installable PDF workspace that processes documents insi
 - **Processing:** Browser-local
 - **Licence:** GNU AGPL-3.0-or-later
 - **Qualified CI toolchain:** Node 22.16.0 / npm 10.9.2
+- **P9 certificate:** exact-head `v7.1.4-release-certificate` from Release completion verification
+- **Frozen formats:** `.lpsproject` v9 / IndexedDB v13 / native editor v6
 
-Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.0.0 introduced the existing-content editing release line; v7.1.4 hardens editor locking, selection/panel continuity, and standard clipboard workflows.** P1–P8 add exact text editing with layout-aware reflow, source image manipulation, vector and table reconstruction, unified mixed-object layout, reusable nested Form XObject editing, and source-vs-output fidelity certification. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.4` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
+Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.1.4 is the current task-first product-hardening release candidate.** Its P1–P8 stack covers safer existing-content editing, deterministic document-entry recommendations, source-preserving OCR 2.0, progressive native file Open/Save, shared output-verification evidence, touch-complete mobile interaction, reviewed form authoring and permanent-redaction discovery, and mandatory source/output fidelity certification before publication. Historical v7 universal-editing regressions remain frozen underneath that product layer. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.4` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
 ### v6.1.0 interface principles
 
