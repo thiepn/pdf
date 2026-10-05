@@ -18,6 +18,11 @@ PDF Studio is a private, installable PDF workspace that processes documents insi
 - **Qualified CI toolchain:** Node 22.16.0 / npm 10.9.2
 - **P9 certificate:** exact-head `v7.1.4-release-certificate` from Release completion verification
 - **Frozen formats:** `.lpsproject` v9 / IndexedDB v13 / native editor v6
+- **Next development target:** `7.2.0` (P11 pre-cut; executable version remains `7.1.4` until P10 post-release verification)
+
+### v7.2 development line — pre-cut
+
+P11 opens the next roadmap without changing the current executable release identity. The v7.2 target is recorded in `docs/p11/next-line.json`, but `package.json`, `package-lock.json`, and `APP_VERSION` remain `7.1.4` until a real `v7.1.4-post-release-certificate` proves that the Stable release has been published and verified. P9/P10 v7.1.4 workflows and evidence remain immutable historical release controls rather than being repurposed for v7.2.
 
 Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.1.4 is the current task-first product-hardening release candidate.** Its P1–P8 stack covers safer existing-content editing, deterministic document-entry recommendations, source-preserving OCR 2.0, progressive native file Open/Save, shared output-verification evidence, touch-complete mobile interaction, reviewed form authoring and permanent-redaction discovery, and mandatory source/output fidelity certification before publication. Historical v7 universal-editing regressions remain frozen underneath that product layer. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.4` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
