@@ -30,6 +30,20 @@ export interface FormFieldUpdate {
   value: string;
 }
 
+export type FormFieldCreateType = "text" | "checkbox";
+
+export interface FormFieldCreate {
+  id: string;
+  pageNumber: number;
+  type: FormFieldCreateType;
+  name: string;
+  label: string;
+  rect: Rect;
+  defaultValue: string;
+  multiline: boolean;
+  required: boolean;
+}
+
 export interface PermissionState {
   print: boolean;
   edit: boolean;
@@ -131,6 +145,7 @@ export interface SecurityProjectState {
 
 export interface SecurityExportOptions {
   formUpdates: FormFieldUpdate[];
+  formCreates?: FormFieldCreate[];
   redaction: RedactionApplyOptions;
   sanitization: SanitizationOptions;
   encryption: EncryptionOptions;
@@ -139,6 +154,7 @@ export interface SecurityExportOptions {
 export interface SecurityExportReport {
   pageCount: number;
   formFieldsUpdated: number;
+  formFieldsCreated: number;
   redactionsApplied: number;
   signaturesDetected: number;
   metadataRemoved: boolean;

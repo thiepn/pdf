@@ -1,6 +1,7 @@
 import * as mupdf from "mupdf";
 import type { AffineMatrix, Point, Rect } from "../core/coordinates";
 import type {
+  FormFieldCreate,
   FormFieldType,
   FormFieldUpdate,
   SecurityExportOptions,
@@ -280,6 +281,183 @@ function inspectDocument(document: any, authentication: SecurityInspectionReport
   };
 }
 
+function invertAffine(matrix: AffineMatrix): AffineMatrix {
+  const [a, b, c, d, e, f] = matrix;
+  const determinant = a * d - b * c;
+  if (Math.abs(determinant) < 1e-12) throw new Error("Page coordinate transform is not invertible.");
+  return [
+    d / determinant,
+    -b / determinant,
+    -c / determinant,
+    a / determinant,
+    (c * f - d * e) / determinant,
+    (b * e - a * f) / determinant
+  ];
+}
+
+function numberArray(pdf: any, values: number[]): any {
+  const array = pdf.newArray();
+  for (const value of values) array.push(Number(value));
+  return array;
+}
+
+function ensureDictionary(pdf: any, parent: any, key: string): any {
+  const current = safeCall(() => parent.get(key), null);
+  const resolved = safeCall(() => current?.resolve?.() ?? current, current);
+  if (resolved?.isDictionary?.()) return resolved;
+  const dictionary = pdf.newDictionary();
+  const reference = pdf.addObject(dictionary);
+  parent.put(key, reference);
+  return dictionary;
+}
+
+function ensureArray(pdf: any, parent: any, key: string): any {
+  const current = safeCall(() => parent.get(key), null);
+  const resolved = safeCall(() => current?.resolve?.() ?? current, current);
+  if (resolved?.isArray?.()) return resolved;
+  const array = pdf.newArray();
+  parent.put(key, array);
+  return array;
+}
+
+function ensureAcroForm(pdf: any): { acro: any; fields: any } {
+  const root = pdf.getTrailer?.()?.get?.("Root");
+  if (!root) throw new Error("PDF catalog is unavailable.");
+  const acro = ensureDictionary(pdf, root, "AcroForm");
+  const fields = ensureArray(pdf, acro, "Fields");
+  acro.put("NeedAppearances", true);
+  let resources = safeCall(() => acro.get("DR"), null);
+  resources = safeCall(() => resources?.resolve?.() ?? resources, resources);
+  if (!resources?.isDictionary?.()) {
+    resources = pdf.newDictionary();
+    acro.put("DR", resources);
+  }
+  let fonts = safeCall(() => resources.get("Font"), null);
+  fonts = safeCall(() => fonts?.resolve?.() ?? fonts, fonts);
+  if (!fonts?.isDictionary?.()) {
+    fonts = pdf.newDictionary();
+    resources.put("Font", fonts);
+  }
+  if (!objectExists(fonts, "P7Helv")) {
+    const font = new (mupdf as any).Font("Helvetica");
+    try { fonts.put("P7Helv", pdf.addSimpleFont(font)); }
+    finally { font.destroy?.(); }
+  }
+  acro.put("DA", pdf.newString("/P7Helv 10 Tf 0 g"));
+  return { acro, fields };
+}
+
+function claimFieldName(existing: Set<string>, requested: string): string {
+  const clean = requested.replace(/[\x00-\x1f]/g, "").trim().slice(0, 96);
+  if (!clean) throw new Error("Every new interactive field needs a name.");
+  if (!/^[A-Za-z0-9_-]{1,96}$/.test(clean)) throw new Error(`Interactive form field name “${clean}” must use only letters, numbers, hyphens, or underscores.`);
+  if (existing.has(clean)) throw new Error(`Interactive form field name “${clean}” already exists. Rename the draft before export.`);
+  existing.add(clean);
+  return clean;
+}
+
+function checkboxAppearance(pdf: any, width: number, height: number, checked: boolean): any {
+  const dictionary = pdf.newDictionary();
+  dictionary.put("Type", pdf.newName("XObject"));
+  dictionary.put("Subtype", pdf.newName("Form"));
+  dictionary.put("FormType", pdf.newInteger(1));
+  dictionary.put("BBox", numberArray(pdf, [0, 0, width, height]));
+  dictionary.put("Resources", pdf.newDictionary());
+  const inset = .75;
+  const maxX = Math.max(inset + 1, width - inset);
+  const maxY = Math.max(inset + 1, height - inset);
+  const commands = [
+    "q",
+    "1 1 1 rg",
+    `${inset} ${inset} ${Math.max(1, width - inset * 2)} ${Math.max(1, height - inset * 2)} re f`,
+    "0 0 0 RG 1 w",
+    `${inset} ${inset} ${Math.max(1, width - inset * 2)} ${Math.max(1, height - inset * 2)} re S`,
+    ...(checked ? [
+      "1.5 w",
+      `${inset + 2} ${height * .52} m ${width * .42} ${inset + 2} l ${maxX - 2} ${maxY - 2} l S`
+    ] : []),
+    "Q"
+  ].join("\n");
+  return pdf.addStream(commands, dictionary);
+}
+
+function addFormFields(pdf: any, creations: FormFieldCreate[]): number {
+  if (!creations.length) return 0;
+  const { fields } = ensureAcroForm(pdf);
+  const existingNames = new Set<string>();
+  for (let pageIndex = 0; pageIndex < pdf.countPages(); pageIndex += 1) {
+    const page = pdf.loadPage(pageIndex);
+    try {
+      for (const widget of safeCall(() => page.getWidgets(), [] as any[])) {
+        const name = safeString(safeCall(() => widget.getName(), ""));
+        if (name) existingNames.add(name);
+      }
+    } finally { page.destroy(); }
+  }
+
+  let created = 0;
+  for (const requested of creations) {
+    if (requested.pageNumber < 1 || requested.pageNumber > pdf.countPages()) continue;
+    if (!["text", "checkbox"].includes(requested.type)) continue;
+    const page = pdf.loadPage(requested.pageNumber - 1);
+    try {
+      const pageObject = page.getObject();
+      const inverse = invertAffine(page.getTransform() as AffineMatrix);
+      const rect = transformRect(inverse, [requested.rect.x0, requested.rect.y0, requested.rect.x1, requested.rect.y1]);
+      const width = Math.max(8, rect.x1 - rect.x0);
+      const height = Math.max(8, rect.y1 - rect.y0);
+      if (![rect.x0, rect.y0, rect.x1, rect.y1].every(Number.isFinite) || width > 5000 || height > 5000) continue;
+      const pageBounds = page.getBounds() as number[];
+      if (rect.x0 < pageBounds[0] - 1 || rect.y0 < pageBounds[1] - 1 || rect.x1 > pageBounds[2] + 1 || rect.y1 > pageBounds[3] + 1) {
+        throw new Error(`Interactive form field “${requested.name}” is outside page ${requested.pageNumber}. Adjust its position or size before export.`);
+      }
+
+      const widget = pdf.newDictionary();
+      widget.put("Type", pdf.newName("Annot"));
+      widget.put("Subtype", pdf.newName("Widget"));
+      widget.put("FT", pdf.newName(requested.type === "checkbox" ? "Btn" : "Tx"));
+      widget.put("T", pdf.newString(claimFieldName(existingNames, requested.name)));
+      widget.put("TU", pdf.newString(requested.label.slice(0, 160)));
+      widget.put("Rect", numberArray(pdf, [rect.x0, rect.y0, rect.x1, rect.y1]));
+      widget.put("F", 4);
+      widget.put("P", pageObject);
+      const flags = (requested.required ? 2 : 0) | (requested.type === "text" && requested.multiline ? 1 << 12 : 0);
+      if (flags) widget.put("Ff", flags);
+
+      const border = pdf.newDictionary();
+      border.put("W", 1);
+      border.put("S", pdf.newName("S"));
+      widget.put("BS", border);
+      const appearanceCharacteristics = pdf.newDictionary();
+      appearanceCharacteristics.put("BC", numberArray(pdf, [.25, .25, .25]));
+      appearanceCharacteristics.put("BG", numberArray(pdf, [1, 1, 1]));
+      widget.put("MK", appearanceCharacteristics);
+
+      if (requested.type === "text") {
+        widget.put("DA", pdf.newString("/P7Helv 10 Tf 0 g"));
+        widget.put("Q", 0);
+        widget.put("V", pdf.newString(requested.defaultValue.slice(0, 1024)));
+      } else {
+        widget.put("V", pdf.newName("Off"));
+        widget.put("AS", pdf.newName("Off"));
+        const normal = pdf.newDictionary();
+        normal.put("Off", checkboxAppearance(pdf, width, height, false));
+        normal.put("Yes", checkboxAppearance(pdf, width, height, true));
+        const appearances = pdf.newDictionary();
+        appearances.put("N", normal);
+        widget.put("AP", appearances);
+      }
+
+      const widgetReference = pdf.addObject(widget);
+      fields.push(widgetReference);
+      const annotations = ensureArray(pdf, pageObject, "Annots");
+      annotations.push(widgetReference);
+      created += 1;
+    } finally { page.destroy(); }
+  }
+  return created;
+}
+
 function applyFormUpdates(pdf: any, updates: FormFieldUpdate[]): number {
   let updated = 0;
   const byPage = new Map<number, FormFieldUpdate[]>();
@@ -481,6 +659,7 @@ function applySecurity(document: any, options: SecurityExportOptions): { bytes: 
   if (!pdf) throw new Error("The document is not a PDF.");
   pdf.disableJS?.();
   const signaturesDetected = countSignedFields(pdf);
+  const formFieldsCreated = addFormFields(pdf, options.formCreates ?? []);
   const formFieldsUpdated = applyFormUpdates(pdf, options.formUpdates);
   const redactionsApplied = applyRedactions(pdf, options.redaction);
   const formValuesCleared = options.sanitization.clearFormValues ? clearFormValues(pdf) : 0;
@@ -499,6 +678,7 @@ function applySecurity(document: any, options: SecurityExportOptions): { bytes: 
       report: {
         pageCount: pdf.countPages(),
         formFieldsUpdated,
+        formFieldsCreated,
         redactionsApplied,
         signaturesDetected,
         metadataRemoved: catalog.metadataRemoved,

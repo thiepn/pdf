@@ -6,7 +6,7 @@ import { routeHref } from "../core/appRouter";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { useModalFocus } from "../accessibility/modalFocus";
 import { openPdfWithPdfJs } from "../engines/pdfjs";
-import { listEditorAssets, readEditorState } from "../editor/editorRepository";
+import { listEditorAssets, readEditorState, writeEditorState } from "../editor/editorRepository";
 import { exportEditorPdf } from "../editor/editorExportClient";
 import { downloadBlob } from "../projects/download";
 import { createDerivedProjectFromBytes, getProject, loadProjectBytes } from "../projects/projectRepository";
@@ -15,10 +15,14 @@ import { applySecurity, inspectSecurity } from "../security/securityClient";
 import { createSecurityState } from "../security/securityModel";
 import { readSecurityState, writeSecurityState } from "../security/securityRepository";
 import { SecurityPreviewPage } from "../security/SecurityPreviewPage";
+import { FormAuthoringPanel } from "../security/FormAuthoringPanel";
+import { RedactionDiscoveryPanel } from "../security/RedactionDiscoveryPanel";
+import type { RedactionCandidate } from "../security/redactionDiscovery";
+import { validateFormCreates, type FormFieldCandidate } from "../security/formAuthoring";
 import { collectRedactionTokens, validateSecurityOutput, type SecurityValidationReport } from "../security/securityValidation";
-import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorObject, ImageEditorObject } from "../types/editor";
+import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorObject, ImageEditorObject, RedactionEditorObject } from "../types/editor";
 import type { ProjectManifest } from "../types/project";
-import type { FormFieldUpdate, SecurityFormField, SecurityInspectionReport, SecurityProjectState } from "../types/security";
+import type { FormFieldCreate, FormFieldUpdate, SecurityFormField, SecurityInspectionReport, SecurityProjectState } from "../types/security";
 
 interface Props { taskId?: string; projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type SecurityTab = "overview" | "forms" | "redaction" | "signatures" | "sanitize" | "protect";
@@ -47,6 +51,10 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
   const [tab, setTab] = useState<SecurityTab>(() => taskPanel(taskId));
   useEffect(() => { setTab(taskPanel(taskId)); }, [taskId]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | undefined>();
+  const [selectedDraftId, setSelectedDraftId] = useState<string | undefined>();
+  const [formCreates, setFormCreates] = useState<FormFieldCreate[]>([]);
+  const [redactionPreview, setRedactionPreview] = useState<RedactionCandidate | null>(null);
+  const [formCandidatePreview, setFormCandidatePreview] = useState<FormFieldCandidate | null>(null);
   const [status, setStatus] = useState("Opening protection tools…");
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -59,7 +67,7 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
   const redactionObjects = useMemo(() => (editorState?.objects ?? []).filter((object): object is Extract<EditorObject, { type: "redaction" }> => object.type === "redaction" && !object.hidden), [editorState]);
   const visualSignatures = useMemo(() => (editorState?.objects ?? []).filter((object): object is Extract<EditorObject, { type: "signature" }> => object.type === "signature" && !object.hidden), [editorState]);
   const initialFormValues = useMemo(() => Object.fromEntries((inspection?.formFields ?? []).map((field) => [field.id, field.value])), [inspection]);
-  const changedFieldCount = useMemo(() => (inspection?.formFields ?? []).filter((field) => (security.formValues[field.id] ?? field.value) !== field.value).length, [inspection, security.formValues]);
+  const changedFieldCount = useMemo(() => (inspection?.formFields ?? []).filter((field) => (security.formValues[field.id] ?? field.value) !== field.value).length + formCreates.length, [inspection, security.formValues, formCreates.length]);
   const totalRedactionMarkCount = redactionObjects.length + (inspection?.redactionMarkCount ?? 0);
 
   useEffect(() => {
@@ -135,6 +143,8 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
   async function buildSecurityOutput(signal?: AbortSignal): Promise<DocumentSnapshot> {
     if (!project || !document || !inspection || !sourceBytesRef.current || !editorState) throw new Error("Wait for the document safety check before continuing.");
     const sourceBytes = sourceBytesRef.current;
+    const formCreateErrors = validateFormCreates(formCreates, inspection.formFields);
+    if (formCreateErrors.length) throw new Error(`Fix the new interactive fields before export: ${formCreateErrors.join(" ")}`);
     if (security.redaction.enabled && totalRedactionMarkCount === 0) { throw new Error("Redaction application is enabled, but no redaction regions exist. Place regions in the editor or open a PDF that already contains redaction marks."); }
     if (!security.redaction.enabled && totalRedactionMarkCount > 0 && (security.sanitization.flattenAnnotations || security.sanitization.removeComments)) { throw new Error("Applying comment removal or annotation flattening while unapplied redaction marks exist could leave only visual boxes. Apply redactions first or disable those sanitization options."); }
     if (security.encryption.mode === "aes-256" && !security.encryption.ownerPassword) { throw new Error("Enter an owner password before applying AES-256 protection."); }
@@ -152,7 +162,7 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
       const formUpdates: FormFieldUpdate[] = inspection.formFields
         .filter((field) => !field.readOnly && (security.formValues[field.id] ?? field.value) !== field.value)
         .map((field) => ({ id: field.id, pageNumber: field.pageNumber, widgetIndex: field.widgetIndex, name: field.name, type: field.type, value: security.formValues[field.id] ?? "" }));
-      const options = { formUpdates, redaction: security.redaction, sanitization: security.sanitization, encryption: security.encryption };
+      const options = { formUpdates, formCreates, redaction: security.redaction, sanitization: security.sanitization, encryption: security.encryption };
       const secured = await applySecurity(editorResult.bytes, options, passwordRef.current, signal);
       setStatus("Checking protected PDF…");
       const result = await validateSecurityOutput(secured.bytes, inspection.pageCount, options, passwordRef.current, redactionTokens, redactionPages);
@@ -195,6 +205,15 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
     } finally { setBusy(false); abortRef.current = null; }
   }
 
+  async function acceptAutomaticRedactions(objects: RedactionEditorObject[]): Promise<void> {
+    if (!editorState || !objects.length) return;
+    const next: EditorDocumentState = { ...editorState, objects: [...editorState.objects, ...objects], dirty: true, updatedAt: Date.now() };
+    await writeEditorState(next);
+    setEditorState(next);
+    setSecurity((state) => ({ ...state, redaction: { ...state.redaction, enabled: true } }));
+    setStatus(`${objects.length} redaction mark${objects.length === 1 ? "" : "s"} added · review the marked pages before export`);
+  }
+
   async function retryPassword(): Promise<void> {
     if (!project || !sourceBytesRef.current || !password) return;
     try { await openDocument(project, sourceBytesRef.current, password); }
@@ -205,11 +224,12 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
   if (!document || !inspection || !editorState) return <div className="security-app"><div className="viewer-loading"><span className="spinner" /><strong>{status}</strong></div>{passwordRequired ? <PasswordDialog error={error} password={password} onChange={setPassword} onSubmit={() => void retryPassword()} projectId={projectId} /> : null}</div>;
 
   const selectedField = inspection.formFields.find((field) => field.id === selectedFieldId);
+  const selectedDraft = formCreates.find((field) => field.id === selectedDraftId);
   const securityObjects = editorState.objects.filter((object) => object.type === "redaction" || object.type === "signature");
 
   return <div className="security-app security-task-workflow" data-security-task={tab}>
     <header className="security-commandbar">
-      <div className="editor-file-group"><div><strong>{taskId === "flatten-pdf" ? "Flatten PDF" : tab === "forms" ? "Fill PDF forms" : tab === "redaction" ? "Apply redactions" : tab === "sanitize" ? "Clean up PDF" : tab === "protect" ? "Protect PDF" : "Document safety"}</strong><span>{status} · your original PDF is kept unchanged</span></div></div>
+      <div className="editor-file-group"><div><strong>{taskId === "flatten-pdf" ? "Flatten PDF" : tab === "forms" ? "Fill or create PDF forms" : tab === "redaction" ? "Find & apply redactions" : tab === "sanitize" ? "Clean up PDF" : tab === "protect" ? "Protect PDF" : "Document safety"}</strong><span>{status} · your original PDF is kept unchanged</span></div></div>
       <div className="security-page-controls"><button aria-label="Previous form page" disabled={security.currentPage <= 1} onClick={() => setSecurity((state) => ({ ...state, currentPage: state.currentPage - 1 }))} type="button">‹</button><label><input aria-label="Form page" max={inspection.pageCount} min="1" onChange={(event) => setSecurity((state) => ({ ...state, currentPage: Math.max(1, Math.min(inspection.pageCount, Number(event.target.value))) }))} type="number" value={security.currentPage} /><span>/ {inspection.pageCount}</span></label><button aria-label="Next form page" disabled={security.currentPage >= inspection.pageCount} onClick={() => setSecurity((state) => ({ ...state, currentPage: state.currentPage + 1 }))} type="button">›</button><button aria-label="Zoom out" onClick={() => setSecurity((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button">−</button><select aria-label="Form zoom" onChange={(event) => setSecurity((state) => ({ ...state, zoom: Number(event.target.value) }))} value={security.zoom}><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="1.75">175%</option><option value="2">200%</option></select><button aria-label="Zoom in" onClick={() => setSecurity((state) => ({ ...state, zoom: Math.min(2, state.zoom + .25) }))} type="button">+</button></div>
       <div className="editor-commandbar__actions"><button className="button" disabled={busy} onClick={() => void exportSecure(false)} type="button">Download PDF</button><details className="editor-save-options"><summary aria-label="More save options">More</summary><button className="button button--secondary" disabled={busy} onClick={() => void exportSecure(true)} type="button">Save project copy</button></details>{busy ? <button className="button button--danger-ghost button--small" onClick={() => abortRef.current?.abort()} type="button">Cancel</button> : null}</div>
     </header>
@@ -218,8 +238,8 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
 
     <div className="security-layout">
 
-      <aside className="security-panel"><fieldset disabled={busy} className="security-settings"><legend className="visually-hidden">Document settings</legend>{renderPanel(tab, { projectId, inspection, security, setSecurity, initialFormValues, selectedField, setSelectedFieldId, redactionObjects, visualSignatures, ownerPasswordConfirm, setOwnerPasswordConfirm })}</fieldset><details className="security-other-tasks"><summary>Related document settings</summary><label>Settings to show<select value={tab} disabled={busy} onChange={(event) => setTab(event.target.value as SecurityTab)}>{securityTasks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><p>All selected changes are included in the output. Review the final check before sharing.</p></details></aside>
-      <main className="security-stage"><SecurityPreviewPage document={document} fields={inspection.formFields} objects={securityObjects} values={security.formValues} onSelectField={(field) => { setSelectedFieldId(field.id); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} pageNumber={security.currentPage} selectedFieldId={selectedFieldId} zoom={security.zoom} /></main>
+      <aside className="security-panel"><fieldset disabled={busy} className="security-settings"><legend className="visually-hidden">Document settings</legend>{renderPanel(tab, { projectId, document, inspection, security, setSecurity, initialFormValues, selectedField, setSelectedFieldId, formCreates, setFormCreates, selectedDraftId, setSelectedDraftId, onPreviewFormCandidate: setFormCandidatePreview, redactionObjects, onAcceptRedactions: acceptAutomaticRedactions, onPreviewRedaction: setRedactionPreview, visualSignatures, ownerPasswordConfirm, setOwnerPasswordConfirm })}</fieldset><details className="security-other-tasks"><summary>Related document settings</summary><label>Settings to show<select value={tab} disabled={busy} onChange={(event) => setTab(event.target.value as SecurityTab)}>{securityTasks.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><p>All selected changes are included in the output. Review the final check before sharing.</p></details></aside>
+      <main className="security-stage"><SecurityPreviewPage document={document} draftFields={formCreates} fields={inspection.formFields} formCandidate={tab === "forms" ? formCandidatePreview : null} objects={securityObjects} values={security.formValues} onSelectDraft={(field) => { setSelectedDraftId(field.id); setSelectedFieldId(undefined); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} onSelectField={(field) => { setSelectedFieldId(field.id); setSelectedDraftId(undefined); setTab("forms"); setSecurity((state) => ({ ...state, currentPage: field.pageNumber })); }} pageNumber={security.currentPage} redactionCandidate={tab === "redaction" ? redactionPreview : null} selectedDraftId={selectedDraft?.id} selectedFieldId={selectedFieldId} zoom={security.zoom} /></main>
       <aside className="security-validation-panel"><details open={validation?.valid === false}><summary>{validation ? validation.valid ? "Output verified · view checks" : "Output blocked · review checks" : "Safety checks & document details"}</summary><ValidationPanel validation={validation} inspection={inspection} /></details></aside>
     </div>
   </div>;
@@ -227,13 +247,21 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
 
 interface PanelContext {
   projectId: string;
+  document: PDFDocumentProxy;
   inspection: SecurityInspectionReport;
   security: SecurityProjectState;
   setSecurity: Dispatch<SetStateAction<SecurityProjectState>>;
   initialFormValues: Record<string, string>;
   selectedField?: SecurityFormField;
   setSelectedFieldId: (id: string | undefined) => void;
+  formCreates: FormFieldCreate[];
+  setFormCreates: (value: FormFieldCreate[]) => void;
+  selectedDraftId?: string;
+  setSelectedDraftId: (id: string | undefined) => void;
+  onPreviewFormCandidate: (candidate: FormFieldCandidate | null) => void;
   redactionObjects: Array<Extract<EditorObject, { type: "redaction" }>>;
+  onAcceptRedactions: (objects: RedactionEditorObject[]) => Promise<void>;
+  onPreviewRedaction: (candidate: RedactionCandidate | null) => void;
   visualSignatures: Array<Extract<EditorObject, { type: "signature" }>>;
   ownerPasswordConfirm: string;
   setOwnerPasswordConfirm: (value: string) => void;
@@ -243,7 +271,7 @@ function renderPanel(tab: SecurityTab, context: PanelContext) {
   const { inspection, security, setSecurity } = context;
   if (tab === "overview") return <div className="security-panel-body"><PanelTitle title="Protection overview" subtitle="Current document state before you create a protected copy" /><div className="security-fact-grid"><Fact label="Encryption" value={inspection.encryptionDescription} /><Fact label="Authentication" value={inspection.authentication} /><Fact label="Saved PDF versions" value={String(inspection.versionCount)} /><Fact label="Forms" value={String(inspection.formFields.length)} /><Fact label="Signatures" value={String(inspection.signatures.length)} /><Fact label="Attachments" value={String(inspection.attachmentCount)} /><Fact label="JavaScript" value={inspection.hasJavaScript ? "Detected" : "None detected"} danger={inspection.hasJavaScript} /><Fact label="Automatic actions" value={inspection.hasOpenAction || inspection.hasAdditionalActions ? "Detected" : "None detected"} danger={inspection.hasOpenAction || inspection.hasAdditionalActions} /></div><section className="security-section"><h3>Permissions</h3><div className="permission-list">{Object.entries(inspection.permissions).map(([key, value]) => <span className={value ? "allowed" : "blocked"} key={key}>{value ? "✓" : "×"} {humanize(key)}</span>)}</div></section><section className="security-section"><h3>Metadata</h3>{Object.keys(inspection.metadata).length ? <dl className="security-metadata">{Object.entries(inspection.metadata).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl> : <p className="property-note">No standard metadata fields were detected.</p>}</section></div>;
   if (tab === "forms") return <FormsPanel {...context} />;
-  if (tab === "redaction") return <div className="security-panel-body"><PanelTitle title="Permanent redaction" subtitle="Remove marked page content during secure export" /><div className="security-critical-note"><strong>A black rectangle is not enough.</strong><p>Only Apply redactions removes the underlying text, images, and shapes. PDF Studio then rewrites the output so removed content is not retained.</p></div><a className="button button--ghost button--block" href={routeHref({ name: "editor", projectId: context.projectId })}>Open editor to place redaction regions</a><section className="security-section"><label className="property-toggle"><input checked={security.redaction.enabled} onChange={(event) => setSecurity((state) => ({ ...state, redaction: { ...state.redaction, enabled: event.target.checked } }))} type="checkbox" />Apply {context.redactionObjects.length + context.inspection.redactionMarkCount} marked region{context.redactionObjects.length + context.inspection.redactionMarkCount === 1 ? "" : "s"}</label><label className="property-toggle"><input checked={security.redaction.blackBoxes} onChange={(event) => setSecurity((state) => ({ ...state, redaction: { ...state.redaction, blackBoxes: event.target.checked } }))} type="checkbox" />Render black boxes after removal</label><label className="property-toggle"><input checked={security.redaction.removeText} onChange={(event) => setSecurity((state) => ({ ...state, redaction: { ...state.redaction, removeText: event.target.checked } }))} type="checkbox" />Remove intersecting text</label><label className="property-field"><span>Images</span><select onChange={(event) => setSecurity((state) => ({ ...state, redaction: { ...state.redaction, imageMode: event.target.value as typeof state.redaction.imageMode } }))} value={security.redaction.imageMode}><option value="pixels">Remove covered pixels</option><option value="remove">Remove entire touched image</option><option value="unless-invisible">Remove visible touched images</option><option value="none">Do not alter images</option></select></label><label className="property-field"><span>Lines and shapes</span><select onChange={(event) => setSecurity((state) => ({ ...state, redaction: { ...state.redaction, lineArtMode: event.target.value as typeof state.redaction.lineArtMode } }))} value={security.redaction.lineArtMode}><option value="covered">Remove fully covered objects</option><option value="touched">Remove any touched object</option><option value="none">Do not alter line art</option></select></label></section></div>;
+  if (tab === "redaction") return <RedactionPanel {...context} />;
   if (tab === "signatures") return <SignaturesPanel {...context} />;
   if (tab === "sanitize") return <SanitizePanel security={security} setSecurity={setSecurity} inspection={inspection} />;
   return <ProtectPanel security={security} setSecurity={setSecurity} ownerPasswordConfirm={context.ownerPasswordConfirm} setOwnerPasswordConfirm={context.setOwnerPasswordConfirm} />;
@@ -251,8 +279,12 @@ function renderPanel(tab: SecurityTab, context: PanelContext) {
 
 function FormsPanel(context: PanelContext) {
   const fields = context.inspection.formFields;
-  if (!fields.some((field) => !field.readOnly && field.type !== "signature" && field.type !== "button")) return <div className="security-panel-body"><PanelTitle title="Forms" subtitle="Fill existing PDF form fields" /><div className="security-empty"><strong>No fillable form fields detected</strong><p>This PDF has no supported writable fields. Add ordinary text, check marks, and a visual signature on top of the page in the editor. Creating new interactive fields is not supported yet.</p><a className="button" href={routeHref({ name: "workspace", projectId: context.projectId, mode: "editor", taskId: "edit-pdf" })}>Fill with text in the editor</a></div></div>;
-  return <div className="security-panel-body"><PanelTitle title="Form values" subtitle={`${fields.length} existing fields · PDF scripts are not run`} /><div className="security-form-list">{fields.map((field) => <FormControl field={field} key={field.id} selected={context.selectedField?.id === field.id} value={context.security.formValues[field.id] ?? field.value} onChange={(value) => context.setSecurity((state) => ({ ...state, formValues: { ...state.formValues, [field.id]: value }, currentPage: field.pageNumber }))} onSelect={() => context.setSelectedFieldId(field.id)} />)}</div><button className="button button--ghost button--block" onClick={() => context.setSecurity((state) => ({ ...state, formValues: { ...context.initialFormValues } }))} type="button">Reset pending values</button><p className="property-note">Read-only and digital signature fields are displayed but cannot be changed here.</p></div>;
+  const editable = fields.filter((field) => !field.readOnly && field.type !== "signature" && field.type !== "button");
+  return <div className="security-panel-body">
+    <PanelTitle title="Forms" subtitle={`${fields.length} existing · ${context.formCreates.length} new · PDF scripts are not run`} />
+    {editable.length ? <><div className="security-form-list">{fields.map((field) => <FormControl field={field} key={field.id} selected={context.selectedField?.id === field.id} value={context.security.formValues[field.id] ?? field.value} onChange={(value) => context.setSecurity((state) => ({ ...state, formValues: { ...state.formValues, [field.id]: value }, currentPage: field.pageNumber }))} onSelect={() => { context.setSelectedFieldId(field.id); context.setSelectedDraftId(undefined); }} />)}</div><button className="button button--ghost button--block" onClick={() => context.setSecurity((state) => ({ ...state, formValues: { ...context.initialFormValues } }))} type="button">Reset pending values</button><p className="property-note">Read-only and digital signature fields are displayed but cannot be changed here.</p></> : <div className="security-empty"><strong>No fillable fields detected</strong><p>You can create supported interactive text and checkbox fields below. Existing visual content is not automatically converted without review.</p></div>}
+    <FormAuthoringPanel currentPage={context.security.currentPage} disabled={false} document={context.document} drafts={context.formCreates} existingFields={fields} onDrafts={context.setFormCreates} onPage={(pageNumber) => context.setSecurity((state) => ({ ...state, currentPage: pageNumber }))} onPreview={context.onPreviewFormCandidate} />
+  </div>;
 }
 
 function FormControl({ field, value, selected, onChange, onSelect }: { field: SecurityFormField; value: string; selected: boolean; onChange: (value: string) => void; onSelect: () => void }) {
@@ -264,6 +296,17 @@ function FormControl({ field, value, selected, onChange, onSelect }: { field: Se
       ? <select aria-label={title} disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}><option value="">—</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
       : <input aria-label={title} disabled={disabled} onChange={(event) => onChange(event.target.value)} type={field.password ? "password" : "text"} value={value} />;
   return <article className={`security-form-field${selected ? " active" : ""}`} onClick={onSelect}><header><div><strong>{title}</strong><small>Page {field.pageNumber} · {field.type}{field.readOnly ? " · read-only" : ""}</small></div><button onClick={(event) => { event.stopPropagation(); onSelect(); }} type="button">View</button></header>{control}</article>;
+}
+
+function RedactionPanel(context: PanelContext) {
+  const count = context.redactionObjects.length + context.inspection.redactionMarkCount;
+  return <div className="security-panel-body">
+    <PanelTitle title="Permanent redaction" subtitle="Find, review, mark, then permanently remove content" />
+    <div className="security-critical-note"><strong>A black rectangle is not enough.</strong><p>Automatic matching only creates reviewable redaction marks. Underlying content is removed only when Apply redactions is enabled and the verified secure export succeeds.</p></div>
+    <RedactionDiscoveryPanel currentPage={context.security.currentPage} disabled={false} document={context.document} existingMarks={context.redactionObjects} onAccept={context.onAcceptRedactions} onPage={(pageNumber) => context.setSecurity((state) => ({ ...state, currentPage: pageNumber }))} onPreview={context.onPreviewRedaction} />
+    <a className="button button--ghost button--block" href={routeHref({ name: "editor", projectId: context.projectId })}>Open editor for manual redaction marks</a>
+    <section className="security-section"><label className="property-toggle"><input checked={context.security.redaction.enabled} onChange={(event) => context.setSecurity((state) => ({ ...state, redaction: { ...state.redaction, enabled: event.target.checked } }))} type="checkbox" />Apply {count} marked region{count === 1 ? "" : "s"}</label><label className="property-toggle"><input checked={context.security.redaction.blackBoxes} onChange={(event) => context.setSecurity((state) => ({ ...state, redaction: { ...state.redaction, blackBoxes: event.target.checked } }))} type="checkbox" />Render black boxes after removal</label><label className="property-toggle"><input checked={context.security.redaction.removeText} onChange={(event) => context.setSecurity((state) => ({ ...state, redaction: { ...state.redaction, removeText: event.target.checked } }))} type="checkbox" />Remove intersecting text</label><label className="property-field"><span>Images</span><select onChange={(event) => context.setSecurity((state) => ({ ...state, redaction: { ...state.redaction, imageMode: event.target.value as typeof state.redaction.imageMode } }))} value={context.security.redaction.imageMode}><option value="pixels">Remove covered pixels</option><option value="remove">Remove entire touched image</option><option value="unless-invisible">Remove visible touched images</option><option value="none">Do not alter images</option></select></label><label className="property-field"><span>Lines and shapes</span><select onChange={(event) => context.setSecurity((state) => ({ ...state, redaction: { ...state.redaction, lineArtMode: event.target.value as typeof state.redaction.lineArtMode } }))} value={context.security.redaction.lineArtMode}><option value="covered">Remove fully covered objects</option><option value="touched">Remove any touched object</option><option value="none">Do not alter line art</option></select></label></section>
+  </div>;
 }
 
 function SignaturesPanel(context: PanelContext) {

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import organizerSource from "../../src/views/OrganizerPage.tsx?raw";
 import thumbnailSource from "../../src/organizer/OrganizerThumbnail.tsx?raw";
 import viewportSource from "../../src/mobile/MobileViewportManager.tsx?raw";
-// @ts-expect-error Vitest runs in Node; the browser app tsconfig intentionally excludes Node built-in typings.\nimport { readFileSync } from "node:fs";
+// @ts-expect-error Vitest runs in Node; the browser app tsconfig intentionally excludes Node built-in typings.
+import { readFileSync } from "node:fs";
 import databaseSource from "../../src/storage/database.ts?raw";
-import releaseSource from "../../src/core/release.ts?raw";\n\nconst mobileCss = readFileSync("src/product/mobile-interaction.css", "utf8");
+import releaseSource from "../../src/core/release.ts?raw";
+
+const mobileCss = readFileSync("src/product/mobile-interaction.css", "utf8");
 
 describe("P6 mobile interaction excellence", () => {
   it("does not require drag-and-drop for page reordering", () => {
