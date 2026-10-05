@@ -40,6 +40,17 @@ export interface PdfFidelityProfile {
   semantics: PdfPageSemanticFingerprint[];
 }
 
+export interface PdfFidelityExpectations {
+  expectedEncrypted?: boolean;
+  expectedAttachmentCount?: number;
+  expectedFormFieldCount?: number;
+  expectedHasJavaScript?: boolean;
+  allowJavaScriptRemoval?: boolean;
+  coreMetadataMode?: "preserve" | "cleared";
+  widgetDeltaByPage?: Record<number, number>;
+  expectNoWidgetsOnAffectedPages?: boolean;
+}
+
 export interface PdfFidelityReport {
   passed: boolean;
   failures: string[];
@@ -169,13 +180,26 @@ function semanticMap(profile: PdfFidelityProfile): Map<number, PdfPageSemanticFi
   return new Map(profile.semantics.map((item) => [item.pageNumber, item]));
 }
 
-function compareCoreMetadata(source: Record<string, string>, output: Record<string, string>, failures: string[]): void {
+function compareCoreMetadata(
+  source: Record<string, string>,
+  output: Record<string, string>,
+  failures: string[],
+  mode: PdfFidelityExpectations["coreMetadataMode"] = "preserve"
+): void {
   for (const key of ["Title", "Author", "Subject", "Keywords", "Creator"]) {
-    if ((source[key] ?? "") !== (output[key] ?? "")) failures.push(`Document metadata ${key} changed unexpectedly.`);
+    if (mode === "cleared") {
+      if ((output[key] ?? "") !== "") failures.push(`Document metadata ${key} was expected to be cleared.`);
+    } else if ((source[key] ?? "") !== (output[key] ?? "")) {
+      failures.push(`Document metadata ${key} changed unexpectedly.`);
+    }
   }
 }
 
-export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: PdfFidelityProfile): PdfFidelityReport {
+export function comparePdfFidelityProfiles(
+  source: PdfFidelityProfile,
+  output: PdfFidelityProfile,
+  expectations: PdfFidelityExpectations = {}
+): PdfFidelityReport {
   const failures: string[] = [];
   const warnings: string[] = [];
   const affected = new Set(source.affectedPages);
@@ -185,13 +209,24 @@ export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: P
   const outputSemantics = semanticMap(output);
 
   if (source.pageCount !== output.pageCount) failures.push(`Page count changed from ${source.pageCount} to ${output.pageCount}.`);
-  if (source.container.encrypted !== output.container.encrypted) failures.push("PDF encryption state changed unexpectedly.");
+  const expectedEncrypted = expectations.expectedEncrypted ?? source.container.encrypted;
+  if (output.container.encrypted !== expectedEncrypted) failures.push(`PDF encryption state did not match the expected output state (${expectedEncrypted ? "encrypted" : "unencrypted"}).`);
   if (source.outlineEntries !== output.outlineEntries) failures.push(`Outline entry count changed from ${source.outlineEntries} to ${output.outlineEntries}.`);
-  if (source.attachmentCount !== output.attachmentCount) failures.push(`Attachment count changed from ${source.attachmentCount} to ${output.attachmentCount}.`);
-  if (source.formFieldCount !== output.formFieldCount) failures.push(`Form field count changed from ${source.formFieldCount} to ${output.formFieldCount}.`);
-  if (source.hasJavaScript !== output.hasJavaScript) failures.push("Document JavaScript presence changed unexpectedly.");
+  const expectedAttachments = expectations.expectedAttachmentCount ?? source.attachmentCount;
+  if (output.attachmentCount !== expectedAttachments) failures.push(`Attachment count is ${output.attachmentCount}; expected ${expectedAttachments}.`);
+  const expectedFormFields = expectations.expectedFormFieldCount ?? source.formFieldCount;
+  if (output.formFieldCount !== expectedFormFields) failures.push(`Form field count is ${output.formFieldCount}; expected ${expectedFormFields}.`);
+  if (expectations.expectedHasJavaScript !== undefined) {
+    if (output.hasJavaScript !== expectations.expectedHasJavaScript) {
+      failures.push(`Document JavaScript presence did not match the expected output state (${expectations.expectedHasJavaScript ? "present" : "absent"}).`);
+    }
+  } else if (expectations.allowJavaScriptRemoval) {
+    if (!source.hasJavaScript && output.hasJavaScript) failures.push("Document JavaScript was introduced unexpectedly.");
+  } else if (source.hasJavaScript !== output.hasJavaScript) {
+    failures.push("Document JavaScript presence changed unexpectedly.");
+  }
   if (source.pageLabelsDigest !== output.pageLabelsDigest) failures.push("Page labels changed unexpectedly.");
-  compareCoreMetadata(source.coreMetadata, output.coreMetadata, failures);
+  compareCoreMetadata(source.coreMetadata, output.coreMetadata, failures, expectations.coreMetadataMode);
 
   for (const pageNumber of source.sampledPages) {
     const beforeGeometry = sourceGeometry.get(pageNumber);
@@ -210,7 +245,12 @@ export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: P
     }
 
     if (affected.has(pageNumber)) {
-      if (before.widgetCount !== after.widgetCount) failures.push(`Page ${pageNumber} widget count changed unexpectedly.`);
+      const expectedWidgets = expectations.expectNoWidgetsOnAffectedPages
+        ? 0
+        : before.widgetCount + (expectations.widgetDeltaByPage?.[pageNumber] ?? 0);
+      if (after.widgetCount !== expectedWidgets) {
+        failures.push(`Page ${pageNumber} widget count is ${after.widgetCount}; expected ${expectedWidgets}.`);
+      }
       continue;
     }
 
@@ -228,6 +268,8 @@ export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: P
   }
   if (source.container.incrementalUpdates > 1 || source.container.previousXref) warnings.push("Source contains incremental revisions; edited output may normalize revision history while preserving validated document semantics.");
   if (source.container.linearized) warnings.push("Source is linearized for fast web viewing; editing may normalize linearization while preserving validated document semantics.");
+  if (source.container.objectStreams !== output.container.objectStreams) warnings.push("Object-stream packing changed during export; semantic fidelity checks still passed.");
+  if (source.container.xrefStreams !== output.container.xrefStreams) warnings.push("Cross-reference stream representation changed during export; semantic fidelity checks still passed.");
 
   return {
     passed: failures.length === 0,

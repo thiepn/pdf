@@ -89,6 +89,38 @@ describe("P8 PDF fidelity", () => {
     expect(report.failures.join(" ")).toMatch(/encryption state|Outline entry count|Attachment count|Form field count|Page labels|rotation/);
   });
 
+
+  it("accepts explicitly authorized form-field and widget changes while keeping other structure strict", () => {
+    const source = profile();
+    const output = profile({
+      formFieldCount: 3,
+      semantics: source.semantics.map((page) => page.pageNumber === 2 ? { ...page, widgetCount: 3 } : page)
+    });
+    const report = comparePdfFidelityProfiles(source, output, {
+      expectedFormFieldCount: 3,
+      widgetDeltaByPage: { 2: 2 }
+    });
+    expect(report.passed).toBe(true);
+  });
+
+  it("accepts an explicitly requested encryption-state change", () => {
+    const source = profile();
+    const output = profile({ container: { ...source.container, encrypted: true } });
+    expect(comparePdfFidelityProfiles(source, output, { expectedEncrypted: true }).passed).toBe(true);
+  });
+
+  it("allows JavaScript removal without allowing JavaScript introduction", () => {
+    const source = profile({ hasJavaScript: true });
+    const removed = profile({ hasJavaScript: false });
+    expect(comparePdfFidelityProfiles(source, removed, { allowJavaScriptRemoval: true }).passed).toBe(true);
+
+    const cleanSource = profile({ hasJavaScript: false });
+    const introduced = profile({ hasJavaScript: true });
+    const report = comparePdfFidelityProfiles(cleanSource, introduced, { allowJavaScriptRemoval: true });
+    expect(report.passed).toBe(false);
+    expect(report.failures.join(" ")).toContain("introduced unexpectedly");
+  });
+
   it("reports normalization risk for incremental and linearized sources without rejecting a semantically valid export", () => {
     const source = profile({ container: { encrypted: false, incrementalUpdates: 3, objectStreams: true, xrefStreams: true, linearized: true, previousXref: true } });
     const output = profile({ container: { encrypted: false, incrementalUpdates: 1, objectStreams: false, xrefStreams: false, linearized: false, previousXref: false } });
