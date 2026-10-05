@@ -76,10 +76,11 @@ export function verifyPromotionCertificate(certificate, expectedSha, contract) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const [certificatePath, expectedSha] = process.argv.slice(2);
-  assert.ok(certificatePath && expectedSha, "Usage: node scripts/p10/verify-promotion-certificate.mjs <certificate.json> <candidate-sha>");
+  const [certificatePath, expectedSha, sourceRoot] = process.argv.slice(2);
+  assert.ok(certificatePath && expectedSha, "Usage: node scripts/p10/verify-promotion-certificate.mjs <certificate.json> <candidate-sha> [candidate-source-root]");
   const certificate = JSON.parse(await readFile(certificatePath, "utf8"));
-  const contract = await loadPromotionContract();
+  const root = sourceRoot ? pathToFileURL(resolve(sourceRoot) + "/") : undefined;
+  const contract = await loadPromotionContract(root);
   const result = verifyPromotionCertificate(certificate, expectedSha, contract);
   console.log(JSON.stringify({ status: "P10_PROMOTION_CERTIFICATE_PASS", ...result }, null, 2));
 }
