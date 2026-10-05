@@ -128,7 +128,7 @@
 .p7-candidate {
   min-width:0;
   display:grid;
-  grid-template-columns:auto minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
   gap:8px;
   padding:8px;
@@ -137,8 +137,9 @@
   background:var(--surface);
 }
 
-.p7-candidate > input { width:20px; height:20px; }
-.p7-candidate > span { min-width:0; display:grid; gap:2px; }
+.p7-candidate > label { min-width:0; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:8px; }
+.p7-candidate > label > input { width:20px; height:20px; }
+.p7-candidate > label > span { min-width:0; display:grid; gap:2px; }
 .p7-candidate strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.72rem; }
 .p7-candidate small { color:var(--muted); font-size:.61rem; line-height:1.35; }
 .p7-candidate button { padding:6px 9px; border:1px solid var(--line); border-radius:7px; color:var(--accent); background:var(--surface-strong); }
@@ -181,8 +182,8 @@
   .p7-review-heading button,
   .p7-form-draft button,
   .p7-form-draft :is(input,select) { min-height:44px; font-size:max(16px,1em); }
-  .p7-candidate { grid-template-columns:28px minmax(0,1fr); }
-  .p7-candidate button { grid-column:2; width:100%; font-size:13px; }
+  .p7-candidate { grid-template-columns:minmax(0,1fr); }
+  .p7-candidate button { width:100%; font-size:13px; }
   .p7-review-heading,
   .p7-form-draft > header { display:grid; }
   .p7-review-heading > div:last-child,
@@ -208,5 +209,27 @@
   font-size:7px;
   font-weight:900;
   letter-spacing:.06em;
+  white-space:nowrap;
+}
+
+.security-form-candidate-preview {
+  position:absolute;
+  display:grid;
+  place-items:start;
+  box-sizing:border-box;
+  overflow:hidden;
+  border:2px dashed #16826c;
+  color:#0b4d3d;
+  background:rgb(22 130 108 / 16%);
+  pointer-events:none;
+}
+.security-form-candidate-preview span {
+  padding:2px 4px;
+  border-radius:4px;
+  color:white;
+  background:#16826c;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.05em;
   white-space:nowrap;
 }
