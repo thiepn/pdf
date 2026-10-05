@@ -12,7 +12,7 @@ function check(condition, name) {
 const read = (path) => readFile(path, "utf8");
 const exists = async (path) => { try { await access(path); return true; } catch { return false; } };
 
-const [packageText, lockText, releaseSource, readme, changelog, deploy, stable, ci, nativeTypes, editor, fidelity, p8Test] = await Promise.all([
+const [packageText, lockText, releaseSource, readme, changelog, deploy, stable, completion, ci, nativeTypes, editor, secure, fidelity, p8Test, releaseNotes] = await Promise.all([
   read("package.json"),
   read("package-lock.json"),
   read("src/core/release.ts"),
@@ -20,15 +20,21 @@ const [packageText, lockText, releaseSource, readme, changelog, deploy, stable, 
   read("CHANGELOG.md"),
   read(".github/workflows/deploy.yml"),
   read(".github/workflows/release.yml"),
+  read(".github/workflows/release-completion.yml"),
   read(".github/workflows/ci.yml"),
   read("src/types/nativeEditor.ts"),
   read("src/views/EditorPage.tsx"),
+  read("src/views/SecurePage.tsx"),
   read("src/fidelity/pdfFidelityClient.ts"),
-  read("tests/e2e/p8-fidelity-compatibility.spec.ts")
+  read("tests/e2e/p8-fidelity-compatibility.spec.ts"),
+  read(freeze.releaseNotes)
 ]);
 const packageJson = JSON.parse(packageText);
 const lock = JSON.parse(lockText);
 
+check(freeze.schemaVersion === 2 && freeze.roadmap === "task-first-product-hardening", "P9 freeze manifest uses the current task-first roadmap schema");
+check(freeze.certification === "pending-ci", "source freeze never self-declares certification before CI");
+check(freeze.certificateArtifact === `v${VERSION}-release-certificate`, "release certificate artifact is bound to the frozen version");
 check(packageJson.version === VERSION, `package version is frozen at v${VERSION}`);
 check(lock.version === VERSION && lock.packages?.[""]?.version === VERSION, "package-lock release identity matches package.json");
 check(releaseSource.includes(`APP_VERSION = "${VERSION}"`), "runtime APP_VERSION matches package metadata");
@@ -39,6 +45,24 @@ check(packageJson.scripts?.["test:v7.0.0"] === "npm run release:web && npm run t
 check(readme.includes(`v${VERSION} is the task-first release candidate`) && readme.includes(`Qualified \`v${VERSION}\` tag only`), "README exposes the v7 RC/stable boundary");
 check(readme.includes("does not claim universal Word-like PDF text reflow"), "README retains explicit non-universal editing boundary");
 check(changelog.includes(`## ${VERSION} — Task-first PDF Tools & Release Candidate`), "changelog contains the frozen v7 capability summary");
+check(releaseNotes.includes(`# PDF Studio v${VERSION}`) && releaseNotes.includes("Fidelity and compatibility") && releaseNotes.includes("Native file workflow"), "curated release notes describe the current product-hardening stack");
+
+const expectedPhaseDocs = {
+  P1: "docs/product/P1_EXISTING_TEXT_EDITING_EXCELLENCE.md",
+  P2: "docs/product/P2_INTELLIGENT_DOCUMENT_ENTRY.md",
+  P3: "docs/product/P3_OCR_SCAN_TO_EDITABLE.md",
+  P4: "docs/product/P4_NATIVE_FILE_WORKFLOW.md",
+  P5: "docs/product/P5_TRUST_OUTPUT_VERIFICATION.md",
+  P6: "docs/product/P6_MOBILE_INTERACTION_EXCELLENCE.md",
+  P7: "docs/product/P7_FORMS_REDACTION_EXCELLENCE.md",
+  P8: "docs/product/P8_FIDELITY_COMPATIBILITY.md"
+};
+for (const [phase, path] of Object.entries(expectedPhaseDocs)) {
+  check(freeze.phaseDocs?.[phase] === path, `${phase} freeze manifest points to the current product contract`);
+  check(await exists(path), `${phase} current product contract exists: ${path}`);
+  const text = await read(path);
+  check(text.startsWith(`# ${phase} —`), `${phase} product contract has the expected phase identity`);
+}
 
 check(stable.includes(`tags: ["v${VERSION}"]`) && stable.includes(`test "$GITHUB_REF_NAME" = "v${VERSION}"`), "Stable publication is bound to the exact v7 tag");
 check(stable.includes("VITE_RELEASE_CHANNEL: stable") && stable.includes("main history"), "Stable channel and ancestry provenance remain fail-closed");
@@ -46,6 +70,10 @@ check(stable.includes("npm run audit:p9:release-candidate") && stable.includes("
 check(stable.includes("Rebuild and prove reproducibility") && stable.includes("Browser-qualify exact stable artifact") && stable.includes("High-severity dependency security gate"), "Stable publication retains reproducibility/browser/security qualification");
 check(stable.includes(`"version": "${VERSION}"`) && stable.includes('"channel": "stable"'), "Stable artifact metadata is explicitly verified");
 check(stable.includes("smoke-stable") && stable.includes("action-gh-release"), "GitHub Release publication stays downstream of deployed smoke validation");
+check(stable.includes("body_path: release-assets/pdf-studio-v7.1.4-release-notes.md"), "Stable GitHub Release uses curated frozen release notes");
+check(stable.includes("release-freeze.json") && stable.includes("release-metadata.json") && stable.includes("release-integrity.json") && stable.includes("license-inventory.json"), "Stable release assets include freeze, build identity, integrity and licence evidence");
+check(completion.includes(`name: v${VERSION}-release-certificate`) && completion.includes("Certify every browser and channel from actual reports"), "Release completion emits the exact-version browser certificate");
+check(completion.includes("channel: [release-candidate, stable]") && completion.includes("retries=0"), "Release completion qualifies both channels without retry-based flake masking");
 
 check(deploy.includes("VITE_RELEASE_CHANNEL: release-candidate") && deploy.includes("npm run audit:p9:release-candidate") && deploy.includes("npm run test:runtime:v7.0.0"), "candidate deployment is P9-gated and cannot masquerade as Stable");
 check(deploy.includes("Reproducible deployment build") && deploy.includes("Browser-qualify exact distribution before deployment"), "candidate Pages deployment retains exact-artifact reproducibility/browser qualification");
@@ -53,6 +81,19 @@ const dynamicCandidateSmoke = deploy.includes("EXPECTED_VERSION: ${{ needs.deplo
 const frozenCandidateSmoke = deploy.includes(`grep -F '${VERSION}'`);
 check((dynamicCandidateSmoke || frozenCandidateSmoke) && deploy.includes('"channel": "release-candidate"'), "deployed candidate smoke test verifies v7 identity/channel");
 check(ci.includes("P9 release-candidate freeze audit") && ci.includes("Generate and validate P8 compatibility corpus") && ci.includes("Browser regression and privacy checks against verified dist"), "PR CI chains P8 compatibility, P9 freeze, and exact-dist browser regression");
+
+for (const path of [
+  "src/editor/native/nativeFindReplace.ts",
+  "src/product/DocumentEntryRecommendations.tsx",
+  "src/ocr/ocrLayerPdf.ts",
+  "src/files/nativeFileWorkflow.ts",
+  "src/trust/outputVerification.ts",
+  "src/mobile/MobileViewportManager.tsx",
+  "src/security/formAuthoring.ts",
+  "src/security/redactionDiscovery.ts",
+  "src/fidelity/pdfFidelity.ts",
+  "src/fidelity/pdfFidelityClient.ts"
+]) check(await exists(path), `current task-first P1–P8 release artifact exists: ${path}`);
 
 for (const path of [
   "src/workers/native-editor.worker.ts",
@@ -74,7 +115,10 @@ for (const path of [
 ]) check(await exists(path), `release-critical P1–P8 artifact exists: ${path}`);
 
 check(/NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*6/.test(nativeTypes), "native editor schema remains the P7/P8-qualified schema v6");
-check(editor.includes("validatePdfFidelity") || fidelity.includes("validatePdfFidelity"), "unified export remains fidelity-certified");
+check(editor.includes("validatePdfFidelity") && secure.includes("validatePdfFidelity"), "Editor and Secure publication paths remain fidelity-certified");
+check(editor.includes("verifyOutputTrust"), "Editor retains P5 output-verification evidence");
+check(secure.includes("FormAuthoringPanel") && secure.includes("RedactionDiscoveryPanel"), "P7 reviewed forms/redaction remain on the canonical Secure path");
+check(fidelity.includes("PdfFidelityValidationOptions") && fidelity.includes("comparePdfFidelityProfiles"), "P8 intent-aware fidelity client remains active");
 check(fidelity.includes("const affectedSet = new Set(affected)") && fidelity.includes("semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber))") && fidelity.includes("if (!deep)"), "P8 semantic deep-scan remains bounded to untouched sampled pages");
 check(/rotated crop geometry/i.test(p8Test) && /incremental revisions/i.test(p8Test), "P8 compatibility editor/export cases remain browser-gated");
 
