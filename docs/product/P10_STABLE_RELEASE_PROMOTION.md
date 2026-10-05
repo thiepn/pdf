@@ -49,10 +49,14 @@ The workflow then:
 8. checks out the exact candidate commit;
 9. cryptographically re-hashes the P9 freeze and curated release notes;
 10. validates certificate identity, schema versions, ten-cell browser matrix, zero failures, zero retries, and zero flaky results;
-11. creates an annotated `v7.1.4` tag pointing to the certified commit;
-12. pushes only that tag.
+11. verifies the certificate against a detached worktree of the exact candidate while keeping the P10 verifier available from the promotion controller;
+12. requires repository secret `STABLE_PROMOTION_TOKEN` for the tag push;
+13. creates an annotated `v7.1.4` tag pointing to the certified commit;
+14. pushes only that tag with the dedicated promotion credential.
 
 The existing tag-triggered Stable workflow then independently requalifies, rebuilds, browser-tests, deploys, smoke-tests and publishes. P10 does not bypass that second qualification.
+
+The dedicated promotion token is required because GitHub suppresses workflow-triggering events created by the default Actions `GITHUB_TOKEN`. `STABLE_PROMOTION_TOKEN` must therefore be a dedicated GitHub credential allowed to create the Stable tag and trigger the tag-push workflow. It should be scoped only as broadly as needed for this repository.
 
 ## Post-release verification
 
@@ -77,6 +81,8 @@ It emits `v7.1.4-post-release-certificate` as durable post-publication evidence.
 - P10 cannot promote a candidate that is not in `main`.
 - P10 cannot promote from a merely green unit/build run; the exact P9 browser certificate is mandatory.
 - P10 cannot replace an existing Stable tag.
+- P10 never uses the default `GITHUB_TOKEN` to push the Stable tag.
+- The certified P9 SHA must remain an ancestor of `main`; squash/rebase merging that discards the certified commit identity is intentionally rejected.
 - Stable publishing still remains downstream of the independent tag workflow and deployed smoke check.
 - No database, package, native-editor, PDF, OCR, form, redaction or editor format changes are allowed in P10.
 
