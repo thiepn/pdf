@@ -36,7 +36,11 @@ test("P7 finds text for redaction, requires review, then proves permanent remova
   await page.getByRole("button", { name: "Scan", exact: true }).click();
   await expect(page.locator(".p7-redaction-candidate")).toHaveCount(1);
   await expect(page.getByText("SEC…491", { exact: true })).toBeVisible();
+  await page.locator(".p7-redaction-candidate").getByRole("button", { name: "View", exact: true }).click();
+  await expect(page.locator(".security-redaction-candidate-preview")).toBeVisible();
   await page.getByRole("button", { name: "Mark 1 selected for redaction", exact: true }).click();
+  await expect(page.locator(".security-redaction-candidate-preview")).toHaveCount(0);
+  await expect(page.locator(".security-redaction-preview")).toHaveCount(1);
   await expect(page.getByText(/1 redaction mark added/)).toBeVisible();
 
   const download = page.waitForEvent("download");
