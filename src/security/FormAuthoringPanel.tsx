@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   createManualFormField,
@@ -25,20 +25,35 @@ export function FormAuthoringPanel({ document, existingFields, drafts, currentPa
   const [candidates, setCandidates] = useState<FormFieldCandidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const scanRef = useRef<AbortController | null>(null);
+  useEffect(() => () => scanRef.current?.abort(), []);
 
   const validationErrors = useMemo(() => validateFormCreates(drafts, existingFields), [drafts, existingFields]);
 
   async function scan(): Promise<void> {
     if (disabled || scanning) return;
-    setScanning(true); setError(""); setCandidates([]); setSelected(new Set());
+    const controller = new AbortController();
+    scanRef.current?.abort();
+    scanRef.current = controller;
+    setScanning(true); setProgress("Starting scan…"); setError(""); setCandidates([]); setSelected(new Set());
     try {
-      const found = await detectFormFieldCandidates(document, [...existingFields, ...drafts.map(toInspectionField)], scope === "page" ? [currentPage] : undefined);
+      const found = await detectFormFieldCandidates(
+        document,
+        [...existingFields, ...drafts.map(toInspectionField)],
+        scope === "page" ? [currentPage] : undefined,
+        controller.signal,
+        (completed, total) => setProgress(`Scanning page ${completed} of ${total}…`)
+      );
       setCandidates(found);
       setSelected(new Set(found.filter((candidate) => candidate.confidence === "high").map((candidate) => candidate.id)));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    } finally { setScanning(false); }
+      if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (scanRef.current === controller) scanRef.current = null;
+      setScanning(false); setProgress("");
+    }
   }
 
   function addManual(type: FormFieldCreateType): void {
@@ -70,11 +85,12 @@ export function FormAuthoringPanel({ document, existingFields, drafts, currentPa
 
     <div className="p7-authoring-actions">
       <label><span>Detection scope</span><select disabled={disabled || scanning} value={scope} onChange={(event) => setScope(event.target.value as "page" | "document")}><option value="page">Current page</option><option value="document">Whole document</option></select></label>
-      <button className="button button--secondary" disabled={disabled || scanning} onClick={() => void scan()} type="button">{scanning ? "Scanning…" : "Detect fields"}</button>
+      {scanning ? <button className="button button--secondary" onClick={() => scanRef.current?.abort()} type="button">Cancel scan</button> : <button className="button button--secondary" disabled={disabled} onClick={() => void scan()} type="button">Detect fields</button>}
       <button disabled={disabled} onClick={() => addManual("text")} type="button">+ Text field</button>
       <button disabled={disabled} onClick={() => addManual("checkbox")} type="button">+ Checkbox</button>
     </div>
 
+    {progress ? <p className="quick-hint" role="status">{progress}</p> : null}
     {error ? <p className="selection-help selection-help--error" role="alert">{error}</p> : null}
 
     {candidates.length ? <div className="p7-candidate-review">
