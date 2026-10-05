@@ -17,6 +17,7 @@ interface Props {
   existingMarks: RedactionEditorObject[];
   onAccept: (objects: RedactionEditorObject[]) => Promise<void> | void;
   onPage: (pageNumber: number) => void;
+  onPreview?: (candidate: RedactionCandidate | null) => void;
 }
 
 const sensitiveOptions: Array<{ id: SensitivePattern; label: string }> = [
@@ -26,7 +27,7 @@ const sensitiveOptions: Array<{ id: SensitivePattern; label: string }> = [
   { id: "payment-card", label: "Payment cards" }
 ];
 
-export function RedactionDiscoveryPanel({ document, currentPage, disabled, existingMarks, onAccept, onPage }: Props) {
+export function RedactionDiscoveryPanel({ document, currentPage, disabled, existingMarks, onAccept, onPage, onPreview }: Props) {
   const [mode, setMode] = useState<RedactionSearchMode>("text");
   const [query, setQuery] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -43,7 +44,7 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
 
   async function scan(): Promise<void> {
     if (disabled || scanning) return;
-    setScanning(true); setError(""); setCandidates([]); setSelected(new Set());
+    setScanning(true); setError(""); setCandidates([]); setSelected(new Set()); onPreview?.(null);
     try {
       const found = await discoverRedactionCandidates(document, {
         mode,
@@ -70,6 +71,7 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
       const accepted = new Set(chosen.map((candidate) => candidate.id));
       setCandidates((current) => current.filter((candidate) => !accepted.has(candidate.id)));
       setSelected(new Set());
+      onPreview?.(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally { setAccepting(false); }
@@ -93,7 +95,7 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
       <div className="p7-candidate-list">{candidates.map((candidate) => <label className="p7-candidate p7-redaction-candidate" key={candidate.id}>
         <input checked={selected.has(candidate.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(candidate.id)) next.delete(candidate.id); else next.add(candidate.id); return next; })} type="checkbox" />
         <span><strong>{maskSensitivePreview(candidate.text)}</strong><small>Page {candidate.pageNumber} · {candidate.kind} · {candidate.confidence} confidence</small></span>
-        <button onClick={(event) => { event.preventDefault(); onPage(candidate.pageNumber); }} type="button">View</button>
+        <button onClick={(event) => { event.preventDefault(); onPage(candidate.pageNumber); onPreview?.(candidate); }} type="button">View</button>
       </label>)}</div>
       <button className="button" disabled={disabled || accepting || !selectedCount} onClick={() => void accept()} type="button">{accepting ? "Adding marks…" : `Mark ${selectedCount} selected for redaction`}</button>
     </div> : null}
