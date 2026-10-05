@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — v7.2 development line
+
+### P11 — Development-line foundation
+
+- Declares `7.2.0` as the next release target without changing the executable `7.1.4` package/runtime identity before Stable publication is complete.
+- Adds a machine-readable P11 next-line manifest separating future v7.2 work from frozen P9/P10 v7.1.4 evidence.
+- Requires the real `v7.1.4-post-release-certificate` before an atomic v7.2 version cut can occur.
+- Keeps `.lpsproject` v9, IndexedDB schema v13, and native-editor schema v6 unchanged.
+- Adds dedicated P11 audit, version-cut readiness tests, and CI coverage.
+- Preserves the exact v7.1.4 Stable/tag/promotion workflows rather than repurposing them for v7.2.
+
 ## 7.1.4 — Task-first PDF Tools & Release Candidate
 
 ### Product hardening

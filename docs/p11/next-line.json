@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "phase": "P11",
+  "roadmap": "v7.2-development-line",
+  "status": "pre-cut",
+  "currentRelease": {
+    "version": "7.1.4",
+    "tag": "v7.1.4",
+    "promotionPhase": "P10",
+    "requiredPostReleaseArtifact": "v7.1.4-post-release-certificate"
+  },
+  "nextRelease": {
+    "version": "7.2.0",
+    "tag": "v7.2.0",
+    "channel": "release-candidate",
+    "versionCutState": "blocked-until-post-release"
+  },
+  "persistentFormats": {
+    "projectPackageVersion": 9,
+    "databaseSchemaVersion": 13,
+    "nativeEditorSchemaVersion": 6
+  },
+  "rules": {
+    "preserveV714Tag": true,
+    "preserveV714ReleaseWorkflows": true,
+    "requirePostReleaseCertificateBeforeVersionCut": true,
+    "requireAtomicVersionCut": true,
+    "newFeatureWorkRequiresNewRoadmap": true
+  }
+}
