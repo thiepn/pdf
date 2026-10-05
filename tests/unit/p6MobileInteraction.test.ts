@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import organizerSource from "../../src/views/OrganizerPage.tsx?raw";
 import thumbnailSource from "../../src/organizer/OrganizerThumbnail.tsx?raw";
 import viewportSource from "../../src/mobile/MobileViewportManager.tsx?raw";
-import mobileCss from "../../src/product/mobile-interaction.css?raw";
+import mobileCss from "../../src/product/mobile-interaction.css?inline";
 import databaseSource from "../../src/storage/database.ts?raw";
 import releaseSource from "../../src/core/release.ts?raw";
 
