@@ -47,7 +47,8 @@ export interface PdfFidelityExpectations {
   expectedHasJavaScript?: boolean;
   allowJavaScriptRemoval?: boolean;
   coreMetadataMode?: "preserve" | "cleared";
-  allowWidgetChangesOnAffectedPages?: boolean;
+  widgetDeltaByPage?: Record<number, number>;
+  expectNoWidgetsOnAffectedPages?: boolean;
 }
 
 export interface PdfFidelityReport {
@@ -244,8 +245,11 @@ export function comparePdfFidelityProfiles(
     }
 
     if (affected.has(pageNumber)) {
-      if (!expectations.allowWidgetChangesOnAffectedPages && before.widgetCount !== after.widgetCount) {
-        failures.push(`Page ${pageNumber} widget count changed unexpectedly.`);
+      const expectedWidgets = expectations.expectNoWidgetsOnAffectedPages
+        ? 0
+        : before.widgetCount + (expectations.widgetDeltaByPage?.[pageNumber] ?? 0);
+      if (after.widgetCount !== expectedWidgets) {
+        failures.push(`Page ${pageNumber} widget count is ${after.widgetCount}; expected ${expectedWidgets}.`);
       }
       continue;
     }
