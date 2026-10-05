@@ -45,6 +45,7 @@ export interface PdfFidelityExpectations {
   expectedAttachmentCount?: number;
   expectedFormFieldCount?: number;
   expectedHasJavaScript?: boolean;
+  allowJavaScriptRemoval?: boolean;
   coreMetadataMode?: "preserve" | "cleared";
   allowWidgetChangesOnAffectedPages?: boolean;
 }
@@ -214,8 +215,15 @@ export function comparePdfFidelityProfiles(
   if (output.attachmentCount !== expectedAttachments) failures.push(`Attachment count is ${output.attachmentCount}; expected ${expectedAttachments}.`);
   const expectedFormFields = expectations.expectedFormFieldCount ?? source.formFieldCount;
   if (output.formFieldCount !== expectedFormFields) failures.push(`Form field count is ${output.formFieldCount}; expected ${expectedFormFields}.`);
-  const expectedJavaScript = expectations.expectedHasJavaScript ?? source.hasJavaScript;
-  if (output.hasJavaScript !== expectedJavaScript) failures.push(`Document JavaScript presence did not match the expected output state (${expectedJavaScript ? "present" : "absent"}).`);
+  if (expectations.expectedHasJavaScript !== undefined) {
+    if (output.hasJavaScript !== expectations.expectedHasJavaScript) {
+      failures.push(`Document JavaScript presence did not match the expected output state (${expectations.expectedHasJavaScript ? "present" : "absent"}).`);
+    }
+  } else if (expectations.allowJavaScriptRemoval) {
+    if (!source.hasJavaScript && output.hasJavaScript) failures.push("Document JavaScript was introduced unexpectedly.");
+  } else if (source.hasJavaScript !== output.hasJavaScript) {
+    failures.push("Document JavaScript presence changed unexpectedly.");
+  }
   if (source.pageLabelsDigest !== output.pageLabelsDigest) failures.push("Page labels changed unexpectedly.");
   compareCoreMetadata(source.coreMetadata, output.coreMetadata, failures, expectations.coreMetadataMode);
 
