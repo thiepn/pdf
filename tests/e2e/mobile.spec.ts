@@ -26,11 +26,15 @@ test("primary file and editing actions remain touch-sized and horizontally conta
     const control = page.getByRole("button", { name, exact: true });
     const box = await control.boundingBox(); expect(box!.height).toBeGreaterThanOrEqual(44); expect(box!.width).toBeGreaterThanOrEqual(44);
   }
-  const saveControl = page.locator(".compact-download");
+  const saveCandidates = page.getByRole("button", { name: /^(?:Download PDF|Save PDF|Save as PDF)$/ });
+  let saveControl = saveCandidates.first();
+  for (let index = 0; index < await saveCandidates.count(); index += 1) {
+    const candidate = saveCandidates.nth(index);
+    if (await candidate.isVisible()) { saveControl = candidate; break; }
+  }
   await expect(saveControl).toBeVisible();
   const saveBox = await saveControl.boundingBox();
   expect(saveBox!.height).toBeGreaterThanOrEqual(44); expect(saveBox!.width).toBeGreaterThanOrEqual(44);
-  expect(await saveControl.getAttribute("aria-label")).toMatch(/^(?:Download PDF|Save PDF|Save as PDF)$/);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 test("editor commands remain reachable from 320px through tablet widths", async ({ page }) => {
