@@ -98,7 +98,7 @@ describe("P8 PDF fidelity", () => {
     });
     const report = comparePdfFidelityProfiles(source, output, {
       expectedFormFieldCount: 3,
-      allowWidgetChangesOnAffectedPages: true
+      widgetDeltaByPage: { 2: 2 }
     });
     expect(report.passed).toBe(true);
   });
