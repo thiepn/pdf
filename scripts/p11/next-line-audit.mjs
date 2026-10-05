@@ -3,7 +3,7 @@ import { access, readFile } from "node:fs/promises";
 const read = path => readFile(path, "utf8");
 const exists = async path => { try { await access(path); return true; } catch { return false; } };
 
-const [manifestText, packageText, lockText, releaseSource, p9FreezeText, p10Promotion, p10PostRelease, p10Doc, stableWorkflow, readme, changelog] = await Promise.all([
+const [manifestText, packageText, lockText, releaseSource, p9FreezeText, p10Promotion, p10PostRelease, p10Doc, stableWorkflow, cutReadinessWorkflow, readme, changelog] = await Promise.all([
   read("docs/p11/next-line.json"),
   read("package.json"),
   read("package-lock.json"),
@@ -13,6 +13,7 @@ const [manifestText, packageText, lockText, releaseSource, p9FreezeText, p10Prom
   read(".github/workflows/post-release-verification.yml"),
   read("docs/product/P10_STABLE_RELEASE_PROMOTION.md"),
   read(".github/workflows/release.yml"),
+  read(".github/workflows/p11-version-cut-readiness.yml"),
   read("README.md"),
   read("CHANGELOG.md")
 ]);
@@ -56,6 +57,10 @@ check(!stableWorkflow.includes('tags: ["v7.2.0"]'), "P11 does not repurpose v7.1
 
 check(await exists("scripts/p11/verify-version-cut-readiness.mjs"), "P11 version-cut verifier exists");
 check(await exists("scripts/p11/verify-version-cut-readiness.test.mjs"), "P11 version-cut verifier tests exist");
+check(cutReadinessWorkflow.includes("workflow_dispatch:"), "v7.2 cut-readiness verification is explicit/manual and read-only");
+check(cutReadinessWorkflow.includes("post-release-verification.yml/runs") && cutReadinessWorkflow.includes("status=success"), "cut readiness requires a successful P10 post-release workflow run");
+check(cutReadinessWorkflow.includes("v7.1.4-post-release-certificate") && cutReadinessWorkflow.includes("expired == false"), "cut readiness requires the unexpired exact P10 certificate artifact");
+check(cutReadinessWorkflow.includes("verify-version-cut-readiness.mjs") && cutReadinessWorkflow.includes("v7.2-version-cut-readiness"), "cut readiness runs the P11 verifier and retains durable evidence");
 check(readme.includes("v7.2 development line") && readme.includes("pre-cut"), "README exposes the v7.2 pre-cut boundary");
 check(changelog.includes("Unreleased — v7.2 development line"), "CHANGELOG starts the v7.2 development line without pretending it is released");
 
