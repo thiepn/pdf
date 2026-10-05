@@ -57,7 +57,8 @@ export async function detectFormFieldCandidates(
   pages?: number[],
   signal?: AbortSignal
 ): Promise<FormFieldCandidate[]> {
-  const existing = existingFields.map((field) => field.rect);
+  const existingByPage = new Map<number, Rect[]>();
+  for (const field of existingFields) existingByPage.set(field.pageNumber, [...(existingByPage.get(field.pageNumber) ?? []), field.rect]);
   const result: FormFieldCandidate[] = [];
   const pageNumbers = pages?.length ? pages : Array.from({ length: document.numPages }, (_, index) => index + 1);
 
@@ -110,7 +111,7 @@ export async function detectFormFieldCandidates(
 
         if (!type || !candidateViewport) continue;
         const rect = candidateToPdf(service, candidateViewport);
-        if (!finiteRect(rect) || existing.some((field) => intersects(field, rect))) continue;
+        if (!finiteRect(rect) || (existingByPage.get(pageNumber) ?? []).some((field) => intersects(field, rect))) continue;
         const id = `form-candidate:${pageNumber}:${ordinal++}`;
         result.push({ id, pageNumber, type, label, name: sanitizeFieldName(label, pageNumber, ordinal), rect, confidence, reason });
         if (result.length >= MAX_FORM_CANDIDATES) return result;
@@ -167,6 +168,7 @@ export function validateFormCreates(drafts: FormFieldCreate[], existingFields: S
   for (const draft of drafts) {
     const name = draft.name.trim();
     if (!name) errors.push(`Page ${draft.pageNumber}: a new ${draft.type} field has no field name.`);
+    else if (!/^[A-Za-z0-9_-]{1,96}$/.test(name)) errors.push(`Field name “${name}” must use only letters, numbers, hyphens, or underscores.`);
     else if (existing.has(name)) errors.push(`Field name “${name}” already exists in the PDF.`);
     else if (seen.has(name)) errors.push(`Field name “${name}” is used by more than one new field.`);
     else seen.add(name);
