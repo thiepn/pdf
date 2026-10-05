@@ -1,0 +1,35 @@
+name: P10 stable promotion controls
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/promote-stable.yml
+      - .github/workflows/post-release-verification.yml
+      - .github/workflows/p10-promotion-ci.yml
+      - scripts/p10/**
+      - tests/unit/p10StablePromotion.test.ts
+      - docs/product/P10_STABLE_RELEASE_PROMOTION.md
+      - package.json
+
+permissions:
+  contents: read
+
+jobs:
+  promotion-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit P10 promotion controls
+        run: npm run audit:p10:promotion
+      - name: Exercise promotion certificate verifier
+        run: npm run test:p10:promotion
+      - name: Lock P10 source/workflow contract
+        run: npx vitest run tests/unit/p10StablePromotion.test.ts
+      - name: Typecheck product source
+        run: npm run typecheck
