@@ -99,7 +99,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const [directory, output] = process.argv.slice(2);
   assert.ok(directory && output, "Usage: node certify-browser-matrix.mjs <artifact-directory> <output.json>");
   const contract = await loadReleaseContractIdentity();
-  const certificate = await certifyMatrix(resolve(directory), { sourceSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, ...contract });
+  const certificate = await certifyMatrix(resolve(directory), { sourceSha: process.env.RELEASE_SOURCE_SHA ?? process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, ...contract });
   await writeFile(output, JSON.stringify(certificate, null, 2) + "\n");
   console.log(JSON.stringify(certificate, null, 2));
 }
