@@ -188,3 +188,25 @@
   .p7-review-heading > div:last-child,
   .p7-form-draft > header > div:last-child { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+.security-redaction-candidate-preview {
+  position:absolute;
+  display:grid;
+  place-items:center;
+  box-sizing:border-box;
+  overflow:hidden;
+  border:2px dashed #d08a00;
+  color:#6f4700;
+  background:rgb(255 194 71 / 22%);
+  pointer-events:none;
+}
+.security-redaction-candidate-preview span {
+  padding:2px 4px;
+  border-radius:4px;
+  color:#241600;
+  background:#ffc447;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.06em;
+  white-space:nowrap;
+}
