@@ -2,6 +2,9 @@ name: Release completion verification
 on:
   push:
     branches: [redesign/task-first-experience]
+  pull_request:
+    paths:
+      - docs/p9/release-freeze.json
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -33,8 +37,11 @@ jobs:
         with:
           python-version: '3.13'
       - name: Resolve reproducible build identity
+        env:
+          RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          git rev-parse HEAD > /tmp/qualification-sha.txt
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          printf '%s\n' "$RELEASE_SOURCE_SHA" > /tmp/qualification-sha.txt
           printf '%s\n' "$VITE_RELEASE_CHANNEL" > /tmp/qualification-channel.txt
           sha256sum package-lock.json > /tmp/qualification-lock.sha256
           echo "VITE_BUILD_TIMESTAMP=$(git show -s --format=%cI HEAD)" >> "$GITHUB_ENV"
@@ -108,6 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -121,8 +129,10 @@ jobs:
       - name: Verify exact source, lockfile, channel and distribution identity
         env:
           EXPECTED_CHANNEL: ${{ matrix.channel }}
+          RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          test "$(cat /tmp/pdf-release-runtime/qualification-sha.txt)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          test "$(cat /tmp/pdf-release-runtime/qualification-sha.txt)" = "$RELEASE_SOURCE_SHA"
           test "$(cat /tmp/pdf-release-runtime/qualification-channel.txt)" = "$EXPECTED_CHANNEL"
           sha256sum --check /tmp/pdf-release-runtime/qualification-lock.sha256
           tar -xzf /tmp/pdf-release-runtime/pdf-release-runtime.tar.gz
@@ -160,6 +170,7 @@ jobs:
           test "$BROWSER_RESULT" = success
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -169,6 +180,8 @@ jobs:
           pattern: pdf-browser-*
           path: /tmp/release-evidence
       - name: Certify every browser and channel from actual reports
+        env:
+          RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/releases/certify-browser-matrix.mjs /tmp/release-evidence /tmp/release-certificate.json
       - uses: actions/upload-artifact@v4
         with:
