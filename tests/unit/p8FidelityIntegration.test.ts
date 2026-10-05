@@ -9,7 +9,7 @@ describe("P8 fidelity integration", () => {
   it("gates ordinary editor publication on fidelity validation", () => {
     expect(editorSource).toContain("validatePdfFidelity");
     expect(editorSource).toContain("P8 fidelity validation failed");
-    expect(editorSource.indexOf("validatePdfFidelity")).toBeLessThan(editorSource.indexOf("commitPreparedNativePdfWrite"));
+    expect(editorSource).toMatch(/const fidelity = await validatePdfFidelity[\s\S]*if \(saveProject\)[\s\S]*commitPreparedNativePdfWrite/);
   });
 
   it("gates P7 secure output and declares intentional structural expectations", () => {
