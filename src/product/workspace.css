@@ -8,12 +8,13 @@
 /* P2 intelligent document entry: compact, task-first recommendations rather than
    another dashboard. Evidence is computed locally and the strip never blocks the workspace. */
 .product-app .document-entry-overlay {
-  position: absolute;
-  z-index: 70;
-  top: 60px;
-  right: 14px;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  align-self: flex-end;
   width: min(760px, calc(100% - 28px));
-  max-height: min(52vh, 480px);
+  max-height: min(34vh, 320px);
+  margin: 10px 14px 0;
   overflow: auto;
   pointer-events: auto;
 }
