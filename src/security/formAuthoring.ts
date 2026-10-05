@@ -55,14 +55,16 @@ export async function detectFormFieldCandidates(
   document: PDFDocumentProxy,
   existingFields: SecurityFormField[],
   pages?: number[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onProgress?: (completedPages: number, totalPages: number) => void
 ): Promise<FormFieldCandidate[]> {
   const existingByPage = new Map<number, Rect[]>();
   for (const field of existingFields) existingByPage.set(field.pageNumber, [...(existingByPage.get(field.pageNumber) ?? []), field.rect]);
   const result: FormFieldCandidate[] = [];
   const pageNumbers = pages?.length ? pages : Array.from({ length: document.numPages }, (_, index) => index + 1);
 
-  for (const pageNumber of pageNumbers) {
+  for (let pageOffset = 0; pageOffset < pageNumbers.length; pageOffset += 1) {
+    const pageNumber = pageNumbers[pageOffset];
     signal?.throwIfAborted();
     if (pageNumber < 1 || pageNumber > document.numPages) continue;
     const page = await document.getPage(pageNumber);
@@ -112,13 +114,15 @@ export async function detectFormFieldCandidates(
         if (!type || !candidateViewport) continue;
         const rect = candidateToPdf(service, candidateViewport);
         if (!finiteRect(rect) || (existingByPage.get(pageNumber) ?? []).some((field) => intersects(field, rect))) continue;
-        const id = `form-candidate:${pageNumber}:${ordinal++}`;
-        result.push({ id, pageNumber, type, label, name: sanitizeFieldName(label, pageNumber, ordinal), rect, confidence, reason });
+        const candidateIndex = ordinal++;
+        const id = `form-candidate:${pageNumber}:${candidateIndex}`;
+        result.push({ id, pageNumber, type, label, name: sanitizeFieldName(label, pageNumber, candidateIndex), rect, confidence, reason });
         if (result.length >= MAX_FORM_CANDIDATES) return result;
       }
     } finally {
       page.cleanup();
     }
+    onProgress?.(pageOffset + 1, pageNumbers.length);
   }
   return result;
 }
@@ -145,7 +149,7 @@ export function createManualFormField(pageNumber: number, type: FormFieldCreateT
     type,
     name: `p${pageNumber}_${type}_${ordinal + 1}`,
     label: type === "text" ? "Text field" : "Checkbox",
-    rect: isCheckbox ? { x0: 72, y0: 720, x1: 90, y1: 738 } : { x0: 72, y0: 700, x1: 252, y1: 726 },
+    rect: isCheckbox ? { x0: 72, y0: 650, x1: 90, y1: 668 } : { x0: 72, y0: 700, x1: 252, y1: 726 },
     defaultValue: "",
     multiline: false,
     required: false
