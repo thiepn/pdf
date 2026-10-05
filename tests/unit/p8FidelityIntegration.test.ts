@@ -23,7 +23,7 @@ describe("P8 fidelity integration", () => {
 
   it("keeps preservation strict by default and permits only explicit expectations", () => {
     expect(fidelitySource).toContain("PdfFidelityExpectations");
-    expect(fidelitySource).toContain("allowWidgetChangesOnAffectedPages");
+    expect(fidelitySource).toContain("widgetDeltaByPage");
     expect(fidelitySource).toContain("allowJavaScriptRemoval");
     expect(fidelitySource).toContain("Untouched page");
   });
