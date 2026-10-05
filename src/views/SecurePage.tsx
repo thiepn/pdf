@@ -190,6 +190,11 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
         for (let pageNumber = 1; pageNumber <= inspection.pageCount; pageNumber += 1) affectedPages.add(pageNumber);
       }
 
+      const widgetDeltaByPage = formCreates.reduce<Record<number, number>>((counts, field) => {
+        counts[field.pageNumber] = (counts[field.pageNumber] ?? 0) + 1;
+        return counts;
+      }, {});
+
       setStatus("Checking document fidelity and compatibility…");
       const fidelity = await validatePdfFidelity(
         sourceBytes,
@@ -209,7 +214,9 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
             expectedHasJavaScript: security.sanitization.removeJavaScript ? false : undefined,
             allowJavaScriptRemoval: security.sanitization.removeOpenActions && !security.sanitization.removeJavaScript,
             coreMetadataMode: security.sanitization.removeMetadata ? "cleared" : "preserve",
-            allowWidgetChangesOnAffectedPages: Boolean(formCreates.length || security.sanitization.flattenForms)
+            ...(security.sanitization.flattenForms
+              ? { expectNoWidgetsOnAffectedPages: true }
+              : { widgetDeltaByPage })
           }
         }
       );
