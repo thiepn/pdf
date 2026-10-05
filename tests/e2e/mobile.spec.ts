@@ -230,3 +230,34 @@ test("compact editor never leaves an empty properties drawer over the canvas", a
   await expect(object).toHaveCount(0);
   await expect(properties).toHaveCount(0);
 });
+
+
+test("phone page organizer can reorder without drag and keeps touch controls reachable", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/generated/plain-text.pdf");
+  await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
+  await switchMode(page, "organizer");
+
+  const cards = page.locator(".organizer-page");
+  await expect(cards.first()).toBeVisible();
+  expect(await cards.count()).toBeGreaterThan(1);
+
+  const before = await page.locator(".organizer-page__meta span").allTextContents();
+  const moveLater = page.getByRole("button", { name: "Move page 1 later", exact: true });
+  await expect(moveLater).toBeVisible();
+  const target = await moveLater.boundingBox();
+  expect(target!.height).toBeGreaterThanOrEqual(44);
+  expect(target!.width).toBeGreaterThanOrEqual(44);
+
+  await moveLater.click();
+  const after = await page.locator(".organizer-page__meta span").allTextContents();
+  expect(after[0]).toBe(before[1]);
+  expect(after[1]).toBe(before[0]);
+
+  await page.locator(".organizer-page__preview").first().click();
+  const position = page.getByLabel("Move selected pages to position", { exact: true });
+  await expect(position).toBeVisible();
+  expect((await position.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+});
