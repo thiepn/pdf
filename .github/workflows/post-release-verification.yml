@@ -1,0 +1,114 @@
+name: Verify published v7.1.4 release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-release-v7.1.4
+  cancel-in-progress: false
+
+jobs:
+  verify-published-release:
+    if: github.event.release.tag_name == 'v7.1.4'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: v7.1.4
+      VERSION: 7.1.4
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out immutable release tag
+        uses: actions/checkout@v7
+        with:
+          ref: v7.1.4
+          fetch-depth: 0
+
+      - name: Verify annotated tag identity
+        run: |
+          set -euo pipefail
+          test "$(git describe --tags --exact-match HEAD)" = "$TAG"
+          test "$(git cat-file -t "refs/tags/$TAG")" = "tag"
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor HEAD refs/remotes/origin/main
+
+      - name: Download published release assets
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/p10-release-assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir /tmp/p10-release-assets
+
+      - name: Verify required assets and checksums
+        run: |
+          set -euo pipefail
+          cd /tmp/p10-release-assets
+          for asset in \
+            "pdf-studio-v7.1.4-source.zip" \
+            "pdf-studio-v7.1.4-source.tar.gz" \
+            "pdf-studio-v7.1.4-dist.zip" \
+            "pdf-studio-v7.1.4-corpus-validation.json" \
+            "pdf-studio-v7.1.4-adversarial-corpus-validation.json" \
+            "pdf-studio-v7.1.4-compatibility-corpus-validation.json" \
+            "pdf-studio-v7.1.4-qualification.md" \
+            "pdf-studio-v7.1.4-release-freeze.json" \
+            "pdf-studio-v7.1.4-release-notes.md" \
+            "pdf-studio-v7.1.4-release-metadata.json" \
+            "pdf-studio-v7.1.4-release-integrity.json" \
+            "pdf-studio-v7.1.4-license-inventory.json" \
+            "pdf-studio-v7.1.4.sha256"; do
+            test -s "$asset" || { echo "::error::Required Stable asset missing or empty: $asset"; exit 1; }
+          done
+          sha256sum -c "pdf-studio-v7.1.4.sha256"
+          grep -F '"version": "7.1.4"' "pdf-studio-v7.1.4-release-metadata.json"
+          grep -F '"channel": "stable"' "pdf-studio-v7.1.4-release-metadata.json"
+
+      - name: Verify deployed Stable identity
+        env:
+          PUBLIC_URL: ${{ vars.PDF_STUDIO_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PUBLIC_URL" ]; then
+            base="${PUBLIC_URL%/}/"
+          else
+            repo_name="${GITHUB_REPOSITORY#*/}"
+            owner="${GITHUB_REPOSITORY_OWNER}"
+            base="https://${owner}.github.io/${repo_name}/"
+          fi
+          curl --fail --location --retry 8 --retry-delay 5 "${base}"
+          curl --fail --location --retry 8 --retry-delay 5 "${base}manifest.webmanifest" | grep -F 'PDF Studio' >/dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"version": "7.1.4"' >/dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-metadata.json" | grep -F '"channel": "stable"' >/dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" | grep -F 'fileCount' >/dev/null
+          curl --fail --location --retry 8 --retry-delay 5 "${base}offline-assets.json" | grep -F 'release-metadata.json' >/dev/null
+          printf '%s\n' "$base" > /tmp/p10-public-url.txt
+
+      - name: Create post-release certificate
+        run: |
+          set -euo pipefail
+          release_sha="$(git rev-parse HEAD)"
+          asset_manifest_sha="$(sha256sum /tmp/p10-release-assets/pdf-studio-v7.1.4.sha256 | awk '{print $1}')"
+          node --input-type=module <<NODE
+          import { writeFile, readFile } from "node:fs/promises";
+          const certificate = {
+            schemaVersion: 1,
+            status: "P10_POST_RELEASE_PASS",
+            version: process.env.VERSION,
+            tag: process.env.TAG,
+            releaseSha: "$release_sha",
+            githubReleaseId: ${{ github.event.release.id }},
+            checksumManifestSha256: "$asset_manifest_sha",
+            publicUrl: (await readFile("/tmp/p10-public-url.txt", "utf8")).trim(),
+            workflowRunId: process.env.GITHUB_RUN_ID
+          };
+          await writeFile("/tmp/p10-post-release-certificate.json", JSON.stringify(certificate, null, 2) + "\n");
+          NODE
+
+      - name: Retain post-release certificate
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7.1.4-post-release-certificate
+          path: /tmp/p10-post-release-certificate.json
+          retention-days: 180
