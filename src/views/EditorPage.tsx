@@ -55,6 +55,7 @@ import { Thumbnail } from "../viewer/Thumbnail";
 import { commitPreparedNativePdfWrite, prepareNativePdfWrite, readNativeFileStatus, supportsNativeFileSave, writeExternalProjectBackup, type NativeFileStatus, type PreparedNativePdfWrite } from "../files/nativeFileWorkflow";
 import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
 import { OutputTrustPanel } from "../components/OutputTrustPanel";
+import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
@@ -995,7 +996,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const linkDelta = afterInventory.linkCount - beforeInventory.linkCount;
       if (annotationDelta < result.report.annotationCount) throw new Error("The edited PDF could not be verified because some annotations did not save correctly.");
       if (linkDelta < result.report.linkCount) throw new Error("The edited PDF could not be verified because some links did not save correctly.");
-      const exportWarnings = [...(nativeReport?.warnings ?? []), ...result.report.warnings];
+      update({ stage: "validating", detail: "Checking document fidelity and untouched content…", progress: 0.87 });
+      const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, passwordRef.current, signal);
+      if (!fidelity.passed) {
+        throw new Error(`P8 fidelity validation failed: ${fidelity.failures.slice(0, 4).join(" ")} No output was created.`);
+      }
+      const exportWarnings = [...new Set([...(nativeReport?.warnings ?? []), ...result.report.warnings, ...fidelity.warnings])];
       setWarnings(exportWarnings);
       const pdfEditCount = nativeReport ? nativeReport.textEdits + nativeReport.imageEdits + nativeReport.vectorEdits + nativeReport.tableCellEdits + nativeReport.formEdits : 0;
       setLastReport(`${pdfEditCount} PDF content edit${pdfEditCount === 1 ? "" : "s"} · ${result.report.objectCount} added object${result.report.objectCount === 1 ? "" : "s"} · ${formatBytes(result.report.outputBytes)}`);
