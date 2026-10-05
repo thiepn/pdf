@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import organizerSource from "../../src/views/OrganizerPage.tsx?raw";
 import thumbnailSource from "../../src/organizer/OrganizerThumbnail.tsx?raw";
 import viewportSource from "../../src/mobile/MobileViewportManager.tsx?raw";
-import mobileCss from "../../src/product/mobile-interaction.css?inline";
+// @ts-expect-error Vitest runs in Node; the browser app tsconfig intentionally excludes Node built-in typings.
+import { readFileSync } from "node:fs";
 import databaseSource from "../../src/storage/database.ts?raw";
 import releaseSource from "../../src/core/release.ts?raw";
+
+const mobileCss = readFileSync(new URL("../../src/product/mobile-interaction.css", import.meta.url), "utf8");
 
 describe("P6 mobile interaction excellence", () => {
   it("does not require drag-and-drop for page reordering", () => {
