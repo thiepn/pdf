@@ -91,6 +91,22 @@ export async function validateSecurityOutput(
     } else checks.push({ name: "Redacted text extraction", passed: true, detail: "No selectable text fragments were detected inside the marked regions; image and vector removal rely on MuPDF redaction processing." });
   }
 
+  if ((options.formCreates?.length ?? 0) && !options.sanitization.flattenForms) {
+    const created = options.formCreates ?? [];
+    const missing = created.filter((requested) => !inspection.formFields.some((field) =>
+      field.pageNumber === requested.pageNumber
+      && field.name === requested.name
+      && field.type === requested.type
+    ));
+    checks.push({
+      name: "Created form fields",
+      passed: missing.length === 0,
+      detail: missing.length
+        ? `${missing.length} of ${created.length} requested interactive fields were not found after reopening.`
+        : `${created.length} requested interactive field${created.length === 1 ? "" : "s"} reopened successfully.`
+    });
+  }
+
   if (options.formUpdates.length && !options.sanitization.flattenForms && !options.sanitization.clearFormValues) {
     const mismatches = options.formUpdates.filter((update) => {
       const field = inspection.formFields.find((candidate) => candidate.name === update.name && candidate.pageNumber === update.pageNumber)
