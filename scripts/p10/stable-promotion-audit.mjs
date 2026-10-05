@@ -29,8 +29,9 @@ check(promotion.includes('git merge-base --is-ancestor "$CANDIDATE_SHA" refs/rem
 check(promotion.includes("P10 never replaces a Stable tag"), "Existing Stable tags fail closed");
 check(promotion.includes("release-completion.yml/runs") && promotion.includes('head_sha="$CANDIDATE_SHA"') && promotion.includes("status=success"), "Promotion locates successful exact-head P9 Release completion evidence");
 check(promotion.includes("v7.1.4-release-certificate") && promotion.includes("expired == false"), "Promotion requires an unexpired exact-version P9 certificate artifact");
-check(promotion.includes("verify-promotion-certificate.mjs") && promotion.includes('git checkout --detach "$CANDIDATE_SHA"'), "Certificate is revalidated against the exact candidate source tree");
-check(promotion.includes('git tag -a "$TAG" "$CANDIDATE_SHA"') && promotion.includes('git push origin "refs/tags/$TAG"'), "Promotion creates only the annotated immutable Stable tag");
+check(promotion.includes("verify-promotion-certificate.mjs") && promotion.includes('git worktree add --detach /tmp/p10-candidate "$CANDIDATE_SHA"') && promotion.includes("/tmp/p10-candidate"), "Certificate is revalidated against a detached exact-candidate source tree while the P10 verifier remains available");
+check(promotion.includes("STABLE_PROMOTION_TOKEN") && promotion.includes("default GITHUB_TOKEN is deliberately not used"), "Stable tag push requires a dedicated credential that can trigger the tag workflow");
+check(promotion.includes('git tag -a "$TAG" "$CANDIDATE_SHA"') && promotion.includes('git push "https://x-access-token:${PROMOTION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG"'), "Promotion creates only the annotated immutable Stable tag with the dedicated credential");
 check(promotion.includes("v7.1.4-promotion-receipt"), "Promotion retains a durable receipt");
 
 check(verifier.includes("AUTOMATED_RELEASE_MATRIX_PASS"), "Certificate verifier requires a passing P9 matrix");
