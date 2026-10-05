@@ -1,0 +1,83 @@
+name: Verify v7.2 version-cut readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-cut-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out current main development controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+
+      - name: Locate successful v7.1.4 post-release certificate
+        id: certificate
+        run: |
+          set -euo pipefail
+          runs="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/post-release-verification.yml/runs" \
+            -f status=success \
+            -f event=release \
+            -f per_page=100)"
+          run_id="$(jq -r '
+            [.workflow_runs[] | select(.conclusion == "success")]
+            | sort_by(.created_at) | last | .id // empty
+          ' <<<"$runs")"
+          test -n "$run_id" || {
+            echo "::error::No successful v7.1.4 post-release verification run exists."
+            exit 1
+          }
+
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts")"
+          artifact_id="$(jq -r '
+            [.artifacts[] | select(.name == "v7.1.4-post-release-certificate" and .expired == false)]
+            | sort_by(.created_at) | last | .id // empty
+          ' <<<"$artifacts")"
+          test -n "$artifact_id" || {
+            echo "::error::v7.1.4 post-release certificate is missing or expired."
+            exit 1
+          }
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download post-release certificate
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/p11-certificate
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/${{ steps.certificate.outputs.artifact_id }}/zip" > /tmp/p11-certificate.zip
+          unzip -q /tmp/p11-certificate.zip -d /tmp/p11-certificate
+          certificate="$(find /tmp/p11-certificate -type f -name 'p10-post-release-certificate.json' -o -name '*post-release-certificate*.json' | head -n 1)"
+          test -n "$certificate" || {
+            echo "::error::Downloaded artifact does not contain the P10 post-release certificate."
+            exit 1
+          }
+          cp "$certificate" /tmp/p11-post-release-certificate.json
+
+      - name: Verify v7.2 version-cut readiness
+        run: |
+          set -euo pipefail
+          node scripts/p11/verify-version-cut-readiness.mjs /tmp/p11-post-release-certificate.json docs/p11/next-line.json > /tmp/p11-version-cut-readiness.json
+          grep -F '"status": "P11_VERSION_CUT_READY"' /tmp/p11-version-cut-readiness.json
+
+      - name: Retain readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7.2-version-cut-readiness
+          path: |
+            /tmp/p11-version-cut-readiness.json
+            /tmp/p11-post-release-certificate.json
+          retention-days: 90
