@@ -158,3 +158,24 @@ export function updateFormCreateGeometry(field: FormFieldCreate, patch: { x?: nu
   const y = patch.y ?? field.rect.y0;
   return { ...field, rect: { x0: x, y0: y, x1: x + width, y1: y + height } };
 }
+
+
+export function validateFormCreates(drafts: FormFieldCreate[], existingFields: SecurityFormField[]): string[] {
+  const errors: string[] = [];
+  const existing = new Set(existingFields.map((field) => field.name).filter(Boolean));
+  const seen = new Set<string>();
+  for (const draft of drafts) {
+    const name = draft.name.trim();
+    if (!name) errors.push(`Page ${draft.pageNumber}: a new ${draft.type} field has no field name.`);
+    else if (existing.has(name)) errors.push(`Field name “${name}” already exists in the PDF.`);
+    else if (seen.has(name)) errors.push(`Field name “${name}” is used by more than one new field.`);
+    else seen.add(name);
+    if (!Number.isInteger(draft.pageNumber) || draft.pageNumber < 1) errors.push(`Field “${name || draft.label}” has an invalid page number.`);
+    const width = draft.rect.x1 - draft.rect.x0;
+    const height = draft.rect.y1 - draft.rect.y0;
+    if (![draft.rect.x0, draft.rect.y0, draft.rect.x1, draft.rect.y1].every(Number.isFinite) || width < 8 || height < 8) {
+      errors.push(`Field “${name || draft.label}” has invalid geometry.`);
+    }
+  }
+  return [...new Set(errors)];
+}
