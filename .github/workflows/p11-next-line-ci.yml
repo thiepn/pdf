@@ -1,0 +1,36 @@
+name: P11 v7.2 development-line controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p11/**
+      - docs/product/P11_V72_DEVELOPMENT_LINE.md
+      - scripts/p11/**
+      - tests/unit/p11DevelopmentLine.test.ts
+      - .github/workflows/p11-next-line-ci.yml
+      - package.json
+      - README.md
+      - CHANGELOG.md
+
+permissions:
+  contents: read
+
+jobs:
+  next-line-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit v7.2 pre-cut line
+        run: npm run audit:p11:next-line
+      - name: Exercise version-cut evidence gate
+        run: npm run test:p11:cut
+      - name: Lock P11 source/release-line contract
+        run: npx vitest run tests/unit/p11DevelopmentLine.test.ts
+      - name: Typecheck inherited product source
+        run: npm run typecheck
