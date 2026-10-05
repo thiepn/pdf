@@ -40,9 +40,22 @@ export async function collectRedactionTokens(document: PDFDocumentProxy, objects
         const width = Math.max(1, Math.abs(item.width));
         const viewportBounds = { x0: transform[4], y0: transform[5] - fontHeight, x1: transform[4] + width, y1: transform[5] };
         const pdfBounds = service.viewportRectToPdf(viewportBounds);
-        if (pageMarks.some((mark) => intersects(pdfBounds, mark.bounds))) {
-          const normalized = item.str.replace(/\s+/g, " ").trim();
-          if (normalized.length >= 3) tokens.add(normalized);
+        const normalizedBounds = {
+          x0: Math.min(pdfBounds.x0, pdfBounds.x1),
+          y0: Math.min(pdfBounds.y0, pdfBounds.y1),
+          x1: Math.max(pdfBounds.x0, pdfBounds.x1),
+          y1: Math.max(pdfBounds.y0, pdfBounds.y1)
+        };
+        for (const mark of pageMarks) {
+          if (!intersects(normalizedBounds, mark.bounds)) continue;
+          const source = item.str.replace(/\s+/g, " ");
+          const width = Math.max(.001, normalizedBounds.x1 - normalizedBounds.x0);
+          const overlapStart = Math.max(normalizedBounds.x0, mark.bounds.x0);
+          const overlapEnd = Math.min(normalizedBounds.x1, mark.bounds.x1);
+          const start = Math.max(0, Math.floor((overlapStart - normalizedBounds.x0) / width * source.length) - 1);
+          const end = Math.min(source.length, Math.ceil((overlapEnd - normalizedBounds.x0) / width * source.length) + 1);
+          const fragment = source.slice(start, end).trim();
+          if (fragment.length >= 3) tokens.add(fragment);
         }
       }
     } finally { page.cleanup(); }
