@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import workspaceSource from "../../src/workspace/UnifiedWorkspace.tsx?raw";
 import recommendationSource from "../../src/product/DocumentEntryRecommendations.tsx?raw";
 import entrySource from "../../src/product/documentEntry.ts?raw";
+import workspaceCss from "../../src/product/workspace.css?raw";
 
 describe("P2 intelligent document entry wiring", () => {
   it("shows immediate manifest recommendations and refines them after a delayed local inspection", () => {
@@ -21,6 +22,12 @@ describe("P2 intelligent document entry wiring", () => {
     expect(workspaceSource).toContain("<DocumentEntryRecommendations recommendations={entryRecommendations}");
     expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
     expect(workspaceSource.indexOf('className="document-entry-overlay"')).toBeGreaterThan(workspaceSource.indexOf('className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader"'));
+  });
+
+  it("suppresses the floating recommendation overlay before tablet controls can be covered", () => {
+    expect(workspaceCss).toContain("@media (max-width: 900px)");
+    expect(workspaceCss).toMatch(/@media \(max-width: 900px\)[\s\S]*\.document-entry-overlay[\s\S]*display:\s*none/);
+    expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
   });
 
   it("avoids a full security-page walk for large ordinary PDFs", () => {
