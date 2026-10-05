@@ -44,6 +44,10 @@ describe("P9 release candidate certification", () => {
     expect(completionWorkflow).toContain("name: v7.1.4-release-certificate");
     expect(completionWorkflow).toContain("channel: [release-candidate, stable]");
     expect(completionWorkflow).toContain("--retries=0");
+    expect(completionWorkflow).toContain("pull_request:");
+    expect(completionWorkflow).toContain("docs/p9/release-freeze.json");
+    expect(completionWorkflow).toContain("github.event.pull_request.head.sha || github.sha");
+    expect(completionWorkflow).toContain("RELEASE_SOURCE_SHA");
   });
 
   it("packages reviewed release identity and integrity evidence", () => {
@@ -73,5 +77,6 @@ describe("P9 release candidate certification", () => {
     expect(auditSource).toContain("src/trust/outputVerification.ts");
     expect(auditSource).toContain("src/security/redactionDiscovery.ts");
     expect(auditSource).toContain("Editor and Secure publication paths remain fidelity-certified");
+    expect(auditSource).toContain("exact PR head");
   });
 });
