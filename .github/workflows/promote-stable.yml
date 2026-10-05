@@ -1,0 +1,155 @@
+name: Promote certified v7.1.4 to Stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact P9-certified candidate commit SHA
+        required: true
+        type: string
+      confirmation:
+        description: Type PROMOTE v7.1.4
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stable-promotion-v7.1.4
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: 7.1.4
+      TAG: v7.1.4
+      GH_TOKEN: ${{ github.token }}
+      PROMOTION_TOKEN: ${{ secrets.STABLE_PROMOTION_TOKEN }}
+    steps:
+      - name: Check out main history
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate explicit promotion request
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$CONFIRMATION" = "PROMOTE v7.1.4"
+          printf '%s\n' "$CANDIDATE_SHA" > /tmp/p10-candidate-sha.txt
+
+      - name: Prove candidate is already in main and tag is unused
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          git cat-file -e "$CANDIDATE_SHA^{commit}"
+          if ! git merge-base --is-ancestor "$CANDIDATE_SHA" refs/remotes/origin/main; then
+            echo "::error::Candidate $CANDIDATE_SHA is not reachable from main. Merge the exact certified P9 history before promotion."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Stable tag $TAG already exists. P10 never replaces a Stable tag."
+            exit 1
+          fi
+
+      - name: Locate successful exact-head P9 certificate
+        id: certificate
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          runs="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/release-completion.yml/runs" \
+            -f head_sha="$CANDIDATE_SHA" \
+            -f status=success \
+            -f event=pull_request \
+            -f per_page=100)"
+          run_id="$(jq -r --arg sha "$CANDIDATE_SHA" '
+            [.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success")]
+            | sort_by(.created_at) | last | .id // empty
+          ' <<<"$runs")"
+          test -n "$run_id" || { echo "::error::No successful Release completion run exists for exact candidate $CANDIDATE_SHA."; exit 1; }
+
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts")"
+          artifact_id="$(jq -r --arg name "v7.1.4-release-certificate" '
+            [.artifacts[] | select(.name == $name and .expired == false)]
+            | sort_by(.created_at) | last | .id // empty
+          ' <<<"$artifacts")"
+          test -n "$artifact_id" || { echo "::error::Exact-head release certificate artifact is missing or expired."; exit 1; }
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact-head release certificate
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/p10-certificate
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/${{ steps.certificate.outputs.artifact_id }}/zip" > /tmp/p10-certificate.zip
+          unzip -q /tmp/p10-certificate.zip -d /tmp/p10-certificate
+          certificate="$(find /tmp/p10-certificate -type f -name 'release-certificate.json' -print -quit)"
+          test -n "$certificate"
+          cp "$certificate" /tmp/p10-release-certificate.json
+
+      - name: Verify certificate against the exact candidate source
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/p10-candidate
+          git worktree add --detach /tmp/p10-candidate "$CANDIDATE_SHA"
+          node scripts/p10/verify-promotion-certificate.mjs /tmp/p10-release-certificate.json "$CANDIDATE_SHA" /tmp/p10-candidate
+
+      - name: Create promotion receipt
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          CERTIFICATE_RUN_ID: ${{ steps.certificate.outputs.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFile } from "node:fs/promises";
+          const receipt = {
+            schemaVersion: 1,
+            status: "P10_STABLE_PROMOTION_AUTHORIZED",
+            version: process.env.VERSION,
+            tag: process.env.TAG,
+            candidateSha: process.env.CANDIDATE_SHA,
+            p9CertificateRunId: process.env.CERTIFICATE_RUN_ID,
+            promotionWorkflowRunId: process.env.GITHUB_RUN_ID
+          };
+          await writeFile("/tmp/p10-promotion-receipt.json", JSON.stringify(receipt, null, 2) + "\n");
+          NODE
+
+      - name: Require promotion credential capable of triggering Stable workflow
+        run: |
+          set -euo pipefail
+          test -n "$PROMOTION_TOKEN" || {
+            echo "::error::Repository secret STABLE_PROMOTION_TOKEN is required. The default GITHUB_TOKEN is deliberately not used for the tag push because events it creates do not trigger the Stable tag workflow."
+            exit 1
+          }
+
+      - name: Create immutable Stable tag
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "pdf-studio-release"
+          git config user.email "pdf-studio-release@users.noreply.github.com"
+          git tag -a "$TAG" "$CANDIDATE_SHA" -m "PDF Studio $TAG — P10 certified Stable promotion"
+          git push "https://x-access-token:${PROMOTION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG"
+
+      - name: Retain promotion receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7.1.4-promotion-receipt
+          path: |
+            /tmp/p10-promotion-receipt.json
+            /tmp/p10-release-certificate.json
+          retention-days: 90
