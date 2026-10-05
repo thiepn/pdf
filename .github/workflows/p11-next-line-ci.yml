@@ -8,6 +8,7 @@ on:
       - scripts/p11/**
       - tests/unit/p11DevelopmentLine.test.ts
       - .github/workflows/p11-next-line-ci.yml
+      - .github/workflows/p11-version-cut-readiness.yml
       - package.json
       - README.md
       - CHANGELOG.md
