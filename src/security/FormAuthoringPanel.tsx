@@ -18,9 +18,10 @@ interface Props {
   disabled: boolean;
   onDrafts: (value: FormFieldCreate[]) => void;
   onPage: (pageNumber: number) => void;
+  onPreview?: (candidate: FormFieldCandidate | null) => void;
 }
 
-export function FormAuthoringPanel({ document, existingFields, drafts, currentPage, disabled, onDrafts, onPage }: Props) {
+export function FormAuthoringPanel({ document, existingFields, drafts, currentPage, disabled, onDrafts, onPage, onPreview }: Props) {
   const [scope, setScope] = useState<"page" | "document">("page");
   const [candidates, setCandidates] = useState<FormFieldCandidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -37,7 +38,7 @@ export function FormAuthoringPanel({ document, existingFields, drafts, currentPa
     const controller = new AbortController();
     scanRef.current?.abort();
     scanRef.current = controller;
-    setScanning(true); setProgress("Starting scan…"); setError(""); setCandidates([]); setSelected(new Set());
+    setScanning(true); setProgress("Starting scan…"); setError(""); setCandidates([]); setSelected(new Set()); onPreview?.(null);
     try {
       const found = await detectFormFieldCandidates(
         document,
@@ -68,6 +69,7 @@ export function FormAuthoringPanel({ document, existingFields, drafts, currentPa
     const accepted = new Set(additions.map((draft) => draft.id.replace("form-create:", "form-candidate:")));
     setCandidates((current) => current.filter((candidate) => !accepted.has(candidate.id)));
     setSelected(new Set());
+    onPreview?.(null);
   }
 
   function patch(id: string, update: Partial<FormFieldCreate>): void {
@@ -95,11 +97,10 @@ export function FormAuthoringPanel({ document, existingFields, drafts, currentPa
 
     {candidates.length ? <div className="p7-candidate-review">
       <div className="p7-review-heading"><div><strong>{candidates.length} suggestion{candidates.length === 1 ? "" : "s"}</strong><span>Review before adding. High-confidence suggestions are selected initially.</span></div><div><button onClick={() => setSelected(new Set(candidates.map((candidate) => candidate.id)))} type="button">Select all</button><button onClick={() => setSelected(new Set())} type="button">Clear</button></div></div>
-      <div className="p7-candidate-list">{candidates.map((candidate) => <label key={candidate.id} className="p7-candidate">
-        <input checked={selected.has(candidate.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(candidate.id)) next.delete(candidate.id); else next.add(candidate.id); return next; })} type="checkbox" />
-        <span><strong>{candidate.label}</strong><small>Page {candidate.pageNumber} · {candidate.type} · {candidate.confidence} confidence</small><small>{candidate.reason}</small></span>
-        <button onClick={(event) => { event.preventDefault(); onPage(candidate.pageNumber); }} type="button">View</button>
-      </label>)}</div>
+      <div className="p7-candidate-list">{candidates.map((candidate) => <div key={candidate.id} className="p7-candidate">
+        <label><input checked={selected.has(candidate.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(candidate.id)) next.delete(candidate.id); else next.add(candidate.id); return next; })} type="checkbox" /><span><strong>{candidate.label}</strong><small>Page {candidate.pageNumber} · {candidate.type} · {candidate.confidence} confidence</small><small>{candidate.reason}</small></span></label>
+        <button onClick={() => { onPage(candidate.pageNumber); onPreview?.(candidate); }} type="button">View</button>
+      </div>)}</div>
       <button className="button" disabled={!selected.size || disabled} onClick={acceptSelected} type="button">Add {selected.size} selected field{selected.size === 1 ? "" : "s"}</button>
     </div> : null}
 
