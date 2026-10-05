@@ -5,6 +5,7 @@ import {
   chooseFidelitySamplePages,
   comparePdfFidelityProfiles,
   stableTextDigest,
+  type PdfFidelityExpectations,
   type PdfFidelityProfile,
   type PdfFidelityReport,
   type PdfPageSemanticFingerprint
@@ -175,14 +176,23 @@ export async function inspectPdfFidelityProfile(
   }
 }
 
+export interface PdfFidelityValidationOptions {
+  sourcePassword?: string;
+  outputPassword?: string;
+  expectations?: PdfFidelityExpectations;
+}
+
 export async function validatePdfFidelity(
   sourceBytes: Uint8Array,
   outputBytes: Uint8Array,
   affectedPages: Iterable<number>,
   password?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: PdfFidelityValidationOptions = {}
 ): Promise<PdfFidelityReport> {
-  const source = await inspectPdfFidelityProfile(sourceBytes, affectedPages, password, signal);
-  const output = await inspectPdfFidelityProfile(outputBytes, source.affectedPages, password, signal, source.sampledPages);
-  return comparePdfFidelityProfiles(source, output);
+  const sourcePassword = options.sourcePassword ?? password;
+  const outputPassword = options.outputPassword ?? password;
+  const source = await inspectPdfFidelityProfile(sourceBytes, affectedPages, sourcePassword, signal);
+  const output = await inspectPdfFidelityProfile(outputBytes, source.affectedPages, outputPassword, signal, source.sampledPages);
+  return comparePdfFidelityProfiles(source, output, options.expectations);
 }
