@@ -42,8 +42,8 @@ P8 fails closed by default. Structural differences are accepted only when the ac
 
 Examples:
 
-- P7 form creation may increase form/widget counts by the reviewed number of fields.
-- Form flattening expects zero interactive fields.
+- P7 form creation declares the exact form-field total and exact per-page widget-count delta.
+- Form flattening expects zero interactive fields and zero widgets on affected pages.
 - Attachment cleanup expects zero attachments.
 - Metadata removal expects core metadata to be cleared.
 - JavaScript cleanup expects JavaScript to be absent.
