@@ -145,7 +145,7 @@ export interface SecurityProjectState {
 
 export interface SecurityExportOptions {
   formUpdates: FormFieldUpdate[];
-  formCreates: FormFieldCreate[];
+  formCreates?: FormFieldCreate[];
   redaction: RedactionApplyOptions;
   sanitization: SanitizationOptions;
   encryption: EncryptionOptions;
