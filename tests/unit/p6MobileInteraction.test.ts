@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import databaseSource from "../../src/storage/database.ts?raw";
 import releaseSource from "../../src/core/release.ts?raw";
 
-const mobileCss = readFileSync(new URL("../../src/product/mobile-interaction.css", import.meta.url), "utf8");
+const mobileCss = readFileSync("src/product/mobile-interaction.css", "utf8");
 
 describe("P6 mobile interaction excellence", () => {
   it("does not require drag-and-drop for page reordering", () => {
