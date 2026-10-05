@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   discoverRedactionCandidates,
@@ -36,15 +36,21 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
   const [candidates, setCandidates] = useState<RedactionCandidate[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
+  const [progress, setProgress] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState("");
+  const scanRef = useRef<AbortController | null>(null);
+  useEffect(() => () => scanRef.current?.abort(), []);
 
   const selectedCount = selected.size;
   const groupedPages = useMemo(() => new Set(candidates.map((candidate) => candidate.pageNumber)).size, [candidates]);
 
   async function scan(): Promise<void> {
     if (disabled || scanning) return;
-    setScanning(true); setError(""); setCandidates([]); setSelected(new Set()); onPreview?.(null);
+    const controller = new AbortController();
+    scanRef.current?.abort();
+    scanRef.current = controller;
+    setScanning(true); setProgress("Starting scan…"); setError(""); setCandidates([]); setSelected(new Set()); onPreview?.(null);
     try {
       const found = await discoverRedactionCandidates(document, {
         mode,
@@ -52,12 +58,15 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
         caseSensitive,
         sensitive: [...sensitive],
         pages: scope === "page" ? [currentPage] : undefined
-      });
+      }, controller.signal, (completed, total) => setProgress(`Scanning page ${completed} of ${total}…`));
       setCandidates(found);
       setSelected(new Set(found.map((candidate) => candidate.id)));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    } finally { setScanning(false); }
+      if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (scanRef.current === controller) scanRef.current = null;
+      setScanning(false); setProgress("");
+    }
   }
 
   async function accept(): Promise<void> {
@@ -83,11 +92,12 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
       <label><span>Find by</span><select disabled={disabled || scanning} value={mode} onChange={(event) => setMode(event.target.value as RedactionSearchMode)}><option value="text">Exact text</option><option value="regex">Regular expression</option><option value="sensitive">Sensitive data</option></select></label>
       {mode !== "sensitive" ? <label className="p7-redaction-query__text"><span>{mode === "regex" ? "Pattern" : "Text"}</span><input disabled={disabled || scanning} placeholder={mode === "regex" ? "e.g. ID-\\d{6}" : "Text to mark"} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void scan(); } }} /></label> : null}
       <label><span>Scope</span><select disabled={disabled || scanning} value={scope} onChange={(event) => setScope(event.target.value as "page" | "document")}><option value="page">Current page</option><option value="document">Whole document</option></select></label>
-      <button className="button" disabled={disabled || scanning || (mode !== "sensitive" && !query.trim()) || (mode === "sensitive" && !sensitive.size)} onClick={() => void scan()} type="button">{scanning ? "Scanning…" : "Scan"}</button>
+      {scanning ? <button className="button button--secondary" onClick={() => scanRef.current?.abort()} type="button">Cancel scan</button> : <button className="button" disabled={disabled || (mode !== "sensitive" && !query.trim()) || (mode === "sensitive" && !sensitive.size)} onClick={() => void scan()} type="button">Scan</button>}
     </div>
 
     {mode === "sensitive" ? <div className="p7-sensitive-patterns">{sensitiveOptions.map((option) => <label key={option.id}><input checked={sensitive.has(option.id)} disabled={disabled || scanning} onChange={() => setSensitive((current) => { const next = new Set(current); if (next.has(option.id)) next.delete(option.id); else next.add(option.id); return next; })} type="checkbox" /><span>{option.label}</span></label>)}</div> : <label className="property-toggle"><input checked={caseSensitive} disabled={disabled || scanning} onChange={(event) => setCaseSensitive(event.target.checked)} type="checkbox" />Case-sensitive matching</label>}
 
+    {progress ? <p className="quick-hint" role="status">{progress}</p> : null}
     {error ? <p className="selection-help selection-help--error" role="alert">{error}</p> : null}
 
     {candidates.length ? <div className="p7-candidate-review">
