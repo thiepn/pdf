@@ -20,11 +20,13 @@ describe("P2 intelligent document entry wiring", () => {
     expect(workspaceSource).not.toContain('setError("Recommendation');
   });
 
-  it("reuses the same recommendations in document entry and the document-actions sheet without moving document chrome", () => {
+  it("reuses the same recommendations without overlaying the document/editor hit area", () => {
     expect(workspaceSource).toContain('className="document-entry-overlay"');
     expect(workspaceSource).toContain("<DocumentEntryRecommendations recommendations={entryRecommendations}");
     expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
-    expect(workspaceSource.indexOf('className="document-entry-overlay"')).toBeGreaterThan(workspaceSource.indexOf('className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader"'));
+    expect(workspaceSource.indexOf('className="document-entry-overlay"')).toBeLessThan(workspaceSource.indexOf('className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"'));
+    expect(workspaceCss).toMatch(/\.document-entry-overlay\s*\{[\s\S]*position:\s*relative/);
+    expect(workspaceCss).not.toMatch(/\.document-entry-overlay\s*\{[\s\S]*position:\s*absolute/);
   });
 
   it("suppresses the floating recommendation overlay before tablet controls can be covered", () => {
