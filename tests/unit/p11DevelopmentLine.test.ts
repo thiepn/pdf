@@ -8,6 +8,7 @@ import p9FreezeSource from "../../docs/p9/release-freeze.json?raw";
 import promotionWorkflow from "../../.github/workflows/promote-stable.yml?raw";
 import postReleaseWorkflow from "../../.github/workflows/post-release-verification.yml?raw";
 import stableWorkflow from "../../.github/workflows/release.yml?raw";
+import cutReadinessWorkflow from "../../.github/workflows/p11-version-cut-readiness.yml?raw";
 
 const manifest = JSON.parse(manifestSource);
 const pkg = JSON.parse(packageSource);
@@ -45,6 +46,16 @@ describe("P11 v7.2 development-line foundation", () => {
     expect(postReleaseWorkflow).toContain("v7.1.4-post-release-certificate");
     expect(stableWorkflow).toContain('tags: ["v7.1.4"]');
     expect(stableWorkflow).not.toContain('tags: ["v7.2.0"]');
+  });
+
+  it("keeps the version cut read-only and evidence-gated", () => {
+    expect(cutReadinessWorkflow).toContain("workflow_dispatch:");
+    expect(cutReadinessWorkflow).toContain("post-release-verification.yml/runs");
+    expect(cutReadinessWorkflow).toContain("v7.1.4-post-release-certificate");
+    expect(cutReadinessWorkflow).toContain("expired == false");
+    expect(cutReadinessWorkflow).toContain("verify-version-cut-readiness.mjs");
+    expect(cutReadinessWorkflow).toContain("v7.2-version-cut-readiness");
+    expect(cutReadinessWorkflow).not.toContain("git push");
   });
 
   it("keeps persistent formats frozen at the inherited v7.1.4 boundary", () => {
