@@ -180,7 +180,8 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
         ...redactionPages
       ]);
       if (
-        security.sanitization.removeLinks
+        (security.redaction.enabled && inspection.redactionMarkCount > 0)
+        || security.sanitization.removeLinks
         || security.sanitization.removeComments
         || security.sanitization.clearFormValues
         || security.sanitization.flattenForms
