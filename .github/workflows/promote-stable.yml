@@ -13,7 +13,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -28,6 +28,7 @@ jobs:
       VERSION: 7.1.4
       TAG: v7.1.4
       GH_TOKEN: ${{ github.token }}
+      PROMOTION_TOKEN: ${{ secrets.STABLE_PROMOTION_TOKEN }}
     steps:
       - name: Check out main history
         uses: actions/checkout@v7
@@ -103,8 +104,9 @@ jobs:
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
         run: |
           set -euo pipefail
-          git checkout --detach "$CANDIDATE_SHA"
-          node scripts/p10/verify-promotion-certificate.mjs /tmp/p10-release-certificate.json "$CANDIDATE_SHA"
+          rm -rf /tmp/p10-candidate
+          git worktree add --detach /tmp/p10-candidate "$CANDIDATE_SHA"
+          node scripts/p10/verify-promotion-certificate.mjs /tmp/p10-release-certificate.json "$CANDIDATE_SHA" /tmp/p10-candidate
 
       - name: Create promotion receipt
         env:
@@ -125,14 +127,23 @@ jobs:
           await writeFile("/tmp/p10-promotion-receipt.json", JSON.stringify(receipt, null, 2) + "\n");
           NODE
 
+      - name: Require promotion credential capable of triggering Stable workflow
+        run: |
+          set -euo pipefail
+          test -n "$PROMOTION_TOKEN" || {
+            echo "::error::Repository secret STABLE_PROMOTION_TOKEN is required. The default GITHUB_TOKEN is deliberately not used for the tag push because events it creates do not trigger the Stable tag workflow."
+            exit 1
+          }
+
       - name: Create immutable Stable tag
         env:
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "pdf-studio-release"
+          git config user.email "pdf-studio-release@users.noreply.github.com"
           git tag -a "$TAG" "$CANDIDATE_SHA" -m "PDF Studio $TAG — P10 certified Stable promotion"
+          git remote set-url origin "https://x-access-token:${PROMOTION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "refs/tags/$TAG"
 
       - name: Retain promotion receipt
