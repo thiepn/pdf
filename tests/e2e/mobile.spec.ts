@@ -22,10 +22,19 @@ test("primary file and editing actions remain touch-sized and horizontally conta
   expect((await page.getByRole("button", { name: "Choose files", exact: true }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
   await openSample(page, "editor");
-  for (const name of ["Add text", "More tools", "Download PDF"]) {
+  for (const name of ["Add text", "More tools"]) {
     const control = page.getByRole("button", { name, exact: true });
     const box = await control.boundingBox(); expect(box!.height).toBeGreaterThanOrEqual(44); expect(box!.width).toBeGreaterThanOrEqual(44);
   }
+  const saveCandidates = page.getByRole("button", { name: /^(?:Download PDF|Save PDF|Save as PDF)$/ });
+  let saveControl = saveCandidates.first();
+  for (let index = 0; index < await saveCandidates.count(); index += 1) {
+    const candidate = saveCandidates.nth(index);
+    if (await candidate.isVisible()) { saveControl = candidate; break; }
+  }
+  await expect(saveControl).toBeVisible();
+  const saveBox = await saveControl.boundingBox();
+  expect(saveBox!.height).toBeGreaterThanOrEqual(44); expect(saveBox!.width).toBeGreaterThanOrEqual(44);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 test("editor commands remain reachable from 320px through tablet widths", async ({ page }) => {
@@ -130,8 +139,10 @@ test("phone editor uses one row and keeps tools, undo, properties and download w
   await tools.getByRole("button",{name:"Properties",exact:true}).click();
   await expect(tools).toHaveCount(0); await expect(page.locator(".editor-properties")).toBeVisible();
   await page.getByRole("button",{name:"Close editor panel",exact:true}).click({position:{x:12,y:12}});
+  await page.getByRole("button",{name:"More tools",exact:true}).click();
+  const saveTools=page.getByRole("dialog",{name:"Editor tools"});
   const download=page.waitForEvent("download");
-  await page.getByRole("button",{name:"Download PDF",exact:true}).click();
+  await saveTools.getByRole("button",{name:"Download copy",exact:true}).click();
   expect((await download).suggestedFilename()).toMatch(/\.pdf$/i);
   await page.screenshot({path:info.outputPath("compact-editor-phone.png")});
 });
@@ -237,26 +248,29 @@ test("phone page organizer can reorder without drag and keeps touch controls rea
   await page.goto("./#/tools/read-pdf");
   await page.getByLabel("PDF file", { exact: true }).setInputFiles("tests/corpus/generated/plain-text.pdf");
   await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
-  await switchMode(page, "organizer");
+  await openDocumentActions(page);
+  await page.getByRole("dialog", { name: "Document actions", exact: true }).getByRole("button", { name: "Arrange pages", exact: true }).last().click();
+  await expect(page).toHaveURL(/\/quick\/organize-pages$/);
+  await expect(page.locator(".assembly")).toBeVisible({ timeout: 20_000 });
 
-  const cards = page.locator(".organizer-page");
+  const cards = page.locator(".assembly-card");
   await expect(cards.first()).toBeVisible();
   expect(await cards.count()).toBeGreaterThan(1);
 
-  const before = await page.locator(".organizer-page__meta span").allTextContents();
-  const moveLater = page.getByRole("button", { name: "Move page 1 later", exact: true });
+  const before = await page.locator(".assembly-source").allTextContents();
+  const moveLater = page.getByRole("button", { name: "Move output page 1 later", exact: true });
   await expect(moveLater).toBeVisible();
   const target = await moveLater.boundingBox();
   expect(target!.height).toBeGreaterThanOrEqual(44);
   expect(target!.width).toBeGreaterThanOrEqual(44);
 
   await moveLater.click();
-  const after = await page.locator(".organizer-page__meta span").allTextContents();
+  const after = await page.locator(".assembly-source").allTextContents();
   expect(after[0]).toBe(before[1]);
   expect(after[1]).toBe(before[0]);
 
-  await page.locator(".organizer-page__preview").first().click();
-  const position = page.getByLabel("Move selected pages to position", { exact: true });
+  await page.getByText("Page actions", { exact: true }).first().click();
+  const position = page.getByLabel("Position of output page 1", { exact: true });
   await expect(position).toBeVisible();
   expect((await position.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await overflow(page)).toBeLessThanOrEqual(1);

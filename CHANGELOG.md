@@ -2,11 +2,33 @@
 
 ## 7.1.4 — Task-first PDF Tools & Release Candidate
 
-- Enforces locked added objects as a real editor protection boundary across properties, keyboard movement, layout actions, duplication, deletion, grouping, layer order, and the new Cut workflow while keeping visibility toggles independently usable.
+### Product hardening
+
+- **P1 Existing-Content Editing Excellence:** safer find/replace, style-aware fit/reflow, exact source-span removal, background preservation, imported-font preflight, original-vs-edited verification, and history-synchronized properties.
+- **P2 Intelligent Document Entry:** deterministic local document evidence recommends 2–4 existing tasks without an AI/chat dependency and without delaying document opening.
+- **P3 OCR 2.0 / Scan-to-Editable:** keeps original page artwork, persists local OCR evidence/corrections, supports region OCR, appends invisible searchable text, and continues into Edit as a derived copy.
+- **P4 Native File Workflow:** progressive native Open/Save/Save As, explicit Replace original, linked-file conflict protection, download fallback, and external `.lpsproject` backup folders.
+- **P5 Trust & Output Verification:** shared measured verification evidence, honest sampled checks, and explicit lossy-operation consequences across major workflows.
+- **P6 Mobile Interaction Excellence:** shifted VisualViewport/keyboard handling, 44 px touch targets, and touch-complete page reordering without requiring HTML drag-and-drop.
+- **P7 Forms & Redaction Excellence:** reviewed interactive text/checkbox creation plus local sensitive-content discovery that only becomes permanent through the validated redaction writer.
+- **P8 Fidelity & Compatibility:** mandatory pre-publication fidelity gates with exact intent-aware structural expectations and deterministic bounded untouched-page checks.
+
+### Editor defect hardening
+
+- Enforces locked added objects as a real editor protection boundary across properties, keyboard movement, layout actions, duplication, deletion, grouping, layer order, and Cut while keeping visibility toggles independently usable.
 - Keeps the Properties panel synchronized with actual selection state on compact/mobile layouts, including tool changes, empty-canvas clicks, Escape, deletion, additive deselection, and Undo/Redo restoration.
 - Adds page-scoped Ctrl/Cmd+A selection for visible added objects and selectable existing-PDF content without overriding normal text-field selection.
 - Adds safe Ctrl/Cmd+X Cut for objects added in PDF Studio with immediate internal clipboard support, Undo/Redo/Paste history, full refusal for mixed selections containing original PDF content, and locked-object protection.
-- Expands browser/mobile regressions for lock semantics, panel dismissal, mixed-selection safety, Cut → Undo → Redo → Paste, and restored Properties state without changing project package v9, database schema v13, or native-editor schema v6.
+
+### Release certification
+
+- Freezes the current P1–P8 roadmap in a machine-checked P9 release manifest.
+- Retains all historical v6 maintenance and v7 universal-editing regression gates underneath the current product-hardening stack.
+- Requires exact-lock/toolchain/dependency/security audits, independent compatibility-corpus opening, TypeScript/unit qualification, verified distribution auditing, repeat-build fingerprint identity, and exact-artifact browser testing.
+- Release completion qualifies both release-candidate and stable channels across Chromium, Firefox, WebKit, phone Chromium, and tablet WebKit with zero retries and emits the exact-head `v7.1.4-release-certificate`.
+- Stable publication remains exact-tag and main-ancestry gated, deploys the already qualified artifact, smoke-tests the live PWA identity, and only then publishes the GitHub Release.
+- Stable release assets now include curated release notes, the P9 freeze/qualification documents, release metadata/integrity evidence, licence inventory, corpus reports, source/distribution archives, and SHA-256 checksums.
+- Project package remains v9, database schema v13, and native-editor schema v6.
 
 ## 7.1.3 — Task-first PDF Tools & Release Candidate
 

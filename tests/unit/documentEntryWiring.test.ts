@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import workspaceSource from "../../src/workspace/UnifiedWorkspace.tsx?raw";
 import recommendationSource from "../../src/product/DocumentEntryRecommendations.tsx?raw";
 import entrySource from "../../src/product/documentEntry.ts?raw";
+// @ts-expect-error Vitest runs in Node; the browser app tsconfig intentionally excludes Node built-in typings.
+import { readFileSync } from "node:fs";
+
+const workspaceCss = readFileSync("src/product/workspace.css", "utf8");
 
 describe("P2 intelligent document entry wiring", () => {
   it("shows immediate manifest recommendations and refines them after a delayed local inspection", () => {
@@ -16,11 +20,19 @@ describe("P2 intelligent document entry wiring", () => {
     expect(workspaceSource).not.toContain('setError("Recommendation');
   });
 
-  it("reuses the same recommendations in document entry and the document-actions sheet without moving document chrome", () => {
+  it("reuses the same recommendations without overlaying the document/editor hit area", () => {
     expect(workspaceSource).toContain('className="document-entry-overlay"');
     expect(workspaceSource).toContain("<DocumentEntryRecommendations recommendations={entryRecommendations}");
     expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
-    expect(workspaceSource.indexOf('className="document-entry-overlay"')).toBeGreaterThan(workspaceSource.indexOf('className={mode === "viewer" ? "workspace-mode-content workspace-mode-content--reader"'));
+    expect(workspaceSource.indexOf('className="document-entry-overlay"')).toBeLessThan(workspaceSource.indexOf('className={session.timelineOpen || (session.preservationOpen && settings.showPreservationWarnings) ? "workspace-body workspace-body--panel" : "workspace-body"'));
+    expect(workspaceCss).toMatch(/\.document-entry-overlay\s*\{[\s\S]*position:\s*relative/);
+    expect(workspaceCss).not.toMatch(/\.document-entry-overlay\s*\{[\s\S]*position:\s*absolute/);
+  });
+
+  it("suppresses the floating recommendation overlay before tablet controls can be covered", () => {
+    expect(workspaceCss).toContain("@media (max-width: 900px)");
+    expect(workspaceCss).toMatch(/@media \(max-width: 900px\)[\s\S]*\.document-entry-overlay[\s\S]*display:\s*none/);
+    expect(workspaceSource).toContain("<DocumentEntryRecommendations compact recommendations={entryRecommendations}");
   });
 
   it("avoids a full security-page walk for large ordinary PDFs", () => {

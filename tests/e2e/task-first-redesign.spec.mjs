@@ -144,6 +144,17 @@ test("opened PDFs surface local task recommendations through the existing worksp
     await expect(recommendations).toContainText("Nothing is uploaded and no AI model reads the document.");
     await expect(recommendations.getByRole("button").first()).toBeEnabled();
 
+    const recommendationBox = await recommendations.boundingBox();
+    const workspaceBox = await page.locator(".workspace-body").boundingBox();
+    expect(recommendationBox).toBeTruthy();
+    expect(workspaceBox).toBeTruthy();
+    expect(recommendationBox.y + recommendationBox.height).toBeLessThanOrEqual(workspaceBox.y + 1);
+
+    const addText = page.getByRole("button", { name: "Add text", exact: true });
+    await addText.click();
+    await expect(addText).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+
     await page.getByRole("button", { name: "Document actions", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
     await expect(dialog.locator('section[aria-label="Suggested actions for this PDF"]')).toBeVisible();

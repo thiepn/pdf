@@ -1,10 +1,38 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
 
 export const channels = ["release-candidate", "stable"];
 export const projects = ["chromium", "firefox", "webkit", "mobile-chromium", "tablet-webkit"];
+
+const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+
+export async function loadReleaseContractIdentity(root = new URL("../../", import.meta.url)) {
+  const packageBytes = await readFile(new URL("package.json", root));
+  const freezeBytes = await readFile(new URL("docs/p9/release-freeze.json", root));
+  const pkg = JSON.parse(packageBytes.toString("utf8"));
+  const freeze = JSON.parse(freezeBytes.toString("utf8"));
+  assert.equal(freeze.version, pkg.version, "Release freeze version must match package.json");
+  assert.equal(freeze.stableTag, `v${pkg.version}`, "Release freeze stable tag must match package version");
+  assert.equal(freeze.channel, "release-candidate", "Source release freeze must remain release-candidate");
+  assert.equal(freeze.certification, "pending-ci", "Source release freeze cannot predeclare certification");
+  const notesUrl = new URL(freeze.releaseNotes, root);
+  const releaseNotesBytes = await readFile(notesUrl);
+  assert.ok(releaseNotesBytes.length > 0, "Curated release notes are empty");
+  return {
+    version: pkg.version,
+    roadmap: freeze.roadmap,
+    stableTag: freeze.stableTag,
+    projectPackageVersion: freeze.projectPackageVersion,
+    databaseSchemaVersion: freeze.databaseSchemaVersion,
+    nativeEditorSchemaVersion: freeze.nativeEditorSchemaVersion,
+    freezeSha256: sha256(freezeBytes),
+    releaseNotesPath: freeze.releaseNotes,
+    releaseNotesSha256: sha256(releaseNotesBytes)
+  };
+}
 
 export function summarizeReport(report, project) {
   assert.ok(report && typeof report === "object", "Missing browser report");
@@ -62,7 +90,7 @@ export async function certifyMatrix(directory, identity) {
     assert.equal(reports.length, 1, `Expected exactly one report in ${artifact}`);
     matrix.push({ channel, ...summarizeReport(JSON.parse(await readFile(reports[0], "utf8")), project) });
   }
-  return { schemaVersion: 1, ...identity, status: "AUTOMATED_RELEASE_MATRIX_PASS", matrix,
+  return { schemaVersion: 2, ...identity, status: "AUTOMATED_RELEASE_MATRIX_PASS", matrix,
     totals: matrix.reduce((sum, row) => ({ passed: sum.passed + row.passed, skipped: sum.skipped + row.skipped }), { passed: 0, skipped: 0 }),
     limitations: ["Automated browser profiles do not certify physical devices or human usability.", "This certificate does not publish a release or attest deployment smoke tests."] };
 }
@@ -70,8 +98,8 @@ export async function certifyMatrix(directory, identity) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [directory, output] = process.argv.slice(2);
   assert.ok(directory && output, "Usage: node certify-browser-matrix.mjs <artifact-directory> <output.json>");
-  const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
-  const certificate = await certifyMatrix(resolve(directory), { sourceSha: process.env.GITHUB_SHA, version: pkg.version, runId: process.env.GITHUB_RUN_ID });
+  const contract = await loadReleaseContractIdentity();
+  const certificate = await certifyMatrix(resolve(directory), { sourceSha: process.env.RELEASE_SOURCE_SHA ?? process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, ...contract });
   await writeFile(output, JSON.stringify(certificate, null, 2) + "\n");
   console.log(JSON.stringify(certificate, null, 2));
 }

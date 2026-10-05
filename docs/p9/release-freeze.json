@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "phase": "P9",
   "version": "7.1.4",
   "channel": "release-candidate",
@@ -7,5 +7,18 @@
   "projectPackageVersion": 9,
   "databaseSchemaVersion": 13,
   "nativeEditorSchemaVersion": 6,
-  "certification": "pending"
+  "roadmap": "task-first-product-hardening",
+  "phaseDocs": {
+    "P1": "docs/product/P1_EXISTING_TEXT_EDITING_EXCELLENCE.md",
+    "P2": "docs/product/P2_INTELLIGENT_DOCUMENT_ENTRY.md",
+    "P3": "docs/product/P3_OCR_SCAN_TO_EDITABLE.md",
+    "P4": "docs/product/P4_NATIVE_FILE_WORKFLOW.md",
+    "P5": "docs/product/P5_TRUST_OUTPUT_VERIFICATION.md",
+    "P6": "docs/product/P6_MOBILE_INTERACTION_EXCELLENCE.md",
+    "P7": "docs/product/P7_FORMS_REDACTION_EXCELLENCE.md",
+    "P8": "docs/product/P8_FIDELITY_COMPATIBILITY.md"
+  },
+  "releaseNotes": "docs/releases/v7.1.4/release-notes.md",
+  "certificateArtifact": "v7.1.4-release-certificate",
+  "certification": "pending-ci"
 }

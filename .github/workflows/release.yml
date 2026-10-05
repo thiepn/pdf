@@ -116,6 +116,11 @@ jobs:
           cp docs/phase-28/adversarial-corpus-report.json "release-assets/pdf-studio-v7.1.4-adversarial-corpus-validation.json"
           cp docs/p8/compatibility-corpus-report.json "release-assets/pdf-studio-v7.1.4-compatibility-corpus-validation.json"
           cp docs/P9_RELEASE_CANDIDATE.md "release-assets/pdf-studio-v7.1.4-qualification.md"
+          cp docs/p9/release-freeze.json "release-assets/pdf-studio-v7.1.4-release-freeze.json"
+          cp docs/releases/v7.1.4/release-notes.md "release-assets/pdf-studio-v7.1.4-release-notes.md"
+          cp dist/release-metadata.json "release-assets/pdf-studio-v7.1.4-release-metadata.json"
+          cp dist/release-integrity.json "release-assets/pdf-studio-v7.1.4-release-integrity.json"
+          cp dist/license-inventory.json "release-assets/pdf-studio-v7.1.4-license-inventory.json"
           (cd release-assets && sha256sum pdf-studio-* > pdf-studio-v7.1.4.sha256)
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
@@ -170,5 +175,6 @@ jobs:
         with:
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: release-assets/pdf-studio-v7.1.4-release-notes.md
           files: release-assets/*

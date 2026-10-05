@@ -1,68 +1,152 @@
-# P9 — v7.1.4 Task-first Release Candidate
+# P9 — v7.1.4 Release Candidate Certification
 
-P9 is the final phase of the Universal Editing roadmap. It is a release freeze and certification phase, not a feature-expansion phase.
+P9 is the final phase of the current task-first product-hardening roadmap. It is a **release freeze, certification, packaging, deployment-verification, and defect-only phase**. It introduces no new PDF editing primitive.
 
 ## Release identity
 
 - Product: PDF Studio
 - Candidate version: `7.1.4`
 - Source/default channel: `release-candidate`
-- Stable channel: exact future `v7.1.4` tag only
+- Stable tag: exact future `v7.1.4`
 - Stable tag must be reachable from `main`
-- Project package format: v9 (unchanged)
-- Database schema: v13 (unchanged)
-- Native editor state schema: v6 (unchanged from the P7/P8 qualified stack)
+- Project package: v9
+- Database schema: v13
+- Native editor state schema: v6
+- Release manifest: `docs/p9/release-freeze.json`
 
-## Frozen P1–P8 capability stack
+A green check on an older commit is not release evidence for a newer commit.
 
-1. **P1 — Existing text foundation**: deterministic direct text editing for supported source text.
-2. **P2 — Layout-aware reflow & font fidelity**: paragraph reconstruction, fit evidence, preserved style runs, and deterministic downstream movement where supported.
-3. **P3 — Existing images**: source image move/resize/fit/crop/opacity/rotation/replacement/deletion through a qualified image writer.
-4. **P4 — Existing vectors**: exact supported path identity, geometry/paint/stroke/dash/alpha transforms, and deletion without broad page flattening.
-5. **P5 — Structured tables**: detected cell-grid editing, merge/rebuild, row/column geometry, and safe whole-table transforms.
-6. **P6 — Unified object layout**: mixed added/native selection, move, resize, alignment, distribution, matching, nudging, and rotation through the correct underlying writer.
-7. **P7 — Complex/nested PDF content**: reusable Form XObject instances are first-class nested groups that can be transformed/deleted independently without flattening their shared source.
-8. **P8 — Fidelity & compatibility**: source/output structural and sampled semantic certification plus a nine-class external-reader compatibility corpus.
+## Current P1–P8 product stack
 
-## P9 hard gates
+P9 certifies the actual product-hardening roadmap completed immediately before this phase:
 
-A v7 RC is acceptable only when all of the following are green on the exact candidate head:
+1. **P1 — Existing-Content Editing Excellence**  
+   Existing text editing, find/replace, fit/reflow safety, style/background/span preservation, imported-font preflight, original-vs-edited comparison, and synchronized history.
 
-- P9 release-candidate source audit (`RC_FREEZE_PASS`).
-- Historical Phase 11–30 stability/runtime/migration/security gates.
-- Historical v6.0.1–v6.1.0 maintenance regressions, widened only so they continue to protect v7 without forcing a v6 version number.
-- Dedicated v7.0.0 universal-editing regression retained across the v7 release line.
-- P8 compatibility corpus independently opened by PyMuPDF and pypdf.
-- Source audit, Pages readiness, dependency policy, lockfile/toolchain/tree audits, and moderate-or-higher npm security gate.
-- TypeScript qualification and complete unit suite.
-- Verified production build and distribution audit.
-- Same-commit reproducibility fingerprint comparison.
-- Both release-candidate and stable build channels qualified by the ten-job browser matrix; passes, skips and their reasons are retained separately.
-- Full and production-only dependency audit reports with no reported vulnerabilities.
-- Application and upstream licence texts packaged deterministically, verified against the lock and installed packages, and readable offline.
-- Playwright regression against the exact verified distribution, including Chromium, Firefox, WebKit, mobile Chromium, and tablet WebKit projects already defined by the repository.
-- P1–P8 browser regressions, including the mixed P6 overlay/native export path and P8 rotated/cropped + incremental-revision editor exports.
+2. **P2 — Intelligent Document Entry**  
+   Deterministic local document evidence selects 2–4 useful existing tasks without adding an AI/chat layer or blocking document opening.
 
-## Publication contract
+3. **P3 — OCR 2.0 / Scan-to-Editable**  
+   Source-preserving OCR evidence, correction/review, region OCR, invisible searchable text layers, and Continue in Edit without replacing the original page artwork.
 
-The task-first release PR targets `main` directly. Merging it does **not** publish Stable: the candidate Pages workflow rebuilds and requalifies the merged commit with `VITE_RELEASE_CHANNEL=release-candidate`, unless a same-version Stable tag already exists. Existing Stable tags are never moved or replaced.
+4. **P4 — Native File Workflow**  
+   Progressive native Open / Save / Save As, explicit Replace original, linked-file conflict checks, download fallback, and external `.lpsproject` backups without changing the main DB/package formats.
 
-Stable publication requires an exact `v7.1.4` tag on a commit reachable from `main`. The Stable workflow must then independently:
+5. **P5 — Trust & Output Verification**  
+   Shared post-operation verification evidence, measured preservation/change results, honest sampled checks, and explicit lossy-operation consequences.
 
-1. verify exact tag identity and main-history ancestry;
-2. install the committed exact dependency graph;
-3. rerun P9 plus the frozen full release gate;
-4. reproducibly rebuild the distribution;
-5. browser-qualify that exact artifact;
-6. verify `release-metadata.json` says `7.1.4` + `stable`;
-7. deploy that already-qualified artifact;
-8. smoke-test the deployed application/PWA identity;
-9. only then publish the GitHub Release and checksums.
+6. **P6 — Mobile Interaction Excellence**  
+   Live VisualViewport handling, keyboard-safe sheets, minimum touch targets, and touch-complete page reordering without requiring desktop drag-and-drop.
 
-## Non-goals / retained boundaries
+7. **P7 — Forms & Redaction Excellence**  
+   Reviewed interactive text/checkbox field creation plus local sensitive-text discovery that only becomes permanent through the existing validated redaction writer.
 
-P9 does not claim universal Word-like editing of arbitrary PDFs. Unsupported or ambiguous source constructs must remain preserved, explicitly capability-limited, or fail closed. Rasterizing workflows keep their existing explicit interactive-structure loss boundary. Browser-only certificate signing and certified standards conversion remain outside the v7 claim.
+8. **P8 — Fidelity & Compatibility**  
+   Mandatory source/output fidelity gates before publication, exact intent-aware structural expectations, bounded untouched-page semantic checking, and independent external-reader compatibility validation.
+
+The older v7 universal-editing engine regressions remain frozen underneath this product layer and continue to run. P9 does not remove historical release protection simply because the current product roadmap has different phase names.
+
+## Exact-head certification gates
+
+An RC is acceptable only when all required checks are green on the exact candidate head:
+
+- P9 release-freeze source audit.
+- Current P1–P8 phase manifest/source contract.
+- Historical Phase 11–30 runtime/migration/security gates.
+- v6.0.1–v6.1.0 maintenance regressions.
+- frozen v7 universal-editing runtime regression.
+- P8 compatibility corpus opened independently by PyMuPDF and pypdf.
+- exact lockfile, toolchain, dependency-tree, source, Pages and moderate-or-higher npm security audits.
+- TypeScript + complete unit suite.
+- verified production distribution audit.
+- repeat-build distribution fingerprint identity.
+- browser regression against the exact verified artifact.
+- Chromium, Firefox, WebKit, phone Chromium, and tablet WebKit coverage for both release-candidate and stable channels through Release completion verification.
+- deterministic application/upstream licence bundle and offline licence availability.
+- no unexplained failures, flakiness, expected failures, missing reports, or administrative bypasses.
+
+The read-only **Release completion verification** workflow is the canonical pre-publication certificate. Its `v7.1.4-release-certificate` artifact identifies the exact source SHA, channel/browser matrix and actual execution counts.
+
+## Packaging contract
+
+The Stable workflow must package and checksum:
+
+- source ZIP;
+- source tar.gz;
+- exact browser-qualified distribution ZIP;
+- ordinary/adversarial/P8 compatibility corpus reports;
+- P9 qualification contract;
+- P9 release-freeze manifest;
+- curated v7.1.4 release notes;
+- release metadata;
+- release integrity manifest;
+- licence inventory;
+- SHA-256 manifest covering the published release assets.
+
+The GitHub Release body comes from the curated v7.1.4 release notes, not automatically generated commit prose.
+
+## Candidate publication
+
+Merging an RC PR does **not** make it Stable.
+
+The main-branch Pages workflow:
+
+1. checks whether the same-version Stable tag already exists;
+2. if not, requalifies the merged commit;
+3. reproducibly builds `release-candidate`;
+4. browser-tests that exact distribution;
+5. deploys only the qualified artifact;
+6. verifies version/channel/integrity/offline assets after deployment.
+
+If `v7.1.4` already exists, candidate deployment for the same version is deliberately suppressed so a Stable site cannot be overwritten by a candidate.
+
+## Stable promotion
+
+Stable publication requires the exact immutable `v7.1.4` tag on a commit reachable from `main`.
+
+The Stable workflow must then independently:
+
+1. verify tag identity and main ancestry;
+2. install the exact committed dependency graph;
+3. prepare and independently validate all release corpora;
+4. rerun P9 and the full frozen web gate;
+5. reproducibly rebuild the stable distribution;
+6. browser-qualify the exact stable artifact;
+7. verify `release-metadata.json` reports `7.1.4` + `stable`;
+8. run dependency security qualification;
+9. create deterministic release assets/checksums;
+10. deploy the already-qualified artifact;
+11. smoke-test the deployed PWA/version/channel/integrity identity;
+12. only then publish the GitHub Release.
+
+A PR merge, a Pages deployment, a tag and a published Stable GitHub Release are distinct states.
+
+## Defect-only rule
+
+After entering P9:
+
+- no new editing primitives;
+- no speculative feature expansion;
+- no persistent format bump unless a release-critical defect makes it unavoidable and the release freeze is intentionally reopened;
+- fixes must protect data integrity, compatibility, privacy/security, deployment/recovery, or a reproduced usability/release defect;
+- failed assertions are fixed at their cause rather than weakened to obtain a green badge.
+
+## Human/device boundary
+
+Automated Playwright phone/tablet profiles are not physical-device or human usability certification. Human/real-device evidence may be recorded when genuinely performed; P9 must not fabricate it.
 
 ## Definition of Done
 
-`V7_RC_CERTIFIED` may be declared only after the exact P9 head passes every required CI job with no unresolved release-critical regression. Until then the PR remains Draft.
+`V7_1_4_RC_CERTIFIED` may be declared only after the exact P9 head passes every required candidate CI job and Release completion verification produces a valid `v7.1.4-release-certificate`.
+
+Stable may be declared only after the exact `v7.1.4` tagged workflow independently qualifies, deploys, smoke-tests and publishes successfully.
+
+## What comes after P9
+
+There is **no P10 in this roadmap**. After P9:
+
+1. merge the exact qualified RC to `main`;
+2. verify the merged commit/candidate deployment;
+3. create `v7.1.4` only when the release decision is made;
+4. let the Stable workflow requalify and publish;
+5. any later product work starts a new roadmap/version rather than extending P9.

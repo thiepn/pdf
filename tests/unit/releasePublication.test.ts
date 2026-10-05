@@ -30,7 +30,9 @@ describe("release publication completeness", () => {
     expect(verification).toContain("project: [chromium, firefox, webkit, mobile-chromium, tablet-webkit]");
     expect(verification).toContain("VITE_RELEASE_CHANNEL: ${{ matrix.channel }}");
     expect(verification).toContain("certify-browser-matrix.mjs");
-    expect(verification).toContain('test "$(cat /tmp/pdf-release-runtime/qualification-sha.txt)" = "$GITHUB_SHA"');
+    expect(verification).toContain("RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}");
+    expect(verification).toContain('test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"');
+    expect(verification).toContain('test "$(cat /tmp/pdf-release-runtime/qualification-sha.txt)" = "$RELEASE_SOURCE_SHA"');
     expect(verification).toContain("diff -u /tmp/pdf-release-runtime/qualification-dist.sha256 /tmp/downloaded-dist.sha256");
     expect(verification).not.toMatch(/contents: write|pages: write|id-token: write|deploy-pages|action-gh-release/);
   });
