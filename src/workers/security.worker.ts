@@ -347,14 +347,12 @@ function ensureAcroForm(pdf: any): { acro: any; fields: any } {
   return { acro, fields };
 }
 
-function uniqueFieldName(existing: Set<string>, requested: string): string {
-  const clean = requested.replace(/[\x00-\x1f]/g, "").trim().slice(0, 96) || "field";
-  if (!existing.has(clean)) { existing.add(clean); return clean; }
-  let suffix = 2;
-  while (existing.has(`${clean}_${suffix}`)) suffix += 1;
-  const value = `${clean}_${suffix}`;
-  existing.add(value);
-  return value;
+function claimFieldName(existing: Set<string>, requested: string): string {
+  const clean = requested.replace(/[\x00-\x1f]/g, "").trim().slice(0, 96);
+  if (!clean) throw new Error("Every new interactive field needs a name.");
+  if (existing.has(clean)) throw new Error(`Interactive form field name “${clean}” already exists. Rename the draft before export.`);
+  existing.add(clean);
+  return clean;
 }
 
 function checkboxAppearance(pdf: any, width: number, height: number, checked: boolean): any {
@@ -413,7 +411,7 @@ function addFormFields(pdf: any, creations: FormFieldCreate[]): number {
       widget.put("Type", pdf.newName("Annot"));
       widget.put("Subtype", pdf.newName("Widget"));
       widget.put("FT", pdf.newName(requested.type === "checkbox" ? "Btn" : "Tx"));
-      widget.put("T", pdf.newString(uniqueFieldName(existingNames, requested.name)));
+      widget.put("T", pdf.newString(claimFieldName(existingNames, requested.name)));
       widget.put("TU", pdf.newString(requested.label.slice(0, 160)));
       widget.put("Rect", numberArray(pdf, [rect.x0, rect.y0, rect.x1, rect.y1]));
       widget.put("F", pdf.newInteger(4));
