@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { channels, projects, summarizeReport, certifyMatrix } from "./certify-browser-matrix.mjs";
+import { channels, projects, summarizeReport, certifyMatrix, loadReleaseContractIdentity } from "./certify-browser-matrix.mjs";
 
 function report(project = "chromium") {
   return { errors: [], stats: {expected:1,skipped:0,unexpected:0,flaky:0}, suites: [{specs:[{
@@ -43,9 +43,20 @@ describe("release-certificate boundaries", () => {
     assert.throws(() => summarizeReport(input,"chromium"));
     skipped.annotations=[]; assert.throws(() => summarizeReport(input,"chromium"));
   });
+  it("binds certificate identity to the frozen roadmap and curated notes", async () => {
+    const identity = await loadReleaseContractIdentity();
+    assert.equal(identity.version, "7.1.4");
+    assert.equal(identity.roadmap, "task-first-product-hardening");
+    assert.equal(identity.stableTag, "v7.1.4");
+    assert.equal(identity.projectPackageVersion, 9);
+    assert.equal(identity.databaseSchemaVersion, 13);
+    assert.match(identity.freezeSha256, /^[a-f0-9]{64}$/);
+    assert.match(identity.releaseNotesSha256, /^[a-f0-9]{64}$/);
+    assert.equal(identity.releaseNotesPath, "docs/releases/v7.1.4/release-notes.md");
+  });
   it("requires all ten channel/project reports and rejects missing or duplicate reports", async () => {
     const directory=await mkdtemp(join(tmpdir(),"pdf-matrix-"));
-    const identity={sourceSha:"a".repeat(40),version:"7.1.0"};
+    const identity={sourceSha:"a".repeat(40),version:"7.1.4"};
     try {
       await assert.rejects(() => certifyMatrix(directory,identity));
       for (const channel of channels) for (const project of projects) {
