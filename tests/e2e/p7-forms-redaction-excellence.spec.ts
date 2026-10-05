@@ -7,7 +7,7 @@ async function openCorpus(page: import("@playwright/test").Page, file: string) {
   await expect(page.locator(".viewer-app")).toBeVisible({ timeout: 20_000 });
 }
 
-test("P7 authors an interactive text field and verifies it after secure export", async ({ page }) => {
+test("P7 authors interactive text and checkbox fields and verifies them after secure export", async ({ page }) => {
   await openCorpus(page, "tests/corpus/generated/plain-text.pdf");
   await chooseDocumentTask(page, "Fill or create PDF forms");
   await expect(page.locator(".security-app")).toBeVisible();
@@ -17,6 +17,11 @@ test("P7 authors an interactive text field and verifies it after secure export",
   await expect(draft).toBeVisible();
   await draft.getByLabel("Field name").fill("p7_review_name");
   await draft.getByLabel("Label").fill("Review name");
+  await page.getByRole("button", { name: "+ Checkbox", exact: true }).click();
+  const checkbox = page.locator(".p7-form-draft").nth(1);
+  await expect(checkbox).toBeVisible();
+  await checkbox.getByLabel("Field name").fill("p7_confirmed");
+  await checkbox.getByLabel("Label").fill("Confirmed");
 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
@@ -25,6 +30,7 @@ test("P7 authors an interactive text field and verifies it after secure export",
   await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
   await page.getByText("Output verified · view checks", { exact: true }).click();
   await expect(page.getByText("Created form fields", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 requested interactive fields reopened successfully.", { exact: true })).toBeVisible();
 });
 
 test("P7 finds text for redaction, requires review, then proves permanent removal", async ({ page }) => {
