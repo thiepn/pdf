@@ -102,11 +102,10 @@ export function RedactionDiscoveryPanel({ document, currentPage, disabled, exist
 
     {candidates.length ? <div className="p7-candidate-review">
       <div className="p7-review-heading"><div><strong>{candidates.length} potential match{candidates.length === 1 ? "" : "es"} on {groupedPages} page{groupedPages === 1 ? "" : "s"}</strong><span>Verify each match before creating redaction marks.</span></div><div><button onClick={() => setSelected(new Set(candidates.map((candidate) => candidate.id)))} type="button">Select all</button><button onClick={() => setSelected(new Set())} type="button">Clear</button></div></div>
-      <div className="p7-candidate-list">{candidates.map((candidate) => <label className="p7-candidate p7-redaction-candidate" key={candidate.id}>
-        <input checked={selected.has(candidate.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(candidate.id)) next.delete(candidate.id); else next.add(candidate.id); return next; })} type="checkbox" />
-        <span><strong>{maskSensitivePreview(candidate.text)}</strong><small>Page {candidate.pageNumber} · {candidate.kind} · {candidate.confidence} confidence</small></span>
-        <button onClick={(event) => { event.preventDefault(); onPage(candidate.pageNumber); onPreview?.(candidate); }} type="button">View</button>
-      </label>)}</div>
+      <div className="p7-candidate-list">{candidates.map((candidate) => <div className="p7-candidate p7-redaction-candidate" key={candidate.id}>
+        <label><input checked={selected.has(candidate.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(candidate.id)) next.delete(candidate.id); else next.add(candidate.id); return next; })} type="checkbox" /><span><strong>{maskSensitivePreview(candidate.text)}</strong><small>Page {candidate.pageNumber} · {candidate.kind} · {candidate.confidence} confidence</small></span></label>
+        <button onClick={() => { onPage(candidate.pageNumber); onPreview?.(candidate); }} type="button">View</button>
+      </div>)}</div>
       <button className="button" disabled={disabled || accepting || !selectedCount} onClick={() => void accept()} type="button">{accepting ? "Adding marks…" : `Mark ${selectedCount} selected for redaction`}</button>
     </div> : null}
   </section>;
