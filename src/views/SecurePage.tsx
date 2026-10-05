@@ -23,6 +23,7 @@ import { collectRedactionTokens, validateSecurityOutput, type SecurityValidation
 import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorObject, ImageEditorObject, RedactionEditorObject } from "../types/editor";
 import type { ProjectManifest } from "../types/project";
 import type { FormFieldCreate, FormFieldUpdate, SecurityFormField, SecurityInspectionReport, SecurityProjectState } from "../types/security";
+import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 
 interface Props { taskId?: string; projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type SecurityTab = "overview" | "forms" | "redaction" | "signatures" | "sanitize" | "protect";
@@ -167,11 +168,57 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
       setStatus("Checking protected PDF…");
       const result = await validateSecurityOutput(secured.bytes, inspection.pageCount, options, passwordRef.current, redactionTokens, redactionPages);
       setValidation(result);
-      const combinedWarnings = [...new Set([...(editorResult.report.warnings ?? []), ...secured.report.warnings, ...result.inspection.warnings])];
-      setWarnings(combinedWarnings);
       if (!result.valid) throw new Error(`The protected PDF did not pass the final safety check: ${result.checks.filter((check) => !check.passed).map((check) => check.name).join(", ")}. No output was created.`);
+
+      const outputPassword = security.encryption.mode === "aes-256"
+        ? security.encryption.userPassword || security.encryption.ownerPassword
+        : security.encryption.mode === "keep" ? passwordRef.current : undefined;
+      const affectedPages = new Set<number>([
+        ...visibleObjects.map((object) => object.pageNumber),
+        ...formCreates.map((field) => field.pageNumber),
+        ...formUpdates.map((field) => field.pageNumber),
+        ...redactionPages
+      ]);
+      if (
+        security.sanitization.removeLinks
+        || security.sanitization.removeComments
+        || security.sanitization.clearFormValues
+        || security.sanitization.flattenForms
+        || security.sanitization.flattenAnnotations
+      ) {
+        for (let pageNumber = 1; pageNumber <= inspection.pageCount; pageNumber += 1) affectedPages.add(pageNumber);
+      }
+
+      setStatus("Checking document fidelity and compatibility…");
+      const fidelity = await validatePdfFidelity(
+        sourceBytes,
+        secured.bytes,
+        affectedPages,
+        passwordRef.current,
+        signal,
+        {
+          sourcePassword: passwordRef.current,
+          outputPassword,
+          expectations: {
+            expectedEncrypted: security.encryption.mode === "aes-256"
+              ? true
+              : security.encryption.mode === "remove" ? false : inspection.encrypted,
+            expectedAttachmentCount: security.sanitization.removeAttachments ? 0 : inspection.attachmentCount,
+            expectedFormFieldCount: security.sanitization.flattenForms ? 0 : inspection.formFields.length + formCreates.length,
+            expectedHasJavaScript: security.sanitization.removeJavaScript ? false : undefined,
+            allowJavaScriptRemoval: security.sanitization.removeOpenActions && !security.sanitization.removeJavaScript,
+            coreMetadataMode: security.sanitization.removeMetadata ? "cleared" : "preserve",
+            allowWidgetChangesOnAffectedPages: Boolean(formCreates.length || security.sanitization.flattenForms)
+          }
+        }
+      );
+      if (!fidelity.passed) {
+        throw new Error(`P8 fidelity validation failed: ${fidelity.failures.slice(0, 4).join(" ")} No output was created.`);
+      }
+
+      const combinedWarnings = [...new Set([...(editorResult.report.warnings ?? []), ...secured.report.warnings, ...result.inspection.warnings, ...fidelity.warnings])];
+      setWarnings(combinedWarnings);
       const filename = `${safeName(project.name)}_${security.redaction.enabled ? "redacted_" : ""}secured.pdf`;
-      const outputPassword = security.encryption.mode === "aes-256" ? security.encryption.userPassword || security.encryption.ownerPassword : security.encryption.mode === "keep" ? passwordRef.current : undefined;
       signal?.throwIfAborted();
       return { bytes: secured.bytes, file: new File([toOwnedArrayBuffer(secured.bytes)], filename, { type: "application/pdf" }), password: outputPassword, warnings: combinedWarnings, changed: true };
   }
