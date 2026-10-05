@@ -35,7 +35,8 @@ function safeRegex(pattern: string, caseSensitive: boolean): RegExp {
   if (!pattern.trim()) throw new Error("Enter a regular expression.");
   if (pattern.length > 160) throw new Error("Regular expressions are limited to 160 characters.");
   if (/\\[1-9]/.test(pattern)) throw new Error("Backreferences are not supported in automatic redaction patterns.");
-  if (/\((?:[^()]|\\.)*[+*{](?:[^()]|\\.)*\)[+*{]/.test(pattern)) throw new Error("This expression contains nested repetition and is not safe for interactive scanning.");
+  if (/\((?:[^()]|\\.)*\)[+*{]/.test(pattern)) throw new Error("Quantified groups are not supported in interactive redaction scanning.");
+  if (/(?:\.\*|\.\+).*(?:\.\*|\.\+)/.test(pattern)) throw new Error("Multiple unbounded wildcards are not supported in interactive redaction scanning.");
   try { return new RegExp(pattern, caseSensitive ? "gu" : "giu"); }
   catch (reason) { throw new Error(`Invalid regular expression: ${reason instanceof Error ? reason.message : String(reason)}`); }
 }
@@ -92,8 +93,9 @@ function patternsFor(options: RedactionDiscoveryOptions): Array<{ kind: Redactio
     return [{ kind: "text", expression: new RegExp(escaped, options.caseSensitive ? "gu" : "giu"), confidence: "high" }];
   }
   if (options.mode === "regex") return [{ kind: "regex", expression: safeRegex(options.query ?? "", Boolean(options.caseSensitive)), confidence: "medium" }];
-  const selected = options.sensitive?.length ? options.sensitive : (["email", "phone", "iban", "payment-card"] as SensitivePattern[]);
-  return selected.map((kind) => ({ kind, expression: new RegExp(PATTERNS[kind].source, PATTERNS[kind].flags), confidence: kind === "phone" ? "medium" : "high" }));
+  const selected = new Set(options.sensitive?.length ? options.sensitive : (["email", "phone", "iban", "payment-card"] as SensitivePattern[]));
+  const priority: SensitivePattern[] = ["email", "iban", "payment-card", "phone"];
+  return priority.filter((kind) => selected.has(kind)).map((kind) => ({ kind, expression: new RegExp(PATTERNS[kind].source, PATTERNS[kind].flags), confidence: kind === "phone" ? "medium" : "high" }));
 }
 
 export async function discoverRedactionCandidates(document: PDFDocumentProxy, options: RedactionDiscoveryOptions, signal?: AbortSignal): Promise<RedactionCandidate[]> {
@@ -101,6 +103,7 @@ export async function discoverRedactionCandidates(document: PDFDocumentProxy, op
   const pageNumbers = options.pages?.length ? options.pages : Array.from({ length: document.numPages }, (_, index) => index + 1);
   const patterns = patternsFor(options);
   const candidates: RedactionCandidate[] = [];
+  const seen = new Set<string>();
   let sequence = 0;
 
   for (const pageNumber of pageNumbers) {
@@ -123,7 +126,11 @@ export async function discoverRedactionCandidates(document: PDFDocumentProxy, op
             if (!value) continue;
             if (pattern.kind === "iban" && !validIban(value)) continue;
             if (pattern.kind === "payment-card" && !validPaymentCard(value)) continue;
-            const viewportRect = matchRect(rawBounds, source.length, match.index ?? 0, value.length);
+            const start = match.index ?? 0;
+            const duplicateKey = `${pageNumber}:${Math.round(rawBounds.x0 * 10)}:${Math.round(rawBounds.y0 * 10)}:${start}:${value.length}`;
+            if (seen.has(duplicateKey)) continue;
+            seen.add(duplicateKey);
+            const viewportRect = matchRect(rawBounds, source.length, start, value.length);
             const pdfRect = service.viewportRectToPdf(viewportRect);
             const bounds = { x0: Math.min(pdfRect.x0, pdfRect.x1), y0: Math.min(pdfRect.y0, pdfRect.y1), x1: Math.max(pdfRect.x0, pdfRect.x1), y1: Math.max(pdfRect.y0, pdfRect.y1) };
             candidates.push({ id: `redaction-candidate:${pageNumber}:${sequence++}`, pageNumber, bounds, text: value, kind: pattern.kind, confidence: pattern.confidence });
