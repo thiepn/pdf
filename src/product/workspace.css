@@ -115,7 +115,10 @@
 .product-app .document-entry-recommendations--compact .document-entry-recommendation {
   padding: 9px 10px;
 }
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  /* Tablet-width workspaces cannot safely reserve a 760px floating recommendation
+     surface without covering document/editor controls. Recommendations remain
+     available in Document actions at these widths. */
   .product-app .document-entry-overlay {
     display: none;
   }
