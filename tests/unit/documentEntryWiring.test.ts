@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import workspaceSource from "../../src/workspace/UnifiedWorkspace.tsx?raw";
 import recommendationSource from "../../src/product/DocumentEntryRecommendations.tsx?raw";
 import entrySource from "../../src/product/documentEntry.ts?raw";
-
-const workspaceCss = readFileSync("src/product/workspace.css", "utf8");
 // @ts-expect-error Vitest runs in Node; the browser app tsconfig intentionally excludes Node built-in typings.
 import { readFileSync } from "node:fs";
+
+const workspaceCss = readFileSync("src/product/workspace.css", "utf8");
 
 describe("P2 intelligent document entry wiring", () => {
   it("shows immediate manifest recommendations and refines them after a delayed local inspection", () => {
