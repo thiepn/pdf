@@ -103,7 +103,10 @@
     "test:v7.0.0": "npm run release:web && npm run test:runtime:v7.0.0",
     "audit:p10:promotion": "node scripts/p10/stable-promotion-audit.mjs",
     "test:p10:promotion": "node --test scripts/p10/*.test.mjs",
-    "check:p10": "npm run audit:p10:promotion && npm run test:p10:promotion && vitest run tests/unit/p10StablePromotion.test.ts"
+    "check:p10": "npm run audit:p10:promotion && npm run test:p10:promotion && vitest run tests/unit/p10StablePromotion.test.ts",
+    "audit:p11:next-line": "node scripts/p11/next-line-audit.mjs",
+    "test:p11:cut": "node --test scripts/p11/*.test.mjs",
+    "check:p11": "npm run audit:p11:next-line && npm run test:p11:cut && vitest run tests/unit/p11DevelopmentLine.test.ts"
   },
   "dependencies": {
     "mupdf": "1.28.0",
