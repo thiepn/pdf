@@ -350,6 +350,7 @@ function ensureAcroForm(pdf: any): { acro: any; fields: any } {
 function claimFieldName(existing: Set<string>, requested: string): string {
   const clean = requested.replace(/[\x00-\x1f]/g, "").trim().slice(0, 96);
   if (!clean) throw new Error("Every new interactive field needs a name.");
+  if (!/^[A-Za-z0-9_-]{1,96}$/.test(clean)) throw new Error(`Interactive form field name “${clean}” must use only letters, numbers, hyphens, or underscores.`);
   if (existing.has(clean)) throw new Error(`Interactive form field name “${clean}” already exists. Rename the draft before export.`);
   existing.add(clean);
   return clean;
@@ -406,6 +407,10 @@ function addFormFields(pdf: any, creations: FormFieldCreate[]): number {
       const width = Math.max(8, rect.x1 - rect.x0);
       const height = Math.max(8, rect.y1 - rect.y0);
       if (![rect.x0, rect.y0, rect.x1, rect.y1].every(Number.isFinite) || width > 5000 || height > 5000) continue;
+      const pageBounds = page.getBounds() as number[];
+      if (rect.x0 < pageBounds[0] - 1 || rect.y0 < pageBounds[1] - 1 || rect.x1 > pageBounds[2] + 1 || rect.y1 > pageBounds[3] + 1) {
+        throw new Error(`Interactive form field “${requested.name}” is outside page ${requested.pageNumber}. Adjust its position or size before export.`);
+      }
 
       const widget = pdf.newDictionary();
       widget.put("Type", pdf.newName("Annot"));
