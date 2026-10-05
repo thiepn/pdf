@@ -143,8 +143,7 @@ jobs:
           git config user.name "pdf-studio-release"
           git config user.email "pdf-studio-release@users.noreply.github.com"
           git tag -a "$TAG" "$CANDIDATE_SHA" -m "PDF Studio $TAG — P10 certified Stable promotion"
-          git remote set-url origin "https://x-access-token:${PROMOTION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "refs/tags/$TAG"
+          git push "https://x-access-token:${PROMOTION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG"
 
       - name: Retain promotion receipt
         uses: actions/upload-artifact@v4
