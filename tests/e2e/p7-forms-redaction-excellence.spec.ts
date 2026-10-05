@@ -22,8 +22,9 @@ test("P7 authors an interactive text field and verifies it after secure export",
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const saved = await download;
   expect(saved.suggestedFilename()).toMatch(/secured\.pdf$/i);
+  await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
+  await page.getByText("Output verified · view checks", { exact: true }).click();
   await expect(page.getByText("Created form fields", { exact: true })).toBeVisible();
-  await expect(page.locator(".security-validation-summary.passed")).toBeVisible();
 });
 
 test("P7 finds text for redaction, requires review, then proves permanent removal", async ({ page }) => {
@@ -41,6 +42,7 @@ test("P7 finds text for redaction, requires review, then proves permanent remova
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   await download;
+  await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
+  await page.getByText("Output verified · view checks", { exact: true }).click();
   await expect(page.getByText("Redacted text extraction", { exact: true })).toBeVisible();
-  await expect(page.locator(".security-validation-summary.passed")).toBeVisible();
 });
