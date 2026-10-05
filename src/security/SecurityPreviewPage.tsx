@@ -6,6 +6,7 @@ import { asAffineMatrix, CoordinateService, type Rect } from "../core/coordinate
 import type { EditorObject } from "../types/editor";
 import type { FormFieldCreate, SecurityFormField } from "../types/security";
 import type { RedactionCandidate } from "./redactionDiscovery";
+import type { FormFieldCandidate } from "./formAuthoring";
 
 interface Props {
   document: PDFDocumentProxy;
@@ -20,6 +21,7 @@ interface Props {
   onSelectField?: (field: SecurityFormField) => void;
   onSelectDraft?: (field: FormFieldCreate) => void;
   redactionCandidate?: RedactionCandidate | null;
+  formCandidate?: FormFieldCandidate | null;
 }
 
 interface PageState {
@@ -28,7 +30,7 @@ interface PageState {
   service: CoordinateService | null;
 }
 
-export function SecurityPreviewPage({ document, pageNumber, zoom, fields, objects, values, selectedFieldId, draftFields = [], selectedDraftId, onSelectField, onSelectDraft, redactionCandidate }: Props) {
+export function SecurityPreviewPage({ document, pageNumber, zoom, fields, objects, values, selectedFieldId, draftFields = [], selectedDraftId, onSelectField, onSelectDraft, redactionCandidate, formCandidate }: Props) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -87,6 +89,7 @@ export function SecurityPreviewPage({ document, pageNumber, zoom, fields, object
     {service ? <div className="security-preview-overlay">
       {pageFields.map((field) => <button className={`security-field-box${selectedFieldId === field.id ? " active" : ""}`} key={field.id} aria-label={`Fill ${field.label || field.name || field.type}`} onClick={() => onSelectField?.(field)} style={rectStyle(service.pdfRectToViewport(field.rect))} title={`${field.label || field.name || field.type} · ${field.type}`} type="button"><span>{values && values[field.id] !== undefined && values[field.id] !== field.value ? field.password ? "••••" : values[field.id] || "Empty" : field.type}</span></button>)}
       {pageDrafts.map((field) => <button className={`security-field-box security-field-box--draft${selectedDraftId === field.id ? " active" : ""}`} key={field.id} aria-label={`New ${field.label || field.name || field.type}`} onClick={() => onSelectDraft?.(field)} style={rectStyle(service.pdfRectToViewport(field.rect))} title={`New interactive ${field.type}: ${field.label || field.name}`} type="button"><span>NEW {field.type}</span></button>)}
+      {formCandidate?.pageNumber === pageNumber ? <div className="security-form-candidate-preview" style={rectStyle(service.pdfRectToViewport(formCandidate.rect))}><span>PROPOSED {formCandidate.type}</span></div> : null}
       {redactionCandidate?.pageNumber === pageNumber ? <div className="security-redaction-candidate-preview" style={rectStyle(service.pdfRectToViewport(redactionCandidate.bounds))}><span>REVIEW MATCH</span></div> : null}
       {pageObjects.map((object) => {
         const bounds = service.pdfRectToViewport(object.bounds);
