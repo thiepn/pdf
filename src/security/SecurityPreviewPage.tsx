@@ -4,7 +4,7 @@ import { previewFormValues } from "./formPreview";
 import { boundedPairScale } from "../comparison/visualDiff";
 import { asAffineMatrix, CoordinateService, type Rect } from "../core/coordinates";
 import type { EditorObject } from "../types/editor";
-import type { SecurityFormField } from "../types/security";
+import type { FormFieldCreate, SecurityFormField } from "../types/security";
 
 interface Props {
   document: PDFDocumentProxy;
@@ -14,7 +14,10 @@ interface Props {
   objects: EditorObject[];
   values?: Record<string, string>;
   selectedFieldId?: string;
+  draftFields?: FormFieldCreate[];
+  selectedDraftId?: string;
   onSelectField?: (field: SecurityFormField) => void;
+  onSelectDraft?: (field: FormFieldCreate) => void;
 }
 
 interface PageState {
@@ -23,13 +26,14 @@ interface PageState {
   service: CoordinateService | null;
 }
 
-export function SecurityPreviewPage({ document, pageNumber, zoom, fields, objects, values, selectedFieldId, onSelectField }: Props) {
+export function SecurityPreviewPage({ document, pageNumber, zoom, fields, objects, values, selectedFieldId, draftFields = [], selectedDraftId, onSelectField, onSelectDraft }: Props) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
   const taskRef = useRef<RenderTask | null>(null);
   const [page, setPage] = useState<PageState>({ width: 612 * zoom, height: 792 * zoom, service: null });
   const pageFields = useMemo(() => fields.filter((field) => field.pageNumber === pageNumber), [fields, pageNumber]);
+  const pageDrafts = useMemo(() => draftFields.filter((field) => field.pageNumber === pageNumber), [draftFields, pageNumber]);
   const pageObjects = useMemo(() => objects.filter((object): object is Extract<EditorObject, { type: "redaction" | "signature" }> => object.pageNumber === pageNumber && !object.hidden && (object.type === "redaction" || object.type === "signature")), [objects, pageNumber]);
 
   useEffect(() => {
@@ -80,6 +84,7 @@ export function SecurityPreviewPage({ document, pageNumber, zoom, fields, object
     {rendering ? <span className="security-preview-status" role="status">Updating form preview…</span> : null}
     {service ? <div className="security-preview-overlay">
       {pageFields.map((field) => <button className={`security-field-box${selectedFieldId === field.id ? " active" : ""}`} key={field.id} aria-label={`Fill ${field.label || field.name || field.type}`} onClick={() => onSelectField?.(field)} style={rectStyle(service.pdfRectToViewport(field.rect))} title={`${field.label || field.name || field.type} · ${field.type}`} type="button"><span>{values && values[field.id] !== undefined && values[field.id] !== field.value ? field.password ? "••••" : values[field.id] || "Empty" : field.type}</span></button>)}
+      {pageDrafts.map((field) => <button className={`security-field-box security-field-box--draft${selectedDraftId === field.id ? " active" : ""}`} key={field.id} aria-label={`New ${field.label || field.name || field.type}`} onClick={() => onSelectDraft?.(field)} style={rectStyle(service.pdfRectToViewport(field.rect))} title={`New interactive ${field.type}: ${field.label || field.name}`} type="button"><span>NEW {field.type}</span></button>)}
       {pageObjects.map((object) => {
         const bounds = service.pdfRectToViewport(object.bounds);
         if (!bounds) return null;
