@@ -297,7 +297,7 @@ function invertAffine(matrix: AffineMatrix): AffineMatrix {
 
 function numberArray(pdf: any, values: number[]): any {
   const array = pdf.newArray();
-  for (const value of values) array.push(pdf.newReal(Number(value)));
+  for (const value of values) array.push(Number(value));
   return array;
 }
 
@@ -325,7 +325,7 @@ function ensureAcroForm(pdf: any): { acro: any; fields: any } {
   if (!root) throw new Error("PDF catalog is unavailable.");
   const acro = ensureDictionary(pdf, root, "AcroForm");
   const fields = ensureArray(pdf, acro, "Fields");
-  acro.put("NeedAppearances", pdf.newBoolean(true));
+  acro.put("NeedAppearances", true);
   let resources = safeCall(() => acro.get("DR"), null);
   resources = safeCall(() => resources?.resolve?.() ?? resources, resources);
   if (!resources?.isDictionary?.()) {
@@ -414,13 +414,13 @@ function addFormFields(pdf: any, creations: FormFieldCreate[]): number {
       widget.put("T", pdf.newString(claimFieldName(existingNames, requested.name)));
       widget.put("TU", pdf.newString(requested.label.slice(0, 160)));
       widget.put("Rect", numberArray(pdf, [rect.x0, rect.y0, rect.x1, rect.y1]));
-      widget.put("F", pdf.newInteger(4));
+      widget.put("F", 4);
       widget.put("P", pageObject);
       const flags = (requested.required ? 2 : 0) | (requested.type === "text" && requested.multiline ? 1 << 12 : 0);
-      if (flags) widget.put("Ff", pdf.newInteger(flags));
+      if (flags) widget.put("Ff", flags);
 
       const border = pdf.newDictionary();
-      border.put("W", pdf.newReal(1));
+      border.put("W", 1);
       border.put("S", pdf.newName("S"));
       widget.put("BS", border);
       const appearanceCharacteristics = pdf.newDictionary();
@@ -430,7 +430,7 @@ function addFormFields(pdf: any, creations: FormFieldCreate[]): number {
 
       if (requested.type === "text") {
         widget.put("DA", pdf.newString("/P7Helv 10 Tf 0 g"));
-        widget.put("Q", pdf.newInteger(0));
+        widget.put("Q", 0);
         widget.put("V", pdf.newString(requested.defaultValue.slice(0, 1024)));
       } else {
         widget.put("V", pdf.newName("Off"));
