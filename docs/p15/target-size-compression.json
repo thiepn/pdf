@@ -15,7 +15,7 @@
     }
   },
   "targetContract": {
-    "minimumTargetBytes": 65536,
+    "minimumTargetBytes": 1,
     "maximumAttempts": 6,
     "structurePassAlwaysFirst": true,
     "targetMetRequiresSmallerThanSource": true,
