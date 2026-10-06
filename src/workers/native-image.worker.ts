@@ -556,9 +556,12 @@ self.onmessage = (event: MessageEvent<Request>) => {
           const allowedActions = current.image.fidelity?.allowedActions ?? (current.image.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
           if (!allowedActions.includes(action)) throw new Error(current.image.fidelity?.reason ?? "This image operation is fidelity-protected and cannot be applied safely.");
           const sourceRects = imageRects(page);
+          const sourceMatches = sourceRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
+          const removesSourceRegion = action === "transform" || action === "delete" || (action === "replace" && edit.removeUnderlying !== false);
+          if (removesSourceRegion && sourceMatches.length !== 1) throw new Error("The selected image region overlaps multiple source image instances; destructive reconstruction is blocked to avoid collateral image removal.");
           beforeRects.set(edit.id, sourceRects);
           beforeClasses.set(edit.id, current.image.fidelity?.class);
-          beforeCounts.set(edit.id, sourceRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5).length);
+          beforeCounts.set(edit.id, sourceMatches.length);
           const source = action === "transform" ? sourceImageObject(pdf, page, sourceBounds) : undefined;
 
           if (action === "transform" || action === "delete" || edit.removeUnderlying) redactImageOnly(page, sourceBounds);
