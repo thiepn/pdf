@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import * as mupdf from "mupdf";
+import { createP17NativeFidelityPdf } from "../../src/fixtures/p17NativeFidelityPdf";
 import {
   classifyImageFidelity,
   classifyTableGeometry,
@@ -40,6 +42,64 @@ function vector(overrides: Partial<NativeVectorObject> = {}): NativeVectorObject
 }
 
 describe("P17 deep native-content fidelity policy", () => {
+  it("proves MuPDF Device tracing and addImage preserve the generated fixture soft mask", () => {
+    const pdf = new (mupdf as any).PDFDocument(createP17NativeFidelityPdf());
+    const page = pdf.loadPage(0);
+    const observed: Array<{ masked: boolean; image: any }> = [];
+    const noOp = () => {};
+    const device = new (mupdf as any).Device({
+      fillPath: noOp,
+      strokePath: noOp,
+      clipPath: noOp,
+      clipStrokePath: noOp,
+      fillText: noOp,
+      strokeText: noOp,
+      clipText: noOp,
+      clipStrokeText: noOp,
+      ignoreText: noOp,
+      fillShade: noOp,
+      fillImage(image: any) {
+        const mask = image.getMask?.();
+        observed.push({ masked: Boolean(mask), image });
+        mask?.destroy?.();
+      },
+      fillImageMask: noOp,
+      clipImageMask: noOp,
+      popClip: noOp,
+      beginMask: noOp,
+      endMask: noOp,
+      beginGroup: noOp,
+      endGroup: noOp,
+      beginTile: () => 0,
+      endTile: noOp,
+      beginLayer: noOp,
+      endLayer: noOp,
+      beginStructure: noOp,
+      endStructure: noOp,
+      beginMetatext: noOp,
+      endMetatext: noOp,
+      renderFlags: noOp,
+      setDefaultColorSpaces: noOp,
+      close: noOp
+    });
+
+    try {
+      page.run(device, (mupdf as any).Matrix.identity);
+      expect(observed).toHaveLength(4);
+      expect(observed.filter((entry) => entry.masked)).toHaveLength(2);
+
+      const masked = observed.find((entry) => entry.masked);
+      expect(masked).toBeDefined();
+      const embedded = pdf.addImage(masked!.image);
+      const smask = embedded.get("SMask");
+      expect(smask?.isNull?.()).not.toBe(true);
+    } finally {
+      device.destroy?.();
+      page.destroy?.();
+      pdf.destroy?.();
+    }
+  });
+
   it("keeps plain and shared image instances editable without mutating shared resource semantics", () => {
     const plain = classifyImageFidelity({ invocationCount: 1 });
     const shared = classifyImageFidelity({ invocationCount: 3 });
