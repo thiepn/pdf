@@ -7,6 +7,7 @@ on:
       - docs/product/P13_LAYOUT_AWARE_DOCX.md
       - scripts/p13/**
       - tests/unit/layoutDocx.test.ts
+      - tests/unit/taskGuide.test.ts
       - src/professional/layoutDocx.ts
       - src/quick/quickOperations.ts
       - src/views/QuickToolPage.tsx
