@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifyTextEditability } from "../../src/native/nativeModel";
 import { annotatePageTextFlows, planTextReflow } from "../../src/native/layoutReflow";
-import type { NativeImageObject, NativePageTree, NativeTextObject } from "../../src/types/nativeEditor";
+import type { NativeImageObject, NativePageTree, NativeTableObject, NativeTextObject } from "../../src/types/nativeEditor";
 
 function text(id: string, x: number, y: number, value = id, w = 180, h = 12): NativeTextObject {
   return {
@@ -124,6 +124,27 @@ describe("P2 layout-aware text reflow", () => {
     const plan = planTextReflow(source, "a", 45);
     expect(plan.ok).toBe(false);
     expect(plan.blockers.join(" ")).toMatch(/page boundary/i);
+  });
+
+  it("clears stale flow metadata when later table evidence makes the text unsafe for propagation", () => {
+    const initiallyAnnotated = page([text("a", 50, 40), text("b", 50, 85)]);
+    expect((initiallyAnnotated.objects.find((object) => object.id === "a") as NativeTextObject).flow).toBeDefined();
+
+    const table: NativeTableObject = {
+      id: "qualified-table",
+      type: "table",
+      pageNumber: 1,
+      bounds: { x: 40, y: 30, w: 210, h: 90 },
+      rows: 2,
+      columns: 2,
+      cells: [],
+      confidence: 0.95,
+      editability: "structured-table",
+      capability: { level: "safe-reconstruction", label: "Table", confidence: 0.95, reason: "fixture", preserves: [], risks: [] }
+    };
+    const reannotated = annotatePageTextFlows({ ...initiallyAnnotated, objects: [...initiallyAnnotated.objects, table] });
+    const textObjects = reannotated.objects.filter((object): object is NativeTextObject => object.type === "text");
+    expect(textObjects.every((object) => object.flow === undefined)).toBe(true);
   });
 
   it("does not create automatic flows for wide headings", () => {
