@@ -2,6 +2,19 @@
 
 ## Unreleased — v7.2 development line
 
+### P13 — Layout-Aware PDF → DOCX Export 2.0
+
+- Replaces the text-only PDF→DOCX paragraph dump with local layout-aware reconstruction.
+- Reuses native PDF inspection for paragraph runs, detected tables, page geometry, image regions, and conservative text-flow metadata.
+- Emits editable Word paragraphs with supported font name, size, bold/italic, color, alignment, RTL flags, and source-informed spacing.
+- Converts qualified detected tables into real Word tables, including common horizontal/vertical merge semantics, without duplicating table text into the paragraph stream.
+- Embeds bounded detected image regions as separate PNG media objects using local PDF.js page rendering instead of flattening whole pages.
+- Preserves selected-page boundaries and source-informed page size/orientation/margins through Word section properties.
+- Reports heuristic multi-column order, skipped complex tables/images, and omitted vector/nested artwork instead of claiming pixel-identical Office fidelity.
+- Keeps conversion fully local, adds no Office/cloud conversion service, and adds no runtime dependency.
+- Leaves executable version `7.1.4` and persistent formats 9 / 13 / 6 unchanged.
+- Hands implementation to P14: Complex-Script Existing-Text Editing.
+
 ### P12 — Product roadmap & feature intake
 
 - Rebaselines v7.2 against the current v7.1 product instead of stale historical gap lists.
