@@ -9,8 +9,13 @@ assert.equal(korean.capability.level, "safe-reconstruction");
 assert.ok(wrapTextToBox("한국어문장을공백없이줄바꿈", 30, 10).length > 1, "CJK no-space wrapping must chunk safely.");
 
 const arabic = classifyTextEditability("مرحبا بالعالم", "Arial");
-assert.equal(arabic.editability, "overlay-only");
-assert.equal(arabic.capability.level, "appearance-only");
+assert.equal(detectScript("مرحبا بالعالم"), "arabic");
+assert.equal(arabic.editability, "shaped-fixed-box");
+assert.equal(arabic.capability.level, "safe-reconstruction");
+
+const hebrew = classifyTextEditability("שלום עולם", "Arial");
+assert.equal(hebrew.editability, "overlay-only");
+assert.equal(hebrew.capability.level, "appearance-only");
 
 assert.equal(formCapability("text", false, false).level, "native-safe");
 assert.equal(formCapability("signature", false, true).level, "unsupported");
@@ -22,4 +27,4 @@ assert.deepEqual(merged.map((edit) => edit.id), ["other", "replacement"], "Table
 assert.deepEqual(nativeChangedPages(merged), [2, 4]);
 assert.deepEqual(discardNativeObjectEdits(merged, "table-1").map((edit) => edit.id), ["other"]);
 
-console.log(JSON.stringify({ passed: true, checks: 10 }, null, 2));
+console.log(JSON.stringify({ passed: true, checks: 13 }, null, 2));

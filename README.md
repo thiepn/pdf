@@ -1,4 +1,4 @@
-# PDF Studio
+#**P14 implements the second committed v7.2 item:** qualified Arabic-script existing-text editing now uses a validated local font, Unicode bidi run ordering, HarfBuzz shaping, Identity-H CID glyph placement, and logical `/ActualText`. The qualification is deliberately bounded: Arabic stays fixed-box, bulk replacement remains manual, and Hebrew/Indic/other complex scripts are not advertised as supported.\n\n PDF Studio
 
 PDF Studio is a private, installable PDF workspace that processes documents inside the browser.
 
@@ -104,7 +104,7 @@ Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 
 - Mixed added/native selections share alignment, distribution, sizing, nudging, and page-relative layout operations without collapsing the underlying PDF object model
 - Reusable nested Form XObject instances can be transformed or removed independently without flattening their shared source content
 - P8 source/output fidelity certification fails closed on collateral page-geometry, untouched-content, form, attachment, outline, encryption, and metadata regressions
-- Latin fixed-box reconstruction plus static Korean, Japanese, Simplified Chinese, and Traditional Chinese CID-font reconstruction
+- Latin fixed-box reconstruction, static Korean/Japanese/Simplified-Chinese/Traditional-Chinese CID-font reconstruction, and qualified Arabic-script/RTL fixed-box reconstruction with an imported validated font, Unicode bidi ordering, HarfBuzz shaping, Identity-H CID glyph output, and logical text preservation
 - Optional imported CJK TrueType/OpenType fonts
 - Image contain/cover/stretch replacement with editable geometry and optional permanent underlying-content removal
 - Vector restyle, transform, opacity, and deletion controls for supported detected paths

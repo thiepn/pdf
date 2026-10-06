@@ -110,9 +110,13 @@
     "audit:p12:roadmap": "node scripts/p12/roadmap-audit.mjs",
     "check:p12": "npm run audit:p11:next-line && npm run audit:p12:roadmap && vitest run tests/unit/p12Roadmap.test.ts",
     "audit:p13:docx": "node scripts/p13/layout-docx-audit.mjs",
-    "check:p13": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && vitest run tests/unit/layoutDocx.test.ts tests/unit/taskGuide.test.ts"
+    "check:p13": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && vitest run tests/unit/layoutDocx.test.ts tests/unit/taskGuide.test.ts",
+    "audit:p14:complex-script": "node scripts/p14/complex-script-audit.mjs",
+    "check:p14": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && vitest run tests/unit/p14ComplexScript.test.ts tests/unit/p14ShapingIntegration.test.ts"
   },
   "dependencies": {
+    "bidi-js": "1.1.0",
+    "harfbuzzjs": "1.6.2",
     "mupdf": "1.28.0",
     "pdfjs-dist": "5.4.624",
     "react": "19.2.8",

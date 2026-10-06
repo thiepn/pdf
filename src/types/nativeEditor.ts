@@ -7,8 +7,8 @@ export interface NativeRect {
   h: number;
 }
 
-export type NativeScript = "latin" | "cjk-ko" | "cjk-ja" | "cjk-zh-hans" | "cjk-zh-hant" | "complex" | "unknown";
-export type NativeEditability = "fixed-box" | "cjk-fixed-box" | "overlay-only" | "unsupported";
+export type NativeScript = "latin" | "cjk-ko" | "cjk-ja" | "cjk-zh-hans" | "cjk-zh-hant" | "arabic" | "complex" | "unknown";
+export type NativeEditability = "fixed-box" | "cjk-fixed-box" | "shaped-fixed-box" | "overlay-only" | "unsupported";
 export type NativeCapabilityLevel = "native-safe" | "safe-reconstruction" | "appearance-only" | "unsupported";
 export type NativeTextDirection = "ltr" | "rtl" | "ttb" | "unknown";
 export type NativeTextAlign = "left" | "center" | "right";
@@ -16,7 +16,7 @@ export type NativeFontFamily = "serif" | "sans-serif" | "monospace";
 export type NativeFontWeight = "normal" | "bold";
 export type NativeFontStyle = "normal" | "italic";
 export type NativeEditableFontFamily = "Helvetica" | "Times-Roman" | "Courier" | "ko" | "ja" | "zh-Hans" | "zh-Hant";
-export type NativeFontSource = "built-in" | "built-in-cjk" | "imported-cjk" | "imported-latin" | "annotation-fallback";
+export type NativeFontSource = "built-in" | "built-in-cjk" | "imported-cjk" | "imported-latin" | "imported-shaped" | "annotation-fallback";
 export type NativeTextLayoutMode = "fixed-box" | "expand-flow";
 export type NativeImageAction = "transform" | "replace" | "delete";
 export type NativeImageRotation = 0 | 90 | 180 | 270;
@@ -295,6 +295,7 @@ export interface NativeTextEdit {
   fontBytes?: Uint8Array;
   fontLanguage?: "ko" | "ja" | "zh-Hans" | "zh-Hant";
   writingMode?: 0 | 1;
+  direction?: NativeTextDirection;
   fontWeight?: NativeFontWeight;
   fontStyle?: NativeFontStyle;
   lineHeight?: number;

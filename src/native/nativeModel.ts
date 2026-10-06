@@ -15,14 +15,16 @@ import type {
   NativeTextRun
 } from "../types/nativeEditor";
 import { annotatePageTextFlows } from "./layoutReflow.ts";
+import { detectQualifiedComplexScript } from "./complexScript.ts";
 
 export function detectScript(text: string): NativeScript {
+  const qualifiedComplex = detectQualifiedComplexScript(text);
+  if (qualifiedComplex) return qualifiedComplex;
   let latin = false;
   let ko = false;
   let ja = false;
   let hans = false;
   let hant = false;
-  let complex = false;
   const hanOnlyJapanese = /日本|日本語/.test(text);
   for (const ch of text) {
     const code = ch.codePointAt(0) ?? 0;
@@ -32,9 +34,8 @@ export function detectScript(text: string): NativeScript {
     else if (code >= 0x4e00 && code <= 0x9fff) {
       if ("國學體龍門萬與為雲臺灣廣東書長會國華漢".includes(ch)) hant = true;
       else hans = true;
-    } else if ((code >= 0x0590 && code <= 0x0dff) || (code >= 0xfb1d && code <= 0xfeff)) complex = true;
+    }
   }
-  if (complex) return "complex";
   if (ko) return "cjk-ko";
   if (ja || hanOnlyJapanese) return "cjk-ja";
   if (hant) return "cjk-zh-hant";
@@ -49,6 +50,22 @@ function capability(level: NativeCapability["level"], label: string, confidence:
 
 export function classifyTextEditability(text: string, fontName = ""): Pick<NativeTextObject, "script" | "editability" | "reason" | "capability"> {
   const script = detectScript(text);
+  if (script === "arabic") {
+    const reason = "Arabic-script text can be reconstructed in its fixed region after a compatible local font is imported and validated.";
+    return {
+      script,
+      editability: "shaped-fixed-box",
+      reason,
+      capability: capability(
+        "safe-reconstruction",
+        "Arabic shaping",
+        0.84,
+        reason,
+        ["Logical Unicode text", "RTL/bidi ordering", "Page geometry"],
+        ["A compatible imported font is required; line wrapping and metrics can differ from the source PDF."]
+      )
+    };
+  }
   if (/type3|symbol|dingbat|identity/i.test(fontName)) {
     const reason = "The source font encoding cannot be reconstructed safely.";
     return { script, editability: "overlay-only", reason, capability: capability("appearance-only", "Appearance edit", 0.5, reason, ["Original source project"], ["Replacement is exported as an annotation overlay unless a compatible font is supplied."]) };
@@ -352,6 +369,7 @@ function inferredAlignment(lines: VisualLine[], bounds: NativeRect): NativeTextA
 
 function inferredDirection(script: NativeScript, writingMode: 0 | 1, text: string): NativeTextDirection {
   if (writingMode === 1) return "ttb";
+  if (script === "arabic") return "rtl";
   if (script === "complex" && /[\u0590-\u08ff\ufb1d-\ufeff]/u.test(text)) return "rtl";
   if (script === "unknown") return "unknown";
   return "ltr";
@@ -405,13 +423,15 @@ function trimLastCharacter(builder: StyledBuilder): void {
   if (!last.text) builder.runs.pop();
 }
 
-function appendInline(builder: StyledBuilder, spans: NativeTextObject[]): void {
+function appendInline(builder: StyledBuilder, spans: NativeTextObject[], direction: NativeTextDirection = "ltr"): void {
   let previous: NativeTextObject | undefined;
   for (const span of spans) {
     const value = span.text;
     if (!value) continue;
     if (previous && !/\s$/u.test(builder.text) && !/^\s/u.test(value)) {
-      const gap = span.bounds.x - (previous.bounds.x + previous.bounds.w);
+      const gap = direction === "rtl"
+        ? previous.bounds.x - (span.bounds.x + span.bounds.w)
+        : span.bounds.x - (previous.bounds.x + previous.bounds.w);
       if (gap > Math.max(1.5, Math.min(previous.size, span.size) * 0.18)) appendRun(builder, " ", previous);
     }
     appendRun(builder, value, span);
@@ -433,7 +453,11 @@ function buildStyledParagraph(lines: VisualLine[]): StyledBuilder {
         if (!noSpace) appendRun(builder, " ", builder.runs.length ? line.spans[0] : firstSpan);
       }
     }
-    appendInline(builder, line.spans);
+    const direction = inferredDirection(firstSpan.script, firstSpan.writingMode, line.text);
+    const inlineSpans = direction === "rtl"
+      ? [...line.spans].sort((a, b) => b.bounds.x - a.bounds.x)
+      : line.spans;
+    appendInline(builder, inlineSpans, direction);
   });
   return builder;
 }
@@ -473,7 +497,7 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
     reason,
     capability: {
       ...classification.capability,
-      label: classification.capability.level === "safe-reconstruction" ? "Layout-aware paragraph" : classification.capability.label,
+      label: classification.editability === "shaped-fixed-box" ? "Arabic fixed-box paragraph" : classification.capability.level === "safe-reconstruction" ? "Layout-aware paragraph" : classification.capability.label,
       confidence: Math.max(0, Math.min(1, classification.capability.confidence - 0.02)),
       reason,
       preserves: [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry", "Source font/style spans"])],
@@ -486,7 +510,7 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
     sourceSpanCount: spans.length,
     lineCount: Math.max(1, visuals.length),
     lineHeight: inferredLineHeight(visuals, size),
-    align: inferredAlignment(visuals, bounds),
+    align: classification.script === "arabic" && visuals.length === 1 ? "right" : inferredAlignment(visuals, bounds),
     direction: inferredDirection(classification.script, writingMode, text)
   };
 }

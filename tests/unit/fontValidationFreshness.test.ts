@@ -6,7 +6,9 @@ describe("P1 imported-font validation freshness", () => {
   it("keys an accepted font to the exact current text and font identity", () => {
     expect(panelSource).toContain("fontValidation.validatedText === text");
     expect(panelSource).toContain("fontValidation.validatedFontName === fontName");
-    expect(panelSource).toContain("const importedFontReady = !fontBytes?.byteLength");
+    expect(panelSource).toContain("const importedFontReady = shaped");
+    expect(panelSource).toContain("Boolean(fontBytes?.byteLength) && fontValidation.phase === \"ready\"");
+    expect(panelSource).toContain(": !fontBytes?.byteLength || (fontValidation.phase === \"ready\"");
     expect(panelSource).toContain("|| !importedFontReady");
   });
 

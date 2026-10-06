@@ -42,8 +42,9 @@ describe("native editor model", () => {
     expect(detectScript("日本語")).toBe("cjk-ja");
   });
 
-  it("falls back for complex scripts instead of claiming unsafe native shaping", () => {
-    expect(classifyTextEditability("مرحبا", "Identity-H").editability).toBe("overlay-only");
+  it("qualifies Arabic separately while keeping other complex scripts fail-closed", () => {
+    expect(classifyTextEditability("مرحبا", "Identity-H").editability).toBe("shaped-fixed-box");
+    expect(classifyTextEditability("שלום", "Identity-H").editability).toBe("overlay-only");
   });
 
   it("detects aligned table rows", () => {

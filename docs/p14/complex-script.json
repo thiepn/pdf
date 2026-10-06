@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "phase": "P14",
+  "roadmapItem": "V72-02",
+  "title": "Complex-Script Existing-Text Editing",
+  "status": "implemented-awaiting-stacked-merge",
+  "releaseBoundary": {
+    "executableVersion": "7.1.4",
+    "targetVersion": "7.2.0",
+    "versionCutAllowed": false,
+    "persistentFormats": {
+      "projectPackageVersion": 9,
+      "databaseSchemaVersion": 13,
+      "nativeEditorSchemaVersion": 6
+    }
+  },
+  "qualifiedScripts": [
+    {
+      "script": "arabic",
+      "label": "Arabic script / RTL",
+      "mixedContent": [
+        "Latin",
+        "digits",
+        "marks",
+        "punctuation",
+        "symbols",
+        "whitespace"
+      ],
+      "shaping": "harfbuzzjs@1.6.2",
+      "bidi": "bidi-js@1.1.0",
+      "requiresImportedFont": true,
+      "editMode": "fixed-box",
+      "layoutAwareReflow": false,
+      "bulkFindReplace": false,
+      "explicitBidiControls": false
+    }
+  ],
+  "stillUnqualified": [
+    "Hebrew static reconstruction",
+    "Indic-script shaping",
+    "cross-paragraph RTL reflow",
+    "automatic Arabic bulk find/replace",
+    "universal Unicode/complex-script editing"
+  ],
+  "exportContract": {
+    "localOnly": true,
+    "fontValidationBeforeApply": true,
+    "deterministicIdentityHCidFont": true,
+    "positionedShapedGlyphs": true,
+    "unicodeActualText": true,
+    "failClosedOnMissingGlyphs": true,
+    "failClosedOnFixedBoxOverflow": true
+  },
+  "dependencies": {
+    "harfbuzzjs": "1.6.2",
+    "bidiJs": "1.1.0"
+  },
+  "acceptance": [
+    "Arabic-script existing text is classified separately from generic complex scripts and enters a shaped fixed-box path.",
+    "Apply is blocked until a local imported font validates coverage for the current replacement text.",
+    "Mixed Arabic/Latin/digit/punctuation content is reordered with a Unicode bidi implementation and shaped with HarfBuzz.",
+    "The PDF writer embeds the validated font through MuPDF's Identity-H CID font path and emits shaped glyph IDs rather than unshaped Unicode character operators.",
+    "Shaped lines carry ActualText with the original logical Unicode so copy/search semantics are not replaced by visual glyph order.",
+    "Explicit bidi controls, unrelated shaping scripts, missing glyphs and fixed-box overflow fail closed.",
+    "Arabic bulk Find/Replace and cross-paragraph layout-aware reflow remain disabled until they have separate evidence.",
+    "No persistent schema or executable-version cut occurs in P14."
+  ],
+  "nextPhase": {
+    "id": "P15",
+    "title": "Structure-Preserving Target-Size Compression",
+    "roadmapItem": "V72-03"
+  }
+}

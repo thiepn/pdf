@@ -2,6 +2,19 @@
 
 ## Unreleased — v7.2 development line
 
+### P14 — Complex-Script Existing-Text Editing
+
+- Qualifies Arabic-script/RTL existing-text replacement as a dedicated fixed-box reconstruction path rather than generic appearance-only editing.
+- Adds `harfbuzzjs@1.6.2` for real contextual shaping, ligatures, advances and mark offsets.
+- Adds `bidi-js@1.1.0` for Unicode bidirectional embedding levels, visual run order and mirroring in mixed Arabic/Latin/number text.
+- Requires a local imported TTF/OTF that passes MuPDF parsing and current-text glyph coverage before Apply is enabled.
+- Embeds the selected font through MuPDF's Identity-H CID font path and writes shaped glyph IDs instead of unshaped Unicode character operators.
+- Wraps shaped lines with logical UTF-16BE `/ActualText` so copy/search semantics remain logical rather than visual glyph order.
+- Fails closed on explicit bidi controls, unrelated complex scripts, missing font coverage and shaped fixed-box overflow.
+- Keeps Arabic layout expansion and automatic Find/Replace disabled pending separate RTL-specific evidence.
+- Leaves executable version `7.1.4` and persistent formats 9 / 13 / 6 unchanged.
+- Hands implementation to P15: Structure-Preserving Target-Size Compression.
+
 ### P13 — Layout-Aware PDF → DOCX Export 2.0
 
 - Replaces the text-only PDF→DOCX paragraph dump with local layout-aware reconstruction.

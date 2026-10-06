@@ -2,7 +2,7 @@
 
 - OCR creates searchable raster reconstructions rather than adding an invisible layer to the original page structure.
 - Tesseract targets printed text. Handwriting recognition is not claimed.
-- Existing static text replacement supports bounded Latin reconstruction and CJK CID-font reconstruction. Arabic, Indic, RTL, and other shaping-dependent scripts remain an appearance-only fallback until a shaping/bidi engine is integrated.
+- Existing static text replacement supports bounded Latin reconstruction, CJK CID-font reconstruction, and a qualified **Arabic-script/RTL fixed-box path** using a validated imported font, Unicode bidi ordering, HarfBuzz shaping, Identity-H CID glyph output, and logical `/ActualText`. Hebrew, Indic and other shaping-dependent scripts remain appearance-only/unsupported; Arabic cross-paragraph reflow and automatic bulk replacement are not qualified.
 - Paragraph reflow across neighboring objects/columns/pages and universal arbitrary content-stream rewriting are not implemented.
 - Image replacement is region-based and may not preserve original masks, clipping, blend modes, or shared-image semantics.
 - Raster compression and imposition do not preserve interactive or vector structures.
