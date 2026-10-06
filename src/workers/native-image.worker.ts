@@ -413,6 +413,8 @@ self.onmessage = (event: MessageEvent<Request>) => {
       }
       const changed = new Set<number>();
       const beforeCounts = new Map<string, number>();
+      const beforeRects = new Map<string, NativeRect[]>();
+      const beforeClasses = new Map<string, NativeImageObject["fidelity"] extends infer F ? F extends { class: infer C } ? C : never : never>();
 
       for (const edit of request.edits) {
         active(request.requestId);
@@ -423,9 +425,13 @@ self.onmessage = (event: MessageEvent<Request>) => {
             .map((image) => ({ image, score: rectDistance(image.bounds, sourceBounds) }))
             .sort((left, right) => left.score - right.score)[0];
           if (!current || current.score > 4) throw new Error("The selected source image could not be matched safely before export.");
-          if (current.image.editability === "fidelity-protected") throw new Error(current.image.fidelity?.reason ?? "This image is fidelity-protected and cannot be mutated safely.");
-          beforeCounts.set(edit.id, imageRects(page).filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5).length);
           const action = edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform");
+          const allowedActions = current.image.fidelity?.allowedActions ?? (current.image.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
+          if (!allowedActions.includes(action)) throw new Error(current.image.fidelity?.reason ?? "This image operation is fidelity-protected and cannot be applied safely.");
+          const sourceRects = imageRects(page);
+          beforeRects.set(edit.id, sourceRects);
+          beforeClasses.set(edit.id, current.image.fidelity?.class as any);
+          beforeCounts.set(edit.id, sourceRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5).length);
           const source = action === "transform" ? sourceImageObject(pdf, page, sourceBounds) : undefined;
 
           if (action === "transform" || action === "delete" || edit.removeUnderlying) redactImageOnly(page, sourceBounds);
@@ -451,8 +457,21 @@ self.onmessage = (event: MessageEvent<Request>) => {
           try {
             const rects = imageRects(page);
             const action = edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform");
+            const sourceBounds = edit.sourceBounds ?? edit.bounds;
+            const originals = beforeRects.get(edit.id) ?? [];
+            const sourceCount = beforeCounts.get(edit.id) ?? 0;
+            const expectedMinimum = Math.max(0, originals.length - sourceCount + (action === "delete" ? 0 : 1));
+            if (rects.length < expectedMinimum) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared.`);
+            for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
+              if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: an untouched image instance changed position or disappeared.`);
+            }
+            if (beforeClasses.get(edit.id) === "masked" && action === "transform") {
+              const inspected = inspectImagePage(page, edit.pageNumber).images
+                .map((image) => ({ image, score: rectDistance(image.bounds, edit.bounds) }))
+                .sort((left, right) => left.score - right.score)[0];
+              if (!inspected || inspected.score > 4 || inspected.image.fidelity?.class !== "masked") throw new Error(`Masked image transform did not preserve its attached soft mask on page ${edit.pageNumber}.`);
+            }
             if (action === "delete") {
-              const sourceBounds = edit.sourceBounds ?? edit.bounds;
               const before = beforeCounts.get(edit.id) ?? 0;
               const after = rects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5).length;
               if (before > 0 && after >= before) throw new Error(`Image deletion did not remove the selected source image on page ${edit.pageNumber}.`);
@@ -465,7 +484,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
         const sourceTransforms = request.edits.filter((edit) => (edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform")) === "transform").length;
         const deletions = request.edits.filter((edit) => edit.action === "delete").length;
         const warnings: string[] = [];
-        if (sourceTransforms) warnings.push("Existing image content was reused locally for source transforms. PDF optimization may recompress the image stream even when the visible pixels are unchanged.");
+        if (sourceTransforms) warnings.push("Existing image content was reused locally for source transforms. Attached soft masks are revalidated after reopening; PDF optimization may recompress the image stream even when visible pixels are unchanged.");
         if (deletions) warnings.push(`${deletions} existing image${deletions === 1 ? " was" : "s were"} removed with image-only redaction; overlapping text and line art were preserved.`);
         const report: NativeExportReport = {
           operation: "native-content-edit",
