@@ -5,6 +5,7 @@ on:
     paths:
       - docs/p15/**
       - docs/product/P15_TARGET_SIZE_COMPRESSION.md
+      - docs/EVERYDAY_PDF_WORKFLOWS.md
       - scripts/p15/**
       - src/processing/targetSizeCompression.ts
       - src/processing/rasterCompression.ts
