@@ -133,6 +133,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         let resultBytes: Uint8Array | undefined;
         let outputPassword: string | undefined;
         let resultWarnings: string[] = [];
+        let targetOutcome: TargetSizeCompressionResult["outcome"] | undefined;
 
         if (mode === "target") {
           if (!Number.isFinite(requestedTargetBytes) || requestedTargetBytes <= 0) throw new Error("Enter a valid target size.");
@@ -152,6 +153,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
             }
           });
           setTargetResult(result);
+          targetOutcome = result.outcome;
           resultWarnings = result.warnings;
           setWarnings(resultWarnings);
           if (!result.bytes) {
@@ -192,7 +194,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         setOutputDocument(outputPdf);
         setOutput(resultBytes);
         setOutputFingerprint(requestedFingerprint);
-        setStatus(mode === "target" && targetResult?.outcome === "best-effort" ? "Best achieved PDF checked and ready" : "Compressed PDF checked and ready");
+        setStatus(mode === "target" && targetOutcome === "best-effort" ? "Best achieved PDF checked and ready" : "Compressed PDF checked and ready");
         update({ progress: 1 });
       });
     } catch (reason) {
