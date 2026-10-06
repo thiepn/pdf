@@ -84,7 +84,7 @@ check(imagePanel.includes("Fidelity-protected image") && imagePanel.includes("At
 check(tablePanel.includes("object.geometryKind"), "table UI surfaces geometry class");
 check(textPanel.includes("uniquely detected two-column thread") && textPanel.includes("regionCount"), "text UI explains bounded adjacent-region flow");
 
-check(fixture.includes("/SMask 7 0 R") && fixture.includes("/GSBlend") && fixture.includes("re W n") && fixture.includes("IRREGULAR / MERGED TABLE"), "generated fixture covers mask, blend, clipping and irregular table structures");
+check(fixture.includes("/SMask 7 0 R") && fixture.includes("/GSBlend") && fixture.includes("re W n") && fixture.includes("strokedRect(54, 190, 220, 30)"), "generated fixture covers mask, blend, clipping and rectangular merged-table geometry");
 check(unitTest.includes("attached soft masks") && unitTest.includes("merged-irregular") && unitTest.includes("Pattern"), "focused P17 policy tests cover promoted/protected classes");
 check(browserTest.includes("Attached soft mask preserved") && browserTest.includes("Fidelity-protected image") && browserTest.includes("merged irregular") && browserTest.includes("Region 1/2"), "browser qualification exercises image, table and text-flow surfaces");
 
