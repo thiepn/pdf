@@ -40,6 +40,27 @@ export function defaultBatchStep(type: BatchStep["type"], id = randomStepId()): 
   return { id, type: "raster-compress", profile: "balanced" };
 }
 
+function canonicalBatchStep(step: BatchStep): BatchStep {
+  const id = String(step.id || randomStepId());
+  switch (step.type) {
+    case "rotate": return { id, type: "rotate", degrees: step.degrees };
+    case "optimize": return { id, type: "optimize" };
+    case "remove-metadata": return { id, type: "remove-metadata" };
+    case "crop": return { id, type: "crop", topMm: step.topMm, rightMm: step.rightMm, bottomMm: step.bottomMm, leftMm: step.leftMm };
+    case "decorate": return { id, type: "decorate", watermarkText: step.watermarkText, headerText: step.headerText, footerText: step.footerText, pageNumbers: step.pageNumbers, startNumber: step.startNumber, fontLanguage: step.fontLanguage };
+    case "blank-pages": return { id, type: "blank-pages", position: step.position, count: step.count, widthMm: step.widthMm, heightMm: step.heightMm };
+    case "raster-compress": return { id, type: "raster-compress", profile: step.profile };
+    case "grayscale": return { id, type: "grayscale", profile: step.profile };
+    case "extract-pages": return { id, type: "extract-pages", selection: step.selection };
+    case "remove-pages": return { id, type: "remove-pages", selection: step.selection };
+    case "flatten": return { id, type: "flatten", flattenForms: step.flattenForms, flattenAnnotations: step.flattenAnnotations };
+    case "sanitize": return { id, type: "sanitize", removeAttachments: step.removeAttachments, removeMetadata: step.removeMetadata };
+    case "target-size": return { id, type: "target-size", targetBytes: step.targetBytes, preservation: step.preservation };
+    case "split-fixed": return { id, type: "split-fixed", pagesPerFile: step.pagesPerFile };
+    case "page-images": return { id, type: "page-images", quality: step.quality };
+  }
+}
+
 export function migrateBatchRecipe(recipe: BatchRecipe, now = Date.now(), idFactory: () => string = randomStepId): BatchRecipe {
   const schemaVersion = Number(recipe?.schemaVersion);
   if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 1) throw new Error("This saved workflow has an invalid format version.");
@@ -62,7 +83,7 @@ export function migrateBatchRecipe(recipe: BatchRecipe, now = Date.now(), idFact
  * excluded so cosmetic edits do not invalidate otherwise-current output.
  */
 export function batchRecipeExecutionFingerprint(recipe: BatchRecipe): string {
-  const normalized = migrateBatchRecipe(recipe);
+  const normalized = validateBatchRecipe(recipe);
   return JSON.stringify(normalized.steps.map((step) => {
     const { id: _id, ...execution } = step;
     return execution;
@@ -81,7 +102,14 @@ export function validateBatchRecipe(recipe: BatchRecipe): BatchRecipe {
     if (step.type === "flatten" && !step.flattenForms && !step.flattenAnnotations) throw new Error("Flatten must include forms, annotations, or both.");
     if (step.type === "target-size" && (!Number.isFinite(step.targetBytes) || step.targetBytes < 1 || !["preserve-structure","allow-raster"].includes(step.preservation))) throw new Error("Target-size compression has invalid settings.");
   }
-  return migrated;
+  return {
+    schemaVersion: CURRENT_BATCH_SCHEMA_VERSION,
+    id: String(migrated.id || randomStepId()),
+    name: String(migrated.name ?? ""),
+    steps: migrated.steps.map(canonicalBatchStep),
+    outputSuffix: String(migrated.outputSuffix || "processed"),
+    updatedAt: Number.isFinite(migrated.updatedAt) ? migrated.updatedAt : Date.now()
+  };
 }
 export function parseBatchRecipeJson(source: string): BatchRecipe {
   let parsed: unknown;
