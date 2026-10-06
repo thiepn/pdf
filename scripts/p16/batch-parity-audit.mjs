@@ -4,7 +4,7 @@ const read = (path) => readFile(path, "utf8");
 const [
   manifestText, p12Text, packageText, lockText, releaseSource, nativeTypes,
   batchTypes, batchModel, capabilities, pipeline, batchPage, styles,
-  encryptedTest, parityTest, browserTest, phase18, phase26, phase26Unit,
+  encryptedTest, parityTest, browserTest, phase18, phase26, phase26Unit, phase30Migration, v606,
   limitations, readme, changelog, productDoc, workflow
 ] = await Promise.all([
   read("docs/p16/batch-parity.json"),
@@ -25,6 +25,8 @@ const [
   read("scripts/phase18/runtime-regression.mjs"),
   read("scripts/phase26/runtime-regression.mjs"),
   read("tests/unit/phase26WorkflowIntelligence.test.ts"),
+  read("scripts/phase30/migration-audit.mjs"),
+  read("scripts/releases/v6.0.6/runtime-regression.mjs"),
   read("KNOWN_LIMITATIONS.md"),
   read("README.md"),
   read("CHANGELOG.md"),
@@ -66,6 +68,8 @@ check(batchModel.includes("validateBatchRecipe"), "live and imported recipes sha
 check(phase18.includes("assert.equal(migrated.schemaVersion, 4)"), "Phase 18 legacy migration regression follows v4");
 check(phase26.includes("Batch 3 recipe migrates to schema 4"), "Phase 26 runtime preserves historical v3 migration evidence");
 check(phase26Unit.includes("migrates legacy Batch recipes to current schema 4"), "Phase 26 unit contract follows v4");
+check(phase30Migration.includes("batch v1-v4 migration") && phase30Migration.includes("CURRENT_BATCH_SCHEMA_VERSION\\s*=\\s*4"), "Phase 30 migration audit recognizes current Batch v4");
+check(v606.includes("schemaVersion: 5") && v606.includes("future Batch recipes are rejected"), "historical v6.0.6 future-schema guard advances beyond current v4");
 
 for (const type of ["extract-pages","remove-pages","flatten","sanitize","target-size"]) {
   check(batchTypes.includes(`type: "${type}"`), `Batch v4 exposes ${type}`);
