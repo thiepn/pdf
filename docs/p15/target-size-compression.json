@@ -21,7 +21,8 @@
     "targetMetRequiresSmallerThanSource": true,
     "targetMetRequiresAtOrBelowTarget": true,
     "largerOutputCanBeSuccessful": false,
-    "networkRequired": false
+    "networkRequired": false,
+    "structurePreservingOutputRequiresP8Fidelity": true
   },
   "preservationPreferences": [
     {
@@ -57,6 +58,7 @@
     "Strict preservation never rasterizes; an unattainable target produces either the smallest structure-preserving improvement or an explicit refusal.",
     "Target-priority mode returns the first target-hitting raster result at the highest tested fidelity, otherwise the smallest real improvement as best effort.",
     "Before/target/output byte evidence, attempt count and a preservation summary are shown for target-size results.",
+    "Any target-size result labelled structure-preserved must pass the existing P8 fidelity gate before publication.",
     "No persistent schema or executable-version cut occurs in P15."
   ],
   "nextPhase": {
