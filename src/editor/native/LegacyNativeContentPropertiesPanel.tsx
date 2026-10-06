@@ -165,7 +165,9 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
 }
 
 function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; queued?: NativeImageEdit; onQueue: (edit: NativeImageEdit) => void }) {
-  const initialAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+  const allowedActions = object.fidelity?.allowedActions ?? (object.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
+  const preferredAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+  const initialAction: NonNullable<NativeImageEdit["action"]> = allowedActions.includes(preferredAction) ? preferredAction : (allowedActions[0] ?? "transform");
   const [action, setAction] = useState<NonNullable<NativeImageEdit["action"]>>(initialAction);
   const [bytes, setBytes] = useState<Uint8Array | undefined>(queued?.bytes);
   const [mimeType, setMimeType] = useState(queued?.mimeType ?? "image/png");
@@ -176,7 +178,8 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   const [opacity, setOpacity] = useState(queued?.opacity ?? 1);
 
   useEffect(() => {
-    setAction(queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform"));
+    const nextAction = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+    setAction(allowedActions.includes(nextAction) ? nextAction : (allowedActions[0] ?? "transform"));
     setBytes(queued?.bytes);
     setMimeType(queued?.mimeType ?? "image/png");
     setFit(queued?.fit ?? "contain");
@@ -193,7 +196,8 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     setAction("replace");
   }
 
-  const protectedImage = object.editability === "fidelity-protected";
+  const protectedImage = object.editability === "fidelity-protected" || allowedActions.length === 0;
+  const actionAllowed = allowedActions.includes(action);
   if (protectedImage) return <section className="property-section property-stack">
     <p className="eyebrow">Existing image</p><h3>Fidelity-protected image</h3>
     <div className="warning-banner"><strong>Direct mutation blocked</strong><span>{object.fidelity?.reason ?? object.capability.reason}</span></div>
@@ -206,7 +210,9 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     <p className="property-note">The source remains selectable and inspectable. P17 fails closed instead of flattening masks, clipping, or compositing into a visually similar but structurally different PDF.</p>
   </section>;
 
-  const queue = () => onQueue({
+  const queue = () => {
+    if (!actionAllowed) return;
+    onQueue({
     id: queued?.id ?? crypto.randomUUID(),
     kind: "image",
     objectId: object.id,
@@ -220,10 +226,12 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     fit,
     rotation,
     opacity: Math.max(0, Math.min(1, opacity))
-  });
+    });
+  };
   return <section className="property-section property-stack">
     <p className="eyebrow">Existing image</p><h3>Image editing</h3>
-    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => setAction(event.target.value as NonNullable<NativeImageEdit["action"]>)}><option value="transform">Edit source image</option><option value="replace">Replace image</option><option value="delete">Delete image</option></select></label>
+    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => setAction(event.target.value as NonNullable<NativeImageEdit["action"]>)}><option disabled={!allowedActions.includes("transform")} value="transform">Edit source image</option><option disabled={!allowedActions.includes("replace")} value="replace">Replace image</option><option disabled={!allowedActions.includes("delete")} value="delete">Delete image</option></select></label>
+    {object.fidelity?.class === "masked" ? <div className="result-card"><strong>Attached soft mask preserved</strong><span>Source transform and deletion are qualified; bitmap replacement stays disabled because the source mask cannot be transferred safely to arbitrary replacement pixels.</span></div> : null}
     {action === "replace" ? <label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label> : null}
     {action !== "delete" ? <>
       <label className="property-field"><span>Fit</span><select aria-label="Image fit" value={fit} onChange={(event) => setFit(event.target.value as NativeImageEdit["fit"])}><option value="contain">Contain</option><option value="cover">Cover + crop</option><option value="stretch">Stretch</option></select></label>
@@ -232,7 +240,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
       {action === "replace" ? <label className="property-toggle"><input checked={removeUnderlying} type="checkbox" onChange={(event) => setRemoveUnderlying(event.target.checked)} />Remove the original image before drawing the replacement</label> : <p className="property-note">No replacement upload is required. PDF Studio reuses the selected source image locally, removes only its original image region, then redraws it with the requested transform.</p>}
     </> : <div className="warning-banner"><strong>Permanent image deletion</strong><span>Only image content intersecting the selected source image region is removed. Overlapping text and line art are preserved.</span></div>}
     <p className="property-note">{object.fidelity?.class === "shared" ? "This source image is shared. PDF Studio reconstructs only the selected instance and does not mutate the shared image resource. " : ""}Source transforms preserve the selected image content, but PDF optimization may recompress the encoded image stream. Exact compressed source bytes are not guaranteed.</p>
-    <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "replace" && !bytes?.byteLength} onClick={queue} type="button">{queued ? "Update image change" : action === "delete" ? "Delete existing image" : action === "replace" ? "Apply image replacement" : "Apply source image transform"}</button>
+    <button className={action === "delete" ? "button button--danger" : "button"} disabled={!actionAllowed || (action === "replace" && !bytes?.byteLength)} onClick={queue} type="button">{queued ? "Update image change" : action === "delete" ? "Delete existing image" : action === "replace" ? "Apply image replacement" : "Apply source image transform"}</button>
   </section>;
 }
 
