@@ -126,9 +126,11 @@ describe("P17 deep native-content fidelity policy", () => {
   });
 
   it("qualifies attached soft masks only for source-preserving transform and delete actions", () => {
-    const classified = classifyImageFidelity({ softMask: true });
+    const classified = classifyImageFidelity({ softMask: true, invocationCount: 2 });
     expect(classified.editability).toBe("replace-region");
     expect(classified.fidelity?.class).toBe("masked");
+    expect(classified.fidelity?.invocationCount).toBe(2);
+    expect(classified.capability.label).toBe("Shared masked source image");
     expect(classified.fidelity?.allowedActions).toEqual(["transform", "delete"]);
     expect(classified.fidelity?.allowedActions).not.toContain("replace");
     expect(classified.capability.level).toBe("safe-reconstruction");
