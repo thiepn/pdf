@@ -369,6 +369,7 @@ function inferredAlignment(lines: VisualLine[], bounds: NativeRect): NativeTextA
 
 function inferredDirection(script: NativeScript, writingMode: 0 | 1, text: string): NativeTextDirection {
   if (writingMode === 1) return "ttb";
+  if (script === "arabic") return "rtl";
   if (script === "complex" && /[\u0590-\u08ff\ufb1d-\ufeff]/u.test(text)) return "rtl";
   if (script === "unknown") return "unknown";
   return "ltr";
@@ -490,7 +491,7 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
     reason,
     capability: {
       ...classification.capability,
-      label: classification.capability.level === "safe-reconstruction" ? "Layout-aware paragraph" : classification.capability.label,
+      label: classification.editability === "shaped-fixed-box" ? "Arabic fixed-box paragraph" : classification.capability.level === "safe-reconstruction" ? "Layout-aware paragraph" : classification.capability.label,
       confidence: Math.max(0, Math.min(1, classification.capability.confidence - 0.02)),
       reason,
       preserves: [...new Set([...classification.capability.preserves, "Structured-text block boundary", "Source paragraph geometry", "Source font/style spans"])],
