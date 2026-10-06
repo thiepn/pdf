@@ -68,6 +68,44 @@ describe("P2 layout-aware text reflow", () => {
     expect(plan.blockers.join(" ")).toMatch(/image/i);
   });
 
+
+  it("spills an overflowing paragraph into one deterministic adjacent column and pushes that column down", () => {
+    const source = page([
+      text("a", 50, 40),
+      text("b", 50, 130),
+      text("right-a", 340, 40, "Right A"),
+      text("right-b", 340, 85, "Right B")
+    ], 180);
+    const plan = planTextReflow(source, "a", 52);
+    expect(plan.ok).toBe(true);
+    const spill = plan.shifts.find((shift) => shift.objectId === "b");
+    expect(spill?.crossRegion).toBe(true);
+    expect(spill?.bounds.x).toBe(340);
+    expect(spill?.bounds.y).toBe(40);
+    expect(plan.shifts.find((shift) => shift.objectId === "right-a")?.bounds.y).toBeGreaterThan(40);
+  });
+
+  it("fails closed when the target adjacent region contains unrelated artwork", () => {
+    const image: NativeImageObject = {
+      id: "right-image",
+      type: "image",
+      pageNumber: 1,
+      bounds: { x: 340, y: 38, w: 150, h: 28 },
+      editability: "replace-region",
+      capability: { level: "safe-reconstruction", label: "Image", confidence: 1, reason: "fixture", preserves: [], risks: [] }
+    };
+    const source = page([
+      text("a", 50, 40),
+      text("b", 50, 130),
+      text("right-a", 340, 40, "Right A"),
+      text("right-b", 340, 85, "Right B"),
+      image
+    ], 180);
+    const plan = planTextReflow(source, "a", 52);
+    expect(plan.ok).toBe(false);
+    expect(plan.blockers.join(" ")).toMatch(/image/i);
+  });
+
   it("blocks a flow that would push content outside the page", () => {
     const source = page([text("a", 50, 20), text("b", 50, 85), text("c", 50, 130)], 160);
     const plan = planTextReflow(source, "a", 45);
