@@ -1,0 +1,43 @@
+name: P12 v7.2 product roadmap controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p12/**
+      - docs/product/P12_V72_PRODUCT_ROADMAP.md
+      - scripts/p12/**
+      - tests/unit/p12Roadmap.test.ts
+      - .github/workflows/p12-roadmap-ci.yml
+      - docs/p11/**
+      - docs/product/P1_EXISTING_TEXT_EDITING_EXCELLENCE.md
+      - docs/product/P3_OCR_SCAN_TO_EDITABLE.md
+      - docs/product/P8_FIDELITY_COMPATIBILITY.md
+      - src/professional/docx.ts
+      - src/views/CompressionPage.tsx
+      - src/types/batch.ts
+      - KNOWN_LIMITATIONS.md
+      - package.json
+      - package-lock.json
+      - README.md
+      - CHANGELOG.md
+
+permissions:
+  contents: read
+
+jobs:
+  roadmap-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit P11 pre-cut boundary
+        run: npm run audit:p11:next-line
+      - name: Audit v7.2 product scope and feature intake
+        run: npm run check:p12
+      - name: Typecheck inherited product source
+        run: npm run typecheck

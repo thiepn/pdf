@@ -106,7 +106,9 @@
     "check:p10": "npm run audit:p10:promotion && npm run test:p10:promotion && vitest run tests/unit/p10StablePromotion.test.ts",
     "audit:p11:next-line": "node scripts/p11/next-line-audit.mjs",
     "test:p11:cut": "node --test scripts/p11/*.test.mjs",
-    "check:p11": "npm run audit:p11:next-line && npm run test:p11:cut && vitest run tests/unit/p11DevelopmentLine.test.ts"
+    "check:p11": "npm run audit:p11:next-line && npm run test:p11:cut && vitest run tests/unit/p11DevelopmentLine.test.ts",
+    "audit:p12:roadmap": "node scripts/p12/roadmap-audit.mjs",
+    "check:p12": "npm run audit:p11:next-line && npm run audit:p12:roadmap && vitest run tests/unit/p12Roadmap.test.ts"
   },
   "dependencies": {
     "mupdf": "1.28.0",

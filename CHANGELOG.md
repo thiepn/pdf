@@ -2,6 +2,17 @@
 
 ## Unreleased — v7.2 development line
 
+### P12 — Product roadmap & feature intake
+
+- Rebaselines v7.2 against the current v7.1 product instead of stale historical gap lists.
+- Records visual page composition, source-preserving OCR 2.0, and P8 fidelity gating as already shipped rather than re-planning them.
+- Commits six net-new v7.2 outcomes: layout-aware editable PDF→DOCX export, complex-script existing-text editing, structure-preserving target-size compression, Batch parity/encrypted-queue ergonomics, deeper native-content fidelity, and compatibility/human-device qualification.
+- Keeps DOCX→PDF, independent PDF/A validation, and dedicated two-pointer document zoom as evidence-gated candidates.
+- Defers broad XLSX/PPTX parity, certificate-backed/PAdES signing, universal PDF/UA reconstruction, unrestricted content-stream rewriting, and enterprise/native platform expansion.
+- Adds a machine-readable P12 intake contract, source-anchored roadmap audit, unit contract tests, and dedicated CI.
+- Leaves executable version `7.1.4`, target version `7.2.0`, and persistent formats 9 / 13 / 6 unchanged.
+- Hands implementation to P13: Layout-Aware PDF → DOCX Export 2.0.
+
 ### P11 — Development-line foundation
 
 - Declares `7.2.0` as the next release target without changing the executable `7.1.4` package/runtime identity before Stable publication is complete.
