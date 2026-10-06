@@ -73,6 +73,11 @@ describe("P16 Batch parity model", () => {
     expect(() => validateBatchRecipe(recipe([{ id: "x", type: "target-size", targetBytes: 0, preservation: "preserve-structure" }]))).toThrow(/invalid settings/i);
   });
 
+  it("refuses to serialize an invalid current recipe", () => {
+    const invalid = recipe([{ id: "x", type: "flatten", flattenForms: false, flattenAnnotations: false }]);
+    expect(() => serializeBatchRecipe(invalid)).toThrow(/at least|include forms/i);
+  });
+
   it("keeps terminal multi-output steps last under schema v4", () => {
     expect(() => validateBatchRecipe(recipe([
       { id: "split", type: "split-fixed", pagesPerFile: 2 },
