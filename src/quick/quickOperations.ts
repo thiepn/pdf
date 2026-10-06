@@ -142,36 +142,40 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
       files.push(asPdf(groups.length > 1 ? `${name}-part-${String(index + 1).padStart(3, "0")}` : name, result.bytes)); enforceOutputBudget(files);
     }
   } else if (["pdf-to-jpg", "pdf-to-png", "pdf-to-text", "pdf-to-docx"].includes(task)) {
-    const pdf = await openPdfWithPdfJs(input.bytes, input.password);
-    try {
-      const selected = parsePageSelection(options.selection, pdf.numPages); const texts: string[] = [];
-      for (const [index, pageIndex] of selected.entries()) {
-        check(signal); progress(`Exporting page ${pageIndex + 1} (${index + 1} of ${selected.length})…`);
-        if (task === "pdf-to-text" || task === "pdf-to-docx") { texts.push(await extractPageText(pdf, pageIndex + 1)); continue; }
-        const page = await pdf.getPage(pageIndex + 1); const canvas = document.createElement("canvas");
-        try {
-          const viewport = page.getViewport({ scale: options.dpi / 72 });
-          if (viewport.width * viewport.height > MAX_CANVAS_PIXELS) throw new Error(`Page ${pageIndex + 1} is too large at this resolution. Choose a lower DPI.`);
-          canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
-          const context = canvas.getContext("2d", { alpha: false }); if (!context) throw new Error("Page export needs canvas support.");
-          context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height);
-          const render = page.render({ canvas, canvasContext: context, viewport });
-          const cancel = () => render.cancel(); signal.addEventListener("abort", cancel, { once: true });
-          try { check(signal); await render.promise; } finally { signal.removeEventListener("abort", cancel); }
-          check(signal); const extension = task === "pdf-to-jpg" ? "jpg" : "png"; const mime = task === "pdf-to-jpg" ? "image/jpeg" : "image/png";
-          files.push({ name: safeOutputName(`${name}-page-${String(pageIndex + 1).padStart(3, "0")}`, extension), bytes: await encodeCanvas(canvas, mime), mime }); enforceOutputBudget(files);
-        } finally { page.cleanup(); canvas.width = 0; canvas.height = 0; }
-      }
-      if (task === "pdf-to-text" || task === "pdf-to-docx") {
-        if (!texts.some((text) => text.trim())) throw new Error("No selectable text was found. Use OCR PDF first to recognize text in scanned pages.");
-        if (task === "pdf-to-docx") {
-          const { buildSimpleDocx } = await import("../professional/docx");
-          const paragraphs = texts.flatMap((text, index) => [...(index ? ["\f"] : []), ...text.split(/\r?\n/)]);
-          files.push({ name: safeOutputName(name, "docx"), bytes: buildSimpleDocx(name, paragraphs, false), mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-          warnings.push("This Word document contains editable extracted text with page breaks. Original fonts, page layout, tables and images are not reconstructed. Check text order before using it.");
-        } else files.push({ name: safeOutputName(name, "txt"), bytes: new TextEncoder().encode(texts.join("\n\n")), mime: "text/plain;charset=utf-8" });
-      }
-    } finally { await pdf.loadingTask.destroy(); }
+    if (task === "pdf-to-docx") {
+      const selected = parsePageSelection(options.selection, input.pageCount);
+      const { buildLayoutAwareDocx } = await import("../professional/layoutDocx");
+      const result = await buildLayoutAwareDocx(input.bytes, name, selected, input.password, signal, progress);
+      files.push({ name: safeOutputName(name, "docx"), bytes: result.bytes, mime: result.mime });
+      warnings.push(...result.warnings);
+      enforceOutputBudget(files);
+    } else {
+      const pdf = await openPdfWithPdfJs(input.bytes, input.password);
+      try {
+        const selected = parsePageSelection(options.selection, pdf.numPages); const texts: string[] = [];
+        for (const [index, pageIndex] of selected.entries()) {
+          check(signal); progress(`Exporting page ${pageIndex + 1} (${index + 1} of ${selected.length})…`);
+          if (task === "pdf-to-text") { texts.push(await extractPageText(pdf, pageIndex + 1)); continue; }
+          const page = await pdf.getPage(pageIndex + 1); const canvas = document.createElement("canvas");
+          try {
+            const viewport = page.getViewport({ scale: options.dpi / 72 });
+            if (viewport.width * viewport.height > MAX_CANVAS_PIXELS) throw new Error(`Page ${pageIndex + 1} is too large at this resolution. Choose a lower DPI.`);
+            canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+            const context = canvas.getContext("2d", { alpha: false }); if (!context) throw new Error("Page export needs canvas support.");
+            context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height);
+            const render = page.render({ canvas, canvasContext: context, viewport });
+            const cancel = () => render.cancel(); signal.addEventListener("abort", cancel, { once: true });
+            try { check(signal); await render.promise; } finally { signal.removeEventListener("abort", cancel); }
+            check(signal); const extension = task === "pdf-to-jpg" ? "jpg" : "png"; const mime = task === "pdf-to-jpg" ? "image/jpeg" : "image/png";
+            files.push({ name: safeOutputName(`${name}-page-${String(pageIndex + 1).padStart(3, "0")}`, extension), bytes: await encodeCanvas(canvas, mime), mime }); enforceOutputBudget(files);
+          } finally { page.cleanup(); canvas.width = 0; canvas.height = 0; }
+        }
+        if (task === "pdf-to-text") {
+          if (!texts.some((text) => text.trim())) throw new Error("No selectable text was found. Use OCR PDF first to recognize text in scanned pages.");
+          files.push({ name: safeOutputName(name, "txt"), bytes: new TextEncoder().encode(texts.join("\n\n")), mime: "text/plain;charset=utf-8" });
+        }
+      } finally { await pdf.loadingTask.destroy(); }
+    }
   } else if (task === "compress-pdf") {
     let output: Uint8Array;
     if (options.compression === "lossless") {
