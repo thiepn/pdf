@@ -184,7 +184,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     setBounds(queued?.bounds ?? object.bounds);
     setRotation(queued?.rotation ?? 0);
     setOpacity(queued?.opacity ?? 1);
-  }, [object.id, appearanceProtected]);
+  }, [object.id]);
 
   async function choose(file?: File): Promise<void> {
     if (!file) return;
@@ -253,7 +253,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
   const [action, setAction] = useState<NativeVectorEdit["action"]>(queued?.action ?? "edit");
   const [bounds, setBounds] = useState<NativeRect>(queued?.bounds ?? object.bounds);
   const [rotation, setRotation] = useState(queued?.rotation ?? 0);
-  const [appearanceOverride, setAppearanceOverride] = useState(queued?.appearanceOverride ?? false);
+  const [appearanceOverride, setAppearanceOverride] = useState(appearanceProtected ? false : (queued?.appearanceOverride ?? false));
   const [fillEnabled, setFillEnabled] = useState(queued?.fillEnabled ?? object.paint !== "stroke");
   const [strokeEnabled, setStrokeEnabled] = useState(queued?.strokeEnabled ?? object.paint !== "fill");
   const [fill, setFill] = useState(queued?.fillColor ?? object.fillColor ?? "#000000");
@@ -284,7 +284,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
     setDashPhase(queued?.dashPhase ?? object.dashPhase);
     setAlpha(queued?.alpha ?? sourceAlpha(object));
     setEvenOdd(queued?.evenOdd ?? object.evenOdd);
-  }, [object.id]);
+  }, [object.id, appearanceProtected]);
 
   function queue(): void {
     if (protectedPath) return;
