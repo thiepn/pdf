@@ -50,6 +50,7 @@ export function classifyImageFidelity(evidence: NativeImageFidelityEvidence): Pi
         clipped,
         blendMode,
         verified: true,
+        allowedActions: ["transform", "replace", "delete"],
         reason
       },
       capability: capability(
@@ -59,6 +60,33 @@ export function classifyImageFidelity(evidence: NativeImageFidelityEvidence): Pi
         reason,
         ["Other image instances", "Unrelated text and vector content", "Page count"],
         ["The selected image instance is reconstructed; encoded source bytes may be recompressed."]
+      )
+    };
+  }
+
+  if (softMask && !explicitMask && !clipped && blendMode === "Normal" && !ambiguous) {
+    const reason = "The source image carries an attached soft mask. Source transform/deletion is qualified because the original MuPDF Image (including its mask) is reused; replacement is blocked because a new bitmap cannot safely inherit the source mask.";
+    return {
+      editability: "replace-region",
+      fidelity: {
+        class: "masked",
+        resourceName: evidence.resourceName,
+        invocationCount,
+        softMask,
+        explicitMask,
+        clipped,
+        blendMode,
+        verified: true,
+        allowedActions: ["transform", "delete"],
+        reason
+      },
+      capability: capability(
+        "safe-reconstruction",
+        "Masked source image",
+        0.9,
+        reason,
+        ["Attached soft mask", "Other image instances", "Neighboring text/vector content", "Page count"],
+        ["Replacement is blocked; source transforms may recompress encoded image bytes."]
       )
     };
   }
@@ -82,6 +110,7 @@ export function classifyImageFidelity(evidence: NativeImageFidelityEvidence): Pi
       clipped,
       blendMode,
       verified: !ambiguous,
+      allowedActions: [],
       reason
     },
     capability: capability(
