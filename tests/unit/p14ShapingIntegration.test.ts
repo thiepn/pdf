@@ -1,8 +1,11 @@
-// @ts-expect-error Node types are intentionally excluded from the browser product tsconfig; Vitest runs this fixture in Node.\nimport { readFileSync } from "node:fs";
+// @ts-expect-error Node types are intentionally excluded from the browser product tsconfig; Vitest runs this fixture in Node.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { shapeComplexText } from "../../src/workers/complexTextShaping";
 
-declare const process: { env: Record<string, string | undefined> };\n\nconst fontPath = process.env.P14_ARABIC_FONT_PATH;
+declare const process: { env: Record<string, string | undefined> };
+
+const fontPath = process.env.P14_ARABIC_FONT_PATH;
 const qualified = Boolean(fontPath);
 
 describe("P14 HarfBuzz Arabic shaping integration", () => {
