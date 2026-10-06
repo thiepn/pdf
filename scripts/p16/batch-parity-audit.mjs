@@ -5,7 +5,7 @@ const [
   manifestText, p12Text, packageText, lockText, releaseSource, nativeTypes,
   batchTypes, batchModel, capabilities, pipeline, batchPage, styles,
   encryptedTest, parityTest, v606Unit, browserTest, phase18, phase26, phase26Unit, phase30Migration, v606,
-  limitations, readme, changelog, productDoc, workflow, batchRepository
+  limitations, readme, changelog, productDoc, workflow, releaseWorkflow, batchRepository
 ] = await Promise.all([
   read("docs/p16/batch-parity.json"),
   read("docs/p12/feature-intake.json"),
@@ -33,6 +33,7 @@ const [
   read("CHANGELOG.md"),
   read("docs/product/P16_BATCH_PARITY_ENCRYPTED_QUEUE.md"),
   read(".github/workflows/p16-batch-parity-ci.yml"),
+  read(".github/workflows/ci.yml"),
   read("src/processing/batchRepository.ts")
 ]);
 
@@ -120,6 +121,7 @@ check(changelog.includes("P16 — Batch Parity & Encrypted-Queue Ergonomics"), "
 check(productDoc.includes("Batch recipe schema v4") && productDoc.includes("Credential privacy") && productDoc.includes("P17 — Deep Native-Content Fidelity"), "P16 product documentation covers migration, privacy and handoff");
 check(styles.includes(".batch-item--needs-password") && styles.includes(".batch-credential"), "encrypted queue states have product styling");
 check(workflow.includes("npm run check:p16") && workflow.includes("tests/e2e/p16-batch-encrypted.spec.mjs") && workflow.includes("tests/unit/v606Maintenance.test.ts"), "P16 CI tracks dedicated controls, future-schema guard and browser acceptance");
+check(releaseWorkflow.includes("browser-regression-shard:") && releaseWorkflow.includes('--shard="') && releaseWorkflow.includes("needs: [browser-regression-shard]"), "verified-artifact browser qualification is sharded behind one aggregate gate");
 check(manifest.nextPhase?.id === "P17" && manifest.nextPhase?.roadmapItem === "V72-05", "P16 hands off to Deep Native-Content Fidelity");
 
 console.log(JSON.stringify({
