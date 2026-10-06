@@ -45,7 +45,7 @@ Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 
 - Twenty-one focused, download-first PDF tasks without requiring a saved project.
 - Visual mixed PDF/image assembly with output order, insert/replace, duplex interleaving, blank pages, and undo/redo.
 - Visual cropping, page extraction/removal/rotation, compression, password protection/removal, page numbers, watermarks, cleanup, and repair.
-- Image and text extraction plus editable **text-only DOCX** export; this is not layout-faithful Office conversion.
+- Image and text extraction plus **layout-aware editable DOCX** export with reconstructed paragraphs, common Word tables, embedded page-image regions, page sections, and supported text styling; exact PDF line wrapping, complex vector artwork, and Office round-trip fidelity are not claimed.
 - One document canvas with direct editing controls, contextual properties, and one searchable document-actions dialog; no document tabs or workspace mode rail.
 - Continue between tasks using a validated snapshot of current edits and form values rather than silently reopening the original.
 - Direct reader page fitting, page-number entry, find-in-document, downloads, and touch-sized light/dark controls.
@@ -192,7 +192,7 @@ Some operations intentionally rebuild document pages:
 - Lossless optimization, secure tools, inspection, repair, ordinary editing, and non-raster Toolbox transforms operate on the PDF structure, subject to each tool’s displayed limitations.
 - Toolbox grayscale intentionally rasterizes pages; split ZIP export creates independent documents from page ranges.
 
-The application does not claim universal Word-like PDF text reflow, high-fidelity PDF↔Office conversion, layout-faithful HTML/Markdown→PDF generation, handwriting OCR, certified PDF/A conversion, password cracking, or browser-based certificate signing.
+The application does not claim universal Word-like PDF text reflow, pixel-identical PDF↔Office conversion or Office round-trip fidelity, layout-faithful HTML/Markdown→PDF generation, handwriting OCR, certified PDF/A conversion, password cracking, or browser-based certificate signing.
 
 ## Run locally
 
