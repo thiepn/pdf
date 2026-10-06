@@ -77,9 +77,10 @@ first. This limitation is disclosed when entering from an editor project.
 3. **Existing-content editing and flat-form filling**: existing editor support is
    bounded. Broader editing claims need real-file fidelity testing; adding text over
    a scan is not equivalent to changing its original text.
-4. **OCR ergonomics and compression**: existing local OCR remains available. Searchable
-   text-preserving image recompression and reliable target-size compression remain
-   separate improvements; rasterization is not a substitute.
+4. **OCR ergonomics and compression**: existing local OCR remains available. P15
+   adds bounded target-size compression with a structure-preserving first pass and
+   explicit optional raster fallback; exact byte targets are still best-effort rather
+   than guaranteed, and rasterization remains a disclosed preservation boundary.
 5. **Forms/bookmarks/signatures preservation**: page grafts preserve page appearance
    and selectable text, but document-level structures need additional qualification.
    Warn before restructuring; do not claim digital signatures survive modifications.
