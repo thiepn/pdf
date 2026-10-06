@@ -211,7 +211,7 @@ function paragraphFromText(source: NativeTextObject, nextY?: number): LayoutDocx
     kind: "paragraph",
     id: source.id,
     bounds: source.bounds,
-    align: source.align === "center" || source.align === "right" || source.align === "justify" ? source.align : "left",
+    align: source.align === "center" || source.align === "right" ? source.align : "left",
     rtl: source.direction === "rtl",
     runs,
     spaceAfterPt: Math.max(0, Math.min(24, gap))
