@@ -1,4 +1,5 @@
 import * as mupdf from "mupdf";
+import { classifyTableGeometry } from "../native/nativeFidelity";
 import type {
   NativeCapability,
   NativeEditableFontFamily,
@@ -149,7 +150,7 @@ function nearestIndex(values: number[], target: number, tolerance = 3): number {
   return distance <= tolerance ? best : -1;
 }
 
-function tableCapability(confidence: number, complex: boolean, source: NativeTableDetectionSource): NativeCapability {
+function tableCapability(confidence: number, complex: boolean, source: NativeTableDetectionSource, geometryKind: NonNullable<NativeTableObject["geometryKind"]>): NativeCapability {
   if (complex) return {
     level: "unsupported",
     label: "Complex table content",
@@ -160,9 +161,9 @@ function tableCapability(confidence: number, complex: boolean, source: NativeTab
   };
   return {
     level: "safe-reconstruction",
-    label: "Structured table edit",
+    label: geometryKind === "regular" ? "Structured table edit" : "Structured irregular table",
     confidence,
-    reason: `${source === "mupdf-table-hunt" ? "MuPDF table-hunt and vector-grid evidence" : "Vector-grid evidence"} identify a bounded table that can be rebuilt as rows, columns and cells.`,
+    reason: `${source === "mupdf-table-hunt" ? "MuPDF table-hunt and vector-grid evidence" : "Vector-grid evidence"} identify a bounded ${geometryKind.replace("-", " ")} table whose explicit rectangular cell coverage can be rebuilt safely.`,
     preserves: ["Content outside the detected table region", "Images outside the table", "Page count", "Cell text semantics"],
     risks: ["The edited table is reconstructed as new PDF text and line art; original table operators, tagging and exact font subsets are not preserved byte-for-byte."]
   };
@@ -329,6 +330,9 @@ function tableFromGrid(pageNumber: number, tableIndex: number, xs: number[], ys:
   const imageInside = evidence.images.some((item) => intersects(item, tableBounds));
   const complexContent = imageInside || nonGridVector;
   const mergedCells = cells.filter((cell) => (cell.rowSpan ?? 1) > 1 || (cell.columnSpan ?? 1) > 1).length;
+  const rowHeights = Array.from({ length: rows }, (_, row) => ys[row + 1] - ys[row]);
+  const columnWidths = Array.from({ length: columns }, (_, column) => xs[column + 1] - xs[column]);
+  const geometryKind = classifyTableGeometry(rowHeights, columnWidths, mergedCells);
   const firstRow = cells.filter((cell) => cell.row === 0);
   const headerRows = firstRow.length && (firstRow.every((cell) => Boolean(cell.fillColor)) || evidence.lines.filter((line) => firstRow.some((cell) => containsPoint(cell.bounds, line.bounds.x + line.bounds.w / 2, line.bounds.y + line.bounds.h / 2))).every((line) => /bold/i.test(line.weight))) ? 1 : 0;
   const confidence = clamp(0.82 + Math.min(rows * columns, 12) * 0.008 + (source === "mupdf-table-hunt" ? 0.07 : 0) - (complexContent ? 0.08 : 0), 0.72, 0.98);
@@ -341,8 +345,8 @@ function tableFromGrid(pageNumber: number, tableIndex: number, xs: number[], ys:
     rows,
     columns,
     cells,
-    rowHeights: Array.from({ length: rows }, (_, row) => ys[row + 1] - ys[row]),
-    columnWidths: Array.from({ length: columns }, (_, column) => xs[column + 1] - xs[column]),
+    rowHeights,
+    columnWidths,
     headerRows,
     mergedCells,
     borderColor: border?.color ?? "#444444",
@@ -350,9 +354,10 @@ function tableFromGrid(pageNumber: number, tableIndex: number, xs: number[], ys:
     cellPadding: 4,
     detectionSource: source,
     complexContent,
+    geometryKind,
     confidence,
     editability: complexContent ? "unsupported" : "structured-table",
-    capability: tableCapability(confidence, complexContent, source)
+    capability: tableCapability(confidence, complexContent, source, geometryKind)
   };
 }
 
@@ -537,6 +542,7 @@ function validateCells(edit: NativeTableEdit): void {
       occupied.add(key);
     }
   }
+  if (edit.action !== "delete" && occupied.size !== edit.rows * edit.columns) throw new Error("The edited table grid has uncovered cells; reconstruction is blocked to avoid inventing irregular geometry.");
 }
 
 function redrawTable(pdf: PdfDocument, page: PdfPage, edit: NativeTableEdit): void {
