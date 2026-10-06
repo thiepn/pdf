@@ -65,7 +65,10 @@ export function classifyImageFidelity(evidence: NativeImageFidelityEvidence): Pi
   }
 
   if (softMask && !explicitMask && !clipped && blendMode === "Normal" && !ambiguous) {
-    const reason = "The source image carries an attached soft mask. Source transform/deletion is qualified because the original MuPDF Image (including its mask) is reused; replacement is blocked because a new bitmap cannot safely inherit the source mask.";
+    const sharedPrefix = shared
+      ? `This masked source resource is invoked ${invocationCount} times; PDF Studio reconstructs only the selected instance. `
+      : "";
+    const reason = `${sharedPrefix}The source image carries an attached soft mask. Source transform/deletion is qualified because the original MuPDF Image (including its mask) is reused; replacement is blocked because a new bitmap cannot safely inherit the source mask.`;
     return {
       editability: "replace-region",
       fidelity: {
@@ -82,8 +85,8 @@ export function classifyImageFidelity(evidence: NativeImageFidelityEvidence): Pi
       },
       capability: capability(
         "safe-reconstruction",
-        "Masked source image",
-        0.9,
+        shared ? "Shared masked source image" : "Masked source image",
+        shared ? 0.86 : 0.9,
         reason,
         ["Attached soft mask", "Other image instances", "Neighboring text/vector content", "Page count"],
         ["Replacement is blocked; source transforms may recompress encoded image bytes."]
