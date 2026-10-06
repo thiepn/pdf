@@ -192,6 +192,19 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     setAction("replace");
   }
 
+  const protectedImage = object.editability === "fidelity-protected";
+  if (protectedImage) return <section className="property-section property-stack">
+    <p className="eyebrow">Existing image</p><h3>Fidelity-protected image</h3>
+    <div className="warning-banner"><strong>Direct mutation blocked</strong><span>{object.fidelity?.reason ?? object.capability.reason}</span></div>
+    <dl className="property-summary">
+      <dt>Class</dt><dd>{object.fidelity?.class ?? "ambiguous"}</dd>
+      <dt>Mask</dt><dd>{object.fidelity?.softMask || object.fidelity?.explicitMask ? "Yes" : "No"}</dd>
+      <dt>Clipping</dt><dd>{object.fidelity?.clipped ? "Yes" : "No"}</dd>
+      <dt>Blend</dt><dd>{object.fidelity?.blendMode ?? "Unknown"}</dd>
+    </dl>
+    <p className="property-note">The source remains selectable and inspectable. P17 fails closed instead of flattening masks, clipping, or compositing into a visually similar but structurally different PDF.</p>
+  </section>;
+
   const queue = () => onQueue({
     id: queued?.id ?? crypto.randomUUID(),
     kind: "image",
@@ -217,7 +230,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
       <div className="property-grid-two"><label className="property-field"><span>Rotation</span><select aria-label="Image rotation" value={rotation} onChange={(event) => setRotation(Number(event.target.value) as NonNullable<NativeImageEdit["rotation"]>)}><option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option></select></label><NumberInput label="Opacity" value={opacity} min={0} max={1} step={0.05} onChange={setOpacity} /></div>
       {action === "replace" ? <label className="property-toggle"><input checked={removeUnderlying} type="checkbox" onChange={(event) => setRemoveUnderlying(event.target.checked)} />Remove the original image before drawing the replacement</label> : <p className="property-note">No replacement upload is required. PDF Studio reuses the selected source image locally, removes only its original image region, then redraws it with the requested transform.</p>}
     </> : <div className="warning-banner"><strong>Permanent image deletion</strong><span>Only image content intersecting the selected source image region is removed. Overlapping text and line art are preserved.</span></div>}
-    <p className="property-note">Source transforms preserve the selected image content, but PDF optimization may recompress the encoded image stream. Exact compressed source bytes are not guaranteed.</p>
+    <p className="property-note">{object.fidelity?.class === "shared" ? "This source image is shared. PDF Studio reconstructs only the selected instance and does not mutate the shared image resource. " : ""}Source transforms preserve the selected image content, but PDF optimization may recompress the encoded image stream. Exact compressed source bytes are not guaranteed.</p>
     <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "replace" && !bytes?.byteLength} onClick={queue} type="button">{queued ? "Update image change" : action === "delete" ? "Delete existing image" : action === "replace" ? "Apply image replacement" : "Apply source image transform"}</button>
   </section>;
 }
