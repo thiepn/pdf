@@ -138,6 +138,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         let resultWarnings: string[] = [];
         let targetOutcome: TargetSizeCompressionResult["outcome"] | undefined;
         let targetMethod: TargetSizeCompressionResult["method"] | undefined;
+        let pendingTargetResult: TargetSizeCompressionResult | undefined;
 
         if (mode === "target") {
           if (!Number.isFinite(requestedTargetBytes) || requestedTargetBytes <= 0) throw new Error("Enter a valid target size.");
@@ -156,16 +157,17 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
               update({ detail: event.detail, progress: value });
             }
           });
-          setTargetResult(result);
           targetOutcome = result.outcome;
           targetMethod = result.method;
           resultWarnings = result.warnings;
           setWarnings(resultWarnings);
           if (!result.bytes) {
+            setTargetResult(result);
             setStatus(result.outcome === "refused" ? "Target-size compression refused" : "Target not reached");
             update({ detail: result.message, progress: 1 });
             return;
           }
+          pendingTargetResult = result;
           resultBytes = result.bytes;
           outputPassword = result.method === "structure-preserving" ? (password || undefined) : undefined;
         } else if (profile === "lossless") {
@@ -219,12 +221,15 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         setOutputDocument(outputPdf);
         setOutput(resultBytes);
         setOutputFingerprint(requestedFingerprint);
+        if (pendingTargetResult) setTargetResult(pendingTargetResult);
         setStatus(mode === "target" && targetOutcome === "best-effort" ? "Best achieved PDF checked and ready" : "Compressed PDF checked and ready");
         update({ progress: 1 });
       });
     } catch (reason) {
-      if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : String(reason));
-      setStatus("Failed");
+      invalidateOutput();
+      const cancelled = reason instanceof DOMException && reason.name === "AbortError";
+      if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+      setStatus(cancelled ? "Cancelled" : "Failed");
     } finally {
       setProcessing(false);
       setProgress(0);
