@@ -14,6 +14,7 @@ import type {
   NativeImageEdit,
   NativeImageObject,
   NativeInspection,
+  NativeRect,
   NativeTableEdit,
   NativeTableObject,
   NativeTextEdit,
@@ -189,13 +190,61 @@ function mergeTableInspection(base: NativeInspection, table: TableInspection): N
   return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, tables: table.total }, warnings: [...base.warnings.filter((warning) => !/table/i.test(warning)), ...table.warnings] });
 }
 
+function containmentRatio(inner: NativeRect, outer: NativeRect): number {
+  const x0 = Math.max(inner.x, outer.x);
+  const y0 = Math.max(inner.y, outer.y);
+  const x1 = Math.min(inner.x + inner.w, outer.x + outer.w);
+  const y1 = Math.min(inner.y + inner.h, outer.y + outer.h);
+  const intersection = Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
+  return intersection / Math.max(1, inner.w * inner.h);
+}
+
+function protectNestedFormImage(image: NativeImageObject, complexObjects: NativeComplexObject[]): NativeImageObject {
+  const parent = complexObjects.find((object) => object.contentKinds.includes("image") && containmentRatio(image.bounds, object.bounds) >= 0.9);
+  if (!parent) return image;
+  const reason = `This image is contained by reusable Form XObject /${parent.resourceName}. Direct child-image mutation is blocked because it could bypass the qualified instance-level Form editing boundary.`;
+  return {
+    ...image,
+    editability: "fidelity-protected",
+    fidelity: {
+      class: "ambiguous",
+      resourceName: image.fidelity?.resourceName,
+      invocationCount: image.fidelity?.invocationCount,
+      softMask: image.fidelity?.softMask ?? false,
+      explicitMask: image.fidelity?.explicitMask ?? false,
+      clipped: image.fidelity?.clipped ?? false,
+      blendMode: image.fidelity?.blendMode ?? "Normal",
+      verified: false,
+      allowedActions: [],
+      reason
+    },
+    capability: {
+      level: "unsupported",
+      label: "Nested Form child image",
+      confidence: 1,
+      reason,
+      preserves: [...new Set([...image.capability.preserves, "Reusable Form XObject source", "Other Form instances"])],
+      risks: [...new Set([...image.capability.risks, "Editing this child directly could change shared or nested Form semantics."])]
+    }
+  };
+}
+
 function mergeComplexInspection(base: NativeInspection, complex: ComplexInspection): NativeInspection {
+  let protectedNestedImages = 0;
   const pages = base.pages.map((page) => {
     const replacement = complex.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.complex ?? [];
     const withoutLegacy = page.objects.filter((object) => object.type !== "complex");
-    return { ...page, objects: [...replacement, ...withoutLegacy] };
+    const objects = withoutLegacy.map((object) => {
+      if (object.type !== "image") return object;
+      const protectedImage = protectNestedFormImage(object, replacement);
+      if (protectedImage !== object) protectedNestedImages += 1;
+      return protectedImage;
+    });
+    return { ...page, objects: [...replacement, ...objects] };
   });
-  return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, complex: complex.total }, warnings: [...base.warnings.filter((warning) => !/nested|Form XObject/i.test(warning)), ...complex.warnings] });
+  const warnings = [...base.warnings.filter((warning) => !/nested|Form XObject/i.test(warning)), ...complex.warnings];
+  if (protectedNestedImages) warnings.push(`P17 protected ${protectedNestedImages} image selection${protectedNestedImages === 1 ? "" : "s"} contained by reusable Form XObjects; edit the qualified Form instance instead of mutating a nested child image directly.`);
+  return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, complex: complex.total }, warnings });
 }
 
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
