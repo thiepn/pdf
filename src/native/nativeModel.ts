@@ -423,13 +423,15 @@ function trimLastCharacter(builder: StyledBuilder): void {
   if (!last.text) builder.runs.pop();
 }
 
-function appendInline(builder: StyledBuilder, spans: NativeTextObject[]): void {
+function appendInline(builder: StyledBuilder, spans: NativeTextObject[], direction: NativeTextDirection = "ltr"): void {
   let previous: NativeTextObject | undefined;
   for (const span of spans) {
     const value = span.text;
     if (!value) continue;
     if (previous && !/\s$/u.test(builder.text) && !/^\s/u.test(value)) {
-      const gap = span.bounds.x - (previous.bounds.x + previous.bounds.w);
+      const gap = direction === "rtl"
+        ? previous.bounds.x - (span.bounds.x + span.bounds.w)
+        : span.bounds.x - (previous.bounds.x + previous.bounds.w);
       if (gap > Math.max(1.5, Math.min(previous.size, span.size) * 0.18)) appendRun(builder, " ", previous);
     }
     appendRun(builder, value, span);
@@ -451,7 +453,11 @@ function buildStyledParagraph(lines: VisualLine[]): StyledBuilder {
         if (!noSpace) appendRun(builder, " ", builder.runs.length ? line.spans[0] : firstSpan);
       }
     }
-    appendInline(builder, line.spans);
+    const direction = inferredDirection(firstSpan.script, firstSpan.writingMode, line.text);
+    const inlineSpans = direction === "rtl"
+      ? [...line.spans].sort((a, b) => b.bounds.x - a.bounds.x)
+      : line.spans;
+    appendInline(builder, inlineSpans, direction);
   });
   return builder;
 }
@@ -504,7 +510,7 @@ function mergeTextGroup(group: NativeTextObject[]): NativeTextObject {
     sourceSpanCount: spans.length,
     lineCount: Math.max(1, visuals.length),
     lineHeight: inferredLineHeight(visuals, size),
-    align: inferredAlignment(visuals, bounds),
+    align: classification.script === "arabic" && visuals.length === 1 ? "right" : inferredAlignment(visuals, bounds),
     direction: inferredDirection(classification.script, writingMode, text)
   };
 }
