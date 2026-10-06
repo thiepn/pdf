@@ -1,10 +1,18 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
-import type { NativeExportReport, NativeImageEdit, NativeImageRotation, NativeRect } from "../types/nativeEditor";
+import { classifyImageFidelity } from "../native/nativeFidelity";
+import type { NativeExportReport, NativeImageEdit, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
+  | { type: "INSPECT_IMAGES"; requestId: string; bytes: ArrayBuffer; password?: string }
   | { type: "APPLY_IMAGES"; requestId: string; bytes: ArrayBuffer; password?: string; edits: NativeImageEdit[] }
   | { type: "CANCEL"; requestId: string };
+
+interface ImageInspection {
+  pages: Array<{ pageNumber: number; images: NativeImageObject[]; warnings: string[] }>;
+  total: number;
+  warnings: string[];
+}
 
 type PdfDocument = any;
 type PdfPage = any;
@@ -88,6 +96,184 @@ function graphicsState(pdf: PdfDocument, page: PdfPage, alpha: number): string |
   dictionary.put("CA", pdf.newReal(opacity));
   states.put(name, pdf.addObject(dictionary));
   return name;
+}
+
+function imageBoundsFromMatrix(matrix: number[]): NativeRect {
+  const points = [
+    point(matrix, 0, 0),
+    point(matrix, 1, 0),
+    point(matrix, 1, 1),
+    point(matrix, 0, 1)
+  ];
+  const x0 = Math.min(...points.map((value) => value[0]));
+  const y0 = Math.min(...points.map((value) => value[1]));
+  const x1 = Math.max(...points.map((value) => value[0]));
+  const y1 = Math.max(...points.map((value) => value[1]));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeImageObject[]; warnings: string[] } {
+  type Trace = {
+    image: any;
+    bounds: NativeRect;
+    alpha: number;
+    clipped: boolean;
+    softMask: boolean;
+    explicitMask: boolean;
+    blendMode: string;
+    key: number;
+  };
+  const traces: Trace[] = [];
+  const warnings: string[] = [];
+  const clipKinds: Array<"clip" | "soft-mask"> = [];
+  const groups: Array<{ blendMode: string; alpha: number }> = [];
+  const imageKeys = new WeakMap<object, number>();
+  let nextKey = 1;
+  let definingMaskDepth = 0;
+
+  const keyFor = (image: any): number => {
+    if (!image || (typeof image !== "object" && typeof image !== "function")) return nextKey++;
+    const known = imageKeys.get(image);
+    if (known) return known;
+    const key = nextKey++;
+    imageKeys.set(image, key);
+    return key;
+  };
+  const activeBlend = (): { blendMode: string; alpha: number } => {
+    for (let index = groups.length - 1; index >= 0; index -= 1) {
+      const group = groups[index];
+      if (group.blendMode !== "Normal" || group.alpha < 0.999) return group;
+    }
+    return { blendMode: "Normal", alpha: 1 };
+  };
+  const record = (image: any, ctm: number[], alpha: number, explicitMask = false) => {
+    const mask = safe(() => image?.getMask?.(), null as any);
+    const attachedMask = Boolean(mask);
+    mask?.destroy?.();
+    const imageMask = explicitMask || safe(() => Boolean(image?.getImageMask?.()), false);
+    const group = activeBlend();
+    const effectiveAlpha = Math.min(Number.isFinite(alpha) ? alpha : 1, group.alpha);
+    traces.push({
+      image,
+      bounds: imageBoundsFromMatrix(ctm),
+      alpha: effectiveAlpha,
+      clipped: clipKinds.length > 0,
+      softMask: attachedMask || definingMaskDepth > 0 || clipKinds.includes("soft-mask"),
+      explicitMask: imageMask,
+      blendMode: group.blendMode !== "Normal" ? group.blendMode : effectiveAlpha < 0.999 ? "Alpha" : "Normal",
+      key: keyFor(image)
+    });
+  };
+
+  const noOp = () => {};
+  const device: Record<string, (...args: any[]) => any> = {
+    fillPath: noOp,
+    strokePath: noOp,
+    fillText: noOp,
+    strokeText: noOp,
+    ignoreText: noOp,
+    fillShade: noOp,
+    clipPath: () => { clipKinds.push("clip"); },
+    clipStrokePath: () => { clipKinds.push("clip"); },
+    clipText: () => { clipKinds.push("clip"); },
+    clipStrokeText: () => { clipKinds.push("clip"); },
+    clipImageMask: () => { clipKinds.push("clip"); },
+    popClip: () => { clipKinds.pop(); },
+    beginMask: () => { definingMaskDepth += 1; },
+    endMask: () => {
+      definingMaskDepth = Math.max(0, definingMaskDepth - 1);
+      clipKinds.push("soft-mask");
+    },
+    beginGroup: (_area: unknown, _isolated: unknown, _knockout: unknown, blendMode: unknown, alpha: unknown) => {
+      groups.push({ blendMode: String(blendMode ?? "Normal").replace(/^\//, "") || "Normal", alpha: Number.isFinite(Number(alpha)) ? Math.max(0, Math.min(1, Number(alpha))) : 1 });
+    },
+    endGroup: () => { groups.pop(); },
+    fillImage: (image: any, ctm: number[], alpha: number) => record(image, ctm, alpha, false),
+    fillImageMask: (image: any, ctm: number[], _colorSpace: unknown, _color: unknown, alpha: number) => record(image, ctm, alpha, true),
+    beginTile: () => 0,
+    endTile: noOp,
+    beginLayer: noOp,
+    endLayer: noOp,
+    beginStructure: noOp,
+    endStructure: noOp,
+    beginMetatext: noOp,
+    endMetatext: noOp,
+    renderFlags: noOp,
+    setDefaultColorSpaces: noOp,
+    close: noOp
+  };
+
+  try {
+    if (typeof page.runPageContents === "function") page.runPageContents(device, (mupdf as any).Matrix.identity);
+    else page.run(device, (mupdf as any).Matrix.identity);
+  } catch (error) {
+    warnings.push(`Page ${pageNumber} image graphics-state trace failed; image mutation is disabled for this page to preserve unknown masks/clipping/blending (${error instanceof Error ? error.message : String(error)}).`);
+    const structured = page.toStructuredText("preserve-images");
+    try {
+      const fallback: NativeImageObject[] = [];
+      structured.walk({
+        onImageBlock: (bbox: unknown, _transform: unknown, image: any) => {
+          const mask = safe(() => image?.getMask?.(), null as any);
+          const softMask = Boolean(mask);
+          mask?.destroy?.();
+          const evidence = classifyImageFidelity({ softMask, explicitMask: safe(() => Boolean(image?.getImageMask?.()), false), ambiguous: true });
+          fallback.push({
+            id: `p${pageNumber}:image:${fallback.length}`,
+            type: "image",
+            pageNumber,
+            bounds: rectFromArray(bbox),
+            width: safe(() => Number(image.getWidth()), undefined as unknown as number),
+            height: safe(() => Number(image.getHeight()), undefined as unknown as number),
+            ...evidence
+          });
+        }
+      });
+      return { images: fallback, warnings };
+    } finally { structured.destroy?.(); }
+  }
+
+  const counts = new Map<number, number>();
+  for (const trace of traces) counts.set(trace.key, (counts.get(trace.key) ?? 0) + 1);
+  const images = traces.map((trace, index): NativeImageObject => {
+    const classified = classifyImageFidelity({
+      invocationCount: counts.get(trace.key) ?? 1,
+      softMask: trace.softMask,
+      explicitMask: trace.explicitMask,
+      clipped: trace.clipped,
+      blendMode: trace.blendMode
+    });
+    return {
+      id: `p${pageNumber}:image:${index}`,
+      type: "image",
+      pageNumber,
+      bounds: trace.bounds,
+      width: safe(() => Number(trace.image?.getWidth?.()), undefined as unknown as number),
+      height: safe(() => Number(trace.image?.getHeight?.()), undefined as unknown as number),
+      ...classified
+    };
+  });
+  const protectedCount = images.filter((image) => image.editability === "fidelity-protected").length;
+  const sharedCount = images.filter((image) => image.fidelity?.class === "shared").length;
+  if (protectedCount) warnings.push(`Page ${pageNumber} has ${protectedCount} image instance${protectedCount === 1 ? "" : "s"} protected from mutation because masks, clipping, blending, or ambiguous graphics state must be preserved.`);
+  if (sharedCount) warnings.push(`Page ${pageNumber} has ${sharedCount} shared image invocation${sharedCount === 1 ? "" : "s"}; edits use instance-local reconstruction instead of mutating the shared source resource.`);
+  return { images, warnings };
+}
+
+function inspectImages(pdf: PdfDocument, requestId: string): ImageInspection {
+  const pages: ImageInspection["pages"] = [];
+  const warnings: string[] = [];
+  let total = 0;
+  for (let index = 0; index < pdf.countPages(); index += 1) {
+    active(requestId);
+    const page = pdf.loadPage(index);
+    try {
+      const result = inspectImagePage(page, index + 1);
+      pages.push({ pageNumber: index + 1, ...result });
+      total += result.images.length;
+      warnings.push(...result.warnings);
+    } finally { page.destroy?.(); }
+  }
+  return { pages, total, warnings };
 }
 
 function normalizedRotation(value: unknown): NativeImageRotation {
@@ -221,6 +407,10 @@ self.onmessage = (event: MessageEvent<Request>) => {
       pdf = new (mupdf as any).PDFDocument(new Uint8Array(request.bytes));
       auth(pdf, request.password);
       safe(() => pdf.checkSyntax(), 0);
+      if (request.type === "INSPECT_IMAGES") {
+        self.postMessage({ type: "IMAGE_INSPECTION", requestId: request.requestId, inspection: inspectImages(pdf, request.requestId) });
+        return;
+      }
       const changed = new Set<number>();
       const beforeCounts = new Map<string, number>();
 
@@ -229,6 +419,11 @@ self.onmessage = (event: MessageEvent<Request>) => {
         const page = pdf.loadPage(edit.pageNumber - 1);
         try {
           const sourceBounds = edit.sourceBounds ?? edit.bounds;
+          const current = inspectImagePage(page, edit.pageNumber).images
+            .map((image) => ({ image, score: rectDistance(image.bounds, sourceBounds) }))
+            .sort((left, right) => left.score - right.score)[0];
+          if (!current || current.score > 4) throw new Error("The selected source image could not be matched safely before export.");
+          if (current.image.editability === "fidelity-protected") throw new Error(current.image.fidelity?.reason ?? "This image is fidelity-protected and cannot be mutated safely.");
           beforeCounts.set(edit.id, imageRects(page).filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5).length);
           const action = edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform");
           const source = action === "transform" ? sourceImageObject(pdf, page, sourceBounds) : undefined;
