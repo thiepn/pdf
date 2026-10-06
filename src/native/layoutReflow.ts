@@ -98,13 +98,18 @@ export function annotatePageTextFlows(page: NativePageTree): NativePageTree {
     return topDelta <= Math.max(36, Math.min(left.bounds.h, rightRegion.bounds.h) * 0.14);
   };
 
+  const adjacentPair = (first: typeof regions[number], second: typeof regions[number]): boolean =>
+    first.bounds.x <= second.bounds.x ? adjacency(first, second) : adjacency(second, first);
+
   let threadIndex = 0;
   for (let index = 0; index < regions.length - 1; index += 1) {
     const leftRegion = regions[index];
     const rightRegion = regions[index + 1];
     if (leftRegion.threadId || rightRegion.threadId || !adjacency(leftRegion, rightRegion)) continue;
-    const competingLeft = regions.slice(0, index).some((candidate) => adjacency(candidate, rightRegion));
-    const competingRight = regions.slice(index + 2).some((candidate) => adjacency(leftRegion, candidate));
+    const competingLeft = regions.some((candidate, candidateIndex) =>
+      candidateIndex !== index && candidateIndex !== index + 1 && adjacentPair(leftRegion, candidate));
+    const competingRight = regions.some((candidate, candidateIndex) =>
+      candidateIndex !== index && candidateIndex !== index + 1 && adjacentPair(rightRegion, candidate));
     if (competingLeft || competingRight) continue;
     const threadId = `p${page.pageNumber}:thread:${threadIndex++}`;
     leftRegion.threadId = threadId;
