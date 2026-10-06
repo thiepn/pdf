@@ -73,7 +73,7 @@ check(committed.every(item => item.schemaChange === false), "P12 committed scope
 check(deferred.every(item => typeof item.reason === "string" && item.reason.length > 30), "deferred items carry explicit reasons");
 
 check(docxSource.includes("buildTextDocx") && docxSource.includes("extractPageText"), "V72-01 is anchored in the current text-focused DOCX exporter");
-check(readme.includes("text-only DOCX") && readme.includes("not layout-faithful Office conversion"), "current product documentation confirms the DOCX fidelity ceiling");
+check((readme.includes("text-only DOCX") && readme.includes("not layout-faithful Office conversion")) || readme.includes("layout-aware editable DOCX"), "DOCX documentation retains the baseline fidelity boundary or an explicit downstream implementation");
 check(known.includes("shaping-dependent scripts remain an appearance-only fallback") && p1Doc.includes("real shaping/font path"), "V72-02 is anchored in the current complex-script boundary");
 check(compressionSource.includes('type ProfileId = "lossless" | "screen" | "balanced" | "small" | "print"'), "V72-03 is anchored in current fixed compression profiles");
 check(batchTypes.includes("BATCH_RECIPE_SCHEMA_VERSION = 3") && batchTypes.includes('type: "split-fixed"') && batchTypes.includes('type: "page-images"'), "V72-04 is anchored in the current Batch v3 model");

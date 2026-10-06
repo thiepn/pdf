@@ -1,0 +1,44 @@
+name: P13 layout-aware DOCX controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p13/**
+      - docs/product/P13_LAYOUT_AWARE_DOCX.md
+      - scripts/p13/**
+      - tests/unit/layoutDocx.test.ts
+      - tests/unit/taskGuide.test.ts
+      - src/professional/layoutDocx.ts
+      - src/quick/quickOperations.ts
+      - src/views/QuickToolPage.tsx
+      - src/ia/taskCatalog.ts
+      - src/product/TaskDirectory.tsx
+      - src/help/taskGuide.ts
+      - tests/e2e/task-first-guide.spec.ts
+      - README.md
+      - KNOWN_LIMITATIONS.md
+      - CHANGELOG.md
+      - package.json
+      - package-lock.json
+      - .github/workflows/p13-layout-docx-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  layout-docx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit inherited v7.2 roadmap
+        run: npm run audit:p12:roadmap
+      - name: Audit and test P13 DOCX
+        run: npm run check:p13
+      - name: Typecheck product source
+        run: npm run typecheck

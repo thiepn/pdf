@@ -21,8 +21,8 @@ describe("Task-first user guide", () => {
   });
   it("states conversion and redaction boundaries beside the instructions", () => {
     const word = taskFirstHelpArticles.find(article => article.id === "word-export")!;
-    expect(word.summary).toContain("does not reconstruct");
-    expect(word.steps.join(" ")).toContain("Office-file import are not implemented");
+    expect(word.summary).toContain("Exact PDF line wrapping");
+    expect(word.steps.join(" ")).toContain("Office-file import is not implemented");
     expect(taskFirstHelpArticles.find(article => article.id === "redaction")!.steps.join(" ")).toContain("A mark is not permanent removal");
   });
 });
