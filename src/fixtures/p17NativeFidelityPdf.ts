@@ -37,17 +37,13 @@ export function createP17NativeFidelityPdf(): Uint8Array {
     text(330, 724, 10, "Right opening paragraph is the target."),
     text(330, 604, 10, "Right second paragraph keeps its order."),
 
-    text(390, 536, 8, "SOFT MASK / SHARED RESOURCE"),
     "q 70 0 0 50 390 474 cm /ImSoft Do Q",
     "q 70 0 0 50 478 474 cm /ImSoft Do Q",
 
-    text(390, 445, 8, "CLIPPED SOURCE"),
     "q 400 360 52 58 re W n 82 0 0 70 386 350 cm /ImPlain Do Q",
 
-    text(480, 445, 8, "BLENDED SOURCE"),
     "q /GSBlend gs 70 0 0 55 480 362 cm /ImPlain Do Q",
 
-    text(54, 244, 9, "IRREGULAR / MERGED TABLE"),
     // Top row (30 pt): first two columns merged.
     strokedRect(54, 190, 220, 30),
     strokedRect(274, 190, 80, 30),
