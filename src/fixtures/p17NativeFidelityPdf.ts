@@ -32,10 +32,10 @@ function strokedRect(x: number, y: number, width: number, height: number): strin
  */
 export function createP17NativeFidelityPdf(): Uint8Array {
   const pageContent = [
-    text(54, 724, 10, "Left region opening paragraph with enough width for flow."),
-    text(54, 604, 10, "Left region second paragraph remains independently movable."),
-    text(330, 724, 10, "Right region opening paragraph forms the adjacent target."),
-    text(330, 604, 10, "Right region second paragraph preserves bounded ordering."),
+    text(54, 724, 10, "Left opening paragraph for bounded flow."),
+    text(54, 604, 10, "Left second paragraph remains movable."),
+    text(330, 724, 10, "Right opening paragraph is the target."),
+    text(330, 604, 10, "Right second paragraph keeps its order."),
 
     text(390, 536, 8, "SOFT MASK / SHARED RESOURCE"),
     "q 70 0 0 50 390 474 cm /ImSoft Do Q",
