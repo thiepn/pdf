@@ -4,7 +4,7 @@ const read = (path) => readFile(path, "utf8");
 const [
   manifestText, p12Text, packageText, lockText, releaseSource, nativeTypes,
   targetEngine, compressionPage, processingWorker, rasterCompression,
-  limitations, everyday, readme, changelog, p15Doc, workflow
+  limitations, everyday, readme, changelog, p15Doc, workflow, browserTest
 ] = await Promise.all([
   read("docs/p15/target-size-compression.json"),
   read("docs/p12/feature-intake.json"),
@@ -21,7 +21,8 @@ const [
   read("README.md"),
   read("CHANGELOG.md"),
   read("docs/product/P15_TARGET_SIZE_COMPRESSION.md"),
-  read(".github/workflows/p15-target-size-ci.yml")
+  read(".github/workflows/p15-target-size-ci.yml"),
+  read("tests/e2e/p15-target-size.spec.mjs")
 ]);
 
 const manifest = JSON.parse(manifestText);
@@ -78,7 +79,8 @@ check(everyday.includes("P15") && !everyday.includes("reliable target-size compr
 check(readme.includes("P15") && readme.includes("target-size compression"), "README exposes P15 target-size compression");
 check(changelog.includes("P15 — Structure-Preserving Target-Size Compression"), "CHANGELOG records P15");
 check(p15Doc.includes("A larger file is never labelled successful compression") && p15Doc.includes("At most six attempts"), "P15 documentation states honest success and bounded search");
-check(workflow.includes("npm run check:p15") && workflow.includes("docs/p15/**"), "P15 CI executes dedicated controls");
+check(workflow.includes("npm run check:p15") && workflow.includes("docs/p15/**") && workflow.includes("tests/e2e/p15-target-size.spec.mjs"), "P15 CI tracks dedicated controls and browser acceptance");
+check(browserTest.includes("Compress to target") && browserTest.includes("output.length).toBeLessThanOrEqual(80_000)") && browserTest.includes("PDF structure preserved|Pages rasterized"), "browser acceptance verifies target bytes and preservation evidence");
 check(manifest.nextPhase?.id === "P16" && manifest.nextPhase?.roadmapItem === "V72-04", "P15 hands off to Batch parity and encrypted queues");
 
 console.log(JSON.stringify({
