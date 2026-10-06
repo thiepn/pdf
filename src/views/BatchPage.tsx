@@ -149,6 +149,7 @@ export function BatchPage() {
 
   function requirePassword(itemId:string, wrongPassword=false){
     sessionPasswordsRef.current.delete(itemId);
+    setPasswordDrafts(current=>({...current,[itemId]:""}));
     setItems(current=>current.map(item=>item.id===itemId?{
       ...item,
       credentialRevision:item.credentialRevision+1,
@@ -303,15 +304,26 @@ export function BatchPage() {
   }
 
   async function saveRecipe(){
-    const saved={...recipe,id:recipe.id==="current"?crypto.randomUUID():recipe.id,updatedAt:Date.now()};
-    await saveBatchRecipe(saved);
-    setRecipe(saved);
-    setRecipes(await listBatchRecipes());
+    setError(null);
+    try{
+      const valid=validateBatchRecipe(structuredClone(recipe));
+      const saved={...valid,id:valid.id==="current"?crypto.randomUUID():valid.id,updatedAt:Date.now()};
+      await saveBatchRecipe(saved);
+      setRecipe(saved);
+      setRecipes(await listBatchRecipes());
+    }catch(reason){
+      setError(reason instanceof Error?reason.message:String(reason));
+    }
   }
 
   function exportRecipe(){
-    const blob=new Blob([serializeBatchRecipe(recipe)],{type:"application/json;charset=utf-8"});
-    downloadBlob(blob,`${(recipe.name||"batch-recipe").replace(/[^a-zA-Z0-9_-]+/g,"-").replace(/^-+|-+$/g,"")||"batch-recipe"}.lpsrecipe.json`);
+    setError(null);
+    try{
+      const blob=new Blob([serializeBatchRecipe(recipe)],{type:"application/json;charset=utf-8"});
+      downloadBlob(blob,`${(recipe.name||"batch-recipe").replace(/[^a-zA-Z0-9_-]+/g,"-").replace(/^-+|-+$/g,"")||"batch-recipe"}.lpsrecipe.json`);
+    }catch(reason){
+      setError(reason instanceof Error?reason.message:String(reason));
+    }
   }
 
   async function importRecipe(file:File){
@@ -465,7 +477,7 @@ function StepEditor({step,disabled,patch}:{step:BatchStep;disabled:boolean;patch
   if(step.type==="decorate")return <div className="batch-step-grid"><label>Watermark<input disabled={disabled} value={step.watermarkText} onChange={event=>patch({watermarkText:event.target.value})}/></label><label>Header<input disabled={disabled} value={step.headerText} onChange={event=>patch({headerText:event.target.value})}/></label><label>Footer<input disabled={disabled} value={step.footerText} onChange={event=>patch({footerText:event.target.value})}/></label><label className="check-row"><input disabled={disabled} checked={step.pageNumbers} type="checkbox" onChange={event=>patch({pageNumbers:event.target.checked})}/> Page numbers</label><label>Start<input disabled={disabled} type="number" value={step.startNumber} onChange={event=>patch({startNumber:Number(event.target.value)})}/></label><label>Script<select disabled={disabled} value={step.fontLanguage ?? "auto"} onChange={event=>patch({fontLanguage:event.target.value as "auto"|"ko"|"ja"|"zh-Hans"|"zh-Hant"})}><option value="auto">Auto</option><option value="ko">Korean</option><option value="ja">Japanese</option><option value="zh-Hans">Chinese · Simplified</option><option value="zh-Hant">Chinese · Traditional</option></select></label></div>;
   if(step.type==="blank-pages")return <div className="batch-step-grid"><label>Position<select disabled={disabled} value={step.position} onChange={event=>patch({position:event.target.value as "start"|"end"})}><option value="start">Start</option><option value="end">End</option></select></label><label>Count<input disabled={disabled} min="1" max="20" type="number" value={step.count} onChange={event=>patch({count:Number(event.target.value)})}/></label><label>Width (mm)<input disabled={disabled} min="25" type="number" value={step.widthMm} onChange={event=>patch({widthMm:Number(event.target.value)})}/></label><label>Height (mm)<input disabled={disabled} min="25" type="number" value={step.heightMm} onChange={event=>patch({heightMm:Number(event.target.value)})}/></label></div>;
   if(step.type==="extract-pages"||step.type==="remove-pages")return <label>Pages<input disabled={disabled} placeholder="1-3, 5, 8-last" value={step.selection} onChange={event=>patch({selection:event.target.value})}/><small>The expression is evaluated against each file at this point in the workflow.</small></label>;
-  if(step.type==="flatten")return <div className="batch-step-grid"><label className="check-row"><input checked={step.flattenForms} disabled={disabled} onChange={event=>patch({flattenForms:event.target.checked})} type="checkbox"/> Forms</label><label className="check-row"><input checked={step.flattenAnnotations} disabled={disabled} onChange={event=>patch({flattenAnnotations:event.target.checked})} type="checkbox"/> Annotations</label><small>At least one must stay selected. Flattened content is no longer interactive.</small></div>;
+  if(step.type==="flatten")return <div className="batch-step-grid"><label className="check-row"><input checked={step.flattenForms} disabled={disabled||(step.flattenForms&&!step.flattenAnnotations)} onChange={event=>patch({flattenForms:event.target.checked})} type="checkbox"/> Forms</label><label className="check-row"><input checked={step.flattenAnnotations} disabled={disabled||(step.flattenAnnotations&&!step.flattenForms)} onChange={event=>patch({flattenAnnotations:event.target.checked})} type="checkbox"/> Annotations</label><small>At least one must stay selected. Flattened content is no longer interactive.</small></div>;
   if(step.type==="sanitize")return <div className="batch-step-grid"><label className="check-row"><input checked={step.removeAttachments} disabled={disabled} onChange={event=>patch({removeAttachments:event.target.checked})} type="checkbox"/> Remove attachments</label><label className="check-row"><input checked={step.removeMetadata} disabled={disabled} onChange={event=>patch({removeMetadata:event.target.checked})} type="checkbox"/> Remove metadata</label><small>JavaScript, automatic actions and revision history are cleaned by this step. This is not redaction or malware certification.</small></div>;
   if(step.type==="target-size")return <div className="batch-step-grid"><label>Target (MB)<input disabled={disabled} min="0.000001" step="0.1" type="number" value={Number((step.targetBytes/1_000_000).toFixed(4))} onChange={event=>patch({targetBytes:Math.max(1,Math.round(Number(event.target.value)*1_000_000))} as Partial<BatchStep>)}/></label><label>Priority<select disabled={disabled} value={step.preservation} onChange={event=>patch({preservation:event.target.value as "preserve-structure"|"allow-raster"} as Partial<BatchStep>)}><option value="preserve-structure">Keep PDF structure</option><option value="allow-raster">Prioritize target</option></select><small>Files already at or below the target pass through unchanged. Otherwise Batch uses P15's bounded target ladder.</small></label></div>;
   if(step.type==="raster-compress")return <label>Profile<select disabled={disabled} value={step.profile} onChange={event=>patch({profile:event.target.value as "screen"|"balanced"|"small"|"print"} as Partial<BatchStep>)}><option value="screen">Screen</option><option value="balanced">Balanced</option><option value="small">Small</option><option value="print">Print</option></select></label>;
