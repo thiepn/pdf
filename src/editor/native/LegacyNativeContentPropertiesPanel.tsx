@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { cjkLanguageForScript, detectScript } from "../../native/nativeModel";
+import { vectorAppearanceOverrideRisks } from "../../native/nativeFidelity";
 import { pageForNativeObject } from "../../native/nativeInspectionRegistry";
 import { evaluateTextFit, findFittingFontSize } from "../../native/textFit";
 import { nativeTextSourceRects } from "../../native/textSourceGeometry";
@@ -183,7 +184,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     setBounds(queued?.bounds ?? object.bounds);
     setRotation(queued?.rotation ?? 0);
     setOpacity(queued?.opacity ?? 1);
-  }, [object.id]);
+  }, [object.id, appearanceProtected]);
 
   async function choose(file?: File): Promise<void> {
     if (!file) return;
@@ -247,6 +248,8 @@ function parseDashPattern(value: string): number[] {
 
 function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject; queued?: NativeVectorEdit; onQueue: (edit: NativeVectorEdit) => void }) {
   const protectedPath = object.editability === "clip-protected";
+  const appearanceRisks = vectorAppearanceOverrideRisks(object);
+  const appearanceProtected = appearanceRisks.length > 0;
   const [action, setAction] = useState<NativeVectorEdit["action"]>(queued?.action ?? "edit");
   const [bounds, setBounds] = useState<NativeRect>(queued?.bounds ?? object.bounds);
   const [rotation, setRotation] = useState(queued?.rotation ?? 0);
@@ -268,7 +271,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
     setAction(queued?.action ?? "edit");
     setBounds(queued?.bounds ?? object.bounds);
     setRotation(queued?.rotation ?? 0);
-    setAppearanceOverride(queued?.appearanceOverride ?? false);
+    setAppearanceOverride(appearanceProtected ? false : (queued?.appearanceOverride ?? false));
     setFillEnabled(queued?.fillEnabled ?? object.paint !== "stroke");
     setStrokeEnabled(queued?.strokeEnabled ?? object.paint !== "fill");
     setFill(queued?.fillColor ?? object.fillColor ?? "#000000");
@@ -299,7 +302,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
       commands: object.commands,
       paint: object.paint,
       rotation,
-      appearanceOverride,
+      appearanceOverride: appearanceProtected ? false : appearanceOverride,
       fillEnabled,
       strokeEnabled,
       fillColor: fillEnabled ? fill : undefined,
@@ -329,8 +332,9 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
       {action === "edit" ? <>
         <GeometryEditor bounds={bounds} onChange={setBounds} />
         <NumberInput label="Rotation" value={rotation} min={-360} max={360} step={1} onChange={setRotation} />
-        <label className="property-toggle"><input checked={appearanceOverride} type="checkbox" onChange={(event) => setAppearanceOverride(event.target.checked)} />Override source appearance</label>
-        {!appearanceOverride ? <p className="property-note">Geometry-only editing keeps the original inherited PDF graphics state, including source color space, blend mode, opacity, clipping, dash style, caps and joins.</p> : <>
+        <label className="property-toggle"><input checked={appearanceOverride} disabled={appearanceProtected} type="checkbox" onChange={(event) => setAppearanceOverride(event.target.checked)} />Override source appearance</label>
+        {appearanceProtected ? <div className="warning-banner"><strong>Appearance override protected</strong><span>{appearanceRisks.join("; ")}. P17 permits geometry-only editing because it keeps the exact inherited source graphics state.</span></div> : null}
+        {!appearanceOverride ? <p className="property-note">Geometry-only editing keeps the original inherited PDF graphics state, including source color space, pattern/shading context, blend mode, opacity, clipping, dash style, caps and joins.</p> : <>
           <label className="property-toggle"><input checked={fillEnabled} type="checkbox" onChange={(event) => setFillEnabled(event.target.checked)} />Fill path</label>
           {fillEnabled ? <ColorInput label="Fill" value={fill} onChange={setFill} /> : null}
           <label className="property-toggle"><input checked={strokeEnabled} type="checkbox" onChange={(event) => setStrokeEnabled(event.target.checked)} />Stroke path</label>
@@ -342,7 +346,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
             <label className="property-field"><span>Dash pattern</span><input aria-label="Vector dash pattern" placeholder="6 3" value={dashText} onChange={(event) => setDashText(event.target.value)} /></label>
           </> : <NumberInput label="Opacity" value={alpha} min={0} max={1} step={0.05} onChange={setAlpha} />}
           {fillEnabled ? <label className="property-toggle"><input checked={evenOdd} type="checkbox" onChange={(event) => setEvenOdd(event.target.checked)} />Use even-odd fill rule</label> : null}
-          <p className="property-note">Appearance override is scoped to this path with its own graphics-state save/restore. Complex source color spaces are converted to DeviceRGB for the edited path only.</p>
+          <p className="property-note">Appearance override is available only for simple un-clipped Normal-blend source state. Complex color spaces, patterns, inherited clipping, and non-Normal blending remain fail-closed.</p>
         </>}
       </> : <div className="warning-banner"><strong>Permanent source-path deletion</strong><span>Only this exact path operator range is removed from its PDF content stream. Overlapping text, images and unrelated vector paths are not redacted.</span></div>}
       <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "edit" && appearanceOverride && !fillEnabled && !strokeEnabled} onClick={queue} type="button">{queued ? "Update vector change" : action === "delete" ? "Delete existing vector" : "Apply source vector edit"}</button>
