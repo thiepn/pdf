@@ -45,7 +45,7 @@ describe("P17 deep native-content fidelity policy", () => {
   it("proves MuPDF Device tracing and addImage preserve the generated fixture soft mask", () => {
     const pdf = new (mupdf as any).PDFDocument(createP17NativeFidelityPdf());
     const page = pdf.loadPage(0);
-    const observed: Array<{ masked: boolean; image: any }> = [];
+    const observed: boolean[] = [];
     const noOp = () => {};
     const device = new (mupdf as any).Device({
       fillPath: noOp,
@@ -60,7 +60,7 @@ describe("P17 deep native-content fidelity policy", () => {
       fillShade: noOp,
       fillImage(image: any) {
         const mask = image.getMask?.();
-        observed.push({ masked: Boolean(mask), image });
+        observed.push(Boolean(mask));
         mask?.destroy?.();
       },
       fillImageMask: noOp,
@@ -86,13 +86,27 @@ describe("P17 deep native-content fidelity policy", () => {
     try {
       page.run(device, (mupdf as any).Matrix.identity);
       expect(observed).toHaveLength(4);
-      expect(observed.filter((entry) => entry.masked)).toHaveLength(2);
+      expect(observed.filter(Boolean)).toHaveLength(2);
 
-      const masked = observed.find((entry) => entry.masked);
-      expect(masked).toBeDefined();
-      const embedded = pdf.addImage(masked!.image);
-      const smask = embedded.get("SMask");
-      expect(smask?.isNull?.()).not.toBe(true);
+      const structured = page.toStructuredText("preserve-images");
+      try {
+        let embedded: any;
+        structured.walk({
+          onImageBlock(_bbox: unknown, _transform: unknown, image: any) {
+            if (embedded) return;
+            const mask = image.getMask?.();
+            const masked = Boolean(mask);
+            mask?.destroy?.();
+            if (masked) embedded = pdf.addImage(image);
+          }
+        });
+        expect(embedded).toBeDefined();
+        const dictionary = embedded?.resolve?.() ?? embedded;
+        const smask = dictionary?.get?.("SMask");
+        expect(smask?.isNull?.()).not.toBe(true);
+      } finally {
+        structured.destroy?.();
+      }
     } finally {
       device.destroy?.();
       page.destroy?.();
