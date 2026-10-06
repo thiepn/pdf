@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "phase": "P16",
+  "roadmapItem": "V72-04",
+  "title": "Batch Parity & Encrypted-Queue Ergonomics",
+  "status": "implemented-awaiting-stacked-merge",
+  "releaseBoundary": {
+    "executableVersion": "7.1.4",
+    "targetVersion": "7.2.0",
+    "versionCutAllowed": false,
+    "persistentFormats": {
+      "projectPackageVersion": 9,
+      "databaseSchemaVersion": 13,
+      "nativeEditorSchemaVersion": 6
+    }
+  },
+  "batchRecipeSchema": {
+    "before": 3,
+    "after": 4,
+    "migration": "explicit-v2-v3-to-v4",
+    "passwordsInRecipe": false
+  },
+  "promotedRecipeSteps": [
+    "extract-pages",
+    "remove-pages",
+    "flatten",
+    "sanitize",
+    "target-size"
+  ],
+  "existingRecipeSteps": [
+    "rotate",
+    "optimize",
+    "remove-metadata",
+    "crop",
+    "decorate",
+    "blank-pages",
+    "raster-compress",
+    "grayscale",
+    "split-fixed",
+    "page-images"
+  ],
+  "capabilityMatrix": {
+    "source": "src/processing/batchCapabilities.ts",
+    "coversAllStandaloneQuickTasks": true,
+    "explicitBoundaryStatus": true
+  },
+  "encryptedQueue": {
+    "perFileCredential": true,
+    "scope": "open-batch-page-memory-only",
+    "persisted": false,
+    "projectPackage": false,
+    "diagnostics": false,
+    "workflowJson": false,
+    "wrongPassword": "recoverable-needs-password",
+    "clearEvents": [
+      "forget",
+      "remove-item",
+      "clear-queue",
+      "component-unmount"
+    ]
+  },
+  "staleOutputIdentity": {
+    "recipeFingerprint": true,
+    "inputIdentity": true,
+    "credentialRevision": true
+  },
+  "terminalSemantics": {
+    "splitFixed": "final-step-only; ZIP parts ordered by source page range; pages-0001-0010.pdf-style inner names",
+    "pageImages": "final-step-only; PNG ZIP ordered by source page; page-0001.png-style inner names",
+    "outerDownloadAll": "queue-order numeric prefix"
+  },
+  "targetSizeBatch": {
+    "reusesP15": true,
+    "alreadyAtTarget": "pass-through",
+    "structureResultRequiresP8Fidelity": true,
+    "actualOutputCredentialResolution": true
+  },
+  "nonBatchBoundaries": [
+    "multi-input merge and visual page organization",
+    "OCR recognition/review",
+    "repair/recovery",
+    "DOCX/text terminal conversion",
+    "output password creation",
+    "images-to-PDF non-PDF source composition"
+  ],
+  "acceptance": [
+    "A complete standalone-to-Batch capability matrix marks each Quick task as recipe, terminal, or explicit boundary.",
+    "Extract/remove pages, flatten, sanitization, and target-size compression have deterministic reusable Batch semantics.",
+    "Batch recipe schema v4 explicitly migrates v2/v3 recipes without changing existing ordered step meaning.",
+    "Encrypted queue items request a per-file credential only after a protected-input failure and validate it locally before reuse.",
+    "Plaintext Batch credentials stay in page-owned memory only and never enter recipe JSON, project storage, diagnostics, filenames, or queue messages.",
+    "Output currentness depends on recipe fingerprint, input identity, and credential revision.",
+    "After PDF rewrites, Batch resolves the actual output encryption state before later steps consume the result.",
+    "Terminal split/page-image steps remain final and expose deterministic ZIP/result naming and ordering.",
+    "No executable-version or persistent 9/13/6 schema cut occurs in P16.",
+    "Imported and loaded recipe objects are canonicalized to declared v4 fields so unknown credential-like properties cannot persist or re-export."
+  ],
+  "nextPhase": {
+    "id": "P17",
+    "title": "Deep Native-Content Fidelity",
+    "roadmapItem": "V72-05"
+  }
+}

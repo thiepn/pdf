@@ -33,7 +33,7 @@ const migrated = migrateBatchRecipe({
   compression: "lossless",
   removeMetadata: true
 }, 42, () => `step-${++id}`);
-assert.equal(migrated.schemaVersion, 3);
+assert.equal(migrated.schemaVersion, 4);
 assert.equal(migrated.updatedAt, 42);
 assert.deepEqual(migrated.steps.map((step) => step.type), ["rotate", "optimize", "remove-metadata"]);
 assert.deepEqual(migrated.steps.map((step) => step.id), ["step-1", "step-2", "step-3"]);

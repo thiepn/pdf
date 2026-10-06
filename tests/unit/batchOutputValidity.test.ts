@@ -7,16 +7,21 @@ describe("batch output validity", () => {
     expect(batchPageSource).toContain("batchRecipeExecutionFingerprint(recipeSnapshot)");
   });
 
-  it("does not expose stale outputs after an output-affecting workflow change", () => {
+  it("does not expose stale outputs after workflow, input, or session-credential changes", () => {
     expect(batchPageSource).toContain("item.outputRecipeFingerprint === recipeFingerprint");
-    expect(batchPageSource).toContain('?"Workflow changed · Run again":item.message');
+    expect(batchPageSource).toContain("item.outputInputIdentity === item.inputIdentity");
+    expect(batchPageSource).toContain("item.outputCredentialRevision === item.credentialRevision");
+    expect(batchPageSource).toContain('?"Workflow, input, or session credential changed · Run again":item.message');
     expect(batchPageSource).toContain("items.some(hasCurrentOutput)");
     expect(batchPageSource).toContain("hasCurrentOutput(item)?<button");
   });
 
   it("allows stale completed items to be processed again", () => {
-    expect(batchPageSource).toContain("!items.some(item=>!item.output||item.outputRecipeFingerprint!==runFingerprint||item.status!==\"complete\")");
-    expect(batchPageSource).toContain('if(item.output&&item.outputRecipeFingerprint===runFingerprint&&item.status==="complete")continue');
+    expect(batchPageSource).toContain("item.outputInputIdentity!==item.inputIdentity");
+    expect(batchPageSource).toContain("item.outputCredentialRevision!==item.credentialRevision");
+    expect(batchPageSource).toContain("item.outputInputIdentity===item.inputIdentity");
+    expect(batchPageSource).toContain("item.outputCredentialRevision===item.credentialRevision");
+    expect(batchPageSource).toContain('item.status==="complete"');
   });
 
   it("uses the current output suffix without reprocessing unchanged bytes", () => {

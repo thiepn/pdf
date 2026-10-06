@@ -1,4 +1,4 @@
-export const BATCH_RECIPE_SCHEMA_VERSION = 3;
+export const BATCH_RECIPE_SCHEMA_VERSION = 4;
 
 export type BatchStep =
   | { id: string; type: "rotate"; degrees: 90 | 180 | 270 }
@@ -9,6 +9,11 @@ export type BatchStep =
   | { id: string; type: "blank-pages"; position: "start" | "end"; count: number; widthMm: number; heightMm: number }
   | { id: string; type: "raster-compress"; profile: "screen" | "balanced" | "small" | "print" }
   | { id: string; type: "grayscale"; profile: "screen" | "balanced" | "print" }
+  | { id: string; type: "extract-pages"; selection: string }
+  | { id: string; type: "remove-pages"; selection: string }
+  | { id: string; type: "flatten"; flattenForms: boolean; flattenAnnotations: boolean }
+  | { id: string; type: "sanitize"; removeAttachments: boolean; removeMetadata: boolean }
+  | { id: string; type: "target-size"; targetBytes: number; preservation: "preserve-structure" | "allow-raster" }
   | { id: string; type: "split-fixed"; pagesPerFile: number }
   | { id: string; type: "page-images"; quality: "compact" | "balanced" | "high" };
 
@@ -24,4 +29,5 @@ export interface BatchRecipe {
   compression?: "none" | "lossless" | "screen" | "balanced" | "small" | "print";
   removeMetadata?: boolean;
 }
-export type BatchItemStatus = "pending" | "running" | "complete" | "failed" | "cancelled";
+
+export type BatchItemStatus = "pending" | "running" | "needs-password" | "complete" | "failed" | "cancelled";

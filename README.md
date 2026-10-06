@@ -28,6 +28,8 @@ P11 opens the next roadmap without changing the current executable release ident
 
 **P15 now implements V72-03 target-size compression.** Users can enter bytes, KB, or MB, choose strict structure preservation or permit bounded raster fallback, and receive explicit target-met, best-effort, or refusal outcomes. Every run starts with structure-preserving optimization; target-priority mode is capped at six total attempts and never labels an output larger than the source as successful compression.
 
+**P16 now implements V72-04 Batch parity and encrypted-queue ergonomics.** Batch recipe schema v4 explicitly migrates v2/v3 workflows, adds deterministic extract/remove-pages, flatten, sanitization, and target-size steps, and keeps terminal split/page-image semantics. Protected queue items now pause into a per-file session-only password prompt; credentials are never serialized into workflows or persistent project formats, and output validity is tied to recipe, input, and credential revision.
+
 Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.1.4 is the current task-first product-hardening release candidate.** Its P1–P8 stack covers safer existing-content editing, deterministic document-entry recommendations, source-preserving OCR 2.0, progressive native file Open/Save, shared output-verification evidence, touch-complete mobile interaction, reviewed form authoring and permanent-redaction discovery, and mandatory source/output fidelity certification before publication. Historical v7 universal-editing regressions remain frozen underneath that product layer. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.4` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
 ### v6.1.0 interface principles
@@ -137,7 +139,7 @@ Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 
 ### Advanced and professional tools
 
 - Structure-preserving target-size compression with byte/KB/MB targets, strict-preservation or bounded raster-fallback preferences, plus the existing manual lossless/raster profiles
-- Batch 3.0 ordered local recipes with rotate, optimize, metadata removal, crop, decoration, blank-page insertion, raster compression, grayscale, terminal PDF splitting, and terminal page-image ZIP export
+- Batch recipe v4 with explicit v2/v3 migration; ordered local rotate/optimize/target-size/metadata/crop/decoration/blank-page/extract/remove/flatten/sanitize/raster/grayscale steps, terminal PDF-split/page-image ZIP export, and per-file session-only encrypted-input credentials
 - Visual and text comparison with explicit missing-page handling plus hybrid text/visual sequence alignment for scan-heavy documents
 - Structural inspection and JSON reports
 - Clean-copy repair

@@ -7,7 +7,7 @@
 - Image replacement is region-based and may not preserve original masks, clipping, blend modes, or shared-image semantics.
 - Raster compression and imposition do not preserve interactive or vector structures.
 - Target-size compression uses at most **six bounded attempts**. Strict structure-preservation mode never rasterizes; target-priority mode may rasterize after the structural pass. Exact byte targets are not guaranteed; very small targets may end in best-effort/refusal, and raster fallback loses searchable/vector/interactive structure as disclosed in the result.
-- Batch recipes do not yet expose every standalone tool.
+- Batch recipe v4 covers the qualified deterministic single-PDF operations and records the remaining standalone-tool boundaries explicitly. Multi-input merge/visual organization, OCR review, repair/recovery, DOCX/text export, and output-password creation remain outside reusable Batch recipes.
 - Compare 3.0 aligns page sequences with text fingerprints and low-resolution visual fallback, but visually repetitive scans/forms or extreme page counts can still require manual pair selection.
 - Repair cannot recover every truncated or fundamentally unreadable PDF.
 - Archival analysis is not certified PDF/A conformance.
@@ -66,8 +66,8 @@ The workspace now includes Phase 16 revision/transaction lineage and object-leve
 - Page-image ZIP and grayscale PDF are raster outputs. Grayscale derived PDFs intentionally lose original searchable text, forms, links, annotations, layers, signatures, and vector editability.
 - Fixed-page split creates independent PDFs; whole-document bookmarks, signatures, attachments, and cross-part relationships may not remain meaningful across the resulting files.
 - The in-memory ZIP implementation uses the classic ZIP format and is intended for browser-sized export batches, not multi-gigabyte archival packaging.
-- Batch 2.0 is a linear single-output PDF pipeline. Multi-output operations such as split are not recipe nodes in this phase.
-- Batch 2.0 does not yet provide per-file password prompts for encrypted queue items.
+- Batch remains a linear per-file pipeline. Split and page-image export are supported only as final terminal steps because later recipe nodes cannot consume multiple output branches.
+- Encrypted Batch inputs support per-file session-only passwords. Credentials are intentionally forgotten on page reload/navigation, queue removal/clear, or explicit Forget and must then be entered again; they are never persisted into recipes or project storage.
 - High-fidelity PDF ↔ DOCX/PPTX/XLSX and layout-faithful HTML/Markdown → PDF remain intentionally deferred rather than being represented by low-fidelity browser approximations.
 
 
@@ -128,7 +128,7 @@ The workspace now includes Phase 16 revision/transaction lineage and object-leve
 - Create PDF Studio 2.0 preserves common inline bold/italic/bold-italic/code and safe `http`, `https`, and `mailto` links. Nested/edge-case Markdown grammar and arbitrary CSS remain outside the fidelity contract.
 - Searchable creator links are interactive; Visual compatibility PDFs rasterize pages, so link appearance remains visible but link annotations are not preserved in that mode.
 - Batch 3.0 multi-output operations must be the final recipe step. Split produces a ZIP of PDF parts; Page images produces a ZIP of PNGs. Later recipe steps cannot operate on multiple branches in this phase.
-- Batch encrypted-file queues still do not provide per-file password prompts.
+- Batch encrypted-file queues now provide per-file session-only password prompts. The credential is intentionally ephemeral and does not survive reload/navigation.
 
 
 ## Phase 27 release-qualification boundaries
