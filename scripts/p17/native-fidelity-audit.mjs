@@ -70,6 +70,7 @@ check(imageWorker.includes("allowedActions.includes(action)"), "worker independe
 check(imageWorker.includes("unrelated image instances disappeared") && imageWorker.includes("untouched image instance changed position or disappeared"), "image export detects collateral instance loss/movement");
 check(imageWorker.includes("did not preserve its attached soft mask"), "soft-mask source transform is revalidated after reopen");
 check(nativeClient.includes("mergeImageInspection") && nativeClient.includes('type: "INSPECT_IMAGES"'), "specialist image inspection replaces generic image assumptions");
+check(nativeClient.includes("protectNestedFormImage") && nativeClient.includes("Nested Form child image"), "nested reusable-Form child images stay visible but mutation-protected");
 check(nativeClient.includes("validatePdfFidelity(replaySource, working"), "all native output still passes P8 source/output fidelity validation");
 
 check(vectorWorker.includes("vectorAppearanceOverrideRisks(record.object)") && vectorWorker.includes("Geometry-only editing remains available"), "vector worker blocks unsafe appearance override but retains geometry-only path");
