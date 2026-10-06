@@ -261,7 +261,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
   return <div className="compression-page">
     <aside className="compression-controls">
       <p className="eyebrow">Compression</p>
-      <h2>Shrink the PDF without guessing</h2>
+      <h2>Choose how much to shrink the PDF</h2>
       <p>Set a target size and choose whether PDF structure is mandatory. The optimizer always tries structure-preserving cleanup before any raster fallback.</p>
       {error ? <div className="error-banner"><strong>Compression issue</strong><span>{error}</span></div> : null}
       {passwordRequired ? <section className="password-panel"><input autoFocus autoComplete="off" onChange={(event) => setPassword(event.target.value)} placeholder="PDF password" type="password" value={password}/><button className="button" disabled={!password || !project} onClick={() => project && void loadProjectBytes(project).then((bytes) => open(project, bytes, password))} type="button">Open PDF</button></section> : null}
