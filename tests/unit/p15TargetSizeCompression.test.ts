@@ -115,21 +115,21 @@ describe("P15 target-size compression", () => {
     }));
   });
 
-  it("rejects already-met and unqualified tiny targets without running an attempt", async () => {
+  it("rejects already-met and non-positive targets without running an attempt", async () => {
     const optimize = vi.fn();
     const alreadyMet = await compressPdfToTarget(bytes(200_000), document, {
       targetBytes: 200_000,
       preservation: "allow-raster"
     }, { optimize });
-    const tooSmall = await compressPdfToTarget(bytes(200_000), document, {
+    const nonPositive = await compressPdfToTarget(bytes(200_000), document, {
       targetBytes: MIN_TARGET_SIZE_BYTES - 1,
       preservation: "allow-raster"
     }, { optimize });
 
     expect(alreadyMet.outcome).toBe("refused");
     expect(alreadyMet.message).toMatch(/already meets/i);
-    expect(tooSmall.outcome).toBe("refused");
-    expect(tooSmall.message).toMatch(/64 KiB/i);
+    expect(nonPositive.outcome).toBe("refused");
+    expect(nonPositive.message).toMatch(/valid target size/i);
     expect(optimize).not.toHaveBeenCalled();
   });
 });
