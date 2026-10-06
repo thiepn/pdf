@@ -207,7 +207,7 @@ export interface NativeTableObject {
   detectionSource?: NativeTableDetectionSource;
   complexContent?: boolean;
   /** P17 classifies safe rectangular merges and non-uniform grid geometry explicitly. */
-  geometryKind?: "regular" | "nonuniform" | "merged" | "irregular";
+  geometryKind?: "regular" | "nonuniform" | "merged" | "irregular" | "merged-irregular";
   confidence: number;
   editability: "structured-table" | "cell-replace" | "unsupported";
   capability: NativeCapability;
