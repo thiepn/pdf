@@ -263,6 +263,9 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
     return { blendMode: "Normal", alpha: 1 };
   };
   const record = (image: any, ctm: number[], alpha: number, explicitMask = false) => {
+    // Images painted while a soft mask is being defined are mask source content,
+    // not ordinary page-image instances that should be selectable/editable.
+    if (definingMaskDepth > 0) return;
     const mask = safe(() => image?.getMask?.(), null as any);
     const attachedMask = Boolean(mask);
     mask?.destroy?.();
@@ -319,9 +322,11 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
     close: noOp
   };
 
+  let traceDevice: any;
   try {
-    if (typeof page.runPageContents === "function") page.runPageContents(device, (mupdf as any).Matrix.identity);
-    else page.run(device, (mupdf as any).Matrix.identity);
+    traceDevice = new (mupdf as any).Device(device);
+    if (typeof page.runPageContents === "function") page.runPageContents(traceDevice, (mupdf as any).Matrix.identity);
+    else page.run(traceDevice, (mupdf as any).Matrix.identity);
   } catch (error) {
     warnings.push(`Page ${pageNumber} image graphics-state trace failed; image mutation is disabled for this page to preserve unknown masks/clipping/blending (${error instanceof Error ? error.message : String(error)}).`);
     const structured = page.toStructuredText("preserve-images");
@@ -345,7 +350,12 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
         }
       });
       return { images: fallback, warnings };
-    } finally { structured.destroy?.(); }
+    } finally {
+      structured.destroy?.();
+      traceDevice?.destroy?.();
+    }
+  } finally {
+    traceDevice?.destroy?.();
   }
 
   const counts = new Map<number, number>();
