@@ -161,14 +161,42 @@ jobs:
             docs/reconstruction/p44-qualification-campaign-plan.json
             tests/corpus/r8-external/manifest.json
 
-  browser-regression:
+  browser-regression-shard:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.62.0-noble
     env:
       HOME: /root
-    timeout-minutes: 60
+    timeout-minutes: 45
     needs: [phase11-stability-gate, validate]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: chromium-1
+            project: chromium
+            shard: 1/2
+          - name: chromium-2
+            project: chromium
+            shard: 2/2
+          - name: firefox-1
+            project: firefox
+            shard: 1/2
+          - name: firefox-2
+            project: firefox
+            shard: 2/2
+          - name: webkit-1
+            project: webkit
+            shard: 1/2
+          - name: webkit-2
+            project: webkit
+            shard: 2/2
+          - name: mobile-chromium
+            project: mobile-chromium
+            shard: 1/1
+          - name: tablet-webkit
+            project: tablet-webkit
+            shard: 1/1
     steps:
       - uses: actions/checkout@v7
       - name: Require committed dependency lock
@@ -211,7 +239,7 @@ jobs:
           name: phase30-verified-dist
           path: dist
       - name: Browser regression and privacy checks against verified dist
-        run: npm run test:e2e
+        run: npm run test:e2e -- --project="${{ matrix.project }}" --shard="${{ matrix.shard }}"
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
           R8_EXTERNAL_CORPUS: "1"
@@ -222,6 +250,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: phase30-playwright-report
+          name: phase30-playwright-report-${{ matrix.name }}
           path: playwright-report
           if-no-files-found: ignore
+
+  browser-regression:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [browser-regression-shard]
+    steps:
+      - name: Require every browser shard to pass
+        run: test "${{ needs.browser-regression-shard.result }}" = "success"
