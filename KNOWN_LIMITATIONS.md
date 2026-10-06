@@ -10,7 +10,7 @@
 - Compare 3.0 aligns page sequences with text fingerprints and low-resolution visual fallback, but visually repetitive scans/forms or extreme page counts can still require manual pair selection.
 - Repair cannot recover every truncated or fundamentally unreadable PDF.
 - Archival analysis is not certified PDF/A conformance.
-- DOCX export prioritizes editable text over visual fidelity.
+- DOCX export reconstructs editable paragraphs, common detected tables, bounded page-image regions, page geometry, and supported direct text styling. Exact PDF line wrapping, arbitrary floating layout, vector/nested artwork, PDF forms/annotations/layers/signatures, and universal Office round-trip fidelity are not preserved.
 - Visual signatures are not cryptographic signatures.
 - Browser certificate signing remains deferred.
 - The in-app release validation proves the deployed runtime foundation only; external-reader, mobile, print, large-corpus, malformed-file, and adversarial security validation remain required before removing the release-candidate designation.
