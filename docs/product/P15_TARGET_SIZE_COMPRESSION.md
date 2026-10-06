@@ -77,6 +77,8 @@ For every target-size result the UI shows:
 
 A **structure-preserved** result keeps searchable text, vector page content, and interactive PDF objects as structural PDF content. As with any PDF rewrite, cryptographic signature validity is not guaranteed.
 
+Before such an output is published, P15 reuses the existing **P8 fidelity gate** with no pages declared intentionally changed. The bounded validator checks sampled text digests, image/vector operations, annotations/links/widgets, page geometry, outlines, attachments, form-field count, JavaScript presence, page labels, core metadata intent, and encryption state. A failure blocks the target-size output instead of downgrading the claim to a warning.
+
 A **rasterized** result explicitly reports that searchable text, vector content, forms, links, annotations, and signature interactivity are not preserved.
 
 The existing first-page visual preview and output page-count validation remain part of the workflow.
