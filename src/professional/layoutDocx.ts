@@ -527,7 +527,7 @@ export function buildLayoutAwareDocxPackage(title: string, model: LayoutDocxMode
     },
     {
       name: "docProps/app.xml",
-      bytes: encoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>PDF Studio</Application><AppVersion>7.2</AppVersion></Properties>')
+      bytes: encoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>PDF Studio</Application></Properties>')
     },
     ...media
   ];
@@ -564,7 +564,7 @@ async function renderPageImageRegions(
   const canvas = document.createElement("canvas");
   try {
     const baseViewport = page.getViewport({ scale: 1 });
-    const scale = Math.max(0.8, Math.min(1.6, Math.sqrt(MAX_RENDER_PIXELS / Math.max(1, baseViewport.width * baseViewport.height))));
+    const scale = Math.max(0.2, Math.min(1.6, Math.sqrt(MAX_RENDER_PIXELS / Math.max(1, baseViewport.width * baseViewport.height))));
     const viewport = page.getViewport({ scale });
     canvas.width = Math.max(1, Math.ceil(viewport.width));
     canvas.height = Math.max(1, Math.ceil(viewport.height));
