@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { listBatchRecipes, saveBatchRecipe } from "../processing/batchRepository";
 import { batchStepLabel, defaultBatchStep, runBatchRecipe } from "../processing/batchPipeline";
-import { batchRecipeExecutionFingerprint, parseBatchRecipeJson, serializeBatchRecipe } from "../processing/batchModel";
+import { batchRecipeExecutionFingerprint, parseBatchRecipeJson, serializeBatchRecipe, validateBatchRecipe } from "../processing/batchModel";
 import { downloadBlob } from "../projects/download";
 import { BATCH_RECIPE_SCHEMA_VERSION, type BatchItemStatus, type BatchRecipe, type BatchStep } from "../types/batch";
 import { createStoredZip } from "../toolbox/zip";
@@ -224,8 +224,9 @@ export function BatchPage() {
   }
 
   async function run(){
-    if(!recipe.steps.length){setError("Add at least one workflow step.");return;}
-    const recipeSnapshot=structuredClone(recipe);
+    let recipeSnapshot: BatchRecipe;
+    try { recipeSnapshot=validateBatchRecipe(structuredClone(recipe)); }
+    catch(reason){ setError(reason instanceof Error?reason.message:String(reason)); return; }
     const runFingerprint=batchRecipeExecutionFingerprint(recipeSnapshot);
     if(!items.some(item=>!item.output||item.outputRecipeFingerprint!==runFingerprint||item.outputInputIdentity!==item.inputIdentity||item.outputCredentialRevision!==item.credentialRevision||item.status!=="complete"))return;
     setRunning(true);
