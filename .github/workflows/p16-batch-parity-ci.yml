@@ -30,6 +30,7 @@ on:
       - CHANGELOG.md
       - package.json
       - .github/workflows/p16-batch-parity-ci.yml
+      - .github/workflows/ci.yml
 
 permissions:
   contents: read
