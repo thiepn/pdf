@@ -1,7 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
-import type { NativeExportReport, NativeImageEdit, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
+import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
   | { type: "INSPECT_IMAGES"; requestId: string; bytes: ArrayBuffer; password?: string }
@@ -414,7 +414,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const changed = new Set<number>();
       const beforeCounts = new Map<string, number>();
       const beforeRects = new Map<string, NativeRect[]>();
-      const beforeClasses = new Map<string, NativeImageObject["fidelity"] extends infer F ? F extends { class: infer C } ? C : never : never>();
+      const beforeClasses = new Map<string, NativeImageFidelityClass | undefined>();
 
       for (const edit of request.edits) {
         active(request.requestId);
@@ -430,7 +430,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           if (!allowedActions.includes(action)) throw new Error(current.image.fidelity?.reason ?? "This image operation is fidelity-protected and cannot be applied safely.");
           const sourceRects = imageRects(page);
           beforeRects.set(edit.id, sourceRects);
-          beforeClasses.set(edit.id, current.image.fidelity?.class as any);
+          beforeClasses.set(edit.id, current.image.fidelity?.class);
           beforeCounts.set(edit.id, sourceRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5).length);
           const source = action === "transform" ? sourceImageObject(pdf, page, sourceBounds) : undefined;
 
