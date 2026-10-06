@@ -40,9 +40,7 @@ jobs:
           node-version: 22.16.0
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Audit inherited v7.2 line
-        run: npm run check:p16
-      - name: Audit and unit-test P17
+      - name: Audit and unit-test stacked P17 line
         run: npm run check:p17
       - name: Typecheck product source
         run: npm run typecheck
