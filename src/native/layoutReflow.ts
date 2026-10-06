@@ -4,6 +4,8 @@ export interface NativeReflowShift {
   objectId: string;
   sourceBounds: NativeRect;
   bounds: NativeRect;
+  /** True when P17 moves a paragraph into the next deterministic adjacent region. */
+  crossRegion?: boolean;
 }
 
 export interface NativeTextReflowPlan {
@@ -66,7 +68,7 @@ export function annotatePageTextFlows(page: NativePageTree): NativePageTree {
   const candidates = page.objects.filter((object) => safeFlowText(object, page, tableBounds));
   if (!candidates.length) return page;
 
-  const clusters: Array<{ bounds: NativeRect; items: NativeTextObject[] }> = [];
+  const clusters: Array<{ bounds: NativeRect; items: NativeTextObject[]; flowId?: string; threadId?: string; regionIndex?: number; regionCount?: number; nextRegionId?: string }> = [];
   for (const object of [...candidates].sort((a, b) => a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y)) {
     let best: { cluster: typeof clusters[number]; score: number } | undefined;
     for (const cluster of clusters) {
@@ -80,25 +82,59 @@ export function annotatePageTextFlows(page: NativePageTree): NativePageTree {
     } else clusters.push({ bounds: { ...object.bounds }, items: [object] });
   }
 
-  const flowById = new Map<string, NativeTextObject["flow"]>();
-  clusters
+  const regions = clusters
     .filter((cluster) => cluster.items.length >= 2)
-    .sort((a, b) => a.bounds.x - b.bounds.x)
-    .forEach((cluster, flowIndex) => {
-      const ordered = [...cluster.items].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
-      const flowId = `p${page.pageNumber}:flow:${flowIndex}`;
-      ordered.forEach((object, index) => {
-        const previous = ordered[index - 1];
-        const next = ordered[index + 1];
-        flowById.set(object.id, {
-          id: flowId,
-          index,
-          bounds: cluster.bounds,
-          gapBefore: previous ? Math.max(0, object.bounds.y - bottom(previous.bounds)) : undefined,
-          gapAfter: next ? Math.max(0, next.bounds.y - bottom(object.bounds)) : undefined
-        });
+    .sort((a, b) => a.bounds.x - b.bounds.x);
+  regions.forEach((cluster, flowIndex) => { cluster.flowId = `p${page.pageNumber}:flow:${flowIndex}`; });
+
+  const adjacency = (left: typeof regions[number], rightRegion: typeof regions[number]): boolean => {
+    const gap = rightRegion.bounds.x - right(left.bounds);
+    if (gap < 8 || gap > page.width * 0.22) return false;
+    const widthRatio = left.bounds.w / Math.max(1, rightRegion.bounds.w);
+    if (widthRatio < 0.72 || widthRatio > 1.38) return false;
+    const yOverlap = verticalOverlap(left.bounds, rightRegion.bounds) / Math.max(1, Math.min(left.bounds.h, rightRegion.bounds.h));
+    if (yOverlap < 0.65) return false;
+    const topDelta = Math.abs(left.bounds.y - rightRegion.bounds.y);
+    return topDelta <= Math.max(36, Math.min(left.bounds.h, rightRegion.bounds.h) * 0.14);
+  };
+
+  let threadIndex = 0;
+  for (let index = 0; index < regions.length - 1; index += 1) {
+    const leftRegion = regions[index];
+    const rightRegion = regions[index + 1];
+    if (leftRegion.threadId || rightRegion.threadId || !adjacency(leftRegion, rightRegion)) continue;
+    const competingLeft = regions.slice(0, index).some((candidate) => adjacency(candidate, rightRegion));
+    const competingRight = regions.slice(index + 2).some((candidate) => adjacency(leftRegion, candidate));
+    if (competingLeft || competingRight) continue;
+    const threadId = `p${page.pageNumber}:thread:${threadIndex++}`;
+    leftRegion.threadId = threadId;
+    leftRegion.regionIndex = 0;
+    leftRegion.regionCount = 2;
+    leftRegion.nextRegionId = rightRegion.flowId;
+    rightRegion.threadId = threadId;
+    rightRegion.regionIndex = 1;
+    rightRegion.regionCount = 2;
+  }
+
+  const flowById = new Map<string, NativeTextObject["flow"]>();
+  regions.forEach((cluster) => {
+    const ordered = [...cluster.items].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+    ordered.forEach((object, index) => {
+      const previous = ordered[index - 1];
+      const next = ordered[index + 1];
+      flowById.set(object.id, {
+        id: cluster.flowId!,
+        index,
+        bounds: cluster.bounds,
+        gapBefore: previous ? Math.max(0, object.bounds.y - bottom(previous.bounds)) : undefined,
+        gapAfter: next ? Math.max(0, next.bounds.y - bottom(object.bounds)) : undefined,
+        threadId: cluster.threadId,
+        regionIndex: cluster.regionIndex,
+        regionCount: cluster.regionCount,
+        nextRegionId: cluster.nextRegionId
       });
     });
+  });
 
   if (!flowById.size) return page;
   return {
@@ -108,7 +144,6 @@ export function annotatePageTextFlows(page: NativePageTree): NativePageTree {
       : object)
   };
 }
-
 function movableText(object: NativePageObject): object is NativeTextObject {
   return object.type === "text" && object.capability.level === "safe-reconstruction" && object.writingMode === 0 && object.direction !== "rtl" && object.direction !== "unknown";
 }
@@ -142,7 +177,7 @@ export function planTextReflow(page: NativePageTree, objectId: string, requested
   const targetHeight = Math.max(1, requestedHeight);
   const fallbackBounds = selected ? { ...selected.bounds, h: targetHeight } : { x: 0, y: 0, w: 0, h: targetHeight };
   if (!selected) return { ok: false, primaryBounds: fallbackBounds, deltaY: 0, shifts: [], blockers: ["The selected text block is no longer present in the page inspection."] };
-  if (!movableText(selected) || !selected.flow) return { ok: false, primaryBounds: fallbackBounds, deltaY: targetHeight - selected.bounds.h, shifts: [], blockers: ["This text is not part of a safe same-column flow. Use fixed-box editing instead."] };
+  if (!movableText(selected) || !selected.flow) return { ok: false, primaryBounds: fallbackBounds, deltaY: targetHeight - selected.bounds.h, shifts: [], blockers: ["This text is not part of a safe detected flow. Use fixed-box editing instead."] };
 
   const flow = page.objects
     .filter((object): object is NativeTextObject => movableText(object) && object.flow?.id === selected.flow?.id)
@@ -153,7 +188,7 @@ export function planTextReflow(page: NativePageTree, objectId: string, requested
   const deltaY = targetHeight - selected.bounds.h;
   const primaryBounds = { ...selected.bounds, h: targetHeight };
   const followers = flow.slice(selectedIndex + 1);
-  const shifts = followers.map((object) => ({
+  let shifts: NativeReflowShift[] = followers.map((object) => ({
     objectId: object.id,
     sourceBounds: object.bounds,
     bounds: { ...object.bounds, y: object.bounds.y + deltaY }
@@ -161,18 +196,56 @@ export function planTextReflow(page: NativePageTree, objectId: string, requested
   const blockers: string[] = [];
   const pageTop = page.originY + 2;
   const pageBottom = page.originY + page.height - 2;
-  const destinations = [{ objectId: selected.id, sourceBounds: selected.bounds, bounds: primaryBounds }, ...shifts];
 
-  for (const destination of destinations) {
-    if (destination.bounds.y < pageTop || bottom(destination.bounds) > pageBottom) {
-      blockers.push("The reflow would move text outside the page boundary.");
-      break;
-    }
+  if (primaryBounds.y < pageTop || bottom(primaryBounds) > pageBottom) {
+    blockers.push("The edited paragraph would extend outside the page boundary.");
   }
 
+  const overflow = deltaY > 0 ? shifts.filter((shift) => bottom(shift.bounds) > pageBottom) : [];
+  if (overflow.length) {
+    const firstOverflow = shifts.findIndex((shift) => overflow.some((item) => item.objectId === shift.objectId));
+    const suffixOnly = firstOverflow >= 0 && shifts.slice(firstOverflow).every((shift) => overflow.some((item) => item.objectId === shift.objectId));
+    const nextRegionId = selected.flow.nextRegionId;
+    const nextRegion = nextRegionId ? page.objects
+      .filter((object): object is NativeTextObject => movableText(object) && object.flow?.id === nextRegionId)
+      .sort((a, b) => (a.flow?.index ?? 0) - (b.flow?.index ?? 0)) : [];
+
+    if (!suffixOnly || !nextRegion.length || selected.flow.regionIndex !== 0 || selected.flow.regionCount !== 2) {
+      blockers.push("The reflow would move text outside the page boundary.");
+    } else {
+      const nextBounds = nextRegion[0].flow?.bounds;
+      const spillObjects = flow.filter((object) => overflow.some((shift) => shift.objectId === object.id));
+      if (!nextBounds || spillObjects.some((object) => object.bounds.w > nextBounds.w + 4)) {
+        blockers.push("The adjacent text region is too narrow for the overflowing paragraph.");
+      } else {
+        const normal = shifts.slice(0, firstOverflow);
+        const spill: NativeReflowShift[] = [];
+        let cursorY = nextBounds.y;
+        for (const object of spillObjects) {
+          const width = Math.min(object.bounds.w, nextBounds.w);
+          const bounds = { ...object.bounds, x: nextBounds.x, y: cursorY, w: width };
+          spill.push({ objectId: object.id, sourceBounds: object.bounds, bounds, crossRegion: true });
+          cursorY = bottom(bounds) + Math.max(4, object.flow?.gapAfter ?? 6);
+        }
+        const insertedHeight = Math.max(0, cursorY - nextBounds.y);
+        const pushed = nextRegion.map((object) => ({
+          objectId: object.id,
+          sourceBounds: object.bounds,
+          bounds: { ...object.bounds, y: object.bounds.y + insertedHeight }
+        }));
+        if ([...spill, ...pushed].some((shift) => shift.bounds.y < pageTop || bottom(shift.bounds) > pageBottom)) {
+          blockers.push("The adjacent text region does not have enough bounded space for this reflow.");
+        } else shifts = [...normal, ...spill, ...pushed];
+      }
+    }
+  } else if (shifts.some((shift) => shift.bounds.y < pageTop || bottom(shift.bounds) > pageBottom)) {
+    blockers.push("The reflow would move text outside the page boundary.");
+  }
+
+  const destinations = [{ objectId: selected.id, sourceBounds: selected.bounds, bounds: primaryBounds, crossRegion: false }, ...shifts];
   const movingIds = new Set(destinations.map((item) => item.objectId));
   for (const destination of destinations) {
-    const movementArea = swept(destination.sourceBounds, destination.bounds);
+    const movementArea = destination.crossRegion ? destination.bounds : swept(destination.sourceBounds, destination.bounds);
     for (const object of page.objects) {
       if (movingIds.has(object.id)) continue;
       if (!fixedObjectBlocks(object, page, movementArea)) continue;
