@@ -1,6 +1,6 @@
 import { idbDelete, idbGetAll, idbPut } from "../storage/database";
 import type { BatchRecipe } from "../types/batch";
-import { migrateBatchRecipe, validateBatchRecipe } from "./batchModel";
+import { validateBatchRecipe } from "./batchModel";
 
 export { migrateBatchRecipe } from "./batchModel";
 export async function listBatchRecipes(): Promise<BatchRecipe[]> {
