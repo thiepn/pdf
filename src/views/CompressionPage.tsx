@@ -137,6 +137,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         let outputPassword: string | undefined;
         let resultWarnings: string[] = [];
         let targetOutcome: TargetSizeCompressionResult["outcome"] | undefined;
+        let targetMethod: TargetSizeCompressionResult["method"] | undefined;
 
         if (mode === "target") {
           if (!Number.isFinite(requestedTargetBytes) || requestedTargetBytes <= 0) throw new Error("Enter a valid target size.");
@@ -157,6 +158,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
           });
           setTargetResult(result);
           targetOutcome = result.outcome;
+          targetMethod = result.method;
           resultWarnings = result.warnings;
           setWarnings(resultWarnings);
           if (!result.bytes) {
@@ -188,17 +190,26 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
 
         if (!resultBytes) return;
         update({ stage: "validating", detail: "Checking compressed PDF…", progress: 0.9 });
-        if (mode === "target" && targetResult === null && targetOutcome !== undefined) {
-          // targetResult state updates asynchronously; targetOutcome/resultBytes are the authoritative run-local values.
+        if (mode === "target" && targetMethod === "structure-preserving") {
+          update({ stage: "validating", detail: "Checking structural preservation…", progress: 0.91 });
+          const fidelity = await validatePdfFidelity(
+            source,
+            resultBytes,
+            [],
+            password || undefined,
+            signal,
+            {
+              sourcePassword: password || undefined,
+              outputPassword: password || undefined,
+              expectations: { coreMetadataMode: removeMetadata ? "cleared" : "preserve" }
+            }
+          );
+          if (!fidelity.passed) {
+            throw new Error(`Structure-preserving compression failed the P8 fidelity gate: ${fidelity.failures.join(" ")}`);
+          }
+          resultWarnings = [...new Set([...resultWarnings, ...fidelity.warnings])];
+          setWarnings(resultWarnings);
         }
-        if (mode === "target" && outputPassword !== undefined || (mode === "target" && targetOutcome !== undefined && resultBytes && targetResult?.method === "structure-preserving")) {
-          // The run-local method is recovered below from the selected target result before publication.
-        }
-        const selectedTargetMethod = mode === "target"
-          ? (targetOutcome !== undefined
-              ? (resultBytes === undefined ? undefined : undefined)
-              : undefined)
-          : undefined;
         const summary = await inspectPdfBytes(resultBytes, outputPassword);
         if (summary.pageCount !== document.numPages) throw new Error("The compressed PDF could not be verified because its page count changed.");
         if (resultBytes.byteLength >= source.byteLength && mode === "target") throw new Error("Target-size compression refused an output that was not smaller than the source.");
