@@ -15,14 +15,16 @@ import type {
   NativeTextRun
 } from "../types/nativeEditor";
 import { annotatePageTextFlows } from "./layoutReflow.ts";
+import { detectQualifiedComplexScript } from "./complexScript.ts";
 
 export function detectScript(text: string): NativeScript {
+  const qualifiedComplex = detectQualifiedComplexScript(text);
+  if (qualifiedComplex) return qualifiedComplex;
   let latin = false;
   let ko = false;
   let ja = false;
   let hans = false;
   let hant = false;
-  let complex = false;
   const hanOnlyJapanese = /日本|日本語/.test(text);
   for (const ch of text) {
     const code = ch.codePointAt(0) ?? 0;
@@ -32,9 +34,8 @@ export function detectScript(text: string): NativeScript {
     else if (code >= 0x4e00 && code <= 0x9fff) {
       if ("國學體龍門萬與為雲臺灣廣東書長會國華漢".includes(ch)) hant = true;
       else hans = true;
-    } else if ((code >= 0x0590 && code <= 0x0dff) || (code >= 0xfb1d && code <= 0xfeff)) complex = true;
+    }
   }
-  if (complex) return "complex";
   if (ko) return "cjk-ko";
   if (ja || hanOnlyJapanese) return "cjk-ja";
   if (hant) return "cjk-zh-hant";
@@ -49,6 +50,22 @@ function capability(level: NativeCapability["level"], label: string, confidence:
 
 export function classifyTextEditability(text: string, fontName = ""): Pick<NativeTextObject, "script" | "editability" | "reason" | "capability"> {
   const script = detectScript(text);
+  if (script === "arabic") {
+    const reason = "Arabic-script text can be reconstructed in its fixed region after a compatible local font is imported and validated.";
+    return {
+      script,
+      editability: "shaped-fixed-box",
+      reason,
+      capability: capability(
+        "safe-reconstruction",
+        "Arabic shaping",
+        0.84,
+        reason,
+        ["Logical Unicode text", "RTL/bidi ordering", "Page geometry"],
+        ["A compatible imported font is required; line wrapping and metrics can differ from the source PDF."]
+      )
+    };
+  }
   if (/type3|symbol|dingbat|identity/i.test(fontName)) {
     const reason = "The source font encoding cannot be reconstructed safely.";
     return { script, editability: "overlay-only", reason, capability: capability("appearance-only", "Appearance edit", 0.5, reason, ["Original source project"], ["Replacement is exported as an annotation overlay unless a compatible font is supplied."]) };
