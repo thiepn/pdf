@@ -120,6 +120,7 @@ export interface NativeImageFidelity {
   clipped: boolean;
   blendMode: string;
   verified: boolean;
+  allowedActions: Array<"transform" | "replace" | "delete">;
   reason: string;
 }
 
