@@ -2,6 +2,20 @@
 
 ## Unreleased — v7.2 development line
 
+### P16 — Batch Parity & Encrypted-Queue Ergonomics
+
+- Evolves portable Batch recipes from schema v3 to **v4** with deterministic migration of existing v2/v3 ordered steps; project/package, IndexedDB, and native-editor schemas remain unchanged.
+- Adds reusable **Extract pages**, **Remove pages**, **Flatten forms/annotations**, **Clean risky content**, and **Compress to target size** recipe steps.
+- Adds a checked standalone→Batch capability matrix so multi-input composition, OCR review, repair/recovery, DOCX/text export, and output-password creation remain explicit boundaries rather than silent gaps.
+- Reuses P15 bounded target-size compression in Batch; structure-preserving target results remain P8 fidelity-gated before downstream steps can consume them.
+- Adds per-file encrypted-queue recovery: protected PDFs enter a recoverable Password required state and accept a credential only after local reopen validation.
+- Keeps plaintext input credentials in an in-memory map owned by the open Batch page. They are cleared on forget/remove/clear/unmount and never enter recipe JSON, project packages, output names, or queue messages.
+- Tracks actual encryption state after PDF rewrites instead of blindly forwarding a stale source password to later steps.
+- Extends stale-output validity to recipe fingerprint + input identity + session-credential revision.
+- Keeps terminal split/page-image steps final and documents deterministic inner ZIP names plus queue-order outer ZIP naming.
+- Leaves executable version `7.1.4` and persistent formats 9 / 13 / 6 unchanged.
+- Hands implementation to P17: Deep Native-Content Fidelity (V72-05).
+
 ### P15 — Structure-Preserving Target-Size Compression
 
 - Adds byte, KB, and MB target-size input to the Compression tool.
