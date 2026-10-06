@@ -24,6 +24,7 @@ import type {
   NativeVectorObject
 } from "../types/nativeEditor";
 import { encodeWinAnsiHex } from "../native/textEncoding";
+import { shapeComplexText, type ShapedVisualRun } from "./complexTextShaping";
 
 type Request =
   | { type: "INSPECT_NATIVE" | "APPLY_NATIVE"; requestId: string; bytes: ArrayBuffer; password?: string; edits?: NativeEdit[] }
@@ -426,7 +427,79 @@ function chunks(line: StyledLine): Array<{ style: PreparedStyle; text: string; w
   return output;
 }
 
+function glyphHex(gid: number): string {
+  if (!Number.isInteger(gid) || gid < 0 || gid > 0xffff) throw new Error("The shaping engine produced a glyph outside the qualified CID range.");
+  return `<${gid.toString(16).padStart(4, "0")}>`;
+}
+
+function addShapedFontResource(pdf: PdfDocument, page: PdfPage, edit: any): { resource: string; font: any } {
+  if (!edit.fontBytes?.byteLength) throw new Error("Arabic/RTL reconstruction requires a validated imported font.");
+  const dictionary = resources(pdf, page, "Font");
+  const resource = `LPSH${++sequence}`;
+  const font = new (mupdf as any).Font(edit.fontName || "Imported Arabic", new Uint8Array(edit.fontBytes));
+  if (typeof pdf.addFont !== "function") throw new Error("This MuPDF runtime cannot create the Identity-H font required for shaped text.");
+  dictionary.put(resource, pdf.addFont(font));
+  return { resource, font };
+}
+
+function shapedRunContent(run: ShapedVisualRun, resource: string, fontSize: number, color: string, x: number, y: number): string {
+  const [r, g, b] = rgb(color);
+  const signedAdvance = run.glyphs.reduce((sum, glyph) => sum + glyph.xAdvance, 0);
+  let penX = run.direction === "rtl" && signedAdvance < 0 ? x + run.width : x;
+  let output = "";
+  for (const glyph of run.glyphs) {
+    const drawX = penX + glyph.xOffset;
+    const drawY = y + glyph.yOffset;
+    output += `BT /${resource} ${fontSize} Tf ${r} ${g} ${b} rg 1 0 0 1 ${drawX} ${drawY} Tm ${glyphHex(glyph.gid)} Tj ET\n`;
+    penX += glyph.xAdvance;
+  }
+  return output;
+}
+
+function addShapedText(pdf: PdfDocument, page: PdfPage, edit: any): void {
+  const [x0, y0, x1, y1] = pdfRect(page, edit.bounds);
+  const width = x1 - x0;
+  const height = y1 - y0;
+  const fontSize = Math.max(1, Number(edit.fontSize) || 1);
+  const baseDirection = edit.direction === "ltr" ? "ltr" : "rtl";
+  const layout = shapeComplexText(new Uint8Array(edit.fontBytes ?? []), edit.text, fontSize, width, Boolean(edit.wrap), edit.lineHeight, baseDirection);
+  if (layout.requiredHeight > height + 0.01) {
+    throw new Error(`Arabic/RTL replacement does not fit the fixed text region (${layout.lines.length} lines require ${Number(layout.requiredHeight.toFixed(1))} pt, ${Number(height.toFixed(1))} pt available). Lower the font size or shorten the text.`);
+  }
+  if (layout.maxLineWidth > Math.max(1, width - 3) + 0.01) {
+    throw new Error("Arabic/RTL replacement is wider than the fixed text region at the shaped font metrics. Lower the font size or shorten the text.");
+  }
+
+  const added = addShapedFontResource(pdf, page, edit);
+  try {
+    let content = "";
+    if (edit.backgroundColor && edit.backgroundColor !== "transparent") {
+      const [br, bg, bb] = rgb(edit.backgroundColor);
+      content += `q ${br} ${bg} ${bb} rg ${x0} ${y0} ${width} ${height} re f Q\n`;
+    }
+    layout.lines.forEach((line, index) => {
+      const startX = edit.align === "center"
+        ? x0 + Math.max(0, (width - line.width) / 2)
+        : edit.align === "left"
+          ? x0 + 1.5
+          : Math.max(x0, x1 - line.width - 1.5);
+      const y = y1 - fontSize - index * layout.lineHeight;
+      content += `/Span << /ActualText ${utf16Hex(line.logicalText)} >> BDC\n`;
+      let visualX = startX;
+      for (const run of line.runs) {
+        content += shapedRunContent(run, added.resource, fontSize, edit.color || "#111111", visualX, y);
+        visualX += run.width;
+      }
+      content += "EMC\n";
+    });
+    append(pdf, page, content);
+  } finally {
+    added.font.destroy?.();
+  }
+}
+
 function addText(pdf: PdfDocument, page: PdfPage, edit: any): void {
+  if (edit.fontSource === "imported-shaped") { addShapedText(pdf, page, edit); return; }
   if (edit.fontSource === "annotation-fallback") {
     const annotation = page.createAnnotation("FreeText");
     annotation.setRect(pageRect(edit.bounds));
