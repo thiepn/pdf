@@ -98,6 +98,122 @@ function graphicsState(pdf: PdfDocument, page: PdfPage, alpha: number): string |
   return name;
 }
 
+function contentStreams(page: PdfPage): any[] {
+  const contents = page.getObject().get("Contents");
+  if (!contents || contents.isNull?.()) return [];
+  if (contents.isArray?.()) {
+    const streams: any[] = [];
+    for (let index = 0; index < Number(contents.length ?? 0); index += 1) {
+      const item = contents.get(index);
+      if (item?.isStream?.()) streams.push(item);
+    }
+    return streams;
+  }
+  return contents.isStream?.() ? [contents] : [];
+}
+
+function streamText(stream: any): string {
+  const buffer = stream.readStream();
+  try {
+    const bytes = buffer.asUint8Array();
+    let text = "";
+    const chunk = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunk) text += String.fromCharCode(...bytes.subarray(index, Math.min(bytes.length, index + chunk)));
+    return text;
+  } finally { buffer.destroy?.(); }
+}
+
+function stripPdfStringsAndComments(source: string): string {
+  let output = "";
+  let index = 0;
+  while (index < source.length) {
+    const code = source.charCodeAt(index);
+    if (code === 37) {
+      while (index < source.length && ![10, 13].includes(source.charCodeAt(index))) index += 1;
+      output += " ";
+      continue;
+    }
+    if (code === 40) {
+      let depth = 1;
+      index += 1;
+      while (index < source.length && depth > 0) {
+        const current = source.charCodeAt(index);
+        if (current === 92) { index += 2; continue; }
+        if (current === 40) depth += 1;
+        else if (current === 41) depth -= 1;
+        index += 1;
+      }
+      output += " ";
+      continue;
+    }
+    if (code === 60 && source.charCodeAt(index + 1) !== 60) {
+      index += 1;
+      while (index < source.length && source.charCodeAt(index) !== 62) index += 1;
+      index = Math.min(source.length, index + 1);
+      output += " ";
+      continue;
+    }
+    output += source[index++];
+  }
+  return output;
+}
+
+function pageResources(page: PdfPage): any {
+  const object = page.getObject();
+  const direct = object.get("Resources");
+  return direct?.isDictionary?.() ? direct : object.getInheritable?.("Resources");
+}
+
+function blendModeForExtGState(page: PdfPage, name: string): string {
+  return safe(() => {
+    const state = pageResources(page)?.get?.("ExtGState")?.get?.(name);
+    const resolved = state?.resolve?.() ?? state;
+    const bm = resolved?.get?.("BM");
+    const first = bm?.isArray?.() ? bm.get(0) : bm;
+    return String(first?.valueOf?.() ?? "Normal").replace(/^\//, "") || "Normal";
+  }, "Normal");
+}
+
+function isImageXObject(page: PdfPage, name: string): boolean {
+  return safe(() => {
+    const raw = pageResources(page)?.get?.("XObject")?.get?.(name);
+    const object = raw?.resolve?.() ?? raw;
+    return String(object?.get?.("Subtype")?.valueOf?.() ?? "").replace(/^\//, "") === "Image";
+  }, false);
+}
+
+/**
+ * Read direct page-content graphics-state transitions for image invocations.
+ * Device tracing still supplies geometry/mask/clip evidence. This parser exists
+ * specifically because non-Normal /BM is content-stream state and should not
+ * depend on whether a renderer chooses to expose it as beginGroup().
+ */
+function directImageBlendModes(page: PdfPage): string[] {
+  const modes: string[] = [];
+  for (const stream of contentStreams(page)) {
+    const source = stripPdfStringsAndComments(streamText(stream));
+    const tokens = source.match(/\/[A-Za-z0-9_.:+-]+|\b(?:q|Q|gs|Do)\b/g) ?? [];
+    const stack: string[] = [];
+    let blendMode = "Normal";
+    let name: string | undefined;
+    for (const token of tokens) {
+      if (token.startsWith("/")) { name = token.slice(1); continue; }
+      if (token === "q") { stack.push(blendMode); name = undefined; continue; }
+      if (token === "Q") { blendMode = stack.pop() ?? "Normal"; name = undefined; continue; }
+      if (token === "gs") {
+        if (name) blendMode = blendModeForExtGState(page, name);
+        name = undefined;
+        continue;
+      }
+      if (token === "Do") {
+        if (name && isImageXObject(page, name)) modes.push(blendMode);
+        name = undefined;
+      }
+    }
+  }
+  return modes;
+}
+
 function imageBoundsFromMatrix(matrix: number[]): NativeRect {
   const points = [
     point(matrix, 0, 0),
@@ -234,13 +350,19 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
 
   const counts = new Map<number, number>();
   for (const trace of traces) counts.set(trace.key, (counts.get(trace.key) ?? 0) + 1);
+  const directBlendModes = directImageBlendModes(page);
+  const directBlendHasRisk = directBlendModes.some((mode) => mode !== "Normal");
+  const blendMappingAmbiguous = directBlendHasRisk && directBlendModes.length !== traces.length;
+  if (blendMappingAmbiguous) warnings.push(`Page ${pageNumber} uses non-Normal image blend state but direct image invocation count differs from the paint trace; affected image mutation is fail-closed as ambiguous.`);
   const images = traces.map((trace, index): NativeImageObject => {
+    const mappedBlend = directBlendModes.length === traces.length ? directBlendModes[index] : trace.blendMode;
     const classified = classifyImageFidelity({
       invocationCount: counts.get(trace.key) ?? 1,
       softMask: trace.softMask,
       explicitMask: trace.explicitMask,
       clipped: trace.clipped,
-      blendMode: trace.blendMode
+      blendMode: mappedBlend !== "Normal" ? mappedBlend : trace.blendMode,
+      ambiguous: blendMappingAmbiguous
     });
     return {
       id: `p${pageNumber}:image:${index}`,
