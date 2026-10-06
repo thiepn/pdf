@@ -17,7 +17,7 @@ describe("v6.0.6 Bug Fix Audit 4", () => {
   });
 
   it("rejects a future Batch recipe instead of migrating it as legacy", () => {
-    expect(() => migrateBatchRecipe({ schemaVersion: 4, id: "future", name: "Future", steps: [], outputSuffix: "x", updatedAt: 1 })).toThrow(/newer PDF Studio/);
+    expect(() => migrateBatchRecipe({ schemaVersion: 5, id: "future", name: "Future", steps: [], outputSuffix: "x", updatedAt: 1 })).toThrow(/newer PDF Studio/);
   });
 
   it("reports service-worker activation after capturing the waiting worker", () => {
