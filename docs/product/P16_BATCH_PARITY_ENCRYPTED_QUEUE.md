@@ -70,6 +70,8 @@ It is cleared on explicit **Forget**, removing the queue item, clearing the queu
 
 It is never written to saved/exported `.lpsrecipe.json`, IndexedDB/OPFS, project packages, diagnostics, output filenames, or queue messages.
 
+Imported and previously stored recipe objects are canonicalized to the declared v4 shape before reuse. Unknown top-level or step properties—including fields named like passwords or credentials—are stripped before a recipe can be persisted or exported.
+
 Reloading or navigating away intentionally requires the credential again.
 
 ## Encryption-state tracking
