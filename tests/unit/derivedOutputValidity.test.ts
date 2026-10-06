@@ -8,8 +8,10 @@ describe("derived output validity contracts", () => {
   it("blocks stale compression bytes and preview after profile or metadata changes", () => {
     expect(compressionSource).toContain("outputFingerprint === compressionFingerprint");
     expect(compressionSource).toContain("setOutputFingerprint(requestedFingerprint)");
-    expect(compressionSource).toContain("invalidateOutput(); setProfile");
-    expect(compressionSource).toContain("invalidateOutput(); setRemoveMetadata");
+    expect(compressionSource).toContain("function settingsChanged(): void {");
+    expect(compressionSource).toContain("invalidateOutput();\n    setError(null);");
+    expect(compressionSource).toContain('setProfile(item.id as ProfileId); settingsChanged();');
+    expect(compressionSource).toContain("setRemoveMetadata(event.target.checked); settingsChanged();");
     expect(compressionSource).toContain("createDerivedProjectFromBytes(project.id, validatedOutput");
     expect(compressionSource).toContain("{validatedOutput ? <footer");
   });

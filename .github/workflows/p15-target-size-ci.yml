@@ -1,0 +1,41 @@
+name: P15 target-size compression controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p15/**
+      - docs/product/P15_TARGET_SIZE_COMPRESSION.md
+      - docs/EVERYDAY_PDF_WORKFLOWS.md
+      - scripts/p15/**
+      - src/processing/targetSizeCompression.ts
+      - src/processing/rasterCompression.ts
+      - src/views/CompressionPage.tsx
+      - src/styles.css
+      - tests/unit/p15TargetSizeCompression.test.ts
+      - tests/e2e/p15-target-size.spec.mjs
+      - README.md
+      - KNOWN_LIMITATIONS.md
+      - CHANGELOG.md
+      - package.json
+      - .github/workflows/p15-target-size-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  target-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit inherited v7.2 line
+        run: npm run audit:p14:complex-script
+      - name: Audit and unit-test P15
+        run: npm run check:p15
+      - name: Typecheck product source
+        run: npm run typecheck

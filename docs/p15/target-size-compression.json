@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "phase": "P15",
+  "roadmapItem": "V72-03",
+  "title": "Structure-Preserving Target-Size Compression",
+  "status": "implemented-awaiting-stacked-merge",
+  "releaseBoundary": {
+    "executableVersion": "7.1.4",
+    "targetVersion": "7.2.0",
+    "versionCutAllowed": false,
+    "persistentFormats": {
+      "projectPackageVersion": 9,
+      "databaseSchemaVersion": 13,
+      "nativeEditorSchemaVersion": 6
+    }
+  },
+  "targetContract": {
+    "minimumTargetBytes": 1,
+    "maximumAttempts": 6,
+    "structurePassAlwaysFirst": true,
+    "targetMetRequiresSmallerThanSource": true,
+    "targetMetRequiresAtOrBelowTarget": true,
+    "largerOutputCanBeSuccessful": false,
+    "networkRequired": false,
+    "structurePreservingOutputRequiresP8Fidelity": true
+  },
+  "preservationPreferences": [
+    {
+      "id": "preserve-structure",
+      "label": "Keep PDF structure",
+      "rasterFallback": false,
+      "unattainablePolicy": "best-effort-structural-or-refuse"
+    },
+    {
+      "id": "allow-raster",
+      "label": "Prioritize the target",
+      "rasterFallback": true,
+      "unattainablePolicy": "smallest-real-improvement-or-refuse"
+    }
+  ],
+  "attemptOrder": [
+    "structure-preserving MuPDF optimization",
+    "200 DPI / 0.84 JPEG raster fallback",
+    "165 DPI / 0.78 JPEG raster fallback",
+    "135 DPI / 0.68 JPEG raster fallback",
+    "105 DPI / 0.56 JPEG raster fallback",
+    "80 DPI / 0.44 JPEG raster fallback"
+  ],
+  "preservationSummary": {
+    "structural": "Searchable text, vector page content and interactive PDF objects remain structural PDF content; digital-signature validity is not guaranteed after rewriting.",
+    "raster": "Searchable text, vector content, forms, links, annotations and signature interactivity are not preserved."
+  },
+  "acceptance": [
+    "Users can enter a target in bytes, KB or MB and select a preservation preference.",
+    "Every target-size run starts with the existing structure-preserving optimizer before raster fallback is considered.",
+    "The target-size ladder is bounded to at most six attempts and proceeds from higher to lower raster fidelity.",
+    "A target is reported as met only when the output is both smaller than the source and at or below the requested target.",
+    "Strict preservation never rasterizes; an unattainable target produces either the smallest structure-preserving improvement or an explicit refusal.",
+    "Target-priority mode returns the first target-hitting raster result at the highest tested fidelity, otherwise the smallest real improvement as best effort.",
+    "Before/target/output byte evidence, attempt count and a preservation summary are shown for target-size results.",
+    "Any target-size result labelled structure-preserved must pass the existing P8 fidelity gate before publication.",
+    "No persistent schema or executable-version cut occurs in P15.",
+    "Successful and best-effort result state is published only after reopen and any required P8 fidelity validation pass."
+  ],
+  "nextPhase": {
+    "id": "P16",
+    "title": "Batch Parity & Encrypted-Queue Ergonomics",
+    "roadmapItem": "V72-04"
+  }
+}

@@ -1,4 +1,4 @@
-#**P14 implements the second committed v7.2 item:** qualified Arabic-script existing-text editing now uses a validated local font, Unicode bidi run ordering, HarfBuzz shaping, Identity-H CID glyph placement, and logical `/ActualText`. The qualification is deliberately bounded: Arabic stays fixed-box, bulk replacement remains manual, and Hebrew/Indic/other complex scripts are not advertised as supported.\n\n PDF Studio
+# PDF Studio
 
 PDF Studio is a private, installable PDF workspace that processes documents inside the browser.
 
@@ -25,6 +25,8 @@ PDF Studio is a private, installable PDF workspace that processes documents insi
 P11 opens the next roadmap without changing the current executable release identity. The v7.2 target is recorded in `docs/p11/next-line.json`, but `package.json`, `package-lock.json`, and `APP_VERSION` remain `7.1.4` until a real `v7.1.4-post-release-certificate` proves that the Stable release has been published and verified. P9/P10 v7.1.4 workflows and evidence remain immutable historical release controls rather than being repurposed for v7.2.
 
 **P12 now scopes the actual v7.2 product line without cutting the version.** The authoritative intake is `docs/p12/feature-intake.json`. It explicitly treats v7.1 visual page composition, source-preserving OCR 2.0, and P8 fidelity gating as already shipped, then commits six net-new areas: layout-aware editable PDF→DOCX export, complex-script editing, structure-preserving target-size compression, Batch parity/encrypted queues, deeper native-content fidelity, and compatibility/human-device qualification. P13 begins with the DOCX export gap.
+
+**P15 now implements V72-03 target-size compression.** Users can enter bytes, KB, or MB, choose strict structure preservation or permit bounded raster fallback, and receive explicit target-met, best-effort, or refusal outcomes. Every run starts with structure-preserving optimization; target-priority mode is capped at six total attempts and never labels an output larger than the source as successful compression.
 
 Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 hardened the production shell. **v7.1.4 is the current task-first product-hardening release candidate.** Its P1–P8 stack covers safer existing-content editing, deterministic document-entry recommendations, source-preserving OCR 2.0, progressive native file Open/Save, shared output-verification evidence, touch-complete mobile interaction, reviewed form authoring and permanent-redaction discovery, and mandatory source/output fidelity certification before publication. Historical v7 universal-editing regressions remain frozen underneath that product layer. Persistent project/package schema versions remain compatible with the v6 line. Source builds still default to `release-candidate`; only the exact `v7.1.4` GitHub tag workflow may build with `VITE_RELEASE_CHANNEL=stable` after every hard gate passes.
 
@@ -134,7 +136,7 @@ Phase 30 established the stable-release qualification model and v6.0.1–v6.1.0 
 
 ### Advanced and professional tools
 
-- Lossless and raster compression profiles
+- Structure-preserving target-size compression with byte/KB/MB targets, strict-preservation or bounded raster-fallback preferences, plus the existing manual lossless/raster profiles
 - Batch 3.0 ordered local recipes with rotate, optimize, metadata removal, crop, decoration, blank-page insertion, raster compression, grayscale, terminal PDF splitting, and terminal page-image ZIP export
 - Visual and text comparison with explicit missing-page handling plus hybrid text/visual sequence alignment for scan-heavy documents
 - Structural inspection and JSON reports
