@@ -50,9 +50,17 @@ describe("P17 deep native-content fidelity policy", () => {
     expect(shared.capability.preserves.join(" ")).toMatch(/Other image instances/i);
   });
 
-  it("fails closed for masked, clipped, blended, and ambiguous images", () => {
+  it("qualifies attached soft masks only for source-preserving transform and delete actions", () => {
+    const classified = classifyImageFidelity({ softMask: true });
+    expect(classified.editability).toBe("replace-region");
+    expect(classified.fidelity?.class).toBe("masked");
+    expect(classified.fidelity?.allowedActions).toEqual(["transform", "delete"]);
+    expect(classified.fidelity?.allowedActions).not.toContain("replace");
+    expect(classified.capability.level).toBe("safe-reconstruction");
+  });
+
+  it("fails closed for explicit masks, clipping, non-Normal blending, and ambiguous images", () => {
     for (const evidence of [
-      { softMask: true },
       { explicitMask: true },
       { clipped: true },
       { blendMode: "Multiply" },
@@ -60,6 +68,7 @@ describe("P17 deep native-content fidelity policy", () => {
     ]) {
       const classified = classifyImageFidelity(evidence);
       expect(classified.editability).toBe("fidelity-protected");
+      expect(classified.fidelity?.allowedActions).toEqual([]);
       expect(classified.capability.level).toBe("unsupported");
     }
   });
