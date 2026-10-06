@@ -51,7 +51,7 @@ interface Dependencies {
   rasterize?: typeof rasterCompressPdf;
 }
 
-export const MIN_TARGET_SIZE_BYTES = 64 * 1024;
+export const MIN_TARGET_SIZE_BYTES = 1;
 
 export const TARGET_SIZE_RASTER_PROFILES: RasterCompressionProfile[] = [
   { id: "target-high", label: "High-fidelity raster fallback", dpi: 200, quality: 0.84, description: "Highest tested raster fidelity." },
