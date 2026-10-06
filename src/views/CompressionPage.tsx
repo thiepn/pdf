@@ -36,7 +36,9 @@ function formatBytes(value?: number): string {
 }
 
 function suggestedTargetMb(sourceBytes: number): string {
-  return Math.max(MIN_TARGET_SIZE_BYTES / 1_000_000, sourceBytes * 0.7 / 1_000_000).toFixed(2);
+  return Math.max(MIN_TARGET_SIZE_BYTES, Math.round(sourceBytes * 0.7)) / 1_000_000 < 0.01
+    ? (Math.max(MIN_TARGET_SIZE_BYTES, Math.round(sourceBytes * 0.7)) / 1_000_000).toFixed(4)
+    : (Math.max(MIN_TARGET_SIZE_BYTES, Math.round(sourceBytes * 0.7)) / 1_000_000).toFixed(2);
 }
 
 export function CompressionPage({ projectId, onTitleChange }: Props) {
@@ -256,7 +258,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         <div className="target-size-input">
           <label>
             <span>Target size</span>
-            <input disabled={processing} inputMode="decimal" min="0" onChange={(event) => { setTargetValue(event.target.value); settingsChanged(); }} step="0.01" type="number" value={targetValue}/>
+            <input disabled={processing} inputMode="decimal" min={MIN_TARGET_SIZE_BYTES} onChange={(event) => { setTargetValue(event.target.value); settingsChanged(); }} step="0.01" type="number" value={targetValue}/>
           </label>
           <label>
             <span>Unit</span>
@@ -265,7 +267,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
             </select>
           </label>
         </div>
-        <small className="muted-copy">Qualified minimum target: {formatBytes(MIN_TARGET_SIZE_BYTES)}. The target must be smaller than the source.</small>
+        <small className="muted-copy">The target must be positive and smaller than the source. If it cannot be reached, P15 reports best effort or refusal instead of pretending success.</small>
         <div className="compression-profiles preservation-picker">
           <label className={preservation === "preserve-structure" ? "compression-profile compression-profile--active" : "compression-profile"}>
             <input checked={preservation === "preserve-structure"} disabled={processing} onChange={() => { setPreservation("preserve-structure"); settingsChanged(); }} type="radio"/>
