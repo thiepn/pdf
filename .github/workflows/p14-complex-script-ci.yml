@@ -1,0 +1,53 @@
+name: P14 complex-script text controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p14/**
+      - docs/product/P14_COMPLEX_SCRIPT_TEXT.md
+      - scripts/p14/**
+      - src/native/complexScript.ts
+      - src/native/complexBidi.ts
+      - src/native/nativeModel.ts
+      - src/types/nativeEditor.ts
+      - src/workers/complexTextShaping.ts
+      - src/workers/native-editor.worker.ts
+      - src/editor/native/LayoutAwareTextPropertiesPanel.tsx
+      - src/editor/native/nativeFindReplace.ts
+      - tests/unit/p14ComplexScript.test.ts
+      - tests/unit/p14ShapingIntegration.test.ts
+      - README.md
+      - KNOWN_LIMITATIONS.md
+      - CHANGELOG.md
+      - package.json
+      - package-lock.json
+      - .github/workflows/p14-complex-script-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  complex-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install qualified Arabic fixture font
+        run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install --yes --no-install-recommends fonts-noto-core
+      - name: Audit inherited v7.2 line
+        run: npm run audit:p13:docx
+      - name: Audit and unit-test P14
+        run: npm run check:p14
+      - name: Shape against a real Arabic OpenType font
+        run: |
+          FONT_PATH="$(find /usr/share/fonts -type f \( -iname 'NotoNaskhArabic-Regular.ttf' -o -iname 'NotoSansArabic-Regular.ttf' \) | head -n 1)"
+          test -n "$FONT_PATH"
+          test -f "$FONT_PATH"
+          P14_ARABIC_FONT_PATH="$FONT_PATH" npx vitest run tests/unit/p14ShapingIntegration.test.ts
+      - name: Typecheck product source
+        run: npm run typecheck
