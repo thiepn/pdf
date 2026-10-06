@@ -2,6 +2,18 @@
 
 ## Unreleased — v7.2 development line
 
+### P15 — Structure-Preserving Target-Size Compression
+
+- Adds byte, KB, and MB target-size input to the Compression tool.
+- Always tries structure-preserving MuPDF optimization before considering any destructive raster fallback.
+- Adds a strict **Keep PDF structure** preference that never rasterizes and returns honest best effort/refusal when the target cannot be reached safely.
+- Adds a **Prioritize the target** preference with five progressively stronger raster fallbacks, capped at six total attempts including the structural pass.
+- Reports source, target, best-output bytes, attempt count, target-met/best-effort/refusal status, and an explicit preservation summary.
+- Selects the first target-hitting raster result at the highest tested fidelity and otherwise offers only the smallest real improvement.
+- Never labels an output at or above the source size as successful target-size compression.
+- Keeps processing browser-local, adds no backend, and leaves executable version `7.1.4` and persistent formats 9 / 13 / 6 unchanged.
+- Hands implementation to P16: Batch Parity & Encrypted-Queue Ergonomics.
+
 ### P14 — Complex-Script Existing-Text Editing
 
 - Qualifies Arabic-script/RTL existing-text replacement as a dedicated fixed-box reconstruction path rather than generic appearance-only editing.
