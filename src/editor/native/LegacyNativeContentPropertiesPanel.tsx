@@ -165,7 +165,7 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
 }
 
 function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; queued?: NativeImageEdit; onQueue: (edit: NativeImageEdit) => void }) {
-  const allowedActions = object.fidelity?.allowedActions ?? (object.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
+  const allowedActions: NonNullable<NativeImageEdit["action"]>[] = object.fidelity?.allowedActions ?? (object.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
   const preferredAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
   const initialAction: NonNullable<NativeImageEdit["action"]> = allowedActions.includes(preferredAction) ? preferredAction : (allowedActions[0] ?? "transform");
   const [action, setAction] = useState<NonNullable<NativeImageEdit["action"]>>(initialAction);
