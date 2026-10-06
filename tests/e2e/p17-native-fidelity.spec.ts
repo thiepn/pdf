@@ -83,7 +83,7 @@ test("P17 detects and rebuilds the generated merged irregular table", async ({ p
 test("P17 exposes deterministic adjacent-region metadata for qualified text columns", async ({ page }) => {
   await openP17Fixture(page);
 
-  const text = page.getByRole("button", { name: /Select existing (?:text|paragraph):.*Left region opening paragraph/i }).first();
+  const text = page.getByRole("button", { name: /Select existing (?:text|paragraph):.*Left opening paragraph/i }).first();
   await expect(text).toBeVisible({ timeout: 20_000 });
   await text.click();
 
