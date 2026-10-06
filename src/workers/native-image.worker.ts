@@ -352,7 +352,6 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       return { images: fallback, warnings };
     } finally {
       structured.destroy?.();
-      traceDevice?.destroy?.();
     }
   } finally {
     traceDevice?.destroy?.();
