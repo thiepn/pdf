@@ -103,6 +103,7 @@ describe("P17 deep native-content fidelity policy", () => {
         expect(embedded).toBeDefined();
         const dictionary = embedded?.resolve?.() ?? embedded;
         const smask = dictionary?.get?.("SMask");
+        expect(smask).toBeTruthy();
         expect(smask?.isNull?.()).not.toBe(true);
       } finally {
         structured.destroy?.();
