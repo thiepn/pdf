@@ -134,6 +134,7 @@ function blockReason(
   if (!inspection.canEdit) return "This PDF does not grant editing permission.";
   if (object.editability === "unsupported") return "This detected text block is not safely editable.";
   if (object.editability === "overlay-only") return "This text needs appearance-only shaping, so bulk replacement is not applied automatically.";
+  if (object.editability === "shaped-fixed-box") return "Qualified Arabic/RTL edits require a manually selected and validated local font, so bulk replacement is not applied automatically.";
   if (findNativeReflowQueueConflict(queuedEdits, object.id, [])) return "This text block is already being moved by another layout-aware edit.";
   if (queued?.layoutMode === "expand-flow") return "This text block already has a layout-aware reflow. Review that paragraph manually before replacing text inside it.";
 
