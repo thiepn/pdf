@@ -24,7 +24,7 @@ export type NativeVectorAction = "edit" | "delete";
 export type NativeVectorPaint = "fill" | "stroke" | "fill-stroke";
 export type NativeVectorLineCap = "Butt" | "Round" | "Square";
 export type NativeVectorLineJoin = "Miter" | "Round" | "Bevel";
-export type NativeVectorColorSpace = "Gray" | "RGB" | "BGR" | "CMYK" | "Lab" | "Indexed" | "Separation" | "Unknown";
+export type NativeVectorColorSpace = "Gray" | "RGB" | "BGR" | "CMYK" | "Lab" | "Indexed" | "Separation" | "Pattern" | "Unknown";
 export type NativeTableHorizontalAlign = "left" | "center" | "right";
 export type NativeTableVerticalAlign = "top" | "middle" | "bottom";
 export type NativeTableDetectionSource = "mupdf-table-hunt" | "vector-grid" | "aligned-text";
@@ -73,6 +73,11 @@ export interface NativeTextFlowInfo {
   bounds: NativeRect;
   gapBefore?: number;
   gapAfter?: number;
+  /** P17: deterministic adjacent-column thread metadata. Flow IDs remain region-local. */
+  threadId?: string;
+  regionIndex?: number;
+  regionCount?: number;
+  nextRegionId?: string;
 }
 
 export interface NativeTextObject {
@@ -104,6 +109,20 @@ export interface NativeTextObject {
   flow?: NativeTextFlowInfo;
 }
 
+export type NativeImageFidelityClass = "plain" | "shared" | "masked" | "clipped" | "blended" | "ambiguous";
+
+export interface NativeImageFidelity {
+  class: NativeImageFidelityClass;
+  resourceName?: string;
+  invocationCount?: number;
+  softMask: boolean;
+  explicitMask: boolean;
+  clipped: boolean;
+  blendMode: string;
+  verified: boolean;
+  reason: string;
+}
+
 export interface NativeImageObject {
   id: string;
   type: "image";
@@ -111,7 +130,8 @@ export interface NativeImageObject {
   bounds: NativeRect;
   width?: number;
   height?: number;
-  editability: "replace-region";
+  editability: "replace-region" | "fidelity-protected";
+  fidelity?: NativeImageFidelity;
   capability: NativeCapability;
 }
 
@@ -186,6 +206,8 @@ export interface NativeTableObject {
   cellPadding?: number;
   detectionSource?: NativeTableDetectionSource;
   complexContent?: boolean;
+  /** P17 classifies safe rectangular merges and non-uniform grid geometry explicitly. */
+  geometryKind?: "regular" | "nonuniform" | "merged" | "irregular";
   confidence: number;
   editability: "structured-table" | "cell-replace" | "unsupported";
   capability: NativeCapability;
