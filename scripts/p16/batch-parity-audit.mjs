@@ -68,6 +68,8 @@ check(batchTypes.includes("BATCH_RECIPE_SCHEMA_VERSION = 4"), "Batch type contra
 check(batchModel.includes("CURRENT_BATCH_SCHEMA_VERSION = 4"), "Batch model migration target is v4");
 check(batchModel.includes("schemaVersion >= 2 && schemaVersion < CURRENT_BATCH_SCHEMA_VERSION"), "legacy v2/v3 recipes migrate deterministically");
 check(batchModel.includes("validateBatchRecipe"), "live and imported recipes share validation");
+check(batchModel.includes("canonicalBatchStep") && batchModel.includes("steps: migrated.steps.map(canonicalBatchStep)"), "validated recipes are canonicalized to declared step fields only");
+check(batchModel.includes("schemaVersion: CURRENT_BATCH_SCHEMA_VERSION") && batchModel.includes("outputSuffix: String(migrated.outputSuffix"), "validated recipes strip unknown top-level fields");
 check(phase18.includes("assert.equal(migrated.schemaVersion, 4)"), "Phase 18 legacy migration regression follows v4");
 check(phase26.includes("Batch 3 recipe migrates to schema 4"), "Phase 26 runtime preserves historical v3 migration evidence");
 check(phase26Unit.includes("migrates legacy Batch recipes to current schema 4"), "Phase 26 unit contract follows v4");
@@ -95,7 +97,7 @@ check(batchPage.includes("That password did not open this PDF."), "wrong credent
 check(batchPage.includes('setPasswordDrafts(current=>({...current,[itemId]:""}))'), "rejected credential drafts are cleared immediately");
 check(batchPage.includes("sessionPasswordsRef.current.get(item.id)") && pipeline.includes("password?: string"), "input credential is passed separately from recipe semantics");
 check(batchPage.includes("PDF Studio does not put this password in saved/exported workflows, output names, or queue messages"), "credential privacy is explained in-product");
-check(batchRepository.includes("validateBatchRecipe(recipe)") && batchModel.includes("const normalized = validateBatchRecipe(recipe)"), "invalid live recipes cannot be persisted or exported");
+check(batchRepository.includes("validateBatchRecipe(recipe)") && batchRepository.includes("stored.map((item) => validateBatchRecipe(item))") && batchModel.includes("const normalized = validateBatchRecipe(recipe)"), "saved, loaded and exported recipes are canonicalized through validation");
 
 check(batchPage.includes("outputInputIdentity") && batchPage.includes("outputCredentialRevision"), "output validity records input and credential identity");
 check(batchPage.includes("item.outputInputIdentity === item.inputIdentity") && batchPage.includes("item.outputCredentialRevision === item.credentialRevision"), "stale-output publication checks recipe/input/credential identity");
@@ -111,6 +113,7 @@ check(pipeline.includes("pages-0001-0010.pdf style") && pipeline.includes("page-
 check(batchPage.includes('String(index+1).padStart(3,"0")') && batchPage.includes('"batch-outputs.zip"'), "outer Batch ZIP preserves queue ordering");
 
 check(parityTest.includes("assertCompleteBatchCapabilityMatrix") && parityTest.includes("schema v4"), "P16 parity unit coverage exists");
+check(parityTest.includes("strips unknown credential-like properties") && parityTest.includes("top-secret") && parityTest.includes("step-secret"), "imported recipe credential-smuggling regression is covered");
 check(encryptedTest.includes("sessionPasswordsRef") && encryptedTest.includes("credentialRevision"), "P16 credential privacy/invalidation source tests exist");
 check(browserTest.includes("encrypted-aes256.pdf") && browserTest.includes("Use for this file") && browserTest.includes("Export workflow"), "real browser acceptance exercises encrypted queue recovery and recipe export");
 check(!browserTest.includes("phase11-user"), "P16 browser test does not introduce a literal corpus password");
