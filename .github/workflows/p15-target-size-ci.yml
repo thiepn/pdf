@@ -12,6 +12,7 @@ on:
       - src/views/CompressionPage.tsx
       - src/styles.css
       - tests/unit/p15TargetSizeCompression.test.ts
+      - tests/e2e/p15-target-size.spec.mjs
       - README.md
       - KNOWN_LIMITATIONS.md
       - CHANGELOG.md
