@@ -11,6 +11,7 @@ import type {
   NativeEdit,
   NativeExportReport,
   NativeImageEdit,
+  NativeImageObject,
   NativeInspection,
   NativeTableEdit,
   NativeTableObject,
@@ -18,6 +19,12 @@ import type {
   NativeVectorEdit,
   NativeVectorObject
 } from "../types/nativeEditor";
+
+export interface ImageInspection {
+  pages: Array<{ pageNumber: number; images: NativeImageObject[]; warnings: string[] }>;
+  total: number;
+  warnings: string[];
+}
 
 export interface VectorInspection {
   pages: Array<{ pageNumber: number; vectors: NativeVectorObject[]; warnings: string[] }>;
@@ -40,6 +47,7 @@ interface ComplexInspection {
 type Response =
   | { type: "READY" }
   | { type: "NATIVE_INSPECTION"; requestId: string; inspection: NativeInspection }
+  | { type: "IMAGE_INSPECTION"; requestId: string; inspection: ImageInspection }
   | { type: "VECTOR_INSPECTION"; requestId: string; inspection: VectorInspection }
   | { type: "TABLE_INSPECTION"; requestId: string; inspection: TableInspection }
   | { type: "COMPLEX_INSPECTION"; requestId: string; inspection: ComplexInspection }
@@ -126,7 +134,8 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
       else if (event.data.type === "NATIVE_INSPECTION") {
         const reconstructed = reconstructInspectionWithinResponsivenessBudget(event.data.inspection);
         resolve(registerNativeInspectionPages(reconstructed) as T);
-      } else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
+      } else if (event.data.type === "IMAGE_INSPECTION") resolve(event.data.inspection as T);
+      else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
       else if (event.data.type === "TABLE_INSPECTION") resolve(event.data.inspection as T);
       else if (event.data.type === "COMPLEX_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
@@ -141,6 +150,18 @@ function imageWorker(): Worker { return new Worker(new URL("../workers/native-im
 function vectorWorker(): Worker { return new Worker(new URL("../workers/native-vector.worker.ts", import.meta.url), { type: "module" }); }
 function tableWorker(): Worker { return new Worker(new URL("../workers/native-table.worker.ts", import.meta.url), { type: "module" }); }
 function complexWorker(): Worker { return new Worker(new URL("../workers/native-complex.worker.ts", import.meta.url), { type: "module" }); }
+
+function mergeImageInspection(base: NativeInspection, image: ImageInspection): NativeInspection {
+  const pages = base.pages.map((page) => {
+    const replacement = image.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.images ?? [];
+    const firstLegacyImage = page.objects.findIndex((object) => object.type === "image");
+    const withoutLegacy = page.objects.filter((object) => object.type !== "image");
+    const firstVector = withoutLegacy.findIndex((object) => object.type === "vector");
+    const insertion = firstLegacyImage >= 0 ? Math.min(firstLegacyImage, withoutLegacy.length) : Math.min(firstVector < 0 ? withoutLegacy.length : firstVector, withoutLegacy.length);
+    return { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+  });
+  return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, images: image.total }, warnings: [...base.warnings.filter((warning) => !/image/i.test(warning)), ...image.warnings] });
+}
 
 function mergeVectorInspection(base: NativeInspection, vector: VectorInspection): NativeInspection {
   const pages = base.pages.map((page) => {
@@ -186,14 +207,15 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
   try {
     const activeSignal = controller.signal;
     const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
-    const [vector, table] = await Promise.all([
+    const [image, vector, table] = await Promise.all([
+      invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal),
       invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal),
       invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal)
     ]);
     const recoveryInput = prepareVectorInspectionForTableRecovery(vector, table);
     const recoveredTable = recoverStructuredTables(base, recoveryInput.vector, table);
     const boundedRecoveredTable = recoveryInput.skippedPages.length ? { ...recoveredTable, warnings: [...recoveredTable.warnings, `Responsiveness guard skipped fallback table-grid recovery on ${recoveryInput.skippedPages.length} dense page${recoveryInput.skippedPages.length === 1 ? "" : "s"} (${recoveryInput.skippedPages.join(", ")}); specialist table results and all vector objects remain available.`] } : recoveredTable;
-    const established = mergeTableInspection(mergeVectorInspection(base, vector), boundedRecoveredTable);
+    const established = mergeTableInspection(mergeVectorInspection(mergeImageInspection(base, image), vector), boundedRecoveredTable);
     const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, activeSignal);
     return mergeComplexInspection(established, complex);
   } catch (reason) {
