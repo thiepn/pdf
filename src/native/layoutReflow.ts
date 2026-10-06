@@ -64,9 +64,16 @@ function safeFlowText(object: NativePageObject, page: NativePageTree, tableBound
  * left outside automatic layout propagation.
  */
 export function annotatePageTextFlows(page: NativePageTree): NativePageTree {
-  const tableBounds = page.objects.filter((object) => object.type === "table").map((object) => object.bounds);
-  const candidates = page.objects.filter((object) => safeFlowText(object, page, tableBounds));
-  if (!candidates.length) return page;
+  // Flow metadata is derived evidence, not persistent truth. Specialist image/table
+  // inspection can replace conservative legacy objects after the first text pass,
+  // so every annotation pass starts by clearing stale flow assignments.
+  const clearedPage: NativePageTree = {
+    ...page,
+    objects: page.objects.map((object) => object.type === "text" && object.flow ? { ...object, flow: undefined } : object)
+  };
+  const tableBounds = clearedPage.objects.filter((object) => object.type === "table").map((object) => object.bounds);
+  const candidates = clearedPage.objects.filter((object) => safeFlowText(object, clearedPage, tableBounds));
+  if (!candidates.length) return clearedPage;
 
   const clusters: Array<{ bounds: NativeRect; items: NativeTextObject[]; flowId?: string; threadId?: string; regionIndex?: number; regionCount?: number; nextRegionId?: string }> = [];
   for (const object of [...candidates].sort((a, b) => a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y)) {
@@ -143,8 +150,8 @@ export function annotatePageTextFlows(page: NativePageTree): NativePageTree {
 
   if (!flowById.size) return page;
   return {
-    ...page,
-    objects: page.objects.map((object) => object.type === "text" && flowById.has(object.id)
+    ...clearedPage,
+    objects: clearedPage.objects.map((object) => object.type === "text" && flowById.has(object.id)
       ? { ...object, flow: flowById.get(object.id) }
       : object)
   };
