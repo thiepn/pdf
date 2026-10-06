@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "phase": "P12",
   "roadmap": "v7.2-product-roadmap",
   "status": "scoped-pre-cut",
@@ -14,6 +14,26 @@
       "databaseSchemaVersion": 13,
       "nativeEditorSchemaVersion": 6
     }
+  },
+  "baseline": {
+    "alreadyShipped": [
+      {
+        "id": "SHIPPED-P3-OCR2",
+        "capability": "Source-preserving OCR with reviewable recognition evidence and positioned invisible searchable text.",
+        "evidence": "docs/product/P3_OCR_SCAN_TO_EDITABLE.md"
+      },
+      {
+        "id": "SHIPPED-V71-PAGE-COMPOSITION",
+        "capability": "Visual mixed PDF/image assembly with insert/replace, duplex interleaving, blank pages, ordering, visual crop, and undo/redo.",
+        "evidence": "README.md and CHANGELOG.md v7.1.0"
+      },
+      {
+        "id": "SHIPPED-P8-FIDELITY",
+        "capability": "Intent-aware source/output fidelity gating before publication.",
+        "evidence": "docs/product/P8_FIDELITY_COMPATIBILITY.md"
+      }
+    ],
+    "staleGapPolicy": "Current source and current product contracts override historical gap lists."
   },
   "principles": [
     "consumer-pdf-capability",
@@ -34,170 +54,182 @@
   "items": [
     {
       "id": "V72-01",
-      "title": "Visual page composition",
+      "title": "Layout-aware editable PDF to DOCX export",
       "disposition": "committed",
       "priority": "P0",
-      "outcome": "Users can visually crop, insert, replace, interleave, merge, and reorder pages before downloading.",
+      "outcome": "Export materially useful editable DOCX files that retain paragraph order, common tables, images, page breaks, and reliable styling better than the current text-only path.",
       "evidence": [
-        "docs/EVERYDAY_PDF_WORKFLOWS.md: visual page composition gap",
-        "docs/CONSUMER_PRODUCT_BOUNDARY.md: complete page/document operations"
+        "src/professional/docx.ts: buildTextDocx extracts page text into simple paragraphs",
+        "README.md: DOCX export is explicitly text-only and not layout-faithful",
+        "KNOWN_LIMITATIONS.md: DOCX export prioritizes editable text over visual fidelity"
       ],
       "acceptance": [
-        "Drag-to-crop has a visual preview and deterministic output geometry.",
-        "Pages from another PDF can be inserted or replace selected pages with explicit ordering.",
-        "Duplex interleaving and mixed-source merge preserve requested page order.",
-        "Output is independently reopened and page count/order is verified."
+        "Paragraph/read-order reconstruction and page breaks survive export for the qualified corpus.",
+        "Common detected tables become editable Word tables instead of flattened plain text.",
+        "Supported source images are included with deterministic ordering or anchoring.",
+        "Supported text styling is retained when source evidence is reliable.",
+        "Ambiguous or unsupported layout is reported explicitly rather than silently advertised as faithful.",
+        "Conversion remains browser-local and works offline after the app is installed."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-02",
-      "title": "Original-page OCR fidelity",
+      "title": "Complex-script existing-text editing",
       "disposition": "committed",
       "priority": "P0",
-      "outcome": "Scanned PDFs gain searchable/selectable text while preserving the original page appearance.",
+      "outcome": "Safely edit qualified shaping-dependent scripts, starting with Arabic/RTL, using real shaping and bidi instead of appearance-only fallback.",
       "evidence": [
-        "KNOWN_LIMITATIONS.md: OCR currently creates searchable raster reconstructions",
-        "docs/CONSUMER_PRODUCT_BOUNDARY.md: original-page-preserving OCR"
+        "KNOWN_LIMITATIONS.md: Arabic, Indic, RTL and shaping-dependent scripts remain appearance-only fallback",
+        "docs/product/P1_EXISTING_TEXT_EDITING_EXCELLENCE.md: broader script/font coverage requires a real shaping/font path"
       ],
       "acceptance": [
-        "OCR can add an aligned invisible/searchable text layer without replacing the original page raster.",
-        "Users can review recognized regions and confidence before commit.",
-        "Search/reopen validation proves text is discoverable in the exported PDF.",
-        "Handwriting recognition is not claimed."
+        "The implementation defines an explicit qualified-script matrix rather than claiming universal Unicode editing.",
+        "Arabic/RTL edits use correct bidi ordering and shaping in fixed-box reconstruction.",
+        "Font/glyph coverage is validated before Apply/export and missing coverage fails closed.",
+        "Qualified output embeds or references a deterministic usable font path without corrupt substitution.",
+        "Multilingual browser and source/output fidelity fixtures cover shaping, punctuation, mixed-direction text, Undo/Redo, export, and reopen."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-03",
-      "title": "Preservation-aware page surgery",
+      "title": "Structure-preserving target-size compression",
       "disposition": "committed",
       "priority": "P0",
-      "outcome": "Page restructuring preserves document-level structures where supported and discloses breakage where it cannot.",
+      "outcome": "Let users request a realistic output size while retaining searchable/vector/interactive PDF structure whenever feasible.",
       "evidence": [
-        "docs/EVERYDAY_PDF_WORKFLOWS.md: forms/bookmarks/signatures preservation gap",
-        "KNOWN_LIMITATIONS.md: signatures and structures have explicit boundaries"
+        "src/views/CompressionPage.tsx: current choices are lossless optimization or fixed raster profiles",
+        "docs/EVERYDAY_PDF_WORKFLOWS.md: reliable target-size compression remains a separate improvement"
       ],
       "acceptance": [
-        "Bookmark, link/destination, form, attachment, and metadata effects are checked after restructuring.",
-        "Unsupported preservation paths fail closed or present a specific warning before download.",
-        "Digital-signature invalidation is never described as preservation.",
-        "Output-trust evidence reports which structures were preserved, changed, or dropped."
+        "Users can specify a target size and preservation preference.",
+        "The optimizer uses bounded attempts and prioritizes safe structural/image optimization before destructive raster fallback.",
+        "Before/after bytes and a preservation summary are shown for the selected result.",
+        "Unattainable targets return an explicit best-achieved result or refusal instead of a false success.",
+        "Outputs that are larger than the source are not labelled successful compression."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-04",
-      "title": "Searchable compression and target-size optimization",
+      "title": "Batch parity and encrypted-queue ergonomics",
       "disposition": "committed",
       "priority": "P1",
-      "outcome": "Users can reduce file size while retaining searchable/vector content when possible and can request a realistic target size.",
+      "outcome": "Make reusable Batch workflows cover more high-value standalone tasks and handle encrypted queue items safely.",
       "evidence": [
-        "docs/EVERYDAY_PDF_WORKFLOWS.md: searchable text-preserving recompression and target-size compression gap"
+        "src/types/batch.ts: Batch schema v3 exposes a bounded ten-step operation set",
+        "KNOWN_LIMITATIONS.md: Batch does not expose every standalone tool",
+        "KNOWN_LIMITATIONS.md: per-file password prompts for encrypted queue items remain missing"
       ],
       "acceptance": [
-        "A structure-preserving compression path is attempted before raster fallback.",
-        "Target-size mode uses bounded iterations and reports when a target is unsafe or unattainable.",
-        "Before/after byte size and preservation summary are shown.",
-        "A larger output is never presented as a successful size reduction."
+        "A checked capability matrix identifies safely composable standalone tasks and explicit non-Batch boundaries.",
+        "Highest-value missing composable operations are added with deterministic recipe semantics.",
+        "Encrypted queue items can request per-file session-only credentials without persistence or diagnostic leakage.",
+        "Recipe/input changes invalidate stale outputs deterministically.",
+        "Terminal or multi-output steps have explicit output naming, ZIP/result semantics, and ordering."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-05",
-      "title": "Batch parity and encrypted-input ergonomics",
+      "title": "Deep native-content fidelity",
       "disposition": "committed",
       "priority": "P1",
-      "outcome": "Reusable Batch recipes cover more high-value standalone tools and handle encrypted queue items safely.",
+      "outcome": "Expand safe existing-content editing into currently conservative image/vector/table/reflow classes without claiming universal content-stream rewriting.",
       "evidence": [
-        "KNOWN_LIMITATIONS.md: Batch does not expose every standalone tool",
-        "KNOWN_LIMITATIONS.md: per-file password prompts remain a gap"
+        "KNOWN_LIMITATIONS.md: image masks, clipping, blend modes, and shared-image semantics are not universally preserved",
+        "KNOWN_LIMITATIONS.md: vector detection omits arbitrary nested paths, clipping stacks, shadings, patterns, and inherited graphics state",
+        "KNOWN_LIMITATIONS.md: table detection does not understand every merged-cell or semantic table structure",
+        "KNOWN_LIMITATIONS.md: paragraph reflow across neighboring objects, columns, and pages remains bounded"
       ],
       "acceptance": [
-        "The v7.2 Batch capability matrix explicitly lists supported and unsupported standalone tools.",
-        "Encrypted queue items can request per-file credentials without persistence.",
-        "Recipe/input changes invalidate stale outputs deterministically.",
-        "Multi-output steps are added only with explicit result semantics."
+        "Every newly supported object class has a deterministic detection/capability rule and fail-closed unsupported state.",
+        "Qualified image edits preserve required mask/clipping/blend/shared-resource semantics for their fixture class.",
+        "Qualified vector edits preserve required graphics-state semantics for their fixture class.",
+        "Qualified irregular/merged table edits preserve cell geometry and unaffected content.",
+        "Any cross-region text reflow uses deterministic blocker/follower rules and never silently crosses an unsupported flow boundary.",
+        "Source/output fidelity fixtures detect collateral changes to untouched content."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-06",
-      "title": "Compatibility and field qualification expansion",
+      "title": "Compatibility and human/device qualification",
       "disposition": "committed",
       "priority": "P0",
-      "outcome": "v7.2 changes are qualified against real-world difficult PDFs and representative external readers/devices.",
+      "outcome": "Qualify v7.2 capabilities on difficult real PDFs, external readers, and representative physical devices before release.",
       "evidence": [
-        "KNOWN_LIMITATIONS.md: external reader/mobile/large/adversarial validation remains required",
-        "open issue #62: field qualification requires physical-device evidence"
+        "KNOWN_LIMITATIONS.md: external-reader, mobile, large-corpus, malformed-file, and adversarial validation remains required for release confidence",
+        "GitHub issue #62: physical-device field observations remain an explicit evidence class"
       ],
       "acceptance": [
-        "Qualification includes malformed, scanned, form-heavy, encrypted, signed, and large real-world cases.",
-        "External-reader results are recorded with exact artifact identity.",
-        "Phone/tablet/installed-PWA observations are recorded where the affected workflow is supported.",
-        "A failed compatibility gate blocks release qualification rather than being converted into a documentation-only pass."
+        "Qualification includes malformed, scanned, form-heavy, encrypted, signed, multilingual, and large real-world cases relevant to v7.2 changes.",
+        "External-reader results are recorded against exact output artifact identity.",
+        "Physical phone/tablet/installed-PWA observations are recorded for affected supported workflows.",
+        "Human/device evidence is not synthesized from automation.",
+        "Unresolved compatibility or data-loss failures block release qualification."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-C1",
-      "title": "Complex-script shaping and bidi editing",
+      "title": "DOCX to PDF import",
       "disposition": "candidate",
       "priority": "P2",
-      "outcome": "Determine whether Arabic/RTL and other shaping-dependent existing text can be reconstructed faithfully in-browser.",
+      "outcome": "Determine whether a local structured DOCX-to-PDF path can reuse the V72-01 document model without degrading into falsely labelled screenshot conversion.",
       "evidence": [
-        "KNOWN_LIMITATIONS.md: shaping-dependent scripts remain appearance-only fallback"
+        "Current product exports DOCX but does not provide qualified layout-aware DOCX import"
       ],
       "acceptance": [
-        "Promotion requires shaping/bidi design, font-subsetting plan, and a multilingual fidelity corpus."
+        "Promotion requires a local/offline architecture and a corpus for paragraphs, tables, images, lists, page geometry, and unsupported-feature disclosure."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-C2",
-      "title": "Layout-aware DOCX interchange",
+      "title": "Independent PDF/A validation integration",
       "disposition": "candidate",
       "priority": "P2",
-      "outcome": "Determine whether materially layout-aware DOCX interchange can meet PDF Studio fidelity standards.",
+      "outcome": "Determine whether local independent validation can strengthen current PDF/A candidate preparation into better conformance evidence.",
       "evidence": [
-        "docs/EVERYDAY_PDF_WORKFLOWS.md: editable Office conversion gap",
-        "KNOWN_LIMITATIONS.md: DOCX export is text-focused"
+        "KNOWN_LIMITATIONS.md: PDF/A output is candidate preparation, not an ISO conformance certificate"
       ],
       "acceptance": [
-        "Promotion requires real layout/table/image/equation fidelity evidence and an explicit privacy decision for any upload service."
+        "Promotion requires a standards-validating engine, bounded runtime cost, explicit supported profiles, and no normal-startup penalty."
       ],
       "schemaChange": false,
-      "networkRequired": "undecided"
+      "networkRequired": false
     },
     {
       "id": "V72-C3",
-      "title": "Dedicated touch document zoom",
+      "title": "Dedicated two-pointer document zoom",
       "disposition": "candidate",
       "priority": "P2",
-      "outcome": "Determine whether two-pointer canvas zoom materially improves mobile editing without harming browser zoom/accessibility.",
+      "outcome": "Determine whether canvas-level pinch zoom materially improves mobile editing without harming browser or accessibility zoom.",
       "evidence": [
-        "KNOWN_LIMITATIONS.md: dedicated two-pointer document zoom is not implemented"
+        "KNOWN_LIMITATIONS.md: a dedicated two-pointer document-zoom gesture is not implemented"
       ],
       "acceptance": [
-        "Promotion requires phone/tablet usability evidence and no regression to browser accessibility zoom."
+        "Promotion requires physical phone/tablet usability evidence and no regression to browser accessibility zoom."
       ],
       "schemaChange": false,
       "networkRequired": false
     },
     {
       "id": "V72-D1",
-      "title": "Full bidirectional Office suite conversion",
+      "title": "Bidirectional XLSX/PPTX and broad Office-suite parity",
       "disposition": "deferred",
       "priority": "none",
-      "outcome": "DOCX/XLSX/PPTX round-trip conversion.",
-      "reason": "Too broad for v7.2 and risks false fidelity claims or a server dependency before the narrower DOCX spike is proven.",
+      "outcome": "Full spreadsheet/presentation import-export parity.",
+      "reason": "Too broad for v7.2 and likely to force low-fidelity claims or a server dependency before the narrower DOCX model is proven.",
       "schemaChange": false,
       "networkRequired": "likely"
     },
@@ -206,8 +238,8 @@
       "title": "Browser certificate-store and PAdES signing",
       "disposition": "deferred",
       "priority": "none",
-      "outcome": "Certificate-backed cryptographic signing in the browser build.",
-      "reason": "Native certificate stores/HSM integration remain outside the consumer browser runtime boundary.",
+      "outcome": "Certificate-backed cryptographic signing in the consumer browser build.",
+      "reason": "Native certificate stores, PKCS#11 and HSM integration remain outside the browser-local consumer runtime boundary.",
       "schemaChange": false,
       "networkRequired": "environment-dependent"
     },
@@ -223,11 +255,11 @@
     },
     {
       "id": "V72-D4",
-      "title": "Unrestricted content-stream rewriting and enterprise/native expansion",
+      "title": "Unrestricted PDF content-stream rewriting and enterprise/native platform expansion",
       "disposition": "deferred",
       "priority": "none",
-      "outcome": "Universal PDF object rewriting plus desktop/enterprise security platform expansion.",
-      "reason": "Conflicts with the bounded consumer/local-first v7.2 objective and would dramatically expand risk and complexity.",
+      "outcome": "Universal object rewriting plus desktop-companion, enterprise fleet, federation, or zero-trust expansion.",
+      "reason": "This conflicts with the bounded consumer/local-first v7.2 objective and would expand risk, dependencies, and product complexity without a concrete release need.",
       "schemaChange": false,
       "networkRequired": "varies"
     }
@@ -243,11 +275,13 @@
       "networkRequired"
     ],
     "allowedDispositions": [
+      "already-shipped",
       "committed",
       "candidate",
       "deferred"
     ],
     "committedScopeChangesRequireAudit": true,
+    "staleGapClaimsRequireCurrentSourceRecheck": true,
     "candidatePromotionRequiresEvidence": true,
     "deferredWorkRequiresExplicitRoadmapChange": true,
     "versionCutForbiddenInP12": true,
@@ -255,7 +289,7 @@
   },
   "nextPhase": {
     "id": "P13",
-    "title": "Visual Page Composition & Page Surgery UX",
+    "title": "Layout-Aware PDF to DOCX Export 2.0",
     "roadmapItem": "V72-01"
   }
 }
