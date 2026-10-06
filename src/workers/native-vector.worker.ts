@@ -540,24 +540,15 @@ function parseStream(page: PdfPage, source: string, streamIndex: number): { reco
       continue;
     }
     if (op === "sc" || op === "scn" || op === "SC" || op === "SCN") {
-      const values = operands.map((item) => Number(item.value)).filter(Number.isFinite);
-      if (op === "sc" || op === "scn") state.fillComponents = values;
-      else state.strokeComponents = values;
-      operands.length = 0;
-      continue;
-    }
-    if (op === "scn" || op === "SCN") {
-      const targetFill = op === "scn";
-      const hasPatternName = operands.some((item) => typeof item.value === "string");
-      const components = operands.map((item) => typeof item.value === "number" ? item.value : Number.NaN).filter(Number.isFinite);
+      const targetFill = op === "sc" || op === "scn";
+      const hasPatternName = (op === "scn" || op === "SCN") && operands.some((item) => typeof item.value === "string");
+      const values = operands.map((item) => typeof item.value === "number" ? item.value : Number.NaN).filter(Number.isFinite);
       if (hasPatternName) {
         if (targetFill) state.fillSpace = "Pattern";
         else state.strokeSpace = "Pattern";
       }
-      if (components.length) {
-        if (targetFill) state.fillComponents = components;
-        else state.strokeComponents = components;
-      }
+      if (targetFill) state.fillComponents = values;
+      else state.strokeComponents = values;
       operands.length = 0;
       continue;
     }
