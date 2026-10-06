@@ -258,7 +258,7 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
         <div className="target-size-input">
           <label>
             <span>Target size</span>
-            <input disabled={processing} inputMode="decimal" min={MIN_TARGET_SIZE_BYTES} onChange={(event) => { setTargetValue(event.target.value); settingsChanged(); }} step="0.01" type="number" value={targetValue}/>
+            <input disabled={processing} inputMode="decimal" min="0" onChange={(event) => { setTargetValue(event.target.value); settingsChanged(); }} step="0.01" type="number" value={targetValue}/>
           </label>
           <label>
             <span>Unit</span>
