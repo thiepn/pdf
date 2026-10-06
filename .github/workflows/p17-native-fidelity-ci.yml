@@ -1,0 +1,54 @@
+name: P17 deep native-content fidelity controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p17/**
+      - docs/product/P17_DEEP_NATIVE_CONTENT_FIDELITY.md
+      - scripts/p17/**
+      - src/fixtures/p17NativeFidelityPdf.ts
+      - src/native/nativeFidelity.ts
+      - src/native/layoutReflow.ts
+      - src/native/nativeClientBase.ts
+      - src/types/nativeEditor.ts
+      - src/workers/native-image.worker.ts
+      - src/workers/native-vector.worker.ts
+      - src/workers/native-table.worker.ts
+      - src/editor/native/LegacyNativeContentPropertiesPanel.tsx
+      - src/editor/native/NativeTablePropertiesPanel.tsx
+      - src/editor/native/LayoutAwareTextPropertiesPanel.tsx
+      - tests/unit/p17DeepNativeFidelity.test.ts
+      - tests/unit/layoutReflow.test.ts
+      - tests/e2e/p17-native-fidelity.spec.ts
+      - README.md
+      - KNOWN_LIMITATIONS.md
+      - CHANGELOG.md
+      - package.json
+      - .github/workflows/p17-native-fidelity-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  native-fidelity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit inherited v7.2 line
+        run: npm run check:p16
+      - name: Audit and unit-test P17
+        run: npm run check:p17
+      - name: Typecheck product source
+        run: npm run typecheck
+      - name: Build P17 browser artifact
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: P17 generated-fixture browser qualification
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts --project=chromium --workers=1 --retries=0
