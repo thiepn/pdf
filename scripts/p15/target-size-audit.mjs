@@ -54,6 +54,7 @@ check(manifest.targetContract?.structurePassAlwaysFirst === true, "structure-pre
 check(manifest.targetContract?.targetMetRequiresSmallerThanSource === true && manifest.targetContract?.targetMetRequiresAtOrBelowTarget === true, "target success requires actual reduction and requested size");
 check(manifest.targetContract?.largerOutputCanBeSuccessful === false, "larger outputs cannot be successful compression");
 check(manifest.targetContract?.networkRequired === false, "target-size compression stays browser-local");
+check(manifest.targetContract?.structurePreservingOutputRequiresP8Fidelity === true, "structure-preserved target output requires P8 fidelity evidence");
 
 check(targetEngine.includes("MIN_TARGET_SIZE_BYTES = 1"), "runtime accepts any positive byte target");
 check(targetEngine.includes("MAX_TARGET_SIZE_ATTEMPTS = 1 + TARGET_SIZE_RASTER_PROFILES.length"), "runtime attempt bound is derived from one structural plus raster ladder");
@@ -73,12 +74,13 @@ check(compressionPage.includes('"preserve-structure"') && compressionPage.includ
 check(compressionPage.includes("Source</dt>") && compressionPage.includes("Target</dt>") && compressionPage.includes("Best output</dt>") && compressionPage.includes("Attempts</dt>"), "UI shows before/target/output and attempt evidence");
 check(compressionPage.includes("Target met") && compressionPage.includes("Best effort · target not reached") && compressionPage.includes("No smaller qualified output"), "UI distinguishes success, best effort and refusal");
 check(compressionPage.includes("resultBytes.byteLength >= source.byteLength && mode === \"target\""), "UI has final larger-output fail-closed guard");
+check(compressionPage.includes("validatePdfFidelity") && compressionPage.includes('targetMethod === "structure-preserving"') && compressionPage.includes("if (!fidelity.passed)"), "structure-preserved target output is publication-gated by P8 fidelity");
 
 check(limitations.includes("Target-size compression") && limitations.includes("six bounded attempts"), "known limitations state target-size boundary");
 check(everyday.includes("P15") && !everyday.includes("reliable target-size compression remain"), "stale everyday-workflow target-size gap is retired");
 check(readme.includes("P15") && readme.includes("target-size compression"), "README exposes P15 target-size compression");
 check(changelog.includes("P15 — Structure-Preserving Target-Size Compression"), "CHANGELOG records P15");
-check(p15Doc.includes("A larger file is never labelled successful compression") && p15Doc.includes("At most six attempts"), "P15 documentation states honest success and bounded search");
+check(p15Doc.includes("A larger file is never labelled successful compression") && p15Doc.includes("At most six attempts") && p15Doc.includes("P8 fidelity gate"), "P15 documentation states honest success, bounded search and structural fidelity evidence");
 check(workflow.includes("npm run check:p15") && workflow.includes("docs/p15/**") && workflow.includes("tests/e2e/p15-target-size.spec.mjs"), "P15 CI tracks dedicated controls and browser acceptance");
 check(browserTest.includes("Compress to target") && browserTest.includes("output.length).toBeLessThanOrEqual(80_000)") && browserTest.includes("PDF structure preserved|Pages rasterized"), "browser acceptance verifies target bytes and preservation evidence");
 check(manifest.nextPhase?.id === "P16" && manifest.nextPhase?.roadmapItem === "V72-04", "P15 hands off to Batch parity and encrypted queues");
