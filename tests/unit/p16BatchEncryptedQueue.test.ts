@@ -18,6 +18,7 @@ describe("P16 encrypted Batch queue boundary", () => {
     expect(batchPageSource).toContain("useSessionPassword(item)");
     expect(batchPageSource).toContain("await inspectPdfBytes(bytes,password)");
     expect(batchPageSource).toContain("That password did not open this PDF.");
+    expect(batchPageSource).toContain('setPasswordDrafts(current=>({...current,[itemId]:""}))');
   });
 
   it("passes credentials separately from recipe semantics and never adds a password recipe step", () => {
