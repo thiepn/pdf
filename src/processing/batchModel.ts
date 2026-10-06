@@ -93,6 +93,6 @@ export function parseBatchRecipeJson(source: string): BatchRecipe {
   return { ...migrated, id: randomStepId(), name: String(migrated.name).trim().slice(0, 120), outputSuffix: String(migrated.outputSuffix || "processed").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40) || "processed", updatedAt: Date.now() };
 }
 export function serializeBatchRecipe(recipe: BatchRecipe): string {
-  const normalized = migrateBatchRecipe(recipe);
+  const normalized = validateBatchRecipe(recipe);
   return JSON.stringify({ schemaVersion: CURRENT_BATCH_SCHEMA_VERSION, name: normalized.name, steps: normalized.steps, outputSuffix: normalized.outputSuffix }, null, 2);
 }
