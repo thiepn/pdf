@@ -7,16 +7,16 @@ import {
 } from "../../src/native/complexScript";
 import { mirroredRunText, planBidiLine } from "../../src/native/complexBidi";
 import { planNativeFindReplace } from "../../src/editor/native/nativeFindReplace";
-import type { NativeInspection, NativeTextObject } from "../../src/types/nativeEditor";
+import type { NativeCapability, NativeInspection, NativeTextObject } from "../../src/types/nativeEditor";
 
-const capability = {
+const capability: NativeCapability = {
   level: "safe-reconstruction",
   label: "Arabic shaping",
   confidence: 0.84,
   reason: "test",
   preserves: [],
   risks: []
-} as const;
+};
 
 function arabicObject(): NativeTextObject {
   return {
