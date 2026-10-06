@@ -122,7 +122,7 @@ The ZIP writer accepts binary entries directly so embedded image bytes are not c
 
 The task is now labelled **PDF to Word**, not **PDF to Word (text)**.
 
-Consumer copy states that the tool reconstructs editable paragraphs, common tables, images, page geometry, and supported styling while exact PDF line wrapping and complex drawings can differ.
+Consumer copy and offline Help state that the tool reconstructs editable paragraphs, common tables, images, page geometry, and supported styling while exact PDF line wrapping and complex drawings can differ. The Help action and browser acceptance use the same **PDF to Word** name as the task catalog.
 
 ## Release / schema boundary
 
@@ -146,7 +146,8 @@ P13 tests verify:
 - page geometry reaches `w:pgSz`;
 - multi-column ambiguity produces a warning and deterministic column order;
 - the Quick PDF→DOCX route uses the P13 builder rather than `buildSimpleDocx`;
-- old text-only consumer wording is removed.
+- old text-only consumer/help wording is removed;
+- the Help → PDF to Word browser contract follows the new task name and fidelity warning.
 
 ## Definition of Done
 
