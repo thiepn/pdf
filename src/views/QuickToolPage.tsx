@@ -19,7 +19,7 @@ import { handOffTaskFiles, takeTaskTransfer, isImageFile, isPdfFile } from "../p
 import { OutputTrustPanel } from "../components/OutputTrustPanel";
 
 const actionLabels: Record<QuickTaskId, string> = {
-  "pdf-to-docx": "Export editable text to Word", "flatten-pdf": "Flatten PDF", "sanitize-pdf": "Clean up PDF", "remove-metadata": "Remove metadata", "repair-pdf": "Repair PDF",
+  "pdf-to-docx": "Export editable Word document", "flatten-pdf": "Flatten PDF", "sanitize-pdf": "Clean up PDF", "remove-metadata": "Remove metadata", "repair-pdf": "Repair PDF",
   "organize-pages": "Save arranged PDF", "merge-pdfs": "Merge PDFs", "split-pdf": "Split PDF", "extract-pages": "Extract selected pages", "remove-pages": "Remove selected pages", "rotate-pdf": "Rotate selected pages", "pdf-to-jpg": "Convert to JPG", "pdf-to-png": "Convert to PNG", "pdf-to-text": "Extract text", "images-to-pdf": "Create PDF", "compress-pdf": "Compress PDF", "unlock-pdf": "Remove password", "password-protect": "Protect PDF", "add-page-numbers": "Add page numbers", "add-watermark": "Add watermark", "crop-pages": "Crop PDF"
 };
 interface PendingPassword { file: File; rest: File[]; accepted: QuickInput[]; restPasswords: Array<string | undefined> }
