@@ -92,7 +92,8 @@
     "Output currentness depends on recipe fingerprint, input identity, and credential revision.",
     "After PDF rewrites, Batch resolves the actual output encryption state before later steps consume the result.",
     "Terminal split/page-image steps remain final and expose deterministic ZIP/result naming and ordering.",
-    "No executable-version or persistent 9/13/6 schema cut occurs in P16."
+    "No executable-version or persistent 9/13/6 schema cut occurs in P16.",
+    "Imported and loaded recipe objects are canonicalized to declared v4 fields so unknown credential-like properties cannot persist or re-export."
   ],
   "nextPhase": {
     "id": "P17",
