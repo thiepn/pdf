@@ -23,6 +23,7 @@ on:
       - tests/unit/batchOutputValidity.test.ts
       - tests/unit/batchOutputFingerprint.test.ts
       - tests/unit/phase26WorkflowIntelligence.test.ts
+      - tests/unit/v606Maintenance.test.ts
       - tests/e2e/p16-batch-encrypted.spec.mjs
       - README.md
       - KNOWN_LIMITATIONS.md
