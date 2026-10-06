@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 const read = (path) => readFile(path, "utf8");
 const [
   manifestText, p12Text, packageText, lockText, releaseSource, nativeSource,
-  implementation, quick, catalog, directory, p13Doc, readme, limitations, changelog, workflow
+  implementation, quick, catalog, directory, helpGuide, browserGuideTest, p13Doc, readme, limitations, changelog, workflow
 ] = await Promise.all([
   read("docs/p13/layout-docx.json"),
   read("docs/p12/feature-intake.json"),
@@ -15,6 +15,8 @@ const [
   read("src/quick/quickOperations.ts"),
   read("src/ia/taskCatalog.ts"),
   read("src/product/TaskDirectory.tsx"),
+  read("src/help/taskGuide.ts"),
+  read("tests/e2e/task-first-guide.spec.ts"),
   read("docs/product/P13_LAYOUT_AWARE_DOCX.md"),
   read("README.md"),
   read("KNOWN_LIMITATIONS.md"),
@@ -64,6 +66,8 @@ check(quick.includes('buildLayoutAwareDocx') && quick.includes('../professional/
 check(!quick.includes('const { buildSimpleDocx } = await import("../professional/docx")'), "Quick PDF to Word no longer uses the text-only builder");
 check(catalog.includes('id: "pdf-to-docx", label: "PDF to Word"') && !catalog.includes('label: "PDF to Word (text)"'), "consumer task label no longer advertises text-only conversion");
 check(directory.includes("editable paragraphs, common tables, images, page geometry and supported styling"), "Office search messaging reflects the P13 capability boundary");
+check(helpGuide.includes('Choose PDF to Word and select your PDF.') && helpGuide.includes("Exact PDF line wrapping and complex artwork can differ.") && !helpGuide.includes("PDF to Word (text)"), "offline help reflects the P13 Word export contract");
+check(browserGuideTest.includes('["word-export", "pdf-to-docx", "PDF to Word"]') && browserGuideTest.includes('toContainText("Exact PDF line wrapping")'), "browser help acceptance follows the P13 consumer wording");
 check(p13Doc.includes("The goal is not pixel-identical Office conversion") && p13Doc.includes("No PDF bytes, text, images, credentials, or output are uploaded"), "P13 documentation states fidelity and privacy boundaries");
 check(readme.includes("layout-aware") && readme.includes("DOCX"), "README exposes layout-aware DOCX capability");
 check(limitations.includes("DOCX export reconstructs editable paragraphs"), "known limitations reflect the new DOCX boundary");
