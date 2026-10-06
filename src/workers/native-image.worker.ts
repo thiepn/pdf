@@ -188,8 +188,8 @@ function isImageXObject(page: PdfPage, name: string): boolean {
  * specifically because non-Normal /BM is content-stream state and should not
  * depend on whether a renderer chooses to expose it as beginGroup().
  */
-function directImageBlendModes(page: PdfPage): string[] {
-  const modes: string[] = [];
+function directImagePaints(page: PdfPage): Array<{ resourceName: string; blendMode: string }> {
+  const paints: Array<{ resourceName: string; blendMode: string }> = [];
   for (const stream of contentStreams(page)) {
     const source = stripPdfStringsAndComments(streamText(stream));
     const tokens = source.match(/\/[A-Za-z0-9_.:+-]+|\b(?:q|Q|gs|Do)\b/g) ?? [];
@@ -206,12 +206,12 @@ function directImageBlendModes(page: PdfPage): string[] {
         continue;
       }
       if (token === "Do") {
-        if (name && isImageXObject(page, name)) modes.push(blendMode);
+        if (name && isImageXObject(page, name)) paints.push({ resourceName: name, blendMode });
         name = undefined;
       }
     }
   }
-  return modes;
+  return paints;
 }
 
 function imageBoundsFromMatrix(matrix: number[]): NativeRect {
@@ -350,14 +350,19 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
 
   const counts = new Map<number, number>();
   for (const trace of traces) counts.set(trace.key, (counts.get(trace.key) ?? 0) + 1);
-  const directBlendModes = directImageBlendModes(page);
-  const directBlendHasRisk = directBlendModes.some((mode) => mode !== "Normal");
-  const blendMappingAmbiguous = directBlendHasRisk && directBlendModes.length !== traces.length;
+  const directPaints = directImagePaints(page);
+  const directBlendHasRisk = directPaints.some((paint) => paint.blendMode !== "Normal");
+  const paintMappingAvailable = directPaints.length === traces.length;
+  const blendMappingAmbiguous = directBlendHasRisk && !paintMappingAvailable;
+  const resourceCounts = new Map<string, number>();
+  for (const paint of directPaints) resourceCounts.set(paint.resourceName, (resourceCounts.get(paint.resourceName) ?? 0) + 1);
   if (blendMappingAmbiguous) warnings.push(`Page ${pageNumber} uses non-Normal image blend state but direct image invocation count differs from the paint trace; affected image mutation is fail-closed as ambiguous.`);
   const images = traces.map((trace, index): NativeImageObject => {
-    const mappedBlend = directBlendModes.length === traces.length ? directBlendModes[index] : trace.blendMode;
+    const paint = paintMappingAvailable ? directPaints[index] : undefined;
+    const mappedBlend = paint?.blendMode ?? trace.blendMode;
     const classified = classifyImageFidelity({
-      invocationCount: counts.get(trace.key) ?? 1,
+      resourceName: paint?.resourceName,
+      invocationCount: paint ? (resourceCounts.get(paint.resourceName) ?? 1) : (counts.get(trace.key) ?? 1),
       softMask: trace.softMask,
       explicitMask: trace.explicitMask,
       clipped: trace.clipped,
