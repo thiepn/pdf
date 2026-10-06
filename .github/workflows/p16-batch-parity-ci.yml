@@ -1,0 +1,48 @@
+name: P16 Batch parity controls
+
+on:
+  pull_request:
+    paths:
+      - docs/p16/**
+      - docs/product/P16_BATCH_PARITY_ENCRYPTED_QUEUE.md
+      - scripts/p16/**
+      - scripts/phase18/runtime-regression.mjs
+      - scripts/phase26/runtime-regression.mjs
+      - src/types/batch.ts
+      - src/processing/batchModel.ts
+      - src/processing/batchCapabilities.ts
+      - src/processing/batchPipeline.ts
+      - src/views/BatchPage.tsx
+      - src/styles.css
+      - tests/unit/p16BatchParity.test.ts
+      - tests/unit/p16BatchEncryptedQueue.test.ts
+      - tests/unit/batchOutputValidity.test.ts
+      - tests/unit/batchOutputFingerprint.test.ts
+      - tests/unit/phase26WorkflowIntelligence.test.ts
+      - tests/e2e/p16-batch-encrypted.spec.mjs
+      - README.md
+      - KNOWN_LIMITATIONS.md
+      - CHANGELOG.md
+      - package.json
+      - .github/workflows/p16-batch-parity-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  batch-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit inherited v7.2 line
+        run: npm run audit:p15:target-size
+      - name: Audit and unit-test P16
+        run: npm run check:p16
+      - name: Typecheck product source
+        run: npm run typecheck
