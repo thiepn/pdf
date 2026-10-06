@@ -77,7 +77,11 @@ check((readme.includes("text-only DOCX") && readme.includes("not layout-faithful
 check((known.includes("shaping-dependent scripts remain an appearance-only fallback") || known.includes("qualified **Arabic-script/RTL fixed-box path**")) && p1Doc.includes("real shaping/font path"), "V72-02 retains the historical complex-script boundary or an explicit downstream Arabic implementation");
 check(compressionSource.includes('type ProfileId = "lossless" | "screen" | "balanced" | "small" | "print"'), "V72-03 is anchored in current fixed compression profiles");
 check(((batchTypes.includes("BATCH_RECIPE_SCHEMA_VERSION = 3") && batchTypes.includes('type: "split-fixed"') && batchTypes.includes('type: "page-images"')) || (batchTypes.includes("BATCH_RECIPE_SCHEMA_VERSION = 4") && batchTypes.includes('type: "target-size"') && batchTypes.includes('type: "sanitize"'))), "V72-04 retains the historical Batch v3 baseline or an explicit downstream v4 implementation");
-check(known.includes("shared-image semantics") && known.includes("shadings, patterns") && known.includes("merged-cell"), "V72-05 is anchored in current native-content fidelity boundaries");
+check(
+  (known.includes("shared-image semantics") && known.includes("shadings, patterns") && known.includes("merged-cell"))
+  || (known.includes("attached soft mask") && known.includes("non-Normal blending") && known.includes("merged cells")),
+  "V72-05 is anchored in the historical fidelity gaps or explicit downstream P17 boundaries"
+);
 
 check(intake.principles.includes("local-first-privacy") && intake.principles.includes("fidelity-over-fake-parity"), "roadmap encodes privacy/fidelity principles");
 check(intake.intakeRules?.staleGapClaimsRequireCurrentSourceRecheck === true, "future intake must re-check stale historical gap claims");
