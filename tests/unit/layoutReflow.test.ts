@@ -106,6 +106,19 @@ describe("P2 layout-aware text reflow", () => {
     expect(plan.blockers.join(" ")).toMatch(/image/i);
   });
 
+  it("does not create a two-region thread when either region has another adjacent candidate", () => {
+    const source = page([
+      text("left-a", 30, 40, "Left A", 150),
+      text("left-b", 30, 85, "Left B", 150),
+      text("middle-a", 230, 40, "Middle A", 150),
+      text("middle-b", 230, 85, "Middle B", 150),
+      text("right-a", 430, 40, "Right A", 150),
+      text("right-b", 430, 85, "Right B", 150)
+    ]);
+    const texts = source.objects.filter((object): object is NativeTextObject => object.type === "text");
+    expect(texts.every((object) => object.flow && !object.flow.threadId)).toBe(true);
+  });
+
   it("blocks a flow that would push content outside the page", () => {
     const source = page([text("a", 50, 20), text("b", 50, 85), text("c", 50, 130)], 160);
     const plan = planTextReflow(source, "a", 45);
