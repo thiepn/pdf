@@ -32,13 +32,15 @@
       "explicit image masks",
       "inherited clipping",
       "non-Normal blending",
-      "ambiguous trace state"
+      "ambiguous trace state",
+      "nested Form XObject child images"
     ],
     "validation": [
       "reopen output",
       "destination image exists",
       "untouched image instances remain",
-      "attached soft mask survives source transform"
+      "attached soft mask survives source transform",
+      "nested Form child images remain selectable but mutation-protected in favor of instance-level Form editing"
     ]
   },
   "vectorFidelity": {
