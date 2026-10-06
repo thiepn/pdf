@@ -4,7 +4,7 @@ const read = (path) => readFile(path, "utf8");
 const [
   manifestText, p12Text, packageText, lockText, releaseSource, nativeTypes,
   targetEngine, compressionPage, processingWorker, rasterCompression,
-  limitations, readme, changelog, p15Doc, workflow
+  limitations, everyday, readme, changelog, p15Doc, workflow
 ] = await Promise.all([
   read("docs/p15/target-size-compression.json"),
   read("docs/p12/feature-intake.json"),
@@ -17,6 +17,7 @@ const [
   read("src/workers/processing.worker.ts"),
   read("src/processing/rasterCompression.ts"),
   read("KNOWN_LIMITATIONS.md"),
+  read("docs/EVERYDAY_PDF_WORKFLOWS.md"),
   read("README.md"),
   read("CHANGELOG.md"),
   read("docs/product/P15_TARGET_SIZE_COMPRESSION.md"),
@@ -73,6 +74,7 @@ check(compressionPage.includes("Target met") && compressionPage.includes("Best e
 check(compressionPage.includes("resultBytes.byteLength >= source.byteLength && mode === \"target\""), "UI has final larger-output fail-closed guard");
 
 check(limitations.includes("Target-size compression") && limitations.includes("six bounded attempts"), "known limitations state target-size boundary");
+check(everyday.includes("P15") && !everyday.includes("reliable target-size compression remain"), "stale everyday-workflow target-size gap is retired");
 check(readme.includes("P15") && readme.includes("target-size compression"), "README exposes P15 target-size compression");
 check(changelog.includes("P15 — Structure-Preserving Target-Size Compression"), "CHANGELOG records P15");
 check(p15Doc.includes("A larger file is never labelled successful compression") && p15Doc.includes("At most six attempts"), "P15 documentation states honest success and bounded search");
