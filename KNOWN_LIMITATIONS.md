@@ -6,6 +6,7 @@
 - Paragraph reflow across neighboring objects/columns/pages and universal arbitrary content-stream rewriting are not implemented.
 - Image replacement is region-based and may not preserve original masks, clipping, blend modes, or shared-image semantics.
 - Raster compression and imposition do not preserve interactive or vector structures.
+- Target-size compression uses at most **six bounded attempts**. Strict structure-preservation mode never rasterizes; target-priority mode may rasterize after the structural pass. Exact byte targets are not guaranteed, targets below 64 KiB are outside the qualified boundary, and raster fallback loses searchable/vector/interactive structure as disclosed in the result.
 - Batch recipes do not yet expose every standalone tool.
 - Compare 3.0 aligns page sequences with text fingerprints and low-resolution visual fallback, but visually repetitive scans/forms or extreme page counts can still require manual pair selection.
 - Repair cannot recover every truncated or fundamentally unreadable PDF.
