@@ -31,7 +31,10 @@ Direct mutation remains blocked when the selected image has:
 - an explicit image mask;
 - inherited clipping;
 - non-Normal blending/compositing state;
-- ambiguous graphics-state inspection.
+- ambiguous graphics-state inspection;
+- child images contained by a reusable Form XObject.
+
+Nested Form child images remain visible/selectable in the layers model, but P17 routes mutation to the existing qualified Form-instance editor instead of bypassing shared/nested semantics.
 
 Protected images remain visible and selectable so the limitation is explicit rather than silently flattening them.
 
