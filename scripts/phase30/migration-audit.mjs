@@ -70,7 +70,7 @@ check(
   "legacy native edits normalize into schema 6, preserving image/vector/table migrations and normalizing P7 nested-content instance identity, geometry and action"
 );
 check("compliance state normalization", /(?:schemaVersion:\s*2|COMPLIANCE_SCHEMA_VERSION\s*=\s*2)/.test(compliance) && /migrateOptions/.test(compliance), "compliance state normalizes into schema 2");
-check("batch v1-v3 migration", /CURRENT_BATCH_SCHEMA_VERSION\s*=\s*3/.test(batch) && /(?:recipe\.schemaVersion|schemaVersion) === 2/.test(batch) && /recipe\.rotate/.test(batch), "Batch v1 and v2 recipes migrate to schema 3");
+check("batch v1-v4 migration", /CURRENT_BATCH_SCHEMA_VERSION\s*=\s*4/.test(batch) && /schemaVersion >= 2 && schemaVersion < CURRENT_BATCH_SCHEMA_VERSION/.test(batch) && /recipe\.rotate/.test(batch), "Batch v1 legacy fields and v2/v3 ordered recipes migrate to schema 4");
 
 const passed = checks.filter((item) => item.passed).length;
 for (const item of checks) console.log(`${item.passed ? "PASS" : "FAIL"} ${item.name}: ${item.detail}`);
