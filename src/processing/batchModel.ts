@@ -70,13 +70,9 @@ export function batchRecipeExecutionFingerprint(recipe: BatchRecipe): string {
 }
 
 const KNOWN_STEP_TYPES = new Set<BatchStep["type"]>(["rotate","optimize","remove-metadata","crop","decorate","blank-pages","raster-compress","grayscale","extract-pages","remove-pages","flatten","sanitize","target-size","split-fixed","page-images"]);
-export function parseBatchRecipeJson(source: string): BatchRecipe {
-  let parsed: unknown;
-  try { parsed = JSON.parse(source); } catch { throw new Error("This workflow file could not be read."); }
-  if (!parsed || typeof parsed !== "object") throw new Error("This workflow file is not valid.");
-  const input = parsed as Partial<BatchRecipe>;
-  if (!String(input.name ?? "").trim()) throw new Error("This workflow file is missing a name.");
-  const migrated = migrateBatchRecipe(input as BatchRecipe);
+
+export function validateBatchRecipe(recipe: BatchRecipe): BatchRecipe {
+  const migrated = migrateBatchRecipe(recipe);
   if (!Array.isArray(migrated.steps) || !migrated.steps.length) throw new Error("This workflow must contain at least one processing step.");
   for (const [index, step] of migrated.steps.entries()) {
     if (!step || typeof step !== "object" || !KNOWN_STEP_TYPES.has(step.type)) throw new Error("This workflow contains an unsupported processing step.");
@@ -85,6 +81,15 @@ export function parseBatchRecipeJson(source: string): BatchRecipe {
     if (step.type === "flatten" && !step.flattenForms && !step.flattenAnnotations) throw new Error("Flatten must include forms, annotations, or both.");
     if (step.type === "target-size" && (!Number.isFinite(step.targetBytes) || step.targetBytes < 1 || !["preserve-structure","allow-raster"].includes(step.preservation))) throw new Error("Target-size compression has invalid settings.");
   }
+  return migrated;
+}
+export function parseBatchRecipeJson(source: string): BatchRecipe {
+  let parsed: unknown;
+  try { parsed = JSON.parse(source); } catch { throw new Error("This workflow file could not be read."); }
+  if (!parsed || typeof parsed !== "object") throw new Error("This workflow file is not valid.");
+  const input = parsed as Partial<BatchRecipe>;
+  if (!String(input.name ?? "").trim()) throw new Error("This workflow file is missing a name.");
+  const migrated = validateBatchRecipe(input as BatchRecipe);
   return { ...migrated, id: randomStepId(), name: String(migrated.name).trim().slice(0, 120), outputSuffix: String(migrated.outputSuffix || "processed").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40) || "processed", updatedAt: Date.now() };
 }
 export function serializeBatchRecipe(recipe: BatchRecipe): string {
