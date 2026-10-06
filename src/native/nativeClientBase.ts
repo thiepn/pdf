@@ -1,4 +1,5 @@
 import { reconstructPageTextParagraphs } from "./nativeModel";
+import { annotatePageTextFlows } from "./layoutReflow";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
@@ -182,7 +183,8 @@ function mergeTableInspection(base: NativeInspection, table: TableInspection): N
     const withoutLegacy = page.objects.filter((object) => object.type !== "table");
     const firstForm = withoutLegacy.findIndex((object) => object.type === "form");
     const insertion = firstLegacyTable >= 0 ? Math.min(firstLegacyTable, withoutLegacy.length) : Math.min(firstForm < 0 ? withoutLegacy.length : firstForm, withoutLegacy.length);
-    return { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+    const mergedPage = { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+    return annotatePageTextFlows(mergedPage);
   });
   return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, tables: table.total }, warnings: [...base.warnings.filter((warning) => !/table/i.test(warning)), ...table.warnings] });
 }
