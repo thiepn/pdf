@@ -84,7 +84,7 @@ check(intake.intakeRules?.staleGapClaimsRequireCurrentSourceRecheck === true, "f
 check(intake.nextPhase?.id === "P13" && intake.nextPhase?.roadmapItem === "V72-01", "P13 begins with layout-aware DOCX export");
 check(p12Doc.includes("Baseline correction") && p12Doc.includes("Layout-aware editable PDF → DOCX export"), "human roadmap includes corrected baseline and first committed capability");
 check(p12Doc.includes("Explicitly deferred from v7.2") && p12Doc.includes("P13 — Layout-Aware PDF → DOCX Export 2.0"), "human roadmap exposes deferrals and next phase");
-check(workflow.includes("npm run check:p12") && workflow.includes("feature-intake.json"), "P12 roadmap CI enforces the intake contract");
+check(workflow.includes("npm run check:p12") && workflow.includes("docs/p12/**"), "P12 roadmap CI enforces the intake contract");
 
 console.log(JSON.stringify({
   phase: "P12",
