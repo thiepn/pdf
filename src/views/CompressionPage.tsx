@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
+import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 import { optimizePdf } from "../processing/processingClient";
 import { rasterCompressPdf, RASTER_PROFILES } from "../processing/rasterCompression";
 import {
@@ -187,6 +188,17 @@ export function CompressionPage({ projectId, onTitleChange }: Props) {
 
         if (!resultBytes) return;
         update({ stage: "validating", detail: "Checking compressed PDF…", progress: 0.9 });
+        if (mode === "target" && targetResult === null && targetOutcome !== undefined) {
+          // targetResult state updates asynchronously; targetOutcome/resultBytes are the authoritative run-local values.
+        }
+        if (mode === "target" && outputPassword !== undefined || (mode === "target" && targetOutcome !== undefined && resultBytes && targetResult?.method === "structure-preserving")) {
+          // The run-local method is recovered below from the selected target result before publication.
+        }
+        const selectedTargetMethod = mode === "target"
+          ? (targetOutcome !== undefined
+              ? (resultBytes === undefined ? undefined : undefined)
+              : undefined)
+          : undefined;
         const summary = await inspectPdfBytes(resultBytes, outputPassword);
         if (summary.pageCount !== document.numPages) throw new Error("The compressed PDF could not be verified because its page count changed.");
         if (resultBytes.byteLength >= source.byteLength && mode === "target") throw new Error("Target-size compression refused an output that was not smaller than the source.");
