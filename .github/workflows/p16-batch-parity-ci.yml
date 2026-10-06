@@ -9,6 +9,9 @@ on:
       - scripts/source-audit.mjs
       - scripts/phase18/runtime-regression.mjs
       - scripts/phase26/runtime-regression.mjs
+      - scripts/phase30/migration-audit.mjs
+      - scripts/phase30/security-privacy-audit.mjs
+      - scripts/releases/v6.0.6/runtime-regression.mjs
       - src/types/batch.ts
       - src/processing/batchModel.ts
       - src/processing/batchCapabilities.ts
