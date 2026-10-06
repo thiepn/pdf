@@ -48,14 +48,14 @@ check(/NATIVE_EDITOR_SCHEMA_VERSION\s*=\s*6/.test(nativeTypes), "native editor s
 
 const item = p12.items?.find((entry) => entry.id === "V72-03");
 check(item?.disposition === "committed" && /target-size compression/i.test(item?.title ?? ""), "P15 implements committed V72-03");
-check(manifest.targetContract?.minimumTargetBytes === 65536, "minimum qualified target is explicit");
+check(manifest.targetContract?.minimumTargetBytes === 1, "positive-byte minimum target is explicit");
 check(manifest.targetContract?.maximumAttempts === 6, "bounded attempt ceiling is six");
 check(manifest.targetContract?.structurePassAlwaysFirst === true, "structure-preserving pass is mandatory first");
 check(manifest.targetContract?.targetMetRequiresSmallerThanSource === true && manifest.targetContract?.targetMetRequiresAtOrBelowTarget === true, "target success requires actual reduction and requested size");
 check(manifest.targetContract?.largerOutputCanBeSuccessful === false, "larger outputs cannot be successful compression");
 check(manifest.targetContract?.networkRequired === false, "target-size compression stays browser-local");
 
-check(targetEngine.includes("MIN_TARGET_SIZE_BYTES = 64 * 1024"), "runtime enforces qualified minimum target");
+check(targetEngine.includes("MIN_TARGET_SIZE_BYTES = 1"), "runtime accepts any positive byte target");
 check(targetEngine.includes("MAX_TARGET_SIZE_ATTEMPTS = 1 + TARGET_SIZE_RASTER_PROFILES.length"), "runtime attempt bound is derived from one structural plus raster ladder");
 for (const marker of ["dpi: 200", "dpi: 165", "dpi: 135", "dpi: 105", "dpi: 80"]) check(targetEngine.includes(marker), `raster ladder includes ${marker}`);
 check(targetEngine.indexOf("await optimize(") < targetEngine.indexOf("for (let profileIndex"), "structural optimization executes before raster fallback");
