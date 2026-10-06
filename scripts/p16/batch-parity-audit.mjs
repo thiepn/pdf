@@ -4,8 +4,8 @@ const read = (path) => readFile(path, "utf8");
 const [
   manifestText, p12Text, packageText, lockText, releaseSource, nativeTypes,
   batchTypes, batchModel, capabilities, pipeline, batchPage, styles,
-  encryptedTest, parityTest, browserTest, phase18, phase26, phase26Unit, phase30Migration, v606,
-  limitations, readme, changelog, productDoc, workflow
+  encryptedTest, parityTest, v606Unit, browserTest, phase18, phase26, phase26Unit, phase30Migration, v606,
+  limitations, readme, changelog, productDoc, workflow, batchRepository
 ] = await Promise.all([
   read("docs/p16/batch-parity.json"),
   read("docs/p12/feature-intake.json"),
@@ -21,6 +21,7 @@ const [
   read("src/styles.css"),
   read("tests/unit/p16BatchEncryptedQueue.test.ts"),
   read("tests/unit/p16BatchParity.test.ts"),
+  read("tests/unit/v606Maintenance.test.ts"),
   read("tests/e2e/p16-batch-encrypted.spec.mjs"),
   read("scripts/phase18/runtime-regression.mjs"),
   read("scripts/phase26/runtime-regression.mjs"),
@@ -31,7 +32,8 @@ const [
   read("README.md"),
   read("CHANGELOG.md"),
   read("docs/product/P16_BATCH_PARITY_ENCRYPTED_QUEUE.md"),
-  read(".github/workflows/p16-batch-parity-ci.yml")
+  read(".github/workflows/p16-batch-parity-ci.yml"),
+  read("src/processing/batchRepository.ts")
 ]);
 
 const manifest = JSON.parse(manifestText);
@@ -70,6 +72,7 @@ check(phase26.includes("Batch 3 recipe migrates to schema 4"), "Phase 26 runtime
 check(phase26Unit.includes("migrates legacy Batch recipes to current schema 4"), "Phase 26 unit contract follows v4");
 check(phase30Migration.includes("batch v1-v4 migration") && phase30Migration.includes("CURRENT_BATCH_SCHEMA_VERSION\\s*=\\s*4"), "Phase 30 migration audit recognizes current Batch v4");
 check(v606.includes("schemaVersion: 5") && v606.includes("future Batch recipes are rejected"), "historical v6.0.6 future-schema guard advances beyond current v4");
+check(v606Unit.includes("schemaVersion: 5") && v606Unit.includes("rejects a future Batch recipe"), "focused Vitest future-schema guard advances beyond current v4");
 
 for (const type of ["extract-pages","remove-pages","flatten","sanitize","target-size"]) {
   check(batchTypes.includes(`type: "${type}"`), `Batch v4 exposes ${type}`);
@@ -88,8 +91,10 @@ check(!batchPage.includes("localStorage") && !batchPage.includes("sessionStorage
 check(batchPage.includes("await inspectPdfBytes(bytes,password)"), "credential is locally validated before reuse");
 check(batchPage.includes('"needs-password"') && batchPage.includes("Password required"), "protected inputs enter recoverable credential state");
 check(batchPage.includes("That password did not open this PDF."), "wrong credentials remain recoverable without echoing the secret");
+check(batchPage.includes('setPasswordDrafts(current=>({...current,[itemId]:""}))'), "rejected credential drafts are cleared immediately");
 check(batchPage.includes("sessionPasswordsRef.current.get(item.id)") && pipeline.includes("password?: string"), "input credential is passed separately from recipe semantics");
 check(batchPage.includes("PDF Studio does not put this password in saved/exported workflows, output names, or queue messages"), "credential privacy is explained in-product");
+check(batchRepository.includes("validateBatchRecipe(recipe)") && batchModel.includes("const normalized = validateBatchRecipe(recipe)"), "invalid live recipes cannot be persisted or exported");
 
 check(batchPage.includes("outputInputIdentity") && batchPage.includes("outputCredentialRevision"), "output validity records input and credential identity");
 check(batchPage.includes("item.outputInputIdentity === item.inputIdentity") && batchPage.includes("item.outputCredentialRevision === item.credentialRevision"), "stale-output publication checks recipe/input/credential identity");
@@ -114,7 +119,7 @@ check(readme.includes("P16 now implements V72-04") && readme.includes("session-o
 check(changelog.includes("P16 — Batch Parity & Encrypted-Queue Ergonomics"), "CHANGELOG records P16");
 check(productDoc.includes("Batch recipe schema v4") && productDoc.includes("Credential privacy") && productDoc.includes("P17 — Deep Native-Content Fidelity"), "P16 product documentation covers migration, privacy and handoff");
 check(styles.includes(".batch-item--needs-password") && styles.includes(".batch-credential"), "encrypted queue states have product styling");
-check(workflow.includes("npm run check:p16") && workflow.includes("tests/e2e/p16-batch-encrypted.spec.mjs"), "P16 CI tracks dedicated controls and browser acceptance");
+check(workflow.includes("npm run check:p16") && workflow.includes("tests/e2e/p16-batch-encrypted.spec.mjs") && workflow.includes("tests/unit/v606Maintenance.test.ts"), "P16 CI tracks dedicated controls, future-schema guard and browser acceptance");
 check(manifest.nextPhase?.id === "P17" && manifest.nextPhase?.roadmapItem === "V72-05", "P16 hands off to Deep Native-Content Fidelity");
 
 console.log(JSON.stringify({
