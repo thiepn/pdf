@@ -12,6 +12,8 @@ on:
       - src/views/QuickToolPage.tsx
       - src/ia/taskCatalog.ts
       - src/product/TaskDirectory.tsx
+      - src/help/taskGuide.ts
+      - tests/e2e/task-first-guide.spec.ts
       - README.md
       - KNOWN_LIMITATIONS.md
       - CHANGELOG.md
