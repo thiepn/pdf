@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "phase": "P13",
+  "roadmapItem": "V72-01",
+  "title": "Layout-Aware PDF to DOCX Export 2.0",
+  "status": "implemented-awaiting-stacked-merge",
+  "releaseBoundary": {
+    "executableVersion": "7.1.4",
+    "targetVersion": "7.2.0",
+    "versionCutAllowed": false,
+    "persistentFormats": {
+      "projectPackageVersion": 9,
+      "databaseSchemaVersion": 13,
+      "nativeEditorSchemaVersion": 6
+    }
+  },
+  "productContract": {
+    "localOnly": true,
+    "remoteOfficeService": false,
+    "editableParagraphs": true,
+    "commonEditableTables": true,
+    "embeddedPageImages": true,
+    "pageSectionGeometry": true,
+    "supportedDirectTextStyling": true,
+    "multiColumnOrder": "heuristic-with-warning",
+    "exactPdfLayoutClaim": false,
+    "editableVectorDrawingConversion": false,
+    "officeRoundTripClaim": false,
+    "docxImport": false
+  },
+  "implementation": {
+    "layoutSource": "native-inspection",
+    "imageAppearanceSource": "pdfjs-bounded-page-render-crops",
+    "packageFormat": "OOXML-DOCX-stored-ZIP",
+    "outputMime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "maxEmbeddedImageRegions": 48,
+    "maxPageRenderPixels": 6000000
+  },
+  "acceptance": [
+    "Selected PDF pages reconstruct into editable Word paragraphs with source-informed ordering.",
+    "Qualified detected tables become editable Word tables and their text is not duplicated as ordinary paragraphs.",
+    "Qualified image regions are embedded as separate DOCX media objects rather than flattening the whole page.",
+    "Supported font name, size, weight, style, color, paragraph alignment, RTL flag, margins and page geometry are represented in OOXML.",
+    "Ambiguous multi-column order, skipped complex tables/images and omitted vector/nested artwork are disclosed.",
+    "Scanned pages without selectable/OCR text fail with the existing OCR-first guidance.",
+    "The conversion path uses no network or remote Office service.",
+    "Executable version and persistent formats remain unchanged."
+  ],
+  "nextPhase": {
+    "id": "P14",
+    "title": "Complex-Script Existing-Text Editing",
+    "roadmapItem": "V72-02"
+  }
+}
