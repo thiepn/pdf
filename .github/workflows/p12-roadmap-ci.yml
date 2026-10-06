@@ -8,7 +8,16 @@ on:
       - scripts/p12/**
       - tests/unit/p12Roadmap.test.ts
       - .github/workflows/p12-roadmap-ci.yml
+      - docs/p11/**
+      - docs/product/P1_EXISTING_TEXT_EDITING_EXCELLENCE.md
+      - docs/product/P3_OCR_SCAN_TO_EDITABLE.md
+      - docs/product/P8_FIDELITY_COMPATIBILITY.md
+      - src/professional/docx.ts
+      - src/views/CompressionPage.tsx
+      - src/types/batch.ts
+      - KNOWN_LIMITATIONS.md
       - package.json
+      - package-lock.json
       - README.md
       - CHANGELOG.md
 
@@ -29,8 +38,6 @@ jobs:
       - name: Audit P11 pre-cut boundary
         run: npm run audit:p11:next-line
       - name: Audit v7.2 product scope and feature intake
-        run: npm run audit:p12:roadmap
-      - name: Lock P12 roadmap contract
-        run: npx vitest run tests/unit/p12Roadmap.test.ts
+        run: npm run check:p12
       - name: Typecheck inherited product source
         run: npm run typecheck
