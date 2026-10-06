@@ -6,6 +6,7 @@ on:
       - docs/p16/**
       - docs/product/P16_BATCH_PARITY_ENCRYPTED_QUEUE.md
       - scripts/p16/**
+      - scripts/source-audit.mjs
       - scripts/phase18/runtime-regression.mjs
       - scripts/phase26/runtime-regression.mjs
       - src/types/batch.ts
