@@ -75,6 +75,8 @@ check(compressionPage.includes("Source</dt>") && compressionPage.includes("Targe
 check(compressionPage.includes("Target met") && compressionPage.includes("Best effort · target not reached") && compressionPage.includes("No smaller qualified output"), "UI distinguishes success, best effort and refusal");
 check(compressionPage.includes("resultBytes.byteLength >= source.byteLength && mode === \"target\""), "UI has final larger-output fail-closed guard");
 check(compressionPage.includes("validatePdfFidelity") && compressionPage.includes('targetMethod === "structure-preserving"') && compressionPage.includes("if (!fidelity.passed)"), "structure-preserved target output is publication-gated by P8 fidelity");
+check(compressionPage.indexOf("if (pendingTargetResult) setTargetResult(pendingTargetResult)") > compressionPage.indexOf("const summary = await inspectPdfBytes"), "successful target result state publishes only after validation");
+check(compressionPage.includes('setStatus(cancelled ? "Cancelled" : "Failed")') && compressionPage.includes("invalidateOutput();"), "cancelled/failed runs clear provisional output state");
 
 check(limitations.includes("Target-size compression") && limitations.includes("six bounded attempts"), "known limitations state target-size boundary");
 check(everyday.includes("P15") && !everyday.includes("reliable target-size compression remain"), "stale everyday-workflow target-size gap is retired");
