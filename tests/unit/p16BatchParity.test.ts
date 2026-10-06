@@ -97,4 +97,25 @@ describe("P16 Batch parity model", () => {
     const serialized = serializeBatchRecipe(recipe([{ id: "sanitize", type: "sanitize", removeAttachments: true, removeMetadata: false }]));
     expect(serialized).not.toMatch(/password|credential/i);
   });
+
+  it("strips unknown credential-like properties from imported recipes before persistence or export", () => {
+    const imported = parseBatchRecipeJson(JSON.stringify({
+      schemaVersion: 4,
+      id: "hostile",
+      name: "Imported",
+      outputSuffix: "done",
+      updatedAt: 1,
+      password: "top-secret",
+      credential: "should-not-survive",
+      steps: [
+        { id: "opt", type: "optimize", password: "step-secret", credential: "step-credential" }
+      ]
+    }));
+    const normalized = JSON.stringify(imported);
+    const serialized = serializeBatchRecipe(imported);
+    expect(normalized).not.toContain("top-secret");
+    expect(normalized).not.toContain("step-secret");
+    expect(normalized).not.toMatch(/password|credential/i);
+    expect(serialized).not.toMatch(/password|credential/i);
+  });
 });
