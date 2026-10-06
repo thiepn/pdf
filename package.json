@@ -114,7 +114,9 @@
     "audit:p14:complex-script": "node scripts/p14/complex-script-audit.mjs",
     "check:p14": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && vitest run tests/unit/p14ComplexScript.test.ts tests/unit/p14ShapingIntegration.test.ts",
     "audit:p15:target-size": "node scripts/p15/target-size-audit.mjs",
-    "check:p15": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && npm run audit:p15:target-size && vitest run tests/unit/p15TargetSizeCompression.test.ts"
+    "check:p15": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && npm run audit:p15:target-size && vitest run tests/unit/p15TargetSizeCompression.test.ts",
+    "audit:p16:batch": "node scripts/p16/batch-parity-audit.mjs",
+    "check:p16": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && npm run audit:p15:target-size && npm run audit:p16:batch && npm run test:runtime:phase18 && npm run test:runtime:phase26 && vitest run tests/unit/p16BatchParity.test.ts tests/unit/p16BatchEncryptedQueue.test.ts tests/unit/batchOutputValidity.test.ts tests/unit/batchOutputFingerprint.test.ts tests/unit/phase26WorkflowIntelligence.test.ts"
   },
   "dependencies": {
     "bidi-js": "1.1.0",
