@@ -50,6 +50,11 @@ test("P17 exposes clipped image content as inspectable but fidelity-protected", 
   await expect(properties.getByText("Clipping", { exact: true })).toBeVisible();
   await expect(properties.getByText("Yes", { exact: true }).first()).toBeVisible();
   await expect(properties.getByRole("button", { name: /Apply image|Delete existing image/ })).toHaveCount(0);
+
+  await images.nth(3).click();
+  await expect(properties.getByText("Fidelity-protected image", { exact: true })).toBeVisible();
+  await expect(properties.getByText("Blend", { exact: true })).toBeVisible();
+  await expect(properties.getByText("Multiply", { exact: true })).toBeVisible();
 });
 
 test("P17 detects and rebuilds the generated merged irregular table", async ({ page }) => {
