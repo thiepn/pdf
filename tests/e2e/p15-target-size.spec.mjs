@@ -18,7 +18,7 @@ test("P15 target-size compression reaches a real byte target and exposes preserv
   const projectId = decodeURIComponent(match[1]);
 
   await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/compress`);
-  await expect(page.getByRole("heading", { name: "Shrink the PDF without guessing", exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole("heading", { name: "Choose how much to shrink the PDF", exact: true })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("radio", { name: /Target size/ })).toBeChecked();
   await page.getByLabel("Target size", { exact: true }).fill("80");
   await page.getByLabel("Unit", { exact: true }).selectOption("KB");
