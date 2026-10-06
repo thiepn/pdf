@@ -17,7 +17,7 @@ P15 treats file size as a constraint with an explicit preservation boundary:
 
 The Compression tool now accepts a target in bytes, KB, or MB.
 
-Targets below **64 KiB** are outside the qualified browser boundary. A target must also be smaller than the source file; if the source already meets the requested size, P15 does not create a pointless rewritten copy.
+Any positive byte target is accepted for an attempt. The target must be smaller than the source file; if the source already meets the requested size, P15 does not create a pointless rewritten copy. Very small targets may simply produce a best-effort result or refusal after the bounded attempts.
 
 ## Preservation preferences
 
