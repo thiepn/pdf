@@ -220,6 +220,7 @@ export function NativeTablePropertiesPanel({ object, queued, onQueue }: Props) {
       <dt>Detected grid</dt><dd>{object.rows} rows × {object.columns} columns</dd>
       <dt>Detection</dt><dd>{object.detectionSource ?? "aligned-text"}</dd>
       <dt>Merged cells</dt><dd>{object.mergedCells ?? 0}</dd>
+      <dt>Geometry</dt><dd>{(object.geometryKind ?? "regular").replace("-", " ")}</dd>
     </dl>
 
     {unsupported ? <div className="warning-banner"><strong>Structured editing blocked</strong><span>This table contains images or non-grid artwork inside its detected boundary. PDF Studio leaves it unchanged rather than removing embedded content during reconstruction.</span></div> : <>
