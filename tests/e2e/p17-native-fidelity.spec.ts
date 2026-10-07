@@ -15,12 +15,23 @@ async function openP17Fixture(page: Page): Promise<void> {
   await switchMode(page, "editor");
 }
 
+async function selectByPanelEvidence(page: Page, buttons: ReturnType<Page["getByRole"]>, evidence: string | RegExp): Promise<void> {
+  const panel = page.locator(".native-unified-properties");
+  const count = await buttons.count();
+  for (let index = 0; index < count; index += 1) {
+    await buttons.nth(index).click();
+    await page.waitForTimeout(25);
+    if (await panel.getByText(evidence, typeof evidence === "string" ? { exact: true } : undefined).isVisible().catch(() => false)) return;
+  }
+  throw new Error(`No detected object exposed the expected panel evidence: ${String(evidence)}`);
+}
+
 test("P17 preserves an attached soft mask during source-image transform and keeps replacement blocked", async ({ page }) => {
   await openP17Fixture(page);
 
   const images = page.getByRole("button", { name: /Select existing image:/ });
   await expect(images.first()).toBeVisible({ timeout: 20_000 });
-  await images.first().click();
+  await selectByPanelEvidence(page, images, "Attached soft mask preserved");
 
   const properties = page.locator(".native-unified-properties");
   await expect(properties.getByText("Attached soft mask preserved", { exact: true })).toBeVisible();
@@ -61,9 +72,9 @@ test("P17 exposes clipped image content as inspectable but fidelity-protected", 
 test("P17 detects and rebuilds the generated merged irregular table", async ({ page }) => {
   await openP17Fixture(page);
 
-  const table = page.getByRole("button", { name: /Select existing table:/ }).first();
-  await expect(table).toBeVisible({ timeout: 20_000 });
-  await table.click();
+  const tables = page.getByRole("button", { name: /Select existing table:/ });
+  await expect(tables.first()).toBeVisible({ timeout: 20_000 });
+  await selectByPanelEvidence(page, tables, "merged irregular");
 
   const properties = page.locator(".native-unified-properties");
   await expect(properties.getByText("Table editing", { exact: true })).toBeVisible();
