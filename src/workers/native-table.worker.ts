@@ -249,6 +249,71 @@ function lineGrid(vectors: VectorBox[]): { xs: number[]; ys: number[]; bounds: N
   return { xs, ys, bounds };
 }
 
+function overlapLength(a0: number, a1: number, b0: number, b1: number): number {
+  return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+}
+
+function lineDerivedMergedSpans(xs: number[], ys: number[], vectors: VectorBox[]): Array<{ c0: number; c1: number; r0: number; r1: number; area: number }> {
+  const rows = ys.length - 1;
+  const columns = xs.length - 1;
+  if (rows < 1 || columns < 1) return [];
+  const vertical = vectors.filter((item) => item.thin && item.bounds.h >= item.bounds.w * 5);
+  const horizontal = vectors.filter((item) => item.thin && item.bounds.w >= item.bounds.h * 5);
+  const parent = Array.from({ length: rows * columns }, (_, index) => index);
+  const find = (value: number): number => {
+    let current = value;
+    while (parent[current] !== current) {
+      parent[current] = parent[parent[current]];
+      current = parent[current];
+    }
+    return current;
+  };
+  const union = (first: number, second: number): void => {
+    const a = find(first), b = find(second);
+    if (a !== b) parent[b] = a;
+  };
+  const verticalBoundary = (x: number, y0: number, y1: number): boolean => vertical.some((item) => {
+    const center = item.bounds.x + item.bounds.w / 2;
+    return Math.abs(center - x) <= 3 && overlapLength(item.bounds.y, item.bounds.y + item.bounds.h, y0, y1) >= Math.max(2, (y1 - y0) * 0.6);
+  });
+  const horizontalBoundary = (y: number, x0: number, x1: number): boolean => horizontal.some((item) => {
+    const center = item.bounds.y + item.bounds.h / 2;
+    return Math.abs(center - y) <= 3 && overlapLength(item.bounds.x, item.bounds.x + item.bounds.w, x0, x1) >= Math.max(2, (x1 - x0) * 0.6);
+  });
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let boundary = 1; boundary < columns; boundary += 1) {
+      if (!verticalBoundary(xs[boundary], ys[row], ys[row + 1])) union(row * columns + boundary - 1, row * columns + boundary);
+    }
+  }
+  for (let boundary = 1; boundary < rows; boundary += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      if (!horizontalBoundary(ys[boundary], xs[column], xs[column + 1])) union((boundary - 1) * columns + column, boundary * columns + column);
+    }
+  }
+
+  const groups = new Map<number, Array<{ row: number; column: number }>>();
+  for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+    const root = find(row * columns + column);
+    const group = groups.get(root) ?? [];
+    group.push({ row, column });
+    groups.set(root, group);
+  }
+  const spans: Array<{ c0: number; c1: number; r0: number; r1: number; area: number }> = [];
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+    const r0 = Math.min(...group.map((cell) => cell.row));
+    const r1 = Math.max(...group.map((cell) => cell.row)) + 1;
+    const c0 = Math.min(...group.map((cell) => cell.column));
+    const c1 = Math.max(...group.map((cell) => cell.column)) + 1;
+    const area = (r1 - r0) * (c1 - c0);
+    if (area !== group.length) continue;
+    const complete = group.every((cell) => cell.row >= r0 && cell.row < r1 && cell.column >= c0 && cell.column < c1);
+    if (complete) spans.push({ c0, c1, r0, r1, area });
+  }
+  return spans.sort((a, b) => b.area - a.area);
+}
+
 function inferAlign(line: TextLine | undefined, cell: NativeRect): NativeTableHorizontalAlign {
   if (!line) return "left";
   const left = line.bounds.x - cell.x;
@@ -300,18 +365,18 @@ function tableFromGrid(pageNumber: number, tableIndex: number, xs: number[], ys:
   const covered = new Set<string>();
   const idPrefix = `table:${pageNumber}:${tableIndex}`;
 
-  const structuralRects = (rectangleGroup ?? [])
+  const rectangleSpans = (rectangleGroup ?? [])
     .map((item) => {
       const c0 = nearestIndex(xs, item.bounds.x);
       const c1 = nearestIndex(xs, item.bounds.x + item.bounds.w);
       const r0 = nearestIndex(ys, item.bounds.y);
       const r1 = nearestIndex(ys, item.bounds.y + item.bounds.h);
-      return { item, c0, c1, r0, r1, area: Math.max(0, c1 - c0) * Math.max(0, r1 - r0) };
+      return { c0, c1, r0, r1, area: Math.max(0, c1 - c0) * Math.max(0, r1 - r0) };
     })
-    .filter((item) => item.c0 >= 0 && item.r0 >= 0 && item.c1 > item.c0 && item.r1 > item.r0 && item.area <= Math.max(4, rows * columns - 1))
-    // Multi-cell rectangles are the evidence for merged spans. Claim them before
-    // their constituent single-cell rectangles; otherwise the smaller cells
-    // consume the coverage set first and the real merge is discarded.
+    .filter((item) => item.c0 >= 0 && item.r0 >= 0 && item.c1 > item.c0 && item.r1 > item.r0 && item.area <= Math.max(4, rows * columns - 1));
+  const lineSpans = lineDerivedMergedSpans(xs, ys, evidence.vectors);
+  const structuralRects = [...rectangleSpans, ...lineSpans]
+    .filter((item, index, values) => item.area > 1 && !values.slice(0, index).some((previous) => previous.c0 === item.c0 && previous.c1 === item.c1 && previous.r0 === item.r0 && previous.r1 === item.r1))
     .sort((a, b) => b.area - a.area);
 
   for (const candidate of structuralRects) {
