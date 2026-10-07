@@ -45,12 +45,13 @@ test("opens and renders a real PDF without Map upsert proposal APIs", async ({ p
 test("rapid hash navigation and browser history keep the selected tool visible", async ({ page }) => {
   await page.goto("./#/home");
   await page.goto("./#/tools/read-pdf");
-  await expect(page.getByLabel("PDF file", { exact: true })).toBeAttached();
   await expect(page.getByRole("heading", { name: "Read PDF", exact: true })).toBeVisible();
+  await expect(page.locator('input[type="file"][accept*="pdf"]').first()).toBeAttached();
   await page.goBack();
   await expect(page.getByRole("button", { name: "Choose files", exact: true })).toBeVisible();
   await page.goForward();
-  await expect(page.getByLabel("PDF file", { exact: true })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Read PDF", exact: true })).toBeVisible();
+  await expect(page.locator('input[type="file"][accept*="pdf"]').first()).toBeAttached();
 });
 
 test("reader hydration and page jumps never scroll document actions out of the viewport", async ({ page }, testInfo) => {
