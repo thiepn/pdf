@@ -182,14 +182,32 @@ function isImageXObject(page: PdfPage, name: string): boolean {
   }, false);
 }
 
+function imageXObjectMaskEvidence(page: PdfPage, name: string): { softMask: boolean; explicitMask: boolean } {
+  return safe(() => {
+    const raw = pageResources(page)?.get?.("XObject")?.get?.(name);
+    const object = raw?.resolve?.() ?? raw;
+    const present = (value: any): boolean => {
+      if (!value || value.isNull?.()) return false;
+      const literal = String(value?.valueOf?.() ?? value).replace(/^\//, "");
+      return literal !== "None" && literal !== "null";
+    };
+    const imageMaskValue = object?.get?.("ImageMask");
+    const imageMaskLiteral = String(imageMaskValue?.valueOf?.() ?? imageMaskValue ?? "").toLowerCase();
+    return {
+      softMask: present(object?.get?.("SMask")),
+      explicitMask: present(object?.get?.("Mask")) || imageMaskLiteral === "true"
+    };
+  }, { softMask: false, explicitMask: false });
+}
+
 /**
  * Read direct page-content graphics-state transitions for image invocations.
  * Device tracing still supplies geometry/mask/clip evidence. This parser exists
  * specifically because non-Normal /BM is content-stream state and should not
  * depend on whether a renderer chooses to expose it as beginGroup().
  */
-function directImagePaints(page: PdfPage): Array<{ resourceName: string; blendMode: string }> {
-  const paints: Array<{ resourceName: string; blendMode: string }> = [];
+function directImagePaints(page: PdfPage): Array<{ resourceName: string; blendMode: string; softMask: boolean; explicitMask: boolean }> {
+  const paints: Array<{ resourceName: string; blendMode: string; softMask: boolean; explicitMask: boolean }> = [];
   for (const stream of contentStreams(page)) {
     const source = stripPdfStringsAndComments(streamText(stream));
     const tokens = source.match(/\/[A-Za-z0-9_.:+-]+|\b(?:q|Q|gs|Do)\b/g) ?? [];
@@ -206,7 +224,7 @@ function directImagePaints(page: PdfPage): Array<{ resourceName: string; blendMo
         continue;
       }
       if (token === "Do") {
-        if (name && isImageXObject(page, name)) paints.push({ resourceName: name, blendMode });
+        if (name && isImageXObject(page, name)) paints.push({ resourceName: name, blendMode, ...imageXObjectMaskEvidence(page, name) });
         name = undefined;
       }
     }
@@ -276,7 +294,7 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       image,
       bounds: imageBoundsFromMatrix(ctm),
       alpha: effectiveAlpha,
-      clipped: clipKinds.length > 0,
+      clipped: clipKinds.includes("clip"),
       softMask: attachedMask || definingMaskDepth > 0 || clipKinds.includes("soft-mask"),
       explicitMask: imageMask,
       blendMode: group.blendMode !== "Normal" ? group.blendMode : effectiveAlpha < 0.999 ? "Alpha" : "Normal",
@@ -372,8 +390,8 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
     const classified = classifyImageFidelity({
       resourceName: paint?.resourceName,
       invocationCount: paint ? (resourceCounts.get(paint.resourceName) ?? 1) : (counts.get(trace.key) ?? 1),
-      softMask: trace.softMask,
-      explicitMask: trace.explicitMask,
+      softMask: trace.softMask || Boolean(paint?.softMask),
+      explicitMask: trace.explicitMask || Boolean(paint?.explicitMask),
       clipped: trace.clipped,
       blendMode: mappedBlend !== "Normal" ? mappedBlend : trace.blendMode,
       ambiguous: blendMappingAmbiguous
