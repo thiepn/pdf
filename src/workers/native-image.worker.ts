@@ -410,19 +410,25 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
   const counts = new Map<number, number>();
   for (const trace of traces) counts.set(trace.key, (counts.get(trace.key) ?? 0) + 1);
   const structuredEvidence = structuredImageEvidence(page);
+  const structuredMatches = traces.map((trace) => {
+    const match = structuredEvidence
+      .map((candidate) => ({ candidate, score: imageEvidenceOverlap(trace.bounds, candidate.bounds) }))
+      .sort((first, second) => second.score - first.score)[0];
+    return match && match.score >= 0.8 ? match.candidate : undefined;
+  });
+  const visibleTraceIndexes = structuredMatches.flatMap((match, index) => match ? [index] : []);
   const directPaints = directImagePaints(page);
   const directBlendHasRisk = directPaints.some((paint) => paint.blendMode !== "Normal");
-  const paintMappingAvailable = directPaints.length === traces.length;
+  const paintMappingAvailable = directPaints.length === visibleTraceIndexes.length;
+  const directPaintByTrace = new Map<number, (typeof directPaints)[number]>();
+  if (paintMappingAvailable) visibleTraceIndexes.forEach((traceIndex, paintIndex) => directPaintByTrace.set(traceIndex, directPaints[paintIndex]));
   const blendMappingAmbiguous = directBlendHasRisk && !paintMappingAvailable;
   const resourceCounts = new Map<string, number>();
   for (const paint of directPaints) resourceCounts.set(paint.resourceName, (resourceCounts.get(paint.resourceName) ?? 0) + 1);
-  if (blendMappingAmbiguous) warnings.push(`Page ${pageNumber} uses non-Normal image blend state but direct image invocation count differs from the paint trace; affected image mutation is fail-closed as ambiguous.`);
+  if (blendMappingAmbiguous) warnings.push(`Page ${pageNumber} uses non-Normal image blend state but visible structured-image count differs from direct image invocation count; affected image mutation is fail-closed as ambiguous.`);
   const images = traces.map((trace, index): NativeImageObject => {
-    const paint = paintMappingAvailable ? directPaints[index] : undefined;
-    const structured = structuredEvidence
-      .map((candidate) => ({ candidate, score: imageEvidenceOverlap(trace.bounds, candidate.bounds) }))
-      .sort((first, second) => second.score - first.score)[0];
-    const structuredMask = structured && structured.score >= 0.8 ? structured.candidate : undefined;
+    const paint = directPaintByTrace.get(index);
+    const structuredMask = structuredMatches[index];
     const mappedBlend = paint?.blendMode ?? trace.blendMode;
     const classified = classifyImageFidelity({
       resourceName: paint?.resourceName,
