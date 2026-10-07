@@ -309,7 +309,10 @@ function tableFromGrid(pageNumber: number, tableIndex: number, xs: number[], ys:
       return { item, c0, c1, r0, r1, area: Math.max(0, c1 - c0) * Math.max(0, r1 - r0) };
     })
     .filter((item) => item.c0 >= 0 && item.r0 >= 0 && item.c1 > item.c0 && item.r1 > item.r0 && item.area <= Math.max(4, rows * columns - 1))
-    .sort((a, b) => a.area - b.area);
+    // Multi-cell rectangles are the evidence for merged spans. Claim them before
+    // their constituent single-cell rectangles; otherwise the smaller cells
+    // consume the coverage set first and the real merge is discarded.
+    .sort((a, b) => b.area - a.area);
 
   for (const candidate of structuralRects) {
     const key = `${candidate.r0}:${candidate.c0}`;
