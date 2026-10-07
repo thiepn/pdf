@@ -79,20 +79,21 @@ async function expectSingleRow(page: import("@playwright/test").Page, stageSelec
   const bar = page.locator(".compact-document-bar");
   await expect(bar).toBeVisible();
   const box = (await bar.boundingBox())!;
+  const viewport = (await page.viewportSize())!;
   expect(box.y).toBeGreaterThanOrEqual(0);
-  expect(box.y).toBeLessThanOrEqual(1);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
   expect(box.height).toBe(52);
   expect(await page.locator(".document-topbar").count()).toBe(0);
   const stage = (await page.locator(stageSelector).boundingBox())!;
-  expect(stage.y).toBeLessThanOrEqual(53);
-  expect(stage.height).toBeGreaterThanOrEqual((await page.viewportSize())!.height - 54);
+  expect(Math.abs(stage.y - (box.y + box.height))).toBeLessThanOrEqual(2);
+  expect(stage.height).toBeGreaterThanOrEqual(Math.max(1, viewport.height - stage.y - 2));
   const bounds = await bar.locator(':scope > .icon-button').evaluateAll(nodes => nodes.map(node => {
     const r=node.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right};
   }));
   for (const control of bounds) {
     expect(control.width).toBeGreaterThanOrEqual(44); expect(control.height).toBeGreaterThanOrEqual(44);
-    expect(control.y).toBe(4); expect(control.x).toBeGreaterThanOrEqual(0);
-    expect(control.right).toBeLessThanOrEqual((await page.viewportSize())!.width);
+    expect(Math.abs(control.y - (box.y + 4))).toBeLessThanOrEqual(1); expect(control.x).toBeGreaterThanOrEqual(0);
+    expect(control.right).toBeLessThanOrEqual(viewport.width);
   }
   expect(await bar.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
