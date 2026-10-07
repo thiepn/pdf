@@ -45,8 +45,7 @@ describe("P17 deep native-content fidelity policy", () => {
   it("proves MuPDF Device tracing and addImage preserve the generated fixture soft mask", () => {
     const bytes = createP17NativeFidelityPdf();
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    const document = (mupdf as any).Document.openDocument(arrayBuffer, "application/pdf");
-    const pdf = document.asPDF();
+    const pdf = (mupdf as any).PDFDocument.openDocument(arrayBuffer, "application/pdf");
     const page = pdf.loadPage(0);
     const observed: boolean[] = [];
     const noOp = () => {};
@@ -114,7 +113,7 @@ describe("P17 deep native-content fidelity policy", () => {
     } finally {
       device.destroy?.();
       page.destroy?.();
-      document.destroy?.();
+      pdf.destroy?.();
     }
   });
 
