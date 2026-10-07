@@ -43,7 +43,9 @@ function vector(overrides: Partial<NativeVectorObject> = {}): NativeVectorObject
 
 describe("P17 deep native-content fidelity policy", () => {
   it("proves MuPDF Device tracing and addImage preserve the generated fixture soft mask", () => {
-    const document = (mupdf as any).Document.openDocument(createP17NativeFidelityPdf(), "application/pdf");
+    const bytes = createP17NativeFidelityPdf();
+    const nodeBuffer = (globalThis as any).Buffer.from(bytes);
+    const document = (mupdf as any).Document.openDocument(nodeBuffer, "application/pdf");
     const pdf = document.asPDF();
     const page = pdf.loadPage(0);
     const observed: boolean[] = [];
