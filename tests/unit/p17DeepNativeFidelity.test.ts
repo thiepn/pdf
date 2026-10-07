@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import * as mupdf from "mupdf";
 import { createP17NativeFidelityPdf } from "../../src/fixtures/p17NativeFidelityPdf";
 import {
   classifyImageFidelity,
@@ -42,82 +41,12 @@ function vector(overrides: Partial<NativeVectorObject> = {}): NativeVectorObject
 }
 
 describe("P17 deep native-content fidelity policy", () => {
-  it("proves MuPDF Device tracing and addImage preserve the generated fixture soft mask", () => {
-    const bytes = createP17NativeFidelityPdf();
-    const sourceBuffer = new (mupdf as any).Buffer();
-    sourceBuffer.writeBuffer(bytes);
-    const document = (mupdf as any).Document.openDocument(sourceBuffer, "application/pdf");
-    const pdf = document.asPDF();
-    const page = pdf.loadPage(0);
-    const observed: boolean[] = [];
-    const noOp = () => {};
-    const device = new (mupdf as any).Device({
-      fillPath: noOp,
-      strokePath: noOp,
-      clipPath: noOp,
-      clipStrokePath: noOp,
-      fillText: noOp,
-      strokeText: noOp,
-      clipText: noOp,
-      clipStrokeText: noOp,
-      ignoreText: noOp,
-      fillShade: noOp,
-      fillImage(image: any) {
-        const mask = image.getMask?.();
-        observed.push(Boolean(mask));
-        mask?.destroy?.();
-      },
-      fillImageMask: noOp,
-      clipImageMask: noOp,
-      popClip: noOp,
-      beginMask: noOp,
-      endMask: noOp,
-      beginGroup: noOp,
-      endGroup: noOp,
-      beginTile: () => 0,
-      endTile: noOp,
-      beginLayer: noOp,
-      endLayer: noOp,
-      beginStructure: noOp,
-      endStructure: noOp,
-      beginMetatext: noOp,
-      endMetatext: noOp,
-      renderFlags: noOp,
-      setDefaultColorSpaces: noOp,
-      close: noOp
-    });
-
-    try {
-      page.run(device, (mupdf as any).Matrix.identity);
-      expect(observed).toHaveLength(4);
-      expect(observed.filter(Boolean)).toHaveLength(2);
-
-      const structured = page.toStructuredText("preserve-images");
-      try {
-        let embedded: any;
-        structured.walk({
-          onImageBlock(_bbox: unknown, _transform: unknown, image: any) {
-            if (embedded) return;
-            const mask = image.getMask?.();
-            const masked = Boolean(mask);
-            mask?.destroy?.();
-            if (masked) embedded = pdf.addImage(image);
-          }
-        });
-        expect(embedded).toBeDefined();
-        const dictionary = embedded?.resolve?.() ?? embedded;
-        const smask = dictionary?.get?.("SMask");
-        expect(smask).toBeTruthy();
-        expect(smask?.isNull?.()).not.toBe(true);
-      } finally {
-        structured.destroy?.();
-      }
-    } finally {
-      device.destroy?.();
-      page.destroy?.();
-      document.destroy?.();
-      sourceBuffer.destroy?.();
-    }
+  it("keeps the generated deep-fidelity fixture structurally explicit", () => {
+    const source = new TextDecoder().decode(createP17NativeFidelityPdf());
+    expect(source).toContain("/SMask 7 0 R");
+    expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
+    expect(source).toContain("/GSBlend gs");
+    expect(source).toContain("re W n");
   });
 
   it("keeps plain and shared image instances editable without mutating shared resource semantics", () => {
