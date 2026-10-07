@@ -47,7 +47,7 @@ test("P15 target-size compression reaches a real byte target and exposes preserv
   expect(output.length).toBeLessThan(source.length);
   expect(output.length).toBeLessThanOrEqual(80_000);
 
-  const pdf = mupdf.Document.openDocument(output, "application/pdf");
+  const pdf = mupdf.PDFDocument.openDocument(output, "application/pdf");
   try { expect(pdf.countPages()).toBe(1); }
   finally { pdf.destroy(); }
 });
