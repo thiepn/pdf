@@ -47,7 +47,7 @@ const check=(value,name)=>{const passed=Boolean(value);checks.push({name,passed}
 
 check(manifest.schemaVersion===1&&manifest.phase==="P18"&&manifest.roadmapItem==="V72-06","manifest identifies P18 / V72-06");
 check(manifest.status==="FRAMEWORK_READY_EVIDENCE_PENDING","framework does not fabricate completed field evidence");
-check(manifest.productBaseline?.commit==="21aa92a74facd8a45a4cd14f5d8c0da3d81acf5a"&&manifest.productBaseline?.sourcePhase==="P17","P18 freezes the exact P17 product baseline");
+check(manifest.productBaseline?.commit==="993587438c8f8773db8bc54571d102baff87b489"&&manifest.productBaseline?.sourcePhase==="P17","P18 freezes the exact P17 product baseline");
 check(manifest.stableRoot?.version==="7.1.4"&&manifest.stableRoot?.commit==="2116a61b73b6fdb18aa19a8175d9ebae4b43c159","qualification records current Stable v7.1.4 identity");
 check(manifest.releaseBoundary?.versionCutAllowed===false&&manifest.releaseBoundary?.productNetworkDependency===false,"P18 cannot cut version or add a product network dependency");
 check(JSON.stringify(manifest.releaseBoundary?.persistentFormats)===JSON.stringify({projectPackageVersion:9,databaseSchemaVersion:13,nativeEditorSchemaVersion:6}),"persistent schemas remain 9/13/6");
@@ -71,7 +71,7 @@ check(validator.includes("source_sha256")&&validator.includes("artifact.sha256")
 check(validator.includes("REAL_WORLD_BLOCKED")&&validator.includes("EXTERNAL_READER_BLOCKED")&&validator.includes("PHYSICAL_DEVICE_BLOCKED")&&validator.includes("P18_V72_QUALIFIED"),"blocking and certification states are explicit");
 check(certifier.includes('summary.certificationStatus !== "P18_V72_QUALIFIED"'),"certifier fails closed until evidence qualifies");
 check(pkg.scripts?.["check:p18"]?.includes("audit:p18:field-host")&&pkg.scripts?.["status:p18"]&&pkg.scripts?.["certify:p18"],"package scripts expose framework, status, host and certification gates");
-check(fieldHost.product_baseline_commit==="21aa92a74facd8a45a4cd14f5d8c0da3d81acf5a"&&fieldHost.stable_tag_commit==="2116a61b73b6fdb18aa19a8175d9ebae4b43c159","field host binds exact P17 and Stable commits");
+check(fieldHost.product_baseline_commit==="993587438c8f8773db8bc54571d102baff87b489"&&fieldHost.stable_tag_commit==="2116a61b73b6fdb18aa19a8175d9ebae4b43c159","field host binds exact P17 and Stable commits");
 check(fieldHost.qualification_path==="qualification/v72-p18"&&fieldHost.fieldwork_state==="OPEN_NO_EVIDENCE"&&fieldHost.active===true,"field host starts active with honest no-evidence state");
 check(ciWorkflow.includes("Prove P18 is qualification-only")&&ciWorkflow.includes("test:corpus:phase28")&&ciWorkflow.includes("desktop-browser-matrix")&&ciWorkflow.includes("emulated-mobile-regression"),"P18 CI covers source freeze, adversarial corpus and browser matrices");
 check(ciWorkflow.includes("Emulation is automation evidence only")&&ciWorkflow.includes("P18_PRODUCT_BASELINE"),"P18 CI preserves the anti-synthesis and frozen-baseline boundary");
