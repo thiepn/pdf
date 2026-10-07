@@ -14,7 +14,8 @@
 - DOCX export reconstructs editable paragraphs, common detected tables, bounded page-image regions, page geometry, and supported direct text styling. Exact PDF line wrapping, arbitrary floating layout, vector/nested artwork, PDF forms/annotations/layers/signatures, and universal Office round-trip fidelity are not preserved.
 - Visual signatures are not cryptographic signatures.
 - Browser certificate signing remains deferred.
-- The in-app release validation proves the deployed runtime foundation only; external-reader, mobile, print, large-corpus, malformed-file, and adversarial security validation remain required before removing the release-candidate designation.
+- **P18 qualification** now provides explicit automated, real-world, external-application, and physical-device evidence contracts. Until human-attested real-world cases, external-reader reopens, and physical phone/tablet/installed-PWA runs are committed against the frozen P17 baseline, v7.2 remains **NOT_QUALIFIED**. Browser emulation, CI, simulators, and AI-generated observations do not satisfy those human gates.
+- The in-app release validation proves the deployed runtime foundation only; print-specific field validation and any compatibility class not represented by the P18 evidence matrix remain separate release considerations.
 
 - Activity receipts prove the bytes downloaded by this browser session; they do not provide a cryptographic signature or trusted timestamp.
 - Clearing browser site data removes receipts, diagnostics, and local projects unless external backups exist.

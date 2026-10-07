@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "phase": "P18",
+  "product_baseline_commit": "e88e19e4a8d81e78729cf7f712e8f91b7ac851d9",
+  "framework_status": "READY_FOR_FIELDWORK",
+  "real_world_status": "REAL_WORLD_UNMEASURED",
+  "external_reader_status": "EXTERNAL_READER_UNMEASURED",
+  "physical_device_status": "PHYSICAL_DEVICE_UNMEASURED",
+  "certification_status": "NOT_QUALIFIED"
+}

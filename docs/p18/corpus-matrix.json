@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "productBaselineCommit": "e88e19e4a8d81e78729cf7f712e8f91b7ac851d9",
+  "automatedEvidence": [
+    {
+      "category": "malformed",
+      "sources": [
+        "tests/corpus/phase28/malformed-truncated-2.pdf",
+        "tests/corpus/phase28/malformed-garbage-prefix.pdf"
+      ],
+      "kind": "committed-adversarial-fixture"
+    },
+    {
+      "category": "scanned",
+      "sources": [
+        "tests/e2e/p3-ocr-scan-to-editable.spec.ts"
+      ],
+      "kind": "browser-generated-scan-fixture"
+    },
+    {
+      "category": "form-heavy",
+      "sources": [
+        "tests/corpus/phase28/forms-20-fields.pdf",
+        "tests/corpus/phase28/forms-matrix.pdf"
+      ],
+      "kind": "committed-adversarial-fixture"
+    },
+    {
+      "category": "encrypted",
+      "sources": [
+        "tests/corpus/phase28/encrypted-aes128.pdf",
+        "tests/corpus/phase28/encrypted-aes256.pdf"
+      ],
+      "kind": "committed-adversarial-fixture"
+    },
+    {
+      "category": "signed",
+      "sources": [
+        "tests/unit/compliance.test.ts",
+        "tests/unit/phase19Compliance.test.ts"
+      ],
+      "kind": "signature-analysis-regression-only",
+      "limitation": "No genuine signed-PDF corpus fixture is committed; real signed-document evidence is mandatory."
+    },
+    {
+      "category": "multilingual",
+      "sources": [
+        "tests/corpus/phase28/rtl-arabic.pdf",
+        "tests/corpus/phase28/cjk-mixed.pdf"
+      ],
+      "kind": "committed-adversarial-fixture"
+    },
+    {
+      "category": "large",
+      "sources": [
+        "tests/corpus/phase28/pages-1000.pdf"
+      ],
+      "kind": "committed-adversarial-fixture"
+    }
+  ],
+  "realWorldEvidenceRequiredForAllCategories": true,
+  "rule": "Generated/committed fixtures exercise automation paths but never satisfy the real-world human evidence requirement."
+}

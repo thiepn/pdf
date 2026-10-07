@@ -19,8 +19,8 @@ env:
   PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
 
 concurrency:
-  group: p45-qualification-pages
-  cancel-in-progress: true
+  group: qualification-pages
+  cancel-in-progress: false
 
 jobs:
   field-host-config:

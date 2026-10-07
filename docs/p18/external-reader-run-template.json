@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "baseline_commit": "e88e19e4a8d81e78729cf7f712e8f91b7ac851d9",
+  "run_id": "reader-YYYYMMDD-NN",
+  "evidence_source": "human-external-application",
+  "human_attestation": true,
+  "automation_used_for_observation": false,
+  "source_case_id": "rw-YYYYMMDD-NN",
+  "artifact": {
+    "workflow_id": "W05",
+    "kind": "pdf",
+    "sha256": "REPLACE_WITH_64_LOWERCASE_HEX",
+    "byte_size": 1,
+    "page_count": 1
+  },
+  "application": {
+    "family": "adobe-acrobat",
+    "name": "Adobe Acrobat Reader",
+    "version": "REPLACE_WITH_EXACT_VERSION",
+    "os_family": "windows",
+    "os_version": "REPLACE_WITH_EXACT_VERSION"
+  },
+  "checks": [
+    {
+      "id": "open",
+      "result": "NOT_RUN"
+    },
+    {
+      "id": "render",
+      "result": "NOT_RUN"
+    },
+    {
+      "id": "content",
+      "result": "NOT_RUN"
+    },
+    {
+      "id": "workflow-specific",
+      "result": "NOT_RUN"
+    }
+  ],
+  "defects": []
+}

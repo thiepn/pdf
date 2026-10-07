@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "baseline_commit": "e88e19e4a8d81e78729cf7f712e8f91b7ac851d9",
+  "run_id": "device-YYYYMMDD-platform-NN",
+  "tester_id": "anon-01",
+  "evidence_source": "human-physical-device",
+  "human_attestation": true,
+  "physical_device": true,
+  "simulator_or_emulator": false,
+  "automation_used_for_observation": false,
+  "environment": {
+    "date": "YYYY-MM-DD",
+    "device_class": "phone",
+    "device_model": "REPLACE_WITH_NON_SENSITIVE_MODEL",
+    "os_family": "android",
+    "os_version": "REPLACE_WITH_EXACT_VERSION",
+    "browser_family": "chromium",
+    "browser_name": "Chrome",
+    "browser_version": "REPLACE_WITH_EXACT_VERSION",
+    "input_mode": "touch",
+    "viewport": "390x844",
+    "app_mode": "installed-pwa",
+    "build_channel": "p18-v72-frozen-baseline",
+    "release_integrity_sha256": "REPLACE_WITH_64_LOWERCASE_HEX"
+  },
+  "workflow_results": [
+    {
+      "id": "W01",
+      "workflow": "Layout-aware PDF to DOCX export",
+      "result": "NOT_RUN",
+      "source_case_id": null,
+      "artifact_sha256": null
+    },
+    {
+      "id": "W02",
+      "workflow": "Arabic/RTL existing-text edit and export",
+      "result": "NOT_RUN",
+      "source_case_id": null,
+      "artifact_sha256": null
+    },
+    {
+      "id": "W03",
+      "workflow": "Target-size structure-preserving compression",
+      "result": "NOT_RUN",
+      "source_case_id": null,
+      "artifact_sha256": null
+    },
+    {
+      "id": "W04",
+      "workflow": "Batch v4 with encrypted queue input",
+      "result": "NOT_RUN",
+      "source_case_id": null,
+      "artifact_sha256": null
+    },
+    {
+      "id": "W05",
+      "workflow": "Deep native-content edit and export",
+      "result": "NOT_RUN",
+      "source_case_id": null,
+      "artifact_sha256": null
+    },
+    {
+      "id": "W06",
+      "workflow": "Reload/offline/installed-PWA reopen and recovery",
+      "result": "NOT_RUN",
+      "source_case_id": null,
+      "artifact_sha256": null
+    }
+  ],
+  "defects": []
+}

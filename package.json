@@ -118,7 +118,12 @@
     "audit:p16:batch": "node scripts/p16/batch-parity-audit.mjs",
     "check:p16": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && npm run audit:p15:target-size && npm run audit:p16:batch && npm run test:runtime:phase18 && npm run test:runtime:phase26 && npm run test:runtime:v6.0.6 && npm run audit:phase30:migrations && npm run audit:phase30:security && vitest run tests/unit/p16BatchParity.test.ts tests/unit/p16BatchEncryptedQueue.test.ts tests/unit/batchOutputValidity.test.ts tests/unit/batchOutputFingerprint.test.ts tests/unit/phase26WorkflowIntelligence.test.ts tests/unit/v606Maintenance.test.ts",
     "audit:p17:native-fidelity": "node scripts/p17/native-fidelity-audit.mjs",
-    "check:p17": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && npm run audit:p15:target-size && npm run audit:p16:batch && npm run audit:p17:native-fidelity && vitest run tests/unit/p17DeepNativeFidelity.test.ts tests/unit/layoutReflow.test.ts tests/unit/nativeImageState.test.ts tests/unit/nativeVectorState.test.ts tests/unit/nativeTableState.test.ts"
+    "check:p17": "npm run audit:p11:next-line && npm run audit:p12:roadmap && npm run audit:p13:docx && npm run audit:p14:complex-script && npm run audit:p15:target-size && npm run audit:p16:batch && npm run audit:p17:native-fidelity && vitest run tests/unit/p17DeepNativeFidelity.test.ts tests/unit/layoutReflow.test.ts tests/unit/nativeImageState.test.ts tests/unit/nativeVectorState.test.ts tests/unit/nativeTableState.test.ts",
+    "audit:p18:qualification": "node scripts/p18/qualification-audit.mjs",
+    "audit:p18:field-host": "node scripts/p18/field-host-contract.mjs",
+    "status:p18": "node scripts/p18/qualification-evidence.mjs --status-contract",
+    "certify:p18": "node scripts/p18/certify.mjs",
+    "check:p18": "npm run check:p17 && npm run audit:p18:qualification && npm run status:p18 && npm run audit:p18:field-host && vitest run tests/unit/p18Qualification.test.ts"
   },
   "dependencies": {
     "bidi-js": "1.1.0",
