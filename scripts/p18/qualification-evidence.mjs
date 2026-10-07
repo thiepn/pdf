@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const P18_PRODUCT_BASELINE = "3acfce6e082a7d238f53804cec7c20122d467c22";
+export const P18_PRODUCT_BASELINE = "fadbf0749277204bc8ace3715bac9e1ad0efb736";
 export const P18_BUILD_CHANNEL = "p18-v72-frozen-baseline";
 export const REAL_WORLD_CATEGORIES = ["malformed","scanned","form-heavy","encrypted","signed","multilingual","large"];
 export const WORKFLOW_IDS = ["W01","W02","W03","W04","W05","W06"];
