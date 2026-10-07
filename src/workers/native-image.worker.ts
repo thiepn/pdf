@@ -246,6 +246,38 @@ function imageBoundsFromMatrix(matrix: number[]): NativeRect {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+function imageEvidenceOverlap(first: NativeRect, second: NativeRect): number {
+  const x0 = Math.max(first.x, second.x);
+  const y0 = Math.max(first.y, second.y);
+  const x1 = Math.min(first.x + first.w, second.x + second.w);
+  const y1 = Math.min(first.y + first.h, second.y + second.h);
+  const intersection = Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
+  const reference = Math.max(1, Math.min(first.w * first.h, second.w * second.h));
+  return intersection / reference;
+}
+
+function structuredImageEvidence(page: PdfPage): Array<{ bounds: NativeRect; softMask: boolean; explicitMask: boolean }> {
+  const output: Array<{ bounds: NativeRect; softMask: boolean; explicitMask: boolean }> = [];
+  const structured = page.toStructuredText("preserve-images");
+  try {
+    structured.walk({
+      onImageBlock(bbox: unknown, _transform: unknown, image: any) {
+        const mask = safe(() => image?.getMask?.(), null as any);
+        const softMask = Boolean(mask);
+        mask?.destroy?.();
+        output.push({
+          bounds: rectFromArray(bbox),
+          softMask,
+          explicitMask: safe(() => Boolean(image?.getImageMask?.()), false)
+        });
+      }
+    });
+  } finally {
+    structured.destroy?.();
+  }
+  return output;
+}
+
 function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeImageObject[]; warnings: string[] } {
   type Trace = {
     image: any;
@@ -377,6 +409,7 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
 
   const counts = new Map<number, number>();
   for (const trace of traces) counts.set(trace.key, (counts.get(trace.key) ?? 0) + 1);
+  const structuredEvidence = structuredImageEvidence(page);
   const directPaints = directImagePaints(page);
   const directBlendHasRisk = directPaints.some((paint) => paint.blendMode !== "Normal");
   const paintMappingAvailable = directPaints.length === traces.length;
@@ -386,12 +419,16 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
   if (blendMappingAmbiguous) warnings.push(`Page ${pageNumber} uses non-Normal image blend state but direct image invocation count differs from the paint trace; affected image mutation is fail-closed as ambiguous.`);
   const images = traces.map((trace, index): NativeImageObject => {
     const paint = paintMappingAvailable ? directPaints[index] : undefined;
+    const structured = structuredEvidence
+      .map((candidate) => ({ candidate, score: imageEvidenceOverlap(trace.bounds, candidate.bounds) }))
+      .sort((first, second) => second.score - first.score)[0];
+    const structuredMask = structured && structured.score >= 0.8 ? structured.candidate : undefined;
     const mappedBlend = paint?.blendMode ?? trace.blendMode;
     const classified = classifyImageFidelity({
       resourceName: paint?.resourceName,
       invocationCount: paint ? (resourceCounts.get(paint.resourceName) ?? 1) : (counts.get(trace.key) ?? 1),
-      softMask: trace.softMask || Boolean(paint?.softMask),
-      explicitMask: trace.explicitMask || Boolean(paint?.explicitMask),
+      softMask: trace.softMask || Boolean(paint?.softMask) || Boolean(structuredMask?.softMask),
+      explicitMask: trace.explicitMask || Boolean(paint?.explicitMask) || Boolean(structuredMask?.explicitMask),
       clipped: trace.clipped,
       blendMode: mappedBlend !== "Normal" ? mappedBlend : trace.blendMode,
       ambiguous: blendMappingAmbiguous
