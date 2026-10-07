@@ -6,7 +6,7 @@ P18 implements **V72-06**. It is a release-qualification phase, not another feat
 
 P18 freezes the P17 runtime at:
 
-`993587438c8f8773db8bc54571d102baff87b489`
+`3acfce6e082a7d238f53804cec7c20122d467c22`
 
 That commit remains version **7.1.4** on the pre-cut v7.2 line. P18 changes qualification tooling, evidence contracts, tests, and deployment controls only. It must not change consumer product source. Project/database/native-editor formats remain **9 / 13 / 6**.
 
