@@ -23,7 +23,7 @@ concurrency:
 
 env:
   NODE_VERSION: 22.16.0
-  P18_PRODUCT_BASELINE: 21aa92a74facd8a45a4cd14f5d8c0da3d81acf5a
+  P18_PRODUCT_BASELINE: 993587438c8f8773db8bc54571d102baff87b489
 
 jobs:
   framework-and-corpus:
