@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "P18",
-  "product_baseline_commit": "993587438c8f8773db8bc54571d102baff87b489",
+  "product_baseline_commit": "3acfce6e082a7d238f53804cec7c20122d467c22",
   "framework_status": "READY_FOR_FIELDWORK",
   "real_world_status": "REAL_WORLD_UNMEASURED",
   "external_reader_status": "EXTERNAL_READER_UNMEASURED",
