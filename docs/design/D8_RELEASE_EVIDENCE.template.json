@@ -1,0 +1,118 @@
+{
+  "schema_version": 2,
+  "repository": "thiepn/pdf",
+  "status": "NOT_QUALIFIED",
+  "candidate_sha": "",
+  "target_branch": "design/d8-live-release-gate",
+  "notice": "Unqualified until real-app evidence for all 18 requirements is reviewed. Prototype screenshots and offline packages do not count.",
+  "requirements": {
+    "d3_editor_integrated": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "d4_selection_history_and_persistence": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "d5_real_processor_and_verified_download": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "d6_phone_tablet_runtime": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "d7_keyboard_focus_and_status": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "typecheck_and_verified_build": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "chromium_real_app": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "firefox_real_app": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "webkit_real_app": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "pdf_export_reopen_and_fidelity": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "p17_native_fidelity_qualified": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "p18_device_reader_qualified": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "security_privacy_review": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "dark_light_forced_colors_review": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "keyboard_screen_reader_review": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "physical_phone_tablet_review": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "zero_release_blockers": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    },
+    "rollback_and_deploy_approval": {
+      "status": "pending",
+      "source": "",
+      "reference": "",
+      "reviewed_by": ""
+    }
+  }
+}
