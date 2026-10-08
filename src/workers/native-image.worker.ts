@@ -593,7 +593,14 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const target = matches[0];
   const drawing = action === "delete" ? "q Q\n" : imageDrawingContent(pdf, page, resourceName, image.width ?? 1, image.height ?? 1, edit);
   const rewritten = source.slice(0, target.start) + drawing + source.slice(target.start + target.length);
-  pageObject.put("Contents", pdf.addStream(rewritten));
+  // Preserve the existing /Contents stream reference and its page-resource
+  // relationships. Replacing it with a fresh indirect stream caused MuPDF to
+  // lose sibling image paints after garbage-collecting certain masked pages.
+  // A single direct stream is required above; never rewrite stream arrays.
+  if (!current.isStream?.() || typeof current.writeStream !== "function") {
+    throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
+  }
+  current.writeStream(rewritten);
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
