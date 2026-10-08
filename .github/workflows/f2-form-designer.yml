@@ -29,9 +29,22 @@ jobs:
           cache: npm
       - name: Install locked packages
         run: npm ci --no-audit --no-fund
-      - name: Test form round trips and fidelity contracts
-        run: npx vitest run tests/unit/formDesigner.test.ts tests/unit/pdfFidelity.test.ts
       - name: Typecheck
+        id: types
+        continue-on-error: true
         run: npm run typecheck
       - name: Build
+        id: build
+        continue-on-error: true
         run: npm run build
+      - name: Test form round trips and fidelity contracts
+        id: tests
+        continue-on-error: true
+        run: npx vitest run tests/unit/formDesigner.test.ts tests/unit/pdfFidelity.test.ts
+      - name: Require all qualifications
+        if: always()
+        run: |
+          echo "Typecheck: ${{ steps.types.outcome }}; build: ${{ steps.build.outcome }}; tests: ${{ steps.tests.outcome }}"
+          test "${{ steps.types.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
