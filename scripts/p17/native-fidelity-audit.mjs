@@ -89,7 +89,7 @@ check(fixture.includes("/SMask 7 0 R") && fixture.includes("/GSBlend") && fixtur
 check(unitTest.includes("attached soft masks") && unitTest.includes("merged-irregular") && unitTest.includes("Pattern"), "focused P17 policy tests cover promoted/protected classes");
 check(browserTest.includes("Attached soft mask preserved") && browserTest.includes("Fidelity-protected image") && browserTest.includes("merged irregular") && (browserTest.includes("Region 1/2") || browserTest.includes("Region 1\\/2")), "browser qualification exercises image, table and text-flow surfaces");
 
-check(limitations.includes("P17") && limitations.includes("attached soft mask"), "known limitations state the new P17 boundary");
+check(limitations.includes("P17") && /(?:attached soft mask|attached-soft-mask)/.test(limitations), "known limitations state the new P17 boundary");
 check(readme.includes("P17 now implements V72-05"), "README exposes P17 capability");
 check(changelog.includes("P17 — Deep Native-Content Fidelity"), "CHANGELOG records P17");
 check(productDoc.includes("P8 fidelity gate") && productDoc.includes("explicit image mask") && productDoc.includes("merged-irregular"), "P17 product note documents preservation and refusal rules");
