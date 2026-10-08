@@ -31,3 +31,6 @@
 
 /* D4 object controls operate on persisted real editor transactions. */
 @import "./studio-layers-d4-live.css";
+
+/* D5 scoped live quick-tool visual and accessibility layer. */
+@import "./studio-quicktools-d5-live.css";
