@@ -199,9 +199,14 @@ function QuickWorkflow({ taskId, projectId }: { taskId: QuickTaskId; projectId?:
 
   const filePicker = <input ref={inputRef} aria-label={images ? "Image files" : "PDF files"} hidden accept={assembly ? "application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp" : images ? "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" : "application/pdf,.pdf"} multiple={multiple} onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ""; if (files.length) void readFiles(files); else insertion.current = null; }} type="file" />;
   const pickLabel = inputs.length ? multiple ? "Add more files" : "Change PDF" : images ? "Choose images" : assembly ? "Choose PDFs or images" : multiple ? "Choose PDFs" : "Choose PDF";
-  return <div className={`quick-workflow task-page${inputs.length && !result ? " task-page--working" : ""}`}>
+  return <div data-d5-quick="true" className={`quick-workflow task-page${inputs.length && !result ? " task-page--working" : ""}`}>
     <a className="product-back" href={routeHref({ name: "tools" })}><Icon name="arrow-left" size={17} /> All PDF tools</a>
     <header className="task-heading"><TaskGlyph task={task} large /><div><h1>{task.label}</h1><p>{taskCopy(task)}</p></div><span className="task-step">{result ? "3 / 3 · Download" : inputs.length ? "2 / 3 · Make it yours" : "1 / 3 · Choose your files"}</span></header>
+    <ol className="d5-live-steps" aria-label="Quick tool progress">
+      <li aria-current={!inputs.length && !result ? "step" : undefined} data-complete={inputs.length > 0 || Boolean(result)}><span aria-hidden="true">1</span><strong>Choose files</strong></li>
+      <li aria-current={inputs.length > 0 && !result ? "step" : undefined} data-complete={Boolean(result)}><span aria-hidden="true">2</span><strong>Set options</strong></li>
+      <li aria-current={result ? "step" : undefined} data-complete={false}><span aria-hidden="true">3</span><strong>Download result</strong></li>
+    </ol>
     {filePicker}
     {inputWarnings.length && !result ? <details className="quick-warning" open><summary>Notes about your edited document</summary>{inputWarnings.map((warning) => <p key={warning}>{warning}</p>)}</details> : null}
     {!inputs.length && !result && !pending ? <section className={`product-dropzone task-dropzone${dragging ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); if (!locked) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); if (!locked) void readFiles([...event.dataTransfer.files]); }} aria-label="Choose input files">
