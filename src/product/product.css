@@ -34,3 +34,6 @@
 
 /* D5 scoped live quick-tool visual and accessibility layer. */
 @import "./studio-quicktools-d5-live.css";
+
+/* D6 mobile state controls are mounted by EditorPage. */
+@import "./studio-responsive-d6-live.css";

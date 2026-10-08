@@ -1,0 +1,89 @@
+/* D6 — real mobile/tablet editor panel access.
+ * Uses native EditorPage sidebarOpen, leftTab and propertiesOpen; no new state store. */
+.product-app .editor-app .d6-live-editor-dock { display: none; }
+@media (max-width: 800px) {
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock {
+    order: 20;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-width: 0;
+    border-top: 1px solid var(--line);
+    background: var(--surface-strong);
+    padding: 5px max(8px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    box-shadow: 0 -3px 14px rgb(0 0 0 / 5%);
+    z-index: 12;
+  }
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    min-height: 50px;
+    padding: 5px 7px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    background: transparent;
+    font-size: 11px;
+    font-weight: 655;
+    text-align: center;
+  }
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+    background: var(--accent-soft);
+    color: var(--accent);
+    box-shadow: inset 0 2px var(--accent);
+  }
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button:disabled { opacity: .5; }
+  .product-app .editor-app[data-d3-editor="true"] .editor-layout { flex: 1 1 auto; min-height: 0; }
+  .product-app .editor-app[data-d3-editor="true"] .editor-stage { height: 100%; min-height: 0; overflow: auto; }
+  .product-app .editor-app[data-d3-editor="true"] .editor-left-panel,
+  .product-app .editor-app[data-d3-editor="true"] .editor-properties {
+    z-index: 35;
+    overscroll-behavior: contain;
+    max-width: 88vw;
+    max-height: 100%;
+    overflow: auto;
+  }
+  .product-app .editor-app[data-d3-editor="true"] .editor-mobile-backdrop {
+    z-index: 30;
+  }
+}
+@media (max-width: 390px) {
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button {
+    min-height: 48px;
+    font-size: 10px;
+  }
+}
+@media (pointer: coarse) {
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button,
+  .product-app .editor-app[data-d3-editor="true"] .editor-tools-sheet__groups button {
+    min-height: 44px;
+  }
+  .product-app .quick-workflow[data-d5-quick="true"] :is(.quick-file-actions button, .task-result-actions button, .task-canvas__bar button) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+@media (forced-colors: active) {
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button[aria-pressed="true"] {
+    color: HighlightText;
+    background: Highlight;
+    border-color: Highlight;
+  }
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-app .editor-app[data-d3-editor="true"] .d6-live-editor-dock button {
+    transition: none;
+    animation: none;
+  }
+}

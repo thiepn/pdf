@@ -1156,6 +1156,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         {processing ? <button className="icon-button" aria-label="Cancel" title="Cancel export" onClick={() => abortRef.current?.abort()} type="button"><Icon name="close" /></button> : <button className="icon-button compact-download" aria-label={primarySaveLabel} title={primarySaveLabel} onClick={() => void exportPdf(nativeSaveAvailable ? "save" : "download")} type="button"><Icon name={nativeSaveAvailable ? "save" : "download"} size={20} /></button>}
         <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} disabled={processing} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button>
       </nav>}
+      {compactControls ? <nav className="d6-live-editor-dock" aria-label="Editor panel shortcuts">
+        <button aria-label="Pages panel" aria-pressed={sidebarOpen && leftTab === "pages"} disabled={processing} onClick={() => { closeMobileTools(); setLeftTab("pages"); setSidebarOpen((open) => !(open && leftTab === "pages")); setPropertiesOpen(false); }} type="button"><Icon name="pages" size={19} /><span>Pages</span></button>
+        <button aria-label="Layers panel" aria-pressed={sidebarOpen && leftTab === "layers"} disabled={processing} onClick={() => { closeMobileTools(); setLeftTab("layers"); setSidebarOpen((open) => !(open && leftTab === "layers")); setPropertiesOpen(false); }} type="button"><Icon name="documents" size={19} /><span>Layers</span></button>
+        <button aria-label="Properties panel" aria-pressed={propertiesOpen} disabled={processing} onClick={() => { closeMobileTools(); setPropertiesOpen((open) => !open); setSidebarOpen(false); }} type="button"><Icon name="settings" size={19} /><span>Properties</span></button>
+      </nav> : null}
         <input accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importImage(file); event.target.value = ""; }} ref={imageInputRef} type="file" />
       {!compactControls ? contextControls : null}
 
