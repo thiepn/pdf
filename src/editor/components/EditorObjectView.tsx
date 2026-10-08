@@ -1,4 +1,5 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import "./formField.css";
 import type { Rect } from "../../core/coordinates";
 import type { EditorObject } from "../../types/editor";
 import { rectHeight, rectWidth } from "../editorModel";
@@ -83,6 +84,7 @@ function ObjectContent({ object, assetUrl, viewportScale }: { object: EditorObje
     case "stamp": return <div className="editor-stamp-object" style={{ color: object.color, background: object.backgroundColor, borderColor: object.borderColor }}>{object.label}</div>;
     case "signature": return <div className="editor-signature-object" style={{ color: object.color }}><strong>{object.signerName || "Signature"}</strong>{object.showDate ? <small>{new Date(object.signedAt).toLocaleDateString()}</small> : null}{object.showLabels && object.reason ? <span>{object.reason}</span> : null}</div>;
     case "redaction": return <div className="editor-redaction-object" style={{ background: object.fillColor }}><span>{object.overlayText || "REDACTED"}</span></div>;
+    case "form-field": return <div className="f2-field" aria-label={`PDF ${object.kind} field ${object.name}`}><span className="f2-field__kind">{object.kind === "checkbox" ? "☐" : object.kind === "dropdown" ? "⌄" : object.kind === "listbox" ? "≡" : "T"}</span><span className="f2-field__content">{object.defaultValue || object.tooltip || object.name}</span>{object.required ? <span className="f2-field__required" aria-label="Required">*</span> : null}</div>;
   }
 }
 
