@@ -738,7 +738,18 @@ self.onmessage = (event: MessageEvent<Request>) => {
         for (const edit of request.edits) {
           const page = reopened.loadPage(edit.pageNumber - 1);
           try {
-            const rects = imageRects(page);
+            // MuPDF's structured-text JSON can omit masked images after a
+            // rewritten /Contents stream even while the actual page paint
+            // operators and attached /SMask are still present. For the P17
+            // direct-invocation path, verify every painted image with the
+            // same graphics-state Device used to qualify the source edit.
+            // Never lower the expected count or waive sibling positions.
+            const maskedInspection = beforeClasses.get(edit.id) === "masked"
+              ? inspectImagePage(page, edit.pageNumber)
+              : undefined;
+            const rects = maskedInspection
+              ? maskedInspection.images.map((image) => image.bounds)
+              : imageRects(page);
             const action = edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform");
             const sourceBounds = edit.sourceBounds ?? edit.bounds;
             const originals = beforeRects.get(edit.id) ?? [];
