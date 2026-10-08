@@ -3,7 +3,8 @@ import { openPdfWithPdfJs, extractPageText } from "../engines/pdfjsBase";
 import { assembleSources, compilePagePlan, mergePdfSources } from "../tools/pageOperationsClient";
 import { createStoredZip } from "../toolbox/zip";
 import { transformPdf } from "../toolbox/toolboxClient";
-import { optimizePdf, repairPdf } from "../processing/processingClient";
+import { repairPdf } from "../processing/processingClient";
+import { runHeadlessAction } from "../actions/actionRunner";
 import { RASTER_PROFILES, rasterTransformPdf } from "../processing/rasterCompression";
 import { applySecurity } from "../security/securityClient";
 import { createSecurityState } from "../security/securityModel";
@@ -151,7 +152,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
     let output: Uint8Array;
     if (options.compression === "lossless") {
       progress("Optimizing without rasterizing pages…");
-      const result = await optimizePdf(input.bytes, { password: input.password }, signal); output = result.bytes; warnings.push(...result.report.warnings);
+      const result = await runHeadlessAction(input.bytes,{schemaVersion:1,actionId:"pdf.optimize",params:{}},{signal,knownPageCount:input.pageCount}); output = result.bytes; warnings.push(...result.warnings);
     } else {
       const pdf = await openPdfWithPdfJs(input.bytes, input.password);
       try {
@@ -162,6 +163,10 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
     }
     if (output.byteLength >= input.bytes.byteLength) { output = input.bytes; warnings.length = 0; warnings.push("This PDF is already smaller than the compressed result. The original file is offered unchanged instead."); }
     files.push(asPdf(name, output));
+  } else if (task === "remove-metadata") {
+    progress("Removing metadata from a separate PDF copy…");
+    const result = await runHeadlessAction(input.bytes,{schemaVersion:1,actionId:"pdf.metadata.remove",params:{},approvedRisks:["metadata-removal"]},{signal,knownPageCount:input.pageCount});
+    files.push(asPdf(name,result.bytes)); warnings.push(...result.warnings);
   } else if (task === "repair-pdf") {
     progress("Rebuilding a separate copy and checking that it opens…");
     const result = await repairPdf(input.bytes, input.password, signal);
