@@ -45,6 +45,9 @@ async function downloadEditedPdf(page: Page): Promise<void> {
 }
 
 test("P17 preserves an attached soft mask during source-image transform and keeps replacement blocked", async ({ page }) => {
+  // Export includes a whole-document fidelity check; allow diagnostics to finish
+  // instead of replacing the actual failure with Playwright’s 30s test timeout.
+  test.setTimeout(90_000);
   await openP17Fixture(page);
 
   const images = page.getByRole("button", { name: /Select existing image:/ });
