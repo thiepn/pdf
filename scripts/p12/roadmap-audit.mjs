@@ -79,7 +79,7 @@ check(compressionSource.includes('type ProfileId = "lossless" | "screen" | "bala
 check(((batchTypes.includes("BATCH_RECIPE_SCHEMA_VERSION = 3") && batchTypes.includes('type: "split-fixed"') && batchTypes.includes('type: "page-images"')) || (batchTypes.includes("BATCH_RECIPE_SCHEMA_VERSION = 4") && batchTypes.includes('type: "target-size"') && batchTypes.includes('type: "sanitize"'))), "V72-04 retains the historical Batch v3 baseline or an explicit downstream v4 implementation");
 check(
   (known.includes("shared-image semantics") && known.includes("shadings, patterns") && known.includes("merged-cell"))
-  || (known.includes("attached soft mask") && known.includes("non-Normal blending") && known.includes("merged cells")),
+  || (/(?:attached soft mask|attached-soft-mask)/.test(known) && known.includes("non-Normal blending") && known.includes("merged cells")),
   "V72-05 is anchored in the historical fidelity gaps or explicit downstream P17 boundaries"
 );
 
