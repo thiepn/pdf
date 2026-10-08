@@ -21,6 +21,7 @@ describe("F7 AI workflow planning contract",()=>{
     expect(prompt).toContain("Rotate 90 degrees");
     expect(prompt).toContain("Return ONLY one JSON object");
     expect(prompt).not.toContain("Existing cleanup");
+    expect(buildAIWorkflowPrompt("Rotate all pages.\nThen optimize output.")).toContain("Then optimize output.");
     expect(()=>buildAIWorkflowPrompt("")).toThrow(/Goal/);
     expect(()=>buildAIWorkflowPrompt("x".repeat(1201))).toThrow(/Goal/);
   });
