@@ -52,7 +52,7 @@ import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
 import { Thumbnail } from "../viewer/Thumbnail";
 
-interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
+interface Props { projectId: string; taskId?: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
 type LocalSaveSnapshot = { editor: EditorDocumentState; native: Parameters<typeof writeNativeState>[0]; project: ProjectManifest };
 
@@ -91,7 +91,7 @@ const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: s
 ];
 const tools = toolGroups.flatMap((group) => group.tools);
 
-export function EditorPage({ projectId, onTitleChange }: Props) {
+export function EditorPage({ projectId, taskId, onTitleChange }: Props) {
   const documentRef = useRef<PDFDocumentProxy | null>(null);
   const sourceBytesRef = useRef<Uint8Array | null>(null);
   const passwordRef = useRef<string | undefined>(undefined);
@@ -115,6 +115,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [nativePreviewDocument, setNativePreviewDocument] = useState<PDFDocumentProxy | null>(null);
   const [nativePreviewState, setNativePreviewState] = useState<"source" | "loading" | "ready" | "error">("source");
   const [editorState, setEditorState] = useState<EditorDocumentState>(() => createEditorState(projectId));
+  useEffect(() => { if (taskId === "prepare-forms") setEditorState((current) => ({ ...current, activeTool: "form-field" })); }, [taskId]);
   const [history, setHistory] = useState<EditorHistoryState>(() => createHistory());
   const nativeEdits = history.present.nativeEdits;
   const [previewObject, setPreviewObject] = useState<EditorObject | null>(null);
