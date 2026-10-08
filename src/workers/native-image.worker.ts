@@ -630,7 +630,12 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   if (!current.isStream?.() || typeof current.writeStream !== "function") {
     throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
   }
-  current.writeStream(new TextEncoder().encode(rewritten));
+  // Match the engine-level round-trip regression: use MuPDF's own Buffer
+  // so the native stream writer sees a Wasm-owned buffer, not an external
+  // JS typed-array view whose lifetime/realm may differ across workers.
+  const nativeBytes = new (mupdf as any).Buffer(rewritten);
+  try { current.writeStream(nativeBytes); }
+  finally { nativeBytes.destroy(); }
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
