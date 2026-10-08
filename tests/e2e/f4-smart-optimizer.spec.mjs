@@ -8,9 +8,10 @@ test("F4 smart optimizer verifies source structure and retains a safe download",
   await openSample(page);
   // The document-actions shortcut opens the file-first quick compressor; F4 is
   // intentionally the existing full Compression workspace for stored projects.
-  const viewerRoute = page.url().match(/#\\/workspace\\/([^/]+)\\/viewer/);
-  expect(viewerRoute).not.toBeNull();
-  await page.goto(`./#/workspace/${viewerRoute[1]}/compress`);
+  const viewerRoute = new URL(page.url()).hash.split("/");
+  expect(viewerRoute[1]).toBe("workspace");
+  expect(viewerRoute[3]).toBe("viewer");
+  await page.goto(`./#/workspace/${viewerRoute[2]}/compress`);
   const heading=page.getByRole("heading",{name:"Make the PDF smaller without losing what matters"});
   await expect(heading).toBeVisible();
   await expect(page.getByText("Smart · preserve everything")).toBeVisible();
