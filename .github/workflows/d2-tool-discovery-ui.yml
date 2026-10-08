@@ -1,0 +1,48 @@
+name: D2 tool discovery qualification
+
+on:
+  pull_request:
+    paths:
+      - src/product/TaskDirectory.tsx
+      - src/views/ToolsPage.tsx
+      - src/product/product.css
+      - src/product/studio-discovery-d2.css
+      - tests/e2e/d2-tool-discovery.spec.ts
+      - .github/workflows/d2-tool-discovery-ui.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d2-discovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  catalog-browser-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: D2 catalog, ranking, capability and responsive interaction tests
+        run: npx playwright test tests/e2e/d2-tool-discovery.spec.ts --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Upload reviewable screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d2-discovery-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
