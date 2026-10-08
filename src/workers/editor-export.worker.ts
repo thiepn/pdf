@@ -1,7 +1,7 @@
 import * as mupdf from "mupdf";
 import { addDesignedFormFields } from "../forms/formWriter";
 import type { AffineMatrix, Point, Rect } from "../core/coordinates";
-import type { EditorExportAsset, EditorObject } from "../types/editor";
+import type { EditorExportAsset, EditorObject, FormFieldEditorObject } from "../types/editor";
 
 interface ExportRequest {
   type: "EXPORT_EDITOR";
@@ -277,7 +277,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
         }
       } finally { page.destroy(); }
     }
-    const newFormFields = request.objects.filter((object) => !object.hidden && object.type === "form-field");
+    const newFormFields = request.objects.filter((object): object is FormFieldEditorObject => !object.hidden && object.type === "form-field");
     const formFieldCount = addDesignedFormFields(pdf, newFormFields);
     // Overlay compilation must produce a complete in-memory PDF. Incremental
     // saves on a buffer-backed MuPDF document can stall in browser workers,
