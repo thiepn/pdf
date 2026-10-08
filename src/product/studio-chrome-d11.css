@@ -67,6 +67,65 @@
 .product-app :is(.product-home--workspace, .product-tools--d2) .product-section-heading h2 {
   font-size: var(--studio-type-section);
 }
+/* The real page strip and contextual inspector share one paper/graphite
+ * surface scale; selection capabilities and field behavior remain native. */
+.product-app [data-d3-editor="true"] :is(.editor-left-panel, .editor-properties) {
+  background: var(--studio-chrome-bg);
+  border-color: var(--studio-panel-border);
+}
+.product-app [data-d3-editor="true"] .editor-sidebar-select {
+  padding: 11px;
+  background: var(--studio-chrome-bg);
+  border-bottom-color: var(--studio-panel-border);
+}
+.product-app [data-d3-editor="true"] .editor-sidebar-select select {
+  min-height: var(--studio-control-height);
+  border: 1px solid var(--studio-panel-border);
+  border-radius: var(--studio-radius-control);
+  background: var(--surface-subtle);
+}
+.product-app [data-d3-editor="true"] .editor-left-body .thumbnail {
+  border-radius: var(--studio-radius-panel);
+  background: var(--studio-surface-hover);
+}
+.product-app [data-d3-editor="true"] .editor-properties .property-section {
+  border-bottom-color: var(--studio-panel-border);
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-section h3, .native-capability-card h2) {
+  font-size: var(--studio-type-body);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -.015em;
+  line-height: 1.35;
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-field, .property-toggle, .property-note) {
+  color: var(--muted);
+  font-size: var(--studio-type-label);
+  line-height: 1.45;
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-field input, .property-field select, .property-field textarea) {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--studio-radius-control);
+  color: var(--ink);
+  background: var(--surface-strong);
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-field input, .property-field select) {
+  min-height: var(--studio-control-height);
+}
+.product-app [data-d3-editor="true"] .editor-properties .property-actions button {
+  min-height: var(--studio-control-height);
+  border-radius: var(--studio-radius-control);
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(input, select, textarea, button):focus-visible {
+  outline: 3px solid var(--studio-focus-ring);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .product-app [data-d3-editor="true"] .editor-properties :is(.property-field input, .property-field select, .property-actions button) {
+    min-height: var(--studio-touch-height);
+  }
+}
 @media (max-width: 680px) {
   .product-app .product-header {
     height: 60px;
