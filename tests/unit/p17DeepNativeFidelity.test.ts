@@ -1,3 +1,4 @@
+// @vitest-environment node
 import * as mupdf from "mupdf";
 import { describe, expect, it } from "vitest";
 import { createP17NativeFidelityPdf } from "../../src/fixtures/p17NativeFidelityPdf";
