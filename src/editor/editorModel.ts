@@ -1,4 +1,5 @@
 import type { Rect } from "../core/coordinates";
+import { MM_PER_PDF_POINT } from "../review/measurementModel";
 import { EDITOR_SCHEMA_VERSION, type EditorDocumentState, type EditorObject, type EditorTool } from "../types/editor";
 
 function id(): string {
@@ -111,11 +112,13 @@ export function createObjectForTool({ tool, pageNumber, bounds, author, zIndex }
     case "underline": return { ...base, type: "highlight", style: "underline", color: "#2c6fb7" };
     case "strikeout": return { ...base, type: "highlight", style: "strikeout", color: "#c13d36" };
     case "squiggly": return { ...base, type: "highlight", style: "squiggly", color: "#d07020" };
-    case "note": return { ...base, type: "note", author, subject: "Comment", contents: "Add a comment", color: "#ffd54f", resolved: false };
+    case "note": return { ...base, type: "note", author, subject: "Comment", contents: "Add a comment", color: "#ffd54f", resolved: false, reviewStatus: "open", replies: [] };
     case "link": return { ...base, type: "link", targetType: "url", target: "https://", borderColor: "#2878d0", borderWidth: 1 };
     case "stamp": return { ...base, type: "stamp", label: "APPROVED", color: "#167044", backgroundColor: "#e6f6ed", borderColor: "#167044" };
     case "signature": return { ...base, type: "signature", signerName: author, reason: "", location: "", signedAt: now, color: "#17233c", showDate: true, showLabels: false };
     case "redaction": return { ...base, type: "redaction", fillColor: "#000000", overlayText: "REDACTED", applied: false };
+    case "measure-distance": return { ...base, type: "measurement", kind: "distance", unit: "mm", mmPerPoint: MM_PER_PDF_POINT, strokeColor: "#236a92", lineWidth: 2 };
+    case "measure-area": return { ...base, type: "measurement", kind: "area", unit: "mm", mmPerPoint: MM_PER_PDF_POINT, strokeColor: "#236a92", lineWidth: 2 };
     default: return null;
   }
 }
