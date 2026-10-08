@@ -79,9 +79,10 @@ async function certifyEditorExport(
   result: { bytes: Uint8Array; report: EditorExportReport },
   affectedPages: Iterable<number>,
   password?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  expectedAddedFields = 0
 ): Promise<{ bytes: Uint8Array; report: EditorExportReport }> {
-  const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, password, signal);
+  const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, password, signal, expectedAddedFields);
   if (!fidelity.passed) throw new Error(`P8 fidelity validation failed: ${fidelity.failures.join(" ")}`);
   return {
     bytes: result.bytes,
@@ -102,7 +103,7 @@ export async function exportEditorPdf(
   const replay = takeNativeExportReplay(bytes);
   if (!replay) {
     const overlay = await exportOverlayPdf(bytes, objects, assets, signal, password);
-    return certifyEditorExport(bytes, overlay, visibleObjectPages(objects), password, signal);
+    return certifyEditorExport(bytes, overlay, visibleObjectPages(objects), password, signal, objects.filter((object) => !object.hidden && object.type === "form-field").length);
   }
 
   // P6 mixed exports compile overlay annotations against the original PDF.
@@ -125,6 +126,7 @@ export async function exportEditorPdf(
     result,
     [...visibleObjectPages(objects), ...replay.edits.map((edit) => edit.pageNumber)],
     exportPassword,
-    signal
+    signal,
+    objects.filter((object) => !object.hidden && object.type === "form-field").length
   );
 }
