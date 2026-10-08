@@ -64,7 +64,7 @@ describe("P17 deep native-content fidelity policy", () => {
         expect(content.isStream()).toBe(true);
         const buffer = content.readStream();
         let source: string;
-        try { source = new TextDecoder().decode(buffer.asUint8Array()); }
+        try { source = buffer.asString(); }
         finally { buffer.destroy(); }
         expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
