@@ -34,6 +34,13 @@ test("F6 composer edits an ordered workflow with safety review",async({page})=>{
   await expect(page.getByRole("button",{name:"Run workflow"})).toBeDisabled();
   await page.getByRole("checkbox",{name:/I reviewed the metadata removal/}).check();
   await expect(page.getByRole("checkbox",{name:/I reviewed the metadata removal/})).toBeChecked();
+  // Changing the execution plan invalidates consent for the old fingerprint.
+  await composer.getByRole("searchbox",{name:"Search workflow actions"}).fill("Raster compression");
+  await composer.getByRole("button",{name:"Raster compression",exact:true}).click();
+  await expect(page.getByRole("checkbox",{name:/I reviewed the metadata removal and rasterization effects/})).not.toBeChecked();
+  await page.getByRole("checkbox",{name:/I reviewed the metadata removal and rasterization effects/}).check();
+  await composer.getByRole("combobox",{name:"Profile"}).selectOption("small");
+  await expect(page.getByRole("checkbox",{name:/I reviewed the metadata removal and rasterization effects/})).not.toBeChecked();
 });
 test("F6 executes approved workflows and downloads validated PDF and JSON run report",async({page})=>{
   await page.goto("./#/batch");
