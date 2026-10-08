@@ -40,10 +40,29 @@ jobs:
         id: build
         continue-on-error: true
         run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser review-and-measurement export round trip
+        id: browser
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
+          PLAYWRIGHT_BASE_PATH: "/pdf/"
+        run: npx playwright test tests/e2e/f3-review-measurement.spec.mjs --project=chromium --workers=1 --retries=0
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f3-browser-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
       - name: Require F3 gates
         if: always()
         run: |
-          echo "Typecheck=${{ steps.types.outcome }} unit=${{ steps.unit.outcome }} build=${{ steps.build.outcome }}"
+          echo "Typecheck=${{ steps.types.outcome }} unit=${{ steps.unit.outcome }} build=${{ steps.build.outcome }} browser=${{ steps.browser.outcome }}"
           test "${{ steps.types.outcome }}" = success
           test "${{ steps.unit.outcome }}" = success
           test "${{ steps.build.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success
