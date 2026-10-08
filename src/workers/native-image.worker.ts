@@ -552,6 +552,22 @@ function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intr
   append(pdf, page, imageDrawingContent(pdf, page, resource, intrinsicWidth, intrinsicHeight, edit));
 }
 
+function streamReferenceIdentity(object: any): string | undefined {
+  const value = String(object?.valueOf?.() ?? "");
+  return /^\d+\s+\d+\s+R$/.test(value) ? value : undefined;
+}
+
+function referencesContentStream(contents: any, identity: string): boolean {
+  if (!contents || contents.isNull?.()) return false;
+  if (contents.isArray?.()) {
+    for (let index = 0; index < Number(contents.length ?? 0); index += 1) {
+      if (streamReferenceIdentity(contents.get(index)) === identity) return true;
+    }
+    return false;
+  }
+  return streamReferenceIdentity(contents) === identity;
+}
+
 /**
  * Change only one qualified direct XObject invocation. Image-only redaction
  * can remove sibling uses of a shared /SMask resource, which is unacceptable.
@@ -567,6 +583,20 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const current = pageObject.get("Contents");
   if (!current || current.isNull?.() || current.isArray?.()) {
     throw new Error("The masked image uses multiple or missing page-content streams. Editing is blocked to preserve other image instances.");
+  }
+  // In-place updates to an indirect stream must never change another page.
+  // Shared /Contents references are rare but legitimate: preserve them by
+  // refusing the mutation rather than modifying every referencing page.
+  const identity = streamReferenceIdentity(current);
+  if (!identity) throw new Error("The masked image content stream cannot be identified safely.");
+  for (let index = 0; index < pdf.countPages(); index += 1) {
+    if (index === image.pageNumber - 1) continue;
+    const otherPage = pdf.loadPage(index);
+    try {
+      if (referencesContentStream(otherPage.getObject().get("Contents"), identity)) {
+        throw new Error("The masked image shares its content stream with another page; this edit is blocked to preserve the other page.");
+      }
+    } finally { otherPage.destroy?.(); }
   }
   const source = streamText(current);
   if (!source || /[^\x09\x0a\x0d\x20-\x7e]/.test(source)) {
