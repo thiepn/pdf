@@ -585,9 +585,9 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
     const bounds = imageBoundsFromMatrix(matrix);
     const score = Math.abs(bounds.x - requested[0]) + Math.abs(bounds.y - requested[1])
       + Math.abs(bounds.x + bounds.w - requested[2]) + Math.abs(bounds.y + bounds.h - requested[3]);
-    return { start: match.index, length: match[0].length, score };
+    return { start: match.index ?? -1, length: match[0].length, score };
   }).sort((a, b) => a.score - b.score);
-  if (!matches.length || matches[0].score > 5 || (matches[1] && Math.abs(matches[1].score - matches[0].score) < 2)) {
+  if (!matches.length || matches[0].start < 0 || matches[0].score > 5 || (matches[1] && Math.abs(matches[1].score - matches[0].score) < 2)) {
     throw new Error("The selected masked-image invocation could not be uniquely matched; no source PDF operators were changed.");
   }
   const target = matches[0];
