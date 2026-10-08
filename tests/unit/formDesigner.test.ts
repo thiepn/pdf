@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import * as mupdf from "mupdf";
 import { createMinimalPdf } from "../../src/fixtures/minimalPdf";
@@ -40,8 +41,7 @@ describe("F2 interactive form designer", () => {
 
   it("exports genuine, reopenable AcroForm widgets with expected field types and values", () => {
     const source = createMinimalPdf();
-    const inputBuffer = new mupdf.Buffer(source);
-    const pdf = new mupdf.PDFDocument(inputBuffer);
+    const pdf = new mupdf.PDFDocument(source);
     const input = [
       { ...field("text", "Name"), defaultValue: "Ada", required: true },
       { ...field("checkbox", "Consent"), bounds: { x0: 275, y0: 620, x1: 295, y1: 640 }, defaultValue: "Yes" },
@@ -56,8 +56,7 @@ describe("F2 interactive form designer", () => {
       try { result = Uint8Array.from(buffer.asUint8Array()); }
       finally { buffer.destroy(); }
     } finally { pdf.destroy(); }
-    const outputBuffer = new mupdf.Buffer(result);
-    const output = new mupdf.PDFDocument(outputBuffer);
+    const output = new mupdf.PDFDocument(result);
     try {
       expect(output.countPages()).toBe(1);
       const widgets = output.loadPage(0).getWidgets();
