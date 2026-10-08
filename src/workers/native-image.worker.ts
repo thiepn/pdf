@@ -172,7 +172,7 @@ function blendModeForExtGState(page: PdfPage, name: string): string {
     const resolved = state?.resolve?.() ?? state;
     const bm = resolved?.get?.("BM");
     const first = bm?.isArray?.() ? bm.get(0) : bm;
-    return String(first?.valueOf?.() ?? "Normal").replace(/^\//, "") || "Normal";
+    return String(first?.asName?.() ?? first?.valueOf?.() ?? "Normal").replace(/^\//, "") || "Normal";
   }, "Normal");
 }
 
@@ -180,7 +180,8 @@ function isImageXObject(page: PdfPage, name: string): boolean {
   return safe(() => {
     const raw = pageResources(page)?.get?.("XObject")?.get?.(name);
     const object = raw?.resolve?.() ?? raw;
-    return String(object?.get?.("Subtype")?.valueOf?.() ?? "").replace(/^\//, "") === "Image";
+    const subtype = object?.get?.("Subtype");
+    return String(subtype?.asName?.() ?? subtype?.valueOf?.() ?? "").replace(/^\//, "") === "Image";
   }, false);
 }
 

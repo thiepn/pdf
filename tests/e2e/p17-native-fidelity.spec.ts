@@ -31,6 +31,16 @@ async function selectByPanelEvidence(page: Page, buttons: ReturnType<Page["getBy
   throw new Error(`No detected object exposed ${String(evidence)}. Inspected ${count} objects:\\n${observed.join("\\n")}`);
 }
 
+async function downloadEditedPdf(page: Page): Promise<void> {
+  const options = page.locator(".editor-save-options");
+  await options.locator("summary").click();
+  const downloadPromise = page.waitForEvent("download");
+  await options.getByRole("button", { name: "Download copy", exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+}
+
 test("P17 preserves an attached soft mask during source-image transform and keeps replacement blocked", async ({ page }) => {
   await openP17Fixture(page);
 
@@ -48,11 +58,7 @@ test("P17 preserves an attached soft mask during source-image transform and keep
   await properties.getByRole("button", { name: "Apply source image transform" }).click();
   await expect(page.locator(".native-queued-count").filter({ hasText: "1 PDF edit ready" })).toHaveCount(1);
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+  await downloadEditedPdf(page);
 });
 
 test("P17 exposes clipped image content as inspectable but fidelity-protected", async ({ page }) => {
@@ -91,10 +97,7 @@ test("P17 detects and rebuilds the generated merged irregular table", async ({ p
   await firstCell.fill("P17 merged heading");
   await properties.getByRole("button", { name: "Apply structured table edit" }).click();
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  await downloadPromise;
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+  await downloadEditedPdf(page);
 });
 
 test("P17 exposes deterministic adjacent-region metadata for qualified text columns", async ({ page }) => {
