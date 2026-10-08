@@ -1,12 +1,16 @@
 import { expect, test } from "@playwright/test";
 import * as mupdf from "mupdf";
 import { readFile } from "node:fs/promises";
-import { openSample, chooseDocumentTask } from "./helpers/taskFirst";
+import { openSample } from "./helpers/taskFirst";
 
 test.setTimeout(120_000);
 test("F4 smart optimizer verifies source structure and retains a safe download", async ({ page }) => {
   await openSample(page);
-  await chooseDocumentTask(page, "Compress PDF");
+  // The document-actions shortcut opens the file-first quick compressor; F4 is
+  // intentionally the existing full Compression workspace for stored projects.
+  const viewerRoute = page.url().match(/#\\/workspace\\/([^/]+)\\/viewer/);
+  expect(viewerRoute).not.toBeNull();
+  await page.goto(`./#/workspace/${viewerRoute[1]}/compress`);
   const heading=page.getByRole("heading",{name:"Make the PDF smaller without losing what matters"});
   await expect(heading).toBeVisible();
   await expect(page.getByText("Smart · preserve everything")).toBeVisible();
