@@ -1,3 +1,4 @@
+import { classifyTableGeometry } from "./nativeFidelity";
 import type {
   NativeCapability,
   NativeEditableFontFamily,
@@ -353,6 +354,9 @@ function makeTable(
   const complex = nonGridArtwork || imageInside;
   const confidence = Math.max(0.76, Math.min(0.97, 0.86 + Math.min(rows * columns, 12) * 0.007 - (complex ? 0.08 : 0)));
   const mergedCells = cells.filter((cell) => (cell.rowSpan ?? 1) > 1 || (cell.columnSpan ?? 1) > 1).length;
+  const rowHeights = Array.from({ length: rows }, (_, row) => ys[row + 1] - ys[row]);
+  const columnWidths = Array.from({ length: columns }, (_, column) => xs[column + 1] - xs[column]);
+  const geometryKind = classifyTableGeometry(rowHeights, columnWidths, mergedCells);
   const firstStroke = candidate.vectors.find((vector) => vector.paint !== "fill" && vector.strokeColor);
   return {
     id: `table:${page.pageNumber}:${tableIndex}`,
@@ -362,8 +366,9 @@ function makeTable(
     rows,
     columns,
     cells,
-    rowHeights: Array.from({ length: rows }, (_, row) => ys[row + 1] - ys[row]),
-    columnWidths: Array.from({ length: columns }, (_, column) => xs[column + 1] - xs[column]),
+    rowHeights,
+    columnWidths,
+    geometryKind,
     headerRows: 0,
     mergedCells,
     borderColor: firstStroke?.strokeColor ?? "#444444",

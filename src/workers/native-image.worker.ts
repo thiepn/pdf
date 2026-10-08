@@ -104,12 +104,14 @@ function contentStreams(page: PdfPage): any[] {
   if (contents.isArray?.()) {
     const streams: any[] = [];
     for (let index = 0; index < Number(contents.length ?? 0); index += 1) {
-      const item = contents.get(index);
+      const value = contents.get(index);
+      const item = value?.resolve?.() ?? value;
       if (item?.isStream?.()) streams.push(item);
     }
     return streams;
   }
-  return contents.isStream?.() ? [contents] : [];
+  const stream = contents?.resolve?.() ?? contents;
+  return stream?.isStream?.() ? [stream] : [];
 }
 
 function streamText(stream: any): string {
@@ -206,25 +208,33 @@ function imageXObjectMaskEvidence(page: PdfPage, name: string): { softMask: bool
  * specifically because non-Normal /BM is content-stream state and should not
  * depend on whether a renderer chooses to expose it as beginGroup().
  */
-function directImagePaints(page: PdfPage): Array<{ resourceName: string; blendMode: string; softMask: boolean; explicitMask: boolean }> {
-  const paints: Array<{ resourceName: string; blendMode: string; softMask: boolean; explicitMask: boolean }> = [];
+function directImagePaints(page: PdfPage): Array<{ resourceName: string; blendMode: string; softMask: boolean; explicitMask: boolean; clipped: boolean }> {
+  const paints: Array<{ resourceName: string; blendMode: string; softMask: boolean; explicitMask: boolean; clipped: boolean }> = [];
   for (const stream of contentStreams(page)) {
     const source = stripPdfStringsAndComments(streamText(stream));
-    const tokens = source.match(/\/[A-Za-z0-9_.:+-]+|\b(?:q|Q|gs|Do)\b/g) ?? [];
-    const stack: string[] = [];
+    const tokens = source.match(/\/[A-Za-z0-9_.:+-]+|W\*|\b(?:q|Q|gs|Do|W)\b/g) ?? [];
+    const stack: Array<{ blendMode: string; clipped: boolean }> = [];
     let blendMode = "Normal";
+    let clipped = false;
     let name: string | undefined;
     for (const token of tokens) {
       if (token.startsWith("/")) { name = token.slice(1); continue; }
-      if (token === "q") { stack.push(blendMode); name = undefined; continue; }
-      if (token === "Q") { blendMode = stack.pop() ?? "Normal"; name = undefined; continue; }
+      if (token === "q") { stack.push({ blendMode, clipped }); name = undefined; continue; }
+      if (token === "Q") {
+        const previous = stack.pop();
+        blendMode = previous?.blendMode ?? "Normal";
+        clipped = previous?.clipped ?? false;
+        name = undefined;
+        continue;
+      }
+      if (token === "W" || token === "W*") { clipped = true; name = undefined; continue; }
       if (token === "gs") {
         if (name) blendMode = blendModeForExtGState(page, name);
         name = undefined;
         continue;
       }
       if (token === "Do") {
-        if (name && isImageXObject(page, name)) paints.push({ resourceName: name, blendMode, ...imageXObjectMaskEvidence(page, name) });
+        if (name && isImageXObject(page, name)) paints.push({ resourceName: name, blendMode, clipped, ...imageXObjectMaskEvidence(page, name) });
         name = undefined;
       }
     }
@@ -353,8 +363,14 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       definingMaskDepth = Math.max(0, definingMaskDepth - 1);
       clipKinds.push("soft-mask");
     },
-    beginGroup: (_area: unknown, _isolated: unknown, _knockout: unknown, blendMode: unknown, alpha: unknown) => {
-      groups.push({ blendMode: String(blendMode ?? "Normal").replace(/^\//, "") || "Normal", alpha: Number.isFinite(Number(alpha)) ? Math.max(0, Math.min(1, Number(alpha))) : 1 });
+    beginGroup: (...args: unknown[]) => {
+      // MuPDF builds differ on whether a color-space argument precedes
+      // isolated/knockout. Never misinterpret a boolean as a blend mode.
+      const offset = args.length >= 6 ? 1 : 0;
+      const mode = args[3 + offset];
+      const alpha = args[4 + offset];
+      const blendMode = typeof mode === "string" ? mode.replace(/^\//, "") || "Normal" : "Normal";
+      groups.push({ blendMode, alpha: typeof alpha === "number" && Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1 });
     },
     endGroup: () => { groups.pop(); },
     fillImage: (image: any, ctm: number[], alpha: number) => record(image, ctm, alpha, false),
@@ -435,8 +451,11 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       invocationCount: paint ? (resourceCounts.get(paint.resourceName) ?? 1) : (counts.get(trace.key) ?? 1),
       softMask: trace.softMask || Boolean(paint?.softMask) || Boolean(structuredMask?.softMask),
       explicitMask: trace.explicitMask || Boolean(paint?.explicitMask) || Boolean(structuredMask?.explicitMask),
-      clipped: trace.clipped,
-      blendMode: mappedBlend !== "Normal" ? mappedBlend : trace.blendMode,
+      // A transparency-mask device group can introduce an internal clip
+      // without a PDF clipping operator. When an exact direct Do mapping
+      // exists, trust its explicit W/W* state; otherwise remain conservative.
+      clipped: paint ? paint.clipped : trace.clipped,
+      blendMode: paint ? paint.blendMode : trace.blendMode,
       ambiguous: blendMappingAmbiguous
     });
     return {
