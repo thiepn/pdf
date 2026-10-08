@@ -37,7 +37,7 @@ async function downloadEditedPdf(page: Page): Promise<void> {
   const downloadPromise = page.waitForEvent("download", { timeout: 15_000 });
   await options.getByRole("button", { name: "Download copy", exact: true }).click();
   const download = await downloadPromise.catch(async (reason) => {
-    const diagnostics = await page.locator('[role="alert"], [role="status"], .editor-operation-status, .editor-commandbar').allInnerTexts();
+    const diagnostics = await page.locator('.editor-banner, [role="alert"], [role="status"], .editor-operation-status, .editor-commandbar').allInnerTexts();
     throw new Error(`Edited PDF download did not start. UI diagnostics: ${JSON.stringify(diagnostics.slice(0, 20))}`, { cause: reason });
   });
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
