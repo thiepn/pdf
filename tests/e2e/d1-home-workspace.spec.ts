@@ -29,7 +29,7 @@ test("D1 presents a file-first PDF workspace rather than a marketing landing pag
 
 test("D1 preserves file selection and routes tasks through the existing handoff", async ({ page }) => {
   await page.goto("./#/home");
-  const buffer = Buffer.from(createShowcasePdf());
+  const buffer = (globalThis as any).Buffer.from(createShowcasePdf());
   await page.getByLabel("Choose files to get started", { exact: true }).setInputFiles([
     { name: "first.pdf", mimeType: "application/pdf", buffer },
     { name: "second.pdf", mimeType: "application/pdf", buffer }
