@@ -16,7 +16,7 @@ Before any run, `validateWorkflowDraft()` derives F5 requests for every step and
 
 Checkbox consent is mandatory for metadata removal and rasterization. Approval is keyed to the exact output-affecting recipe fingerprint: modifying a risky step invalidates the previous approval.
 
-Workflow import validates commands against the F5 allowlist before accepting recipes. Export and save require a valid workflow. The composer enforces at most **32 steps** and **100 queued PDFs**.
+Workflow import validates commands against the F5 allowlist before accepting recipes. Export and save require a valid workflow. The composer enforces at most **32 steps**, **100 queued PDFs**, and an aggregate **256 MB local input-file budget**. It refuses a combined ZIP of more than 256 MB of source result bytes; individual result downloads remain available.
 
 ## Queue orchestration
 - Files execute locally and sequentially with each existing worker and progress callbacks.
@@ -29,7 +29,7 @@ Workflow import validates commands against the F5 allowlist before accepting rec
 ## Risk and explicit limitations
 - F5 metadata removal and rasterization approvals are explicit. Advanced PDF signature/certification preservation is **not** guaranteed by legacy non-F4 actions.
 - In-browser orchestration runs only while the page remains open, not in a background scheduler.
-- The file-size constraints of the existing batch engine and browser still apply; 100 files is a UI queue count limit, not a promise about maximum memory.
+- Browser processing is memory-bound. A 100-file count limit and 256 MB aggregate file budget restrict queue size; generated PDF buffers may temporarily use additional RAM.
 - Imported JSON is checked before processing; saved local recipes preserve legacy format.
 - F6 does not implement AI generation, unattended scheduling, external server automation, or cross-device run synchronization.
 
