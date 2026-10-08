@@ -4,6 +4,7 @@ import type { BatchRecipe, BatchStep } from "../types/batch";
 
 export const F6_MAX_STEPS = 32;
 export const F6_MAX_FILES = 100;
+export const F6_MAX_QUEUE_BYTES = 256 * 1024 * 1024;
 export type WorkflowFailurePolicy = "continue" | "stop";
 export interface WorkflowPreflight {
   valid: boolean;
