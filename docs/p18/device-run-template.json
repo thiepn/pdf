@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "baseline_commit": "95a8e84f13984e870a0518d8c4e8007a6ee1b7e2",
+  "baseline_commit": "4eadaafe24a17dbdb8729849792c9b8c2817d0f3",
   "run_id": "device-YYYYMMDD-platform-NN",
   "tester_id": "anon-01",
   "evidence_source": "human-physical-device",

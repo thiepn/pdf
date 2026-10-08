@@ -7,7 +7,7 @@
   "stable_version": "7.1.4",
   "stable_tag": "v7.1.4",
   "stable_tag_commit": "2116a61b73b6fdb18aa19a8175d9ebae4b43c159",
-  "product_baseline_commit": "95a8e84f13984e870a0518d8c4e8007a6ee1b7e2",
+  "product_baseline_commit": "4eadaafe24a17dbdb8729849792c9b8c2817d0f3",
   "qualification_path": "qualification/v72-p18",
   "qualification_url": "https://thiepn.github.io/pdf/qualification/v72-p18/",
   "root_preservation_contract": "live-release-integrity-byte-match",

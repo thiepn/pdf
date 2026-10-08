@@ -104,18 +104,21 @@ function contentStreams(page: PdfPage): any[] {
   if (contents.isArray?.()) {
     const streams: any[] = [];
     for (let index = 0; index < Number(contents.length ?? 0); index += 1) {
-      const value = contents.get(index);
-      const item = value?.resolve?.() ?? value;
-      if (item?.isStream?.()) streams.push(item);
+      const item = contents.get(index);
+      if (item && !item.isNull?.()) streams.push(item);
     }
     return streams;
   }
-  const stream = contents?.resolve?.() ?? contents;
-  return stream?.isStream?.() ? [stream] : [];
+  return [contents];
 }
 
 function streamText(stream: any): string {
-  const buffer = stream.readStream();
+  // Some MuPDF builds expose an indirect /Contents object as a stream only
+  // after resolving; others support readStream on the indirect wrapper.
+  const resolved = safe(() => stream?.resolve?.() ?? stream, stream);
+  const buffer = safe(() => resolved?.readStream?.(), null as any)
+    ?? safe(() => stream?.readStream?.(), null as any);
+  if (!buffer) return "";
   try {
     const bytes = buffer.asUint8Array();
     let text = "";
@@ -163,12 +166,20 @@ function stripPdfStringsAndComments(source: string): string {
 function pageResources(page: PdfPage): any {
   const object = page.getObject();
   const direct = object.get("Resources");
-  return direct?.isDictionary?.() ? direct : object.getInheritable?.("Resources");
+  const resolved = direct?.resolve?.() ?? direct;
+  if (resolved?.isDictionary?.()) return resolved;
+  const inherited = object.getInheritable?.("Resources");
+  return inherited?.resolve?.() ?? inherited;
+}
+
+function resourceDictionary(page: PdfPage, category: string): any {
+  const raw = pageResources(page)?.get?.(category);
+  return raw?.resolve?.() ?? raw;
 }
 
 function blendModeForExtGState(page: PdfPage, name: string): string {
   return safe(() => {
-    const state = pageResources(page)?.get?.("ExtGState")?.get?.(name);
+    const state = resourceDictionary(page, "ExtGState")?.get?.(name);
     const resolved = state?.resolve?.() ?? state;
     const bm = resolved?.get?.("BM");
     const first = bm?.isArray?.() ? bm.get(0) : bm;
@@ -178,7 +189,7 @@ function blendModeForExtGState(page: PdfPage, name: string): string {
 
 function isImageXObject(page: PdfPage, name: string): boolean {
   return safe(() => {
-    const raw = pageResources(page)?.get?.("XObject")?.get?.(name);
+    const raw = resourceDictionary(page, "XObject")?.get?.(name);
     const object = raw?.resolve?.() ?? raw;
     const subtype = object?.get?.("Subtype");
     return String(subtype?.asName?.() ?? subtype?.valueOf?.() ?? "").replace(/^\//, "") === "Image";
@@ -187,7 +198,7 @@ function isImageXObject(page: PdfPage, name: string): boolean {
 
 function imageXObjectMaskEvidence(page: PdfPage, name: string): { softMask: boolean; explicitMask: boolean } {
   return safe(() => {
-    const raw = pageResources(page)?.get?.("XObject")?.get?.(name);
+    const raw = resourceDictionary(page, "XObject")?.get?.(name);
     const object = raw?.resolve?.() ?? raw;
     const present = (value: any): boolean => {
       if (!value || value.isNull?.()) return false;
