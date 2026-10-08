@@ -56,12 +56,13 @@ describe("P17 deep native-content fidelity policy", () => {
       const page = pdf.loadPage(0);
       try {
         const content = page.getObject().get("Contents");
+        if (!content) throw new Error("Source content stream is missing.");
         expect(content.isStream()).toBe(true);
         const buffer = content.readStream();
         let source: string;
         try { source = new TextDecoder().decode(buffer.asUint8Array()); }
         finally { buffer.destroy(); }
-        expect(source.match(/\\/ImSoft Do/g)).toHaveLength(2);
+        expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
         const newPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
         expect(source).toContain(oldPaint);
