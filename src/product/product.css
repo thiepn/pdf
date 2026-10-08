@@ -22,3 +22,6 @@
 
 /* D1 workspace redesign is deliberately last to override older Home-only layers. */
 @import "./studio-workspace-d1.css";
+
+/* D2 catalog presentation stays separate from the PDF editing engines. */
+@import "./studio-discovery-d2.css";
