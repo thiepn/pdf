@@ -1,0 +1,74 @@
+/* D11 — Single design vocabulary for the file-first PDF Studio surfaces.
+ * Existing semantic color tokens (--ink, --surface, --accent, etc.) remain the
+ * source of truth. D11 does not change PDF canvas, document pixels or exports. */
+.product-app {
+  --studio-page-max: 1220px;
+  --studio-radius-control: 6px;
+  --studio-radius-panel: 8px;
+  --studio-radius-drop: 10px;
+  --studio-type-caption: 11px;
+  --studio-type-label: 12px;
+  --studio-type-body: 13px;
+  --studio-type-section: 16px;
+  --studio-type-title: clamp(24px, 2.8vw, 31px);
+  --studio-letter-title: -.03em;
+  --studio-control-height: 40px;
+  --studio-touch-height: 44px;
+  --studio-panel-border: var(--line);
+  --studio-chrome-bg: var(--surface-strong);
+  --studio-surface-hover: var(--surface-subtle);
+  --studio-focus-ring: var(--focus, var(--accent));
+  --studio-document-shadow: 0 2px 6px rgb(0 0 0 / 12%), 0 13px 38px rgb(0 0 0 / 15%);
+
+  /* Restrained category colors. These only identify tools, never state/success. */
+  --studio-glyph-default-fg: #6052be;
+  --studio-glyph-default-bg: #eeebfc;
+  --studio-glyph-green-fg: #237c61;
+  --studio-glyph-green-bg: #e6f5ef;
+  --studio-glyph-rose-fg: #b54665;
+  --studio-glyph-rose-bg: #fcebf1;
+  --studio-glyph-amber-fg: #a06a24;
+  --studio-glyph-amber-bg: #fcf0db;
+  --studio-glyph-blue-fg: #326dae;
+  --studio-glyph-blue-bg: #e9f2ff;
+  --studio-glyph-indigo-fg: #6052be;
+  --studio-glyph-indigo-bg: #eeebfc;
+  --studio-glyph-violet-fg: #6753cc;
+  --studio-glyph-violet-bg: #efebff;
+}
+:root[data-theme="dark"] .product-app {
+  --studio-glyph-default-fg: #c1b8ff;
+  --studio-glyph-default-bg: #34304d;
+  --studio-glyph-green-fg: #8ed6b8;
+  --studio-glyph-green-bg: #223a35;
+  --studio-glyph-rose-fg: #f3a8bb;
+  --studio-glyph-rose-bg: #472d39;
+  --studio-glyph-amber-fg: #ebca8f;
+  --studio-glyph-amber-bg: #453a2e;
+  --studio-glyph-blue-fg: #9ccaff;
+  --studio-glyph-blue-bg: #25384c;
+  --studio-glyph-indigo-fg: #c1b8ff;
+  --studio-glyph-indigo-bg: #34304d;
+  --studio-glyph-violet-fg: #c7baff;
+  --studio-glyph-violet-bg: #362f4f;
+  --studio-document-shadow: 0 3px 10px rgb(0 0 0 / 28%), 0 16px 44px rgb(0 0 0 / 32%);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .product-app {
+    --studio-glyph-default-fg: #c1b8ff;
+    --studio-glyph-default-bg: #34304d;
+    --studio-glyph-green-fg: #8ed6b8;
+    --studio-glyph-green-bg: #223a35;
+    --studio-glyph-rose-fg: #f3a8bb;
+    --studio-glyph-rose-bg: #472d39;
+    --studio-glyph-amber-fg: #ebca8f;
+    --studio-glyph-amber-bg: #453a2e;
+    --studio-glyph-blue-fg: #9ccaff;
+    --studio-glyph-blue-bg: #25384c;
+    --studio-glyph-indigo-fg: #c1b8ff;
+    --studio-glyph-indigo-bg: #34304d;
+    --studio-glyph-violet-fg: #c7baff;
+    --studio-glyph-violet-bg: #362f4f;
+    --studio-document-shadow: 0 3px 10px rgb(0 0 0 / 28%), 0 16px 44px rgb(0 0 0 / 32%);
+  }
+}
