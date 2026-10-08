@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./compressionF4.css";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { inspectPdfBytes, openPdfWithPdfJs } from "../engines/pdfjs";
