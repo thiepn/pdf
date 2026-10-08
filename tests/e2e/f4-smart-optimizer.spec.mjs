@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import * as mupdf from "mupdf";
 import { readFile } from "node:fs/promises";
-import { openSample } from "./helpers/taskFirst";
+import { openSample, chooseDocumentTask } from "./helpers/taskFirst";
 
 test.setTimeout(120_000);
 test("F4 smart optimizer verifies source structure and retains a safe download", async ({ page }) => {
@@ -35,11 +35,7 @@ test("F4 smart optimizer verifies source structure and retains a safe download",
 test("F4 smart mode is usable in the file-first quick compressor", async ({ page }) => {
   await openSample(page);
   // The document-actions shortcut intentionally opens the quick workflow.
-  const actions = page.getByRole("button", { name: "Document actions", exact: true });
-  await actions.click();
-  const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
-  await dialog.getByRole("searchbox", { name: "Find a PDF tool" }).fill("Compress PDF");
-  await dialog.locator(".product-tool-card").filter({ has: page.locator("strong", { hasText: /^Compress PDF$/ }) }).click();
+  await chooseDocumentTask(page, "Compress PDF");
   await expect(page.getByRole("heading", { name: "Compress PDF" })).toBeVisible({ timeout: 20_000 });
   await page.getByRole("combobox", { name: "Compression" }).selectOption("smart");
   await expect(page.getByRole("combobox", { name: "Smart cleanup strength" })).toBeVisible();
