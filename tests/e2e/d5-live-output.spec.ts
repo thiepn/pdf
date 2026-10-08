@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { createShowcasePdf } from "../../src/fixtures/showcasePdf";
-import { readFile } from "node:fs/promises";
 import mupdf from "mupdf";
 
 test.setTimeout(90_000);
@@ -23,7 +22,10 @@ test("D5 actual quick workflow advances from selected input to verified PDF down
   const incoming = page.waitForEvent("download");
   await app.getByRole("button", { name: "Download PDF", exact: true }).click();
   const result = await incoming;
-  const bytes = await readFile(await result.path());
+  const stream = await result.createReadStream();
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of stream as any) chunks.push(new Uint8Array(chunk));
+  const bytes = (globalThis as any).Buffer.concat(chunks);
   expect(bytes.subarray(0, 5).toString("utf8")).toBe("%PDF-");
   const document = mupdf.Document.openDocument(bytes, "application/pdf");
   try { expect(document.countPages()).toBe(1); }
