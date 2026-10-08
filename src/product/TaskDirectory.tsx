@@ -88,7 +88,7 @@ export function TaskDirectory({ home = false, compact = false, projectId, kind, 
     </section> : <>
       <p className="product-discovery-count" role="status" aria-live="polite">{category === "all" ? `${tasks.length} available or inspectable tools, organized by task` : `${categoryCount} ${categoryCount === 1 ? "tool" : "tools"} in ${groups.find((group) => group.id === category)?.filter ?? "this category"}`}</p>
       {shownGroups.map((group) => <section className="product-tool-section" aria-label={group.title} key={group.id}><div className="product-section-heading"><h2>{group.title}</h2><span>{group.items.length} tools</span></div>{cards(group.items)}</section>)}
-      {category === "all" && advanced.length ? <details className="product-advanced"><summary>Specialist tools & troubleshooting <span>{advanced.length} tools</span></summary><p>Advanced inspection, recovery and specialized workflows. These are not needed for routine PDF work.</p>{cards(advanced)}</details> : null}
+      {category === "all" && advanced.length ? <details className="product-advanced"><summary>More tools & troubleshooting <span>{advanced.length} tools</span></summary><p>Advanced inspection, recovery and specialized workflows. These are not needed for routine PDF work.</p>{cards(advanced)}</details> : null}
     </>}
   </div>;
 }
