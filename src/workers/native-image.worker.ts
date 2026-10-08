@@ -755,7 +755,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
             const originals = beforeRects.get(edit.id) ?? [];
             const sourceCount = beforeCounts.get(edit.id) ?? 0;
             const expectedMinimum = Math.max(0, originals.length - sourceCount + (action === "delete" ? 0 : 1));
-            if (rects.length < expectedMinimum) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared.`);
+            if (rects.length < expectedMinimum) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared (expected at least ${expectedMinimum} painted instances; observed ${rects.length}; originally ${originals.length}; source-region matches ${sourceCount}; device warnings ${maskedInspection?.warnings.length ?? 0}).`);
             for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
               if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: an untouched image instance changed position or disappeared.`);
             }
