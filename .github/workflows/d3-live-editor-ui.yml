@@ -1,0 +1,47 @@
+name: D3 live editor qualification
+
+on:
+  pull_request:
+    paths:
+      - src/views/EditorPage.tsx
+      - src/product/studio-editor-d3-live.css
+      - src/product/product.css
+      - tests/e2e/d3-live-editor.spec.ts
+      - .github/workflows/d3-live-editor-ui.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d3-live-editor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  editor-browser-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Exercise live editor on real PDF bytes
+        run: npx playwright test tests/e2e/d3-live-editor.spec.ts --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Save visual evidence and traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d3-live-editor-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
