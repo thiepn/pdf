@@ -36,7 +36,7 @@ describe("F3 calibrated review geometry", () => {
     const note = sample("note","note") as NoteEditorObject;
     const reply = reviewReply("Reviewer","Approved with changes", "reply-1", 1000);
     expect(() => validateReviewNote({...note,replies:[reply,reply]})).toThrow(/identifiers/);
-    expect(reviewStatus({...note,resolved:true})).toBe("resolved");
+    expect(reviewStatus({...note,resolved:true,reviewStatus:undefined})).toBe("resolved");
     expect(reviewAnnotationCount({...note,replies:[reply]})).toBe(2);
   });
   it("exports linked PDF reply annotations and ISO /Measure dictionaries", () => {
