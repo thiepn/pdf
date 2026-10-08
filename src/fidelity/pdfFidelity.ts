@@ -175,7 +175,7 @@ function compareCoreMetadata(source: Record<string, string>, output: Record<stri
   }
 }
 
-export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: PdfFidelityProfile, expectedAddedFields = 0): PdfFidelityReport {
+export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: PdfFidelityProfile, expectedAddedFields = 0, addedFieldPages: readonly number[] = []): PdfFidelityReport {
   const failures: string[] = [];
   const warnings: string[] = [];
   const affected = new Set(source.affectedPages);
@@ -210,7 +210,8 @@ export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: P
     }
 
     if (affected.has(pageNumber)) {
-      if (before.widgetCount !== after.widgetCount) failures.push(`Page ${pageNumber} widget count changed unexpectedly.`);
+      const expectedWidgetCount = before.widgetCount + addedFieldPages.filter((page) => page === pageNumber).length;
+      if (expectedWidgetCount !== after.widgetCount) failures.push(`Page ${pageNumber} widget count changed unexpectedly (expected ${expectedWidgetCount}, got ${after.widgetCount}).`);
       continue;
     }
 
