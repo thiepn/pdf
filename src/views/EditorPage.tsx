@@ -52,7 +52,7 @@ import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
 import { Thumbnail } from "../viewer/Thumbnail";
 
-interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
+interface Props { projectId: string; taskId?: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
 type LocalSaveSnapshot = { editor: EditorDocumentState; native: Parameters<typeof writeNativeState>[0]; project: ProjectManifest };
 
@@ -63,6 +63,7 @@ const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: s
   ] },
   { label: "Insert", tools: [
     { id: "text", label: "Add text", key: "T", icon: "text" },
+    { id: "form-field", label: "Form field", key: "F", icon: "edit" },
     { id: "image", label: "Image", key: "I", icon: "image" },
     { id: "link", label: "Link", icon: "link" },
     { id: "signature", label: "Signature", icon: "signature" },
@@ -90,7 +91,7 @@ const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: s
 ];
 const tools = toolGroups.flatMap((group) => group.tools);
 
-export function EditorPage({ projectId, onTitleChange }: Props) {
+export function EditorPage({ projectId, taskId, onTitleChange }: Props) {
   const documentRef = useRef<PDFDocumentProxy | null>(null);
   const sourceBytesRef = useRef<Uint8Array | null>(null);
   const passwordRef = useRef<string | undefined>(undefined);
@@ -114,6 +115,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const [nativePreviewDocument, setNativePreviewDocument] = useState<PDFDocumentProxy | null>(null);
   const [nativePreviewState, setNativePreviewState] = useState<"source" | "loading" | "ready" | "error">("source");
   const [editorState, setEditorState] = useState<EditorDocumentState>(() => createEditorState(projectId));
+  useEffect(() => { if (taskId === "prepare-forms") setEditorState((current) => ({ ...current, activeTool: "form-field" })); }, [taskId]);
   const [history, setHistory] = useState<EditorHistoryState>(() => createHistory());
   const nativeEdits = history.present.nativeEdits;
   const [previewObject, setPreviewObject] = useState<EditorObject | null>(null);
@@ -225,7 +227,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         const hydratedPage = Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage));
         const hydratedHistory = createHistory(storedState.objects, storedNativeState.queuedEdits, hydratedPage);
         setCleanHistoryContentId(storedState.dirty ? null : hydratedHistory.present.contentId);
-        setEditorState({ ...storedState, currentPage: hydratedPage });
+        setEditorState({ ...storedState, currentPage: hydratedPage, activeTool: taskId === "prepare-forms" ? "form-field" : storedState.activeTool });
         setHistory(hydratedHistory);
         await openDocument(manifest, bytes);
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
@@ -1050,7 +1052,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </header> : null}
 
       {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
-        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
+        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "form-field", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
         <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
       </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
         <CompactDocumentHome />

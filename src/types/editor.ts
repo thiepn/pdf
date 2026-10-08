@@ -21,7 +21,8 @@ export type EditorTool =
   | "link"
   | "stamp"
   | "signature"
-  | "redaction";
+  | "redaction"
+  | "form-field";
 
 export type EditorObjectType =
   | "text"
@@ -33,7 +34,8 @@ export type EditorObjectType =
   | "link"
   | "stamp"
   | "signature"
-  | "redaction";
+  | "redaction"
+  | "form-field";
 
 export interface BaseEditorObject {
   id: string;
@@ -149,6 +151,19 @@ export interface RedactionEditorObject extends BaseEditorObject {
   applied: false;
 }
 
+export interface FormFieldEditorObject extends BaseEditorObject {
+  type: "form-field";
+  kind: "text" | "multiline" | "checkbox" | "dropdown" | "listbox";
+  name: string;
+  tooltip: string;
+  required: boolean;
+  readOnly: boolean;
+  defaultValue: string;
+  options: string[];
+  maxLength: number;
+  fontSize: number;
+}
+
 export type EditorObject =
   | TextEditorObject
   | ImageEditorObject
@@ -159,7 +174,8 @@ export type EditorObject =
   | LinkEditorObject
   | StampEditorObject
   | SignatureEditorObject
-  | RedactionEditorObject;
+  | RedactionEditorObject
+  | FormFieldEditorObject;
 
 export interface EditorDocumentState {
   schemaVersion: number;

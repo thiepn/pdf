@@ -1,0 +1,69 @@
+name: F2 form designer qualification
+
+on:
+  pull_request:
+    paths:
+      - "src/forms/**"
+      - "src/editor/**"
+      - "src/views/EditorPage.tsx"
+      - "src/workers/editor-export.worker.ts"
+      - "src/fidelity/**"
+      - "src/types/editor.ts"
+      - "src/ia/taskCatalog.ts"
+      - "tests/unit/formDesigner.test.ts"
+      - ".github/workflows/f2-form-designer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forms:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked packages
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        id: types
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Test form round trips and fidelity contracts
+        id: tests
+        continue-on-error: true
+        run: npx vitest run tests/unit/formDesigner.test.ts tests/unit/pdfFidelity.test.ts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify field creation through the actual editor UI
+        id: browser
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
+          PLAYWRIGHT_BASE_PATH: "/pdf/"
+        run: npx playwright test tests/e2e/f2-form-designer.spec.mjs --project=chromium --workers=1 --retries=0
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f2-browser-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+      - name: Require all qualifications
+        if: always()
+        run: |
+          echo "Typecheck: ${{ steps.types.outcome }}; build: ${{ steps.build.outcome }}; unit: ${{ steps.tests.outcome }}; browser: ${{ steps.browser.outcome }}"
+          test "${{ steps.types.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success

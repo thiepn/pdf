@@ -1,4 +1,5 @@
 import type { EditorObject } from "../../types/editor";
+import { FormFieldProperties } from "../../forms/FormFieldProperties";
 import { rectHeight, rectWidth } from "../editorModel";
 
 interface Props {
@@ -62,6 +63,7 @@ export function EditorPropertiesPanel({ selected, onChange, onDelete, onDuplicat
           {object.type === "stamp" ? <StampProperties object={object} patch={patch} /> : null}
           {object.type === "signature" ? <SignatureProperties object={object} patch={patch} /> : null}
           {object.type === "redaction" ? <RedactionProperties object={object} patch={patch} /> : null}
+          {object.type === "form-field" ? <FormFieldProperties field={object} onPatch={(changes, label, mergeKey) => patch(changes, label, mergeKey)} /> : null}
 
           <section className="property-section">
             <h3>Arrange</h3>

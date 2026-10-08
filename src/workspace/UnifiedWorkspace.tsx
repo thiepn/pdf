@@ -365,7 +365,7 @@ function ModeContent({ mode, projectId, taskId, readOnly, onSubtitle }: { taskId
   const onTitleChange = (_title: string, subtitle?: string) => onSubtitle(subtitle);
   let content;
   if (mode === "viewer") content = <ViewerPage onTitleChange={onTitleChange} projectId={projectId} readOnly={readOnly} />;
-  else if (mode === "editor") content = <EditorPage onTitleChange={onTitleChange} projectId={projectId} />;
+  else if (mode === "editor") content = <EditorPage onTitleChange={onTitleChange} projectId={projectId} taskId={taskId} />;
   else if (mode === "organizer") content = <OrganizerPage onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "secure") content = <SecurePage taskId={taskId} onTitleChange={onTitleChange} projectId={projectId} />;
   else if (mode === "ocr") content = <OcrPage onTitleChange={onTitleChange} projectId={projectId} />;
