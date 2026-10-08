@@ -29,7 +29,7 @@ type PdfLike = {
   newDictionary(): PdfObjectLike;
   newArray(): PdfObjectLike;
   addObject(value: PdfObjectLike): PdfObjectLike;
-  addStream(value: Uint8Array, dictionary: PdfObjectLike): PdfObjectLike;
+  addStream(value: string, dictionary: PdfObjectLike): PdfObjectLike;
   countObjects(): number;
 };
 
@@ -59,7 +59,7 @@ function appearance(pdf: PdfLike, font: PdfObjectLike, w: number, h: number, con
   fonts.put("Helv", font);
   resources.put("Font", fonts);
   dict.put("Resources", resources);
-  return pdf.addStream(new TextEncoder().encode(content), dict);
+  return pdf.addStream(content, dict);
 }
 
 function existingNames(fields: PdfObjectLike): Set<string> {
@@ -192,7 +192,7 @@ function writeOne(pdf: PdfLike, field: FormFieldEditorObject, fonts: PdfObjectLi
 
 export function addDesignedFormFields(pdf: PdfLike, fields: FormFieldEditorObject[]): number {
   if (!fields.length) return 0;
-  if (pdf.needsPassword()) throw new Error("F2 form authoring currently requires an unencrypted PDF.");
+  if (pdf.needsPassword() || !pdf.getTrailer().get("Encrypt").isNull()) throw new Error("F2 form authoring currently requires an unencrypted PDF.");
   if (fields.some((f) => f.pageNumber > pdf.countPages())) throw new Error("Form field is outside the source PDF page range.");
   const root = pdf.getTrailer().get("Root");
   if (!root.get("Perms").isNull()) throw new Error("Certified or permission-restricted PDFs cannot be modified by the form designer.");
