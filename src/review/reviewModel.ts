@@ -3,7 +3,7 @@ export type ReviewStatus = "open" | "in-progress" | "resolved";
 export function reviewStatus(note: Pick<NoteEditorObject, "resolved" | "reviewStatus">): ReviewStatus {
   return note.reviewStatus ?? (note.resolved ? "resolved" : "open");
 }
-export function reviewReply(author: string, contents: string, id = crypto.randomUUID(), createdAt = Date.now()): ReviewReply {
+export function reviewReply(author: string, contents: string, id: string = crypto.randomUUID(), createdAt = Date.now()): ReviewReply {
   const trimmed = contents.trim();
   if (!trimmed || trimmed.length > 4_000) throw new Error("Replies must contain 1–4,000 characters.");
   if (!author.trim() || author.length > 120) throw new Error("Reply author is required (maximum 120 characters).");
