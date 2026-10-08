@@ -67,17 +67,6 @@
 .product-app :is(.product-home--workspace, .product-tools--d2) .product-section-heading h2 {
   font-size: var(--studio-type-section);
 }
-.product-app .task-glyph {
-  color: var(--studio-glyph-default-fg);
-  background: var(--studio-glyph-default-bg);
-}
-.product-app .task-glyph[data-tone="green"] { color: var(--studio-glyph-green-fg); background: var(--studio-glyph-green-bg); }
-.product-app .task-glyph[data-tone="rose"] { color: var(--studio-glyph-rose-fg); background: var(--studio-glyph-rose-bg); }
-.product-app .task-glyph[data-tone="amber"] { color: var(--studio-glyph-amber-fg); background: var(--studio-glyph-amber-bg); }
-.product-app .task-glyph[data-tone="blue"] { color: var(--studio-glyph-blue-fg); background: var(--studio-glyph-blue-bg); }
-.product-app .task-glyph[data-tone="indigo"] { color: var(--studio-glyph-indigo-fg); background: var(--studio-glyph-indigo-bg); }
-.product-app .task-glyph[data-tone="violet"] { color: var(--studio-glyph-violet-fg); background: var(--studio-glyph-violet-bg); }
-
 @media (max-width: 680px) {
   .product-app .product-header {
     height: 60px;
