@@ -1,0 +1,39 @@
+/* F4: native PDF optimization controls. Reuse host tokens and avoid decorative cards. */
+.f4-optimizer-modes {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border,#d8dce5);
+  border-radius: 3px;
+  background: var(--surface,#fff);
+  margin: -2px 0 14px;
+  padding: 0 12px 5px;
+  min-width: 0;
+}
+.f4-optimizer-modes legend {
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .015em;
+  color: var(--text-muted,#626a7a);
+  padding: 0 5px;
+}
+.f4-optimizer-modes label {
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  padding: 10px 0;
+  cursor:pointer;
+}
+.f4-optimizer-modes label + label { border-top:1px solid var(--border,#d8dce5); }
+.f4-optimizer-modes input { accent-color:var(--accent,#395bd7); margin: 3px 0 0; }
+.f4-optimizer-modes label span { display:flex;flex-direction:column;gap:3px;min-width:0; }
+.f4-optimizer-modes strong { font-size:.84rem; font-weight:650; }
+.f4-optimizer-modes small { font-size:.77rem; color:var(--text-muted,#626a7a);line-height:1.4; }
+.f4-verification {
+  border-top: 2px solid var(--accent,#395bd7);
+  padding: 11px 1px 4px;
+  margin-top: 14px;
+  font-size: .82rem;
+}
+.f4-verification strong {display:block;font-size:.89rem;}
+.f4-verification p { margin: 7px 0; line-height:1.5; color:var(--text-muted,#626a7a); }
+@media (max-width:760px) { .f4-optimizer-modes { padding-inline:10px; } }

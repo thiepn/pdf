@@ -11,7 +11,7 @@ const popular = ["merge-pdfs", "split-pdf", "compress-pdf", "edit-pdf", "images-
 const groups = [
   { title: "Organize your pages", ids: ["merge-pdfs", "split-pdf", "organize-pages", "extract-pages", "remove-pages", "rotate-pdf", "crop-pages"] },
   { title: "Edit, fill & sign", ids: ["edit-pdf", "annotate-pdf", "fill-forms", "visual-signature", "add-page-numbers", "add-watermark"] },
-  { title: "Convert & make smaller", ids: ["compress-pdf", "images-to-pdf", "pdf-to-jpg", "pdf-to-png", "pdf-to-text", "pdf-to-docx", "ocr-pdf", "scan-to-pdf", "create-pdf"] },
+  { title: "Convert & make smaller", ids: ["compress-pdf", "smart-optimize-pdf", "images-to-pdf", "pdf-to-jpg", "pdf-to-png", "pdf-to-text", "pdf-to-docx", "ocr-pdf", "scan-to-pdf", "create-pdf"] },
   { title: "Read, protect & review", ids: ["read-pdf", "password-protect", "unlock-pdf", "flatten-pdf", "remove-metadata", "sanitize-pdf", "apply-redactions", "compare-pdfs", "repair-pdf"] }
 ];
 const shortCopy: Record<string, string> = {
