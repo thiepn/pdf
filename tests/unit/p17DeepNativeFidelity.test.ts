@@ -51,7 +51,7 @@ describe("P17 deep native-content fidelity policy", () => {
   });
 
   it("retains sibling masked-image paints after rewriting the original content stream", () => {
-    const pdf = new mupdf.PDFDocument(createP17NativeFidelityPdf());
+    const pdf = mupdf.Document.openDocument(createP17NativeFidelityPdf(), "application/pdf") as mupdf.PDFDocument;
     try {
       const page = pdf.loadPage(0);
       try {
@@ -66,11 +66,11 @@ describe("P17 deep native-content fidelity policy", () => {
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
         const newPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
         expect(source).toContain(oldPaint);
-        content.writeStream(source.replace(oldPaint, newPaint));
+        content.writeStream(new TextEncoder().encode(source.replace(oldPaint, newPaint)));
       } finally { page.destroy(); }
       const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
       try {
-        const reopened = new mupdf.PDFDocument(saved.asUint8Array());
+        const reopened = mupdf.Document.openDocument(saved.asUint8Array(), "application/pdf") as mupdf.PDFDocument;
         try {
           const page = reopened.loadPage(0);
           try {
