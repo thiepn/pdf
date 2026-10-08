@@ -13,6 +13,7 @@ type PdfObjectLike = {
   isNull(): boolean;
   isArray(): boolean;
   asString(): string;
+  asName(): string;
   asIndirect(): number;
   isIndirect(): boolean;
   resolve(): PdfObjectLike;
@@ -73,6 +74,9 @@ function existingNames(fields: PdfObjectLike): Set<string> {
         visited.add(n);
       }
       const field = entry.resolve();
+      const ft = field.get("FT");
+      const value = field.get("V");
+      if (!ft.isNull() && ft.asName() === "Sig" && !value.isNull()) throw new Error("Cannot change a digitally signed PDF using the form designer.");
       const t = field.get("T");
       const local = t && !t.isNull() ? t.asString() : "";
       const full = [prefix, local].filter(Boolean).join(".");
@@ -191,6 +195,7 @@ export function addDesignedFormFields(pdf: PdfLike, fields: FormFieldEditorObjec
   if (pdf.needsPassword()) throw new Error("F2 form authoring currently requires an unencrypted PDF.");
   if (fields.some((f) => f.pageNumber > pdf.countPages())) throw new Error("Form field is outside the source PDF page range.");
   const root = pdf.getTrailer().get("Root");
+  if (!root.get("Perms").isNull()) throw new Error("Certified or permission-restricted PDFs cannot be modified by the form designer.");
   const existing = root.get("AcroForm");
   const existingFieldTree = existing.isNull() ? null : existing.get("Fields");
   // Validate before creating or mutating any PDF objects.
