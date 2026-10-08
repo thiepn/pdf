@@ -1,5 +1,5 @@
 import {
-  getHeadlessAction, listHeadlessActions, planHeadlessActions, validateActionRequest,
+  listHeadlessActions, planHeadlessActions, validateActionRequest,
   type ActionPlan, type ActionRequest, type HeadlessActionId
 } from "../actions/actionCatalog";
 import { batchRecipeExecutionFingerprint, defaultBatchStep } from "../processing/batchModel";
@@ -37,7 +37,7 @@ function onlyKeys(value: Record<string,unknown>, permitted: readonly string[], s
   if(extra.length) throw new Error(`Unsupported ${subject} property: ${extra[0].slice(0,60)}.`);
 }
 function validText(value: unknown, label: string, max: number, allowEmpty = false): string {
-  if(typeof value!=="string" || value.length>max || (!allowEmpty && !value.trim()) || /[\u0000-\u001f]/.test(value))
+  if(typeof value!=="string" || value.length>max || (!allowEmpty && !value.trim()) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value))
     throw new Error(`${label} must be ${allowEmpty?"optional ":""}text of at most ${max} characters.`);
   return value.trim();
 }
