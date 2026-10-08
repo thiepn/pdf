@@ -558,7 +558,7 @@ function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intr
  * This intentionally handles only simple, ASCII, single-stream q/cm/Do/Q
  * sequences. Complex/multiple-stream PDF operators remain fail-closed.
  */
-function rewriteDirectMaskedInvocation(page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
+function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
   const resourceName = image.fidelity?.resourceName;
   if (!resourceName || !image.fidelity?.softMask || image.fidelity.explicitMask || image.fidelity.clipped || image.fidelity.blendMode !== "Normal") {
     throw new Error("The masked image does not have a qualified direct source invocation; its original content was not modified.");
@@ -718,7 +718,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           beforeClasses.set(edit.id, current.image.fidelity?.class);
           beforeCounts.set(edit.id, sourceMatches.length);
           if (current.image.fidelity?.class === "masked" && (action === "transform" || action === "delete")) {
-            rewriteDirectMaskedInvocation(page, current.image, edit, action);
+            rewriteDirectMaskedInvocation(pdf, page, current.image, edit, action);
             changed.add(edit.pageNumber);
             continue;
           }
