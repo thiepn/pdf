@@ -1,0 +1,140 @@
+/* D10 — cohesive live editor chrome and state-aware document status.
+ * The editor retains its PDF canvas, transactions, recovery, native writer,
+ * output verification, panels, and D7 focus management. */
+.product-app .editor-app[data-d10-status="true"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.product-app .editor-app[data-d10-status="true"] > :is(.editor-commandbar,.editing-toolbar,.editor-contextbar,.editor-notices,.d10-document-status,.d6-live-editor-dock) {
+  flex: 0 0 auto;
+}
+.product-app .editor-app[data-d10-status="true"] > .editor-layout {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+.product-app .editor-app[data-d10-status="true"] .editor-file-group .editor-purpose {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 735;
+}
+.product-app .editor-app[data-d10-status="true"] .editor-file-group {
+  display: grid;
+  align-content: center;
+  justify-content: start;
+  gap: 2px;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 16px;
+  color: var(--muted);
+  background: var(--surface-strong);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status > span {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status > span + span:not(.d10-document-status__save) {
+  padding-left: 12px;
+  margin-left: 12px;
+  border-left: 1px solid var(--line);
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__file {
+  max-width: min(24%, 240px);
+  gap: 7px;
+  color: var(--ink);
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__file strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 680;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__file .studio-icon {
+  flex: 0 0 auto;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__selection,
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__edits {
+  color: var(--ink);
+  font-weight: 650;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__save {
+  margin-left: auto;
+  gap: 7px;
+  max-width: 38%;
+  overflow: hidden;
+  color: var(--muted);
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__save > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__signal {
+  display: inline-block;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__save[data-save-phase="saved"] .d10-document-status__signal {
+  background: var(--accent);
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__save:is([data-save-phase="pending"],[data-save-phase="saving"]) .d10-document-status__signal {
+  background: #a77b28;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__save[data-save-phase="error"] {
+  color: var(--danger);
+  font-weight: 700;
+}
+.product-app .editor-app[data-d10-status="true"] .d10-document-status__save[data-save-phase="error"] .d10-document-status__signal {
+  background: var(--danger);
+}
+@media (max-width: 1180px) {
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__file { max-width: 25%; }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__zoom,
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__edits { display: none; }
+}
+@media (max-width: 800px) {
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status {
+    min-height: 36px;
+    padding-inline: max(11px, env(safe-area-inset-left)) max(11px, env(safe-area-inset-right));
+    gap: 10px;
+  }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__file,
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__selection { display: none; }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status > span + span:not(.d10-document-status__save) {
+    padding-left: 0;
+    margin-left: 0;
+    border-left: 0;
+  }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__save { max-width: 55%; }
+}
+@media (max-width: 400px) {
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__tool { display: none; }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__save { max-width: 64%; }
+}
+:root[data-keyboard-open="true"] .product-app .editor-app[data-d10-status="true"] .d10-document-status { display: none; }
+@media (forced-colors: active) {
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status { border-top-color: CanvasText; }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__signal { border: 1px solid CanvasText; background: Canvas; }
+  .product-app .editor-app[data-d10-status="true"] .d10-document-status__save[data-save-phase="error"] .d10-document-status__signal { border-color: Mark; }
+}
