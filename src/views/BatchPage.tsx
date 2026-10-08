@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { listBatchRecipes, saveBatchRecipe } from "../processing/batchRepository";
-import { batchStepLabel, defaultBatchStep, runBatchRecipe } from "../processing/batchPipeline";
+import { runBatchRecipe } from "../processing/batchPipeline";
 import { batchRecipeExecutionFingerprint, parseBatchRecipeJson, serializeBatchRecipe } from "../processing/batchModel";
 import { downloadBlob } from "../projects/download";
 import { BATCH_RECIPE_SCHEMA_VERSION, type BatchItemStatus, type BatchRecipe, type BatchStep } from "../types/batch";
