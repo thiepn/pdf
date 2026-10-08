@@ -1,0 +1,166 @@
+name: P18 v7.2 compatibility qualification
+
+on:
+  pull_request:
+    paths:
+      - docs/p18/**
+      - docs/product/P18_COMPATIBILITY_HUMAN_DEVICE_QUALIFICATION.md
+      - scripts/p18/**
+      - tests/unit/p18Qualification.test.ts
+      - package.json
+      - README.md
+      - KNOWN_LIMITATIONS.md
+      - CHANGELOG.md
+      - .github/workflows/p18-compatibility-qualification-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p18-qualification-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22.16.0
+  P18_PRODUCT_BASELINE: 052f9eb854f3bc47c826b3f8f31bd57b7191789a
+
+jobs:
+  framework-and-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # PR merge refs include later P17 changes and cannot be compared
+          # against the exact frozen P18 baseline. Qualify the immutable PR head.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Prove P18 is qualification-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${P18_PRODUCT_BASELINE}^{commit}"
+          changed="$(git diff --name-only "${P18_PRODUCT_BASELINE}..HEAD")"
+          echo "$changed"
+          if printf '%s\n' "$changed" | grep -Eq '^(src/|package-lock\.json|requirements[^/]*\.txt$)'; then
+            echo "::error title=P18 product freeze violated::P18 may not change consumer source, lockfile, or runtime requirements after the frozen P17 baseline."
+            exit 1
+          fi
+          node <<'NODE'
+          const {execFileSync}=require("node:child_process");
+          const fs=require("node:fs");
+          const base=process.env.P18_PRODUCT_BASELINE;
+          const oldPkg=JSON.parse(execFileSync("git",["show",`${base}:package.json`],{encoding:"utf8"}));
+          const nextPkg=JSON.parse(fs.readFileSync("package.json","utf8"));
+          for (const key of ["version","dependencies","devDependencies","packageManager"]) {
+            if (JSON.stringify(oldPkg[key]) !== JSON.stringify(nextPkg[key])) {
+              throw new Error(`P18 package ${key} changed after the frozen product baseline`);
+            }
+          }
+          NODE
+      - run: npm ci --no-audit --no-fund
+      - name: Install independent PDF validators and Arabic qualification font
+        run: |
+          python -m pip install --requirement requirements-phase11.txt
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install --yes --no-install-recommends fonts-noto-core
+      - name: Validate stacked P18 framework
+        run: npm run check:p18
+      - name: Real Arabic shaping regression
+        run: |
+          FONT_PATH="$(find /usr/share/fonts -type f \( -iname 'NotoNaskhArabic-Regular.ttf' -o -iname 'NotoSansArabic-Regular.ttf' \) | head -n 1)"
+          test -n "$FONT_PATH"
+          P14_ARABIC_FONT_PATH="$FONT_PATH" npx vitest run tests/unit/p14ShapingIntegration.test.ts
+      - name: Signature and scan preservation regressions
+        run: npx vitest run tests/unit/compliance.test.ts tests/unit/phase19Compliance.test.ts tests/unit/ocr2SourcePreservation.test.ts
+      - name: Phase 28 adversarial corpus
+        run: npm run test:corpus:phase28
+      - name: Typecheck frozen product plus P18 tests
+        run: npm run typecheck
+      - name: Deterministic qualification build
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(git show -s --format=%cI "$P18_PRODUCT_BASELINE")"
+          VITE_BUILD_TIMESTAMP="$timestamp" VITE_RELEASE_CHANNEL="release-candidate" npm run build:verified
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/p18-first.sha256
+          rm -rf dist
+          VITE_BUILD_TIMESTAMP="$timestamp" VITE_RELEASE_CHANNEL="release-candidate" npm run build:verified
+          node scripts/phase27/dist-fingerprint.mjs dist > /tmp/p18-second.sha256
+          diff -u /tmp/p18-first.sha256 /tmp/p18-second.sha256
+      - name: Confirm human evidence remains separately derived
+        run: npm run status:p18
+
+  desktop-browser-matrix:
+    needs: framework-and-corpus
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: chromium
+            browser: chromium
+          - project: firefox
+            browser: firefox
+          - project: webkit
+            browser: webkit
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: V72 output workflow browser qualification
+        run: >
+          npx playwright test
+          tests/e2e/task-first-guide.spec.ts
+          tests/e2e/p15-target-size.spec.mjs
+          tests/e2e/p16-batch-encrypted.spec.mjs
+          tests/e2e/p17-native-fidelity.spec.ts
+          --project=${{ matrix.project }} --workers=1 --retries=0
+      - name: OCR/scan browser qualification
+        if: matrix.project == 'chromium'
+        run: npx playwright test tests/e2e/p3-ocr-scan-to-editable.spec.ts tests/e2e/pwa.spec.ts --project=chromium --workers=1 --retries=0
+
+  emulated-mobile-regression:
+    needs: framework-and-corpus
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: mobile-chromium
+            browser: chromium
+          - project: tablet-webkit
+            browser: webkit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Emulated mobile/tablet regression only
+        run: >
+          npx playwright test
+          tests/e2e/mobile.spec.ts
+          tests/e2e/browser-compatibility.spec.ts
+          --project=${{ matrix.project }} --workers=1 --retries=0
+      - name: State anti-synthesis boundary
+        run: echo "Emulation is automation evidence only and does not count toward P18 physical-device qualification."

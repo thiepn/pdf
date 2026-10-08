@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "phase": "P18",
+  "roadmapItem": "V72-06",
+  "title": "Compatibility and Human/Device Qualification",
+  "status": "FRAMEWORK_READY_EVIDENCE_PENDING",
+  "productBaseline": {
+    "commit": "052f9eb854f3bc47c826b3f8f31bd57b7191789a",
+    "sourcePhase": "P17",
+    "executableVersion": "7.1.4",
+    "targetVersion": "7.2.0",
+    "immutableDuringQualification": true
+  },
+  "stableRoot": {
+    "version": "7.1.4",
+    "tag": "v7.1.4",
+    "commit": "2116a61b73b6fdb18aa19a8175d9ebae4b43c159",
+    "url": "https://thiepn.github.io/pdf/"
+  },
+  "releaseBoundary": {
+    "versionCutAllowed": false,
+    "productNetworkDependency": false,
+    "persistentFormats": {
+      "projectPackageVersion": 9,
+      "databaseSchemaVersion": 13,
+      "nativeEditorSchemaVersion": 6
+    }
+  },
+  "automation": {
+    "role": "regression-and-compatibility-evidence-only",
+    "neverCountsAsHumanOrPhysicalDeviceEvidence": true,
+    "desktopBrowsers": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "emulatedProjects": [
+      "mobile-chromium",
+      "tablet-webkit"
+    ],
+    "adversarialCorpus": "tests/corpus/phase28",
+    "v72Phases": [
+      "P13",
+      "P14",
+      "P15",
+      "P16",
+      "P17"
+    ]
+  },
+  "realWorld": {
+    "requiredCategories": [
+      "malformed",
+      "scanned",
+      "form-heavy",
+      "encrypted",
+      "signed",
+      "multilingual",
+      "large"
+    ],
+    "bytesCommittedToRepository": false,
+    "evidence": "hash-and-structural-metadata-only"
+  },
+  "externalApplications": {
+    "requiredWorkflowIds": [
+      "W01",
+      "W02",
+      "W03",
+      "W04",
+      "W05"
+    ],
+    "minimumDistinctPdfReaderFamilies": 2,
+    "nativePdfReaderRequired": true,
+    "officeReaderRequiredForDocx": true,
+    "exactOutputSha256Required": true
+  },
+  "physicalDevices": {
+    "requiredSlots": [
+      "physical-phone",
+      "physical-tablet",
+      "installed-pwa"
+    ],
+    "requiredWorkflowIds": [
+      "W01",
+      "W02",
+      "W03",
+      "W04",
+      "W05",
+      "W06"
+    ],
+    "automationOrEmulationCounts": false
+  },
+  "blockingPolicy": [
+    "any unresolved data-loss defect",
+    "any unresolved compatibility defect",
+    "any unresolved critical/high product defect",
+    "any observed FAIL in required external-reader coverage",
+    "any observed FAIL in required physical-device workflow coverage",
+    "missing required real-world category",
+    "missing exact output/build identity"
+  ],
+  "acceptance": [
+    "Malformed, scanned, form-heavy, encrypted, signed, multilingual and large real-world cases are represented by human-attested hash-only evidence.",
+    "Every v7.2 output workflow is reopened in an appropriate external application with exact output SHA-256 and exact application/OS version.",
+    "At least two independent PDF-reader families are represented, including one native/non-browser reader, and DOCX is opened in an external office reader.",
+    "Physical phone, physical tablet and installed-PWA observations cover all affected v7.2 workflows.",
+    "Automation, browser emulation, simulators, CI and AI-generated observations never satisfy human/device gates.",
+    "Unresolved compatibility/data-loss/high-severity failures block P18 certification.",
+    "P18 changes qualification tooling only; product source, executable version and persistent schemas remain frozen."
+  ],
+  "nextPhase": {
+    "id": "P19",
+    "title": "v7.2 Release Candidate, Atomic Version Cut & Promotion Readiness",
+    "condition": "P18_V72_QUALIFIED"
+  }
+}

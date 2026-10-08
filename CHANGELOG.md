@@ -2,6 +2,18 @@
 
 ## Unreleased — v7.2 development line
 
+### P18 — Compatibility & Human/Device Qualification
+
+- Freezes the P17 product runtime as the exact v7.2 qualification baseline without changing executable version `7.1.4` or persistent formats 9 / 13 / 6.
+- Adds separate evidence ledgers for human-attested real-world source cases, external reader/application reopen checks, and physical-device observations.
+- Requires real-world malformed, scanned, form-heavy, encrypted, signed, multilingual, and large cases; committed/generated fixtures remain automation evidence only.
+- Hash-binds real-world inputs, exported artifacts, and physical-device build integrity while forbidding committed private document bytes, filenames, extracted text, passwords, screenshots, and hardware identifiers.
+- Requires W01–W05 external reopen coverage, at least two PDF-reader families including a native/non-browser reader, and an office reader for the DOCX workflow.
+- Requires physical phone, physical tablet, installed-PWA coverage, and qualifying human observation of W01–W06.
+- Rejects emulation, simulators, CI, browser automation, and AI-generated observations as human/device evidence.
+- Adds fail-closed `certify:p18`; unresolved compatibility/data-loss failures, required FAIL results, or incomplete evidence keep v7.2 unqualified.
+- Hands off to P19 only after `P18_V72_QUALIFIED`.
+
 ### P17 — Deep Native-Content Fidelity
 
 - Adds specialist existing-image inspection using MuPDF paint tracing plus source mask metadata instead of treating every image rectangle as equally editable.

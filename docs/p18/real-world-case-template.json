@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "baseline_commit": "052f9eb854f3bc47c826b3f8f31bd57b7191789a",
+  "case_id": "rw-YYYYMMDD-NN",
+  "evidence_source": "human-real-world-document",
+  "human_attestation": true,
+  "privacy_attestation": true,
+  "content_committed": false,
+  "origin_class": "public",
+  "source_sha256": "REPLACE_WITH_64_LOWERCASE_HEX",
+  "byte_size": 1,
+  "page_count": 1,
+  "categories": [
+    "signed"
+  ],
+  "product_result": "NOT_RUN",
+  "defects": []
+}

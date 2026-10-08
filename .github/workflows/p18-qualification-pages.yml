@@ -1,0 +1,225 @@
+name: P18 Qualification Field Host
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/p18-qualification-pages.yml
+      - docs/p18/field-host.json
+      - docs/p18/status.json
+      - scripts/p18/field-host-contract.mjs
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["P45 Qualification Field Host"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  NODE_VERSION: 22.16.0
+  NPM_VERSION: 10.9.2
+  PAGES_BASE_PATH: ${{ vars.PAGES_BASE_PATH || format('/{0}/', github.event.repository.name) }}
+
+concurrency:
+  group: qualification-pages
+  cancel-in-progress: false
+
+jobs:
+  config:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      active: ${{ steps.read.outputs.active }}
+      stable_page_url: ${{ steps.read.outputs.stable_page_url }}
+      stable_version: ${{ steps.read.outputs.stable_version }}
+      stable_commit: ${{ steps.read.outputs.stable_commit }}
+      baseline_commit: ${{ steps.read.outputs.baseline_commit }}
+      qualification_path: ${{ steps.read.outputs.qualification_path }}
+      p45_active: ${{ steps.read.outputs.p45_active }}
+      p45_baseline: ${{ steps.read.outputs.p45_baseline }}
+      p45_path: ${{ steps.read.outputs.p45_path }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate P18 host/evidence state
+        run: |
+          node scripts/p18/qualification-evidence.mjs --status-contract
+          node scripts/p18/field-host-contract.mjs
+      - name: Expose host configuration
+        id: read
+        shell: bash
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs=require("fs");
+          const p18=JSON.parse(fs.readFileSync("docs/p18/field-host.json","utf8"));
+          const p45=JSON.parse(fs.readFileSync("docs/reconstruction/evidence/p45/field-host.json","utf8"));
+          console.log(`active=${p18.active}`);
+          console.log(`stable_page_url=${p18.stable_page_url}`);
+          console.log(`stable_version=${p18.stable_version}`);
+          console.log(`stable_commit=${p18.stable_tag_commit}`);
+          console.log(`baseline_commit=${p18.product_baseline_commit}`);
+          console.log(`qualification_path=${p18.qualification_path}`);
+          console.log(`p45_active=${p45.active}`);
+          console.log(`p45_baseline=${p45.product_baseline_commit}`);
+          console.log(`p45_path=${p45.qualification_path}`);
+          NODE
+
+  compose:
+    needs: config
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    outputs:
+      stable_integrity_sha256: ${{ steps.compose.outputs.stable_integrity_sha256 }}
+      p18_integrity_sha256: ${{ steps.compose.outputs.p18_integrity_sha256 }}
+    env:
+      P18_ACTIVE: ${{ needs.config.outputs.active }}
+      STABLE_PAGE_URL: ${{ needs.config.outputs.stable_page_url }}
+      STABLE_VERSION: ${{ needs.config.outputs.stable_version }}
+      STABLE_COMMIT: ${{ needs.config.outputs.stable_commit }}
+      P18_BASELINE: ${{ needs.config.outputs.baseline_commit }}
+      P18_PATH: ${{ needs.config.outputs.qualification_path }}
+      P45_ACTIVE: ${{ needs.config.outputs.p45_active }}
+      P45_BASELINE: ${{ needs.config.outputs.p45_baseline }}
+      P45_PATH: ${{ needs.config.outputs.p45_path }}
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v7
+        with:
+          path: control
+      - name: Checkout published Stable source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.STABLE_COMMIT }}
+          path: stable
+          fetch-depth: 1
+      - name: Checkout frozen P18 product source
+        if: env.P18_ACTIVE == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.P18_BASELINE }}
+          path: p18
+          fetch-depth: 1
+      - name: Checkout P45/P42 source when still active
+        if: env.P45_ACTIVE == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.P45_BASELINE }}
+          path: p45
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
+      - name: Verify exact source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C stable rev-parse HEAD)" = "$STABLE_COMMIT"
+          test "$(node -p "JSON.parse(require('fs').readFileSync('stable/package.json','utf8')).version")" = "$STABLE_VERSION"
+          if [ "$P18_ACTIVE" = "true" ]; then test "$(git -C p18 rev-parse HEAD)" = "$P18_BASELINE"; fi
+          if [ "$P45_ACTIVE" = "true" ]; then test "$(git -C p45 rev-parse HEAD)" = "$P45_BASELINE"; fi
+      - name: Rebuild published Stable root
+        shell: bash
+        run: |
+          set -euo pipefail
+          ts="$(git -C stable show -s --format=%cI HEAD)"
+          cd stable
+          npm ci --no-audit --no-fund
+          VITE_BASE_PATH="$PAGES_BASE_PATH" VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" VITE_BUILD_TIMESTAMP="$ts" VITE_RELEASE_CHANNEL="stable" npm run build:verified
+      - name: Prove Stable root equals live root
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 8 --retry-delay 5 "${STABLE_PAGE_URL}release-integrity.json" -o /tmp/live-root.json
+          cmp --silent /tmp/live-root.json stable/dist/release-integrity.json || {
+            echo "::error title=Stable root mismatch::P18 qualification deployment refused because rebuilt v7.1.4 does not match live release-integrity.json."
+            exit 1
+          }
+      - name: Build frozen P18 qualification PWA
+        if: env.P18_ACTIVE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ts="$(git -C p18 show -s --format=%cI HEAD)"
+          cd p18
+          npm ci --no-audit --no-fund
+          VITE_BASE_PATH="${PAGES_BASE_PATH}${P18_PATH}/" VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" VITE_BUILD_TIMESTAMP="$ts" VITE_RELEASE_CHANNEL="release-candidate" npm run build:verified
+      - name: Rebuild active P45/P42 qualification PWA
+        if: env.P45_ACTIVE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ts="$(git -C p45 show -s --format=%cI HEAD)"
+          cd p45
+          npm ci --no-audit --no-fund
+          VITE_BASE_PATH="${PAGES_BASE_PATH}${P45_PATH}/" VITE_SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}" VITE_BUILD_TIMESTAMP="$ts" VITE_RELEASE_CHANNEL="release-candidate" npm run build:verified
+      - name: Compose Stable plus active qualification subtrees
+        id: compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$P18_ACTIVE" = "true" ]; then
+            mkdir -p "stable/dist/$P18_PATH"
+            cp -a p18/dist/. "stable/dist/$P18_PATH/"
+            cp control/docs/p18/field-host.json "stable/dist/$P18_PATH/field-host.json"
+            cp control/docs/p18/status.json "stable/dist/$P18_PATH/qualification-status.json"
+            p18_hash="$(sha256sum p18/dist/release-integrity.json | awk '{print $1}')"
+          else
+            p18_hash="inactive"
+          fi
+          if [ "$P45_ACTIVE" = "true" ]; then
+            mkdir -p "stable/dist/$P45_PATH"
+            cp -a p45/dist/. "stable/dist/$P45_PATH/"
+            cp control/docs/reconstruction/evidence/p45/field-host.json "stable/dist/$P45_PATH/field-host.json"
+          fi
+          stable_hash="$(sha256sum stable/dist/release-integrity.json | awk '{print $1}')"
+          echo "stable_integrity_sha256=$stable_hash" >> "$GITHUB_OUTPUT"
+          echo "p18_integrity_sha256=$p18_hash" >> "$GITHUB_OUTPUT"
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: stable/dist
+
+  deploy:
+    needs: [config,compose]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke:
+    needs: [config,compose,deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+      P18_ACTIVE: ${{ needs.config.outputs.active }}
+      P18_PATH: ${{ needs.config.outputs.qualification_path }}
+      P18_BASELINE: ${{ needs.config.outputs.baseline_commit }}
+      EXPECTED_STABLE: ${{ needs.compose.outputs.stable_integrity_sha256 }}
+      EXPECTED_P18: ${{ needs.compose.outputs.p18_integrity_sha256 }}
+    steps:
+      - name: Verify root preservation and P18 host
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/"
+          curl --fail --location --retry 8 --retry-delay 5 "${base}release-integrity.json" -o /tmp/stable.json
+          test "$(sha256sum /tmp/stable.json | awk '{print $1}')" = "$EXPECTED_STABLE"
+          if [ "$P18_ACTIVE" = "true" ]; then
+            q="${base}${P18_PATH}/"
+            curl --fail --location --retry 8 --retry-delay 5 "$q" > /dev/null
+            curl --fail --location --retry 8 --retry-delay 5 "${q}manifest.webmanifest" | grep -F "PDF Studio" > /dev/null
+            curl --fail --location --retry 8 --retry-delay 5 "${q}field-host.json" | grep -F "$P18_BASELINE" > /dev/null
+            curl --fail --location --retry 8 --retry-delay 5 "${q}qualification-status.json" | grep -F '"phase": "P18"' > /dev/null
+            curl --fail --location --retry 8 --retry-delay 5 "${q}release-integrity.json" -o /tmp/p18.json
+            test "$(sha256sum /tmp/p18.json | awk '{print $1}')" = "$EXPECTED_P18"
+          fi
