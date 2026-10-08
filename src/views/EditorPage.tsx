@@ -7,6 +7,7 @@ import { registerDocumentSnapshot, type SnapshotSource } from "../product/docume
 import { routeHref } from "../core/appRouter";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { useModalFocus } from "../accessibility/modalFocus";
+import { D7KeyboardHelp } from "../interaction/d7/D7KeyboardHelp";
 import type { Rect } from "../core/coordinates";
 import { openPdfWithPdfJs, inspectPdfAnnotationInventory, inspectPdfBytes } from "../engines/pdfjs";
 import { EditorCanvasPage } from "../editor/components/EditorCanvasPage";
@@ -147,11 +148,14 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const documentControls = useDocumentControls();
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [reviewOriginal, setReviewOriginal] = useState(false);
   const [nativeFileStatus, setNativeFileStatus] = useState<NativeFileStatus | null>(null);
   const mobileToolsRef = useRef<HTMLDivElement | null>(null);
   const mobileToolsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const shortcutHelpTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closeMobileTools = useCallback(() => setMobileToolsOpen(false), []);
+  const closeShortcutHelp = useCallback(() => setShortcutHelpOpen(false), []);
   useModalFocus(mobileToolsOpen, mobileToolsRef, closeMobileTools, undefined, mobileToolsTriggerRef);
 
   const liveSnapshotRef = useRef<() => SnapshotSource>(() => { throw new Error("The editor is still opening."); });
@@ -355,7 +359,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (processing) return;
+      if (processing || shortcutHelpOpen || window.document.documentElement.dataset.modalOpen === "true") return;
       const target = event.target as HTMLElement | null;
       const command = event.ctrlKey || event.metaKey;
       // Undo/Redo are document transactions, including when a properties field
@@ -391,7 +395,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing]);
+  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing, shortcutHelpOpen]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
     hydrationRef.current?.cancel();
@@ -1135,7 +1139,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>;
 
   return (
-    <div className="editor-app editor-app--d3" data-d3-editor="true" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
+    <div className="editor-app editor-app--d3" data-d3-editor="true" data-d7-polish="true" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
       {!compactControls ? <header className="editor-commandbar">
         <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
         <div className="editor-commandbar__center" inert={processing ? true : undefined}>
@@ -1148,13 +1152,13 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
       {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
         <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button><button aria-label="Find and replace existing text" disabled={!nativeInspection || nativeInspecting || processing} onClick={() => setFindReplaceOpen(true)} type="button"><Icon name="inspect" size={20}/><span>Find & replace</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
-        <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
+        <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button><button aria-haspopup="dialog" aria-label="Keyboard shortcuts" onClick={() => setShortcutHelpOpen(true)} ref={shortcutHelpTriggerRef} type="button"><Icon name="help" size={18} /><span>Shortcuts</span></button>
       </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
         <CompactDocumentHome />
         {["select", "text", !["select", "text"].includes(editorState.activeTool) ? editorState.activeTool : "highlight"].map(id => tools.find(tool => tool.id === id)!).map(tool => <button className="icon-button" aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} disabled={processing} key={tool.id} title={tool.label} onClick={() => activateTool(tool.id)} type="button"><Icon name={tool.icon} size={20} /></button>)}
         <button className="icon-button" aria-label="Undo" title="Undo" disabled={!history.past.length || processing} onClick={undo} type="button"><Icon name="undo" /></button>
         {processing ? <button className="icon-button" aria-label="Cancel" title="Cancel export" onClick={() => abortRef.current?.abort()} type="button"><Icon name="close" /></button> : <button className="icon-button compact-download" aria-label={primarySaveLabel} title={primarySaveLabel} onClick={() => void exportPdf(nativeSaveAvailable ? "save" : "download")} type="button"><Icon name={nativeSaveAvailable ? "save" : "download"} size={20} /></button>}
-        <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} disabled={processing} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button>
+        <button className="icon-button" aria-label="More tools" aria-expanded={mobileToolsOpen} disabled={processing} aria-haspopup="dialog" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} title="More tools" type="button"><Icon name="more" size={20} /></button><button className="icon-button" aria-label="Keyboard shortcuts" aria-haspopup="dialog" disabled={processing} onClick={() => setShortcutHelpOpen(true)} ref={shortcutHelpTriggerRef} title="Keyboard shortcuts" type="button"><Icon name="help" size={20} /></button>
       </nav>}
       {compactControls ? <nav className="d6-live-editor-dock" aria-label="Editor panel shortcuts">
         <button aria-label="Pages panel" aria-pressed={sidebarOpen && leftTab === "pages"} disabled={processing} onClick={() => { closeMobileTools(); setLeftTab("pages"); setSidebarOpen((open) => !(open && leftTab === "pages")); setPropertiesOpen(false); }} type="button"><Icon name="pages" size={19} /><span>Pages</span></button>
@@ -1183,6 +1187,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
         {propertiesOpen ? unifiedSelectionCount > 1 ? <UnifiedLayoutPropertiesPanel items={unifiedItems} nativeCount={selectedNativeIds.size} onAlign={alignUnified} onDelete={deleteSelection} onDistribute={distributeUnified} onDuplicateOverlays={duplicateSelection} onGroupOverlays={groupSelection} onMatchSize={matchUnifiedSize} onRotate={rotateUnified} onUngroupOverlays={ungroupSelection} overlayCount={selectedIds.size} primaryKey={primaryUnifiedKey} /> : selectedNativeObject ? <NativeContentPropertiesPanel object={selectedNativeObject} page={selectedNativePage} onQueue={queueNativeEdits} onRemove={removeNativeEdits} queuedEdits={nativeEdits} /> : <EditorPropertiesPanel onBringFront={() => arrange("front")} onChange={commitObject} onDelete={deleteSelection} onDuplicate={duplicateSelection} onSendBack={() => arrange("back")} selected={selectedObjects} /> : null}
       </div>
+      <D7KeyboardHelp onClose={closeShortcutHelp} open={shortcutHelpOpen} returnFocusRef={shortcutHelpTriggerRef} />
       <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
       {mobileToolsOpen ? <div className="product-modal-backdrop editor-tools-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMobileTools(); }}>
         <div aria-label="Editor tools" aria-modal="true" className="product-modal editor-tools-sheet" ref={mobileToolsRef} role="dialog">
