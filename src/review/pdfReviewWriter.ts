@@ -86,6 +86,8 @@ export function writeMeasurement(pdf: PdfLike, page: any, object: MeasurementEdi
   if (object.kind === "distance") {
     annotation.setLine(point(transform,{x:x0,y:y0}), point(transform,{x:x1,y:y1}));
     annotation.setIntent?.("LineDimension");
+    annotation.setLineCaption?.(true);
+    annotation.setLineCaptionOffset?.([0, 8]);
   } else {
     annotation.setVertices?.([
       point(transform,{x:x0,y:y0}),point(transform,{x:x1,y:y0}),
@@ -108,5 +110,27 @@ export function writeMeasurement(pdf: PdfLike, page: any, object: MeasurementEdi
   measure.put("D",arrayOne(pdf,numberFormat(pdf,object.unit,1)));
   measure.put("A",arrayOne(pdf,numberFormat(pdf,`${object.unit}²`,1)));
   annotation.getObject().put("Measure",measure);
+  if (object.kind === "area") {
+    // Polygon /Contents is metadata in some readers; add a visible dimension
+    // caption while retaining the real /Measure dictionary on the polygon.
+    const p = point(transform,{x:x0,y:y0});
+    const q = point(transform,{x:x1,y:y1});
+    const left = Math.min(p[0],q[0]);
+    const bottom = Math.min(p[1],q[1]);
+    const right = Math.max(p[0],q[0]);
+    const top = Math.max(p[1],q[1]);
+    const caption = page.createAnnotation("FreeText");
+    caption.setName(`${object.id}-caption`);
+    caption.setFlags(4);
+    const centerX = (left+right)/2;
+    const centerY = (bottom+top)/2;
+    const halfWidth = Math.min(70,Math.max(12,(right-left)/2));
+    caption.setRect([centerX-halfWidth,centerY-9,centerX+halfWidth,centerY+9]);
+    caption.setContents(measurementLabel(object));
+    caption.setDefaultAppearance("Helv",Math.min(11,Math.max(7,Math.min(top-bottom, right-left)/7)),color(object.strokeColor));
+    caption.setBorderWidth?.(0);
+    caption.update();
+    return 2;
+  }
   return 1;
 }
