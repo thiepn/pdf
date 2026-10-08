@@ -4,6 +4,8 @@
 
 F4 is integrated into the existing **Compress PDF** workspace as the default **Smart · preserve everything** mode, next to legacy lossless cleanup and explicitly destructive raster/JPEG profiles. It does not replace the latter profiles.
 
+The file-first **Compress PDF** quick workflow also exposes Smart alongside legacy lossless and raster choices. Its default remains the existing lossless workflow for compatibility, while a separate **Smart cleanup strength** control lets users select either structural profile. A searchable **Smart PDF optimizer** task leads users to the full saved-project workspace.
+
 The two optimization strengths are:
 
 - **Safe structural cleanup**: one non-raster MuPDF rewrite with `garbage=2,compress=yes,compress-images=yes,compress-fonts=yes,encrypt=keep`.
