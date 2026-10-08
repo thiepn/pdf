@@ -5,7 +5,7 @@ import { batchRecipeExecutionFingerprint, parseBatchRecipeJson, serializeBatchRe
 import { downloadBlob } from "../projects/download";
 import { BATCH_RECIPE_SCHEMA_VERSION, type BatchItemStatus, type BatchRecipe, type BatchStep } from "../types/batch";
 import { WorkflowComposer } from "../automation/WorkflowComposer";
-import { F6_MAX_FILES, createWorkflowRunEvidence, validateWorkflowDraft, type WorkflowFailurePolicy, type WorkflowRunEvidence } from "../automation/workflowComposerModel";
+import { F6_MAX_FILES, F6_MAX_QUEUE_BYTES, createWorkflowRunEvidence, validateWorkflowDraft, type WorkflowFailurePolicy, type WorkflowRunEvidence } from "../automation/workflowComposerModel";
 import { createStoredZip } from "../toolbox/zip";
 
 interface BatchItem { id: string; file: File; status: BatchItemStatus; progress: number; message: string; output?: Uint8Array; outputExtension?: ".pdf" | ".zip"; outputRecipeFingerprint?: string; outputMime?: string; error?: string }
@@ -27,7 +27,7 @@ export function BatchPage() {
   const needsRun = (item: BatchItem) => !hasCurrentOutput(item) || item.status !== "complete";
   const currentOutputFilename = (item: BatchItem) => `${item.file.name.replace(/\.pdf$/i,"")}-${recipe.outputSuffix||"processed"}${item.outputExtension||".pdf"}`;
   useEffect(()=>{void listBatchRecipes().then(setRecipes);},[]);
-  function addFiles(files:FileList|File[]){const accepted=[...files].filter(file=>file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf"));if(items.length+accepted.length>F6_MAX_FILES){setError("A single queue can hold at most 100 PDF files.");return;}setItems(current=>[...current,...accepted.map(file=>({id:crypto.randomUUID(),file,status:"pending" as const,progress:0,message:"Queued"}))]);setLastRunEvidence(null);}
+  function addFiles(files:FileList|File[]){const accepted=[...files].filter(file=>file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf"));if(items.length+accepted.length>F6_MAX_FILES){setError("A single queue can hold at most 100 PDF files.");return;}if([...items.map(item=>item.file),...accepted].reduce((total,file)=>total+file.size,0)>F6_MAX_QUEUE_BYTES){setError("The queue exceeds the 256 MB local file budget. Process smaller groups.");return;}setItems(current=>[...current,...accepted.map(file=>({id:crypto.randomUUID(),file,status:"pending" as const,progress:0,message:"Queued"}))]);setLastRunEvidence(null);}
   function patch(id:string,value:Partial<BatchItem>){setItems(current=>current.map(item=>item.id===id?{...item,...value}:item));}
   function patchStep(id:string,value:Partial<BatchStep>){setRecipe(current=>({...current,steps:current.steps.map(step=>step.id===id?{...step,...value} as BatchStep:step)}));}
   async function run(){
@@ -68,7 +68,7 @@ export function BatchPage() {
     const payload=new Blob([JSON.stringify(lastRunEvidence,null,2)],{type:"application/json;charset=utf-8"});
     downloadBlob(payload,`workflow-run-${lastRunEvidence.startedAt.slice(0,19).replace(/[:T]/g,"-")}.json`);
   }
-  function downloadAll(){const outputs=items.filter((item):item is BatchItem & {output:Uint8Array}=>hasCurrentOutput(item));if(!outputs.length)return;const zip=createStoredZip(outputs.map((item,index)=>({name:`${String(index+1).padStart(3,"0")}-${currentOutputFilename(item)}`,bytes:item.output})));downloadBlob(new Blob([Uint8Array.from(zip).buffer],{type:"application/zip"}),"batch-outputs.zip");} 
+  function downloadAll(){const outputs=items.filter((item):item is BatchItem & {output:Uint8Array}=>hasCurrentOutput(item));if(!outputs.length)return;if(outputs.reduce((total,item)=>total+item.output.byteLength,0)>F6_MAX_QUEUE_BYTES){setError("The ZIP would exceed 256 MB. Download individual results instead.");return;}const zip=createStoredZip(outputs.map((item,index)=>({name:`${String(index+1).padStart(3,"0")}-${currentOutputFilename(item)}`,bytes:item.output})));downloadBlob(new Blob([Uint8Array.from(zip).buffer],{type:"application/zip"}),"batch-outputs.zip");} 
   return <div className="batch-page batch-page--f6"><section className="tools-hero"><p className="eyebrow">PDF STUDIO / AUTOMATION</p><h2>Visual workflow composer</h2><p>Build an ordered action sequence, review potential content changes, then process your PDFs locally. Save or export the sequence for reuse.</p></section>{error?<div className="error-banner"><strong>Batch issue</strong><span>{error}</span></div>:null}<div className="batch-layout"><aside className="batch-recipe">
     <div className="batch-recipe__bar">
       <label>Workflow name<input disabled={recipeLocked} value={recipe.name} onChange={event=>setRecipe(current=>({...current,name:event.target.value}))}/></label>
