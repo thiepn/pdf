@@ -1,7 +1,7 @@
 /* D2 — tool discovery, designed as a compact indexed utility catalog.
    Only the tool directory and its entry page are affected. */
 .product-app .product-tools--d2 {
-  width: min(1220px, calc(100% - 48px));
+  width: min(var(--studio-page-max), calc(100% - 48px));
   padding-block: clamp(20px, 3vw, 38px) 45px;
 }
 .product-app .product-directory-heading--d2 {
@@ -16,7 +16,7 @@
 }
 .product-app .product-directory-heading--d2 h1 {
   margin: 6px 0 5px;
-  font-size: clamp(24px, 3vw, 33px);
+  font-size: var(--studio-type-title);
   line-height: 1.2;
   font-weight: 735;
   letter-spacing: -.035em;
@@ -24,7 +24,7 @@
 .product-app .product-directory-heading--d2 p {
   max-width: 610px;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--studio-type-body);
   line-height: 1.55;
   color: var(--muted);
 }
@@ -38,10 +38,10 @@
   min-height: 52px;
   padding: 5px 12px;
   box-shadow: none;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-panel);
 }
 .product-app .product-directory--d2 .product-search input {
-  font-size: 13px;
+  font-size: var(--studio-type-body);
 }
 .product-app .product-directory--d2 .product-search button {
   flex: 0 0 36px;
@@ -60,8 +60,8 @@
   color: var(--muted);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--studio-radius-control);
+  font-size: var(--studio-type-label);
   font-weight: 625;
   transition: background 130ms ease, color 130ms ease;
 }
@@ -78,7 +78,7 @@
 .product-directory--d2 .product-discovery-count {
   margin: -7px 0 22px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
 }
 .product-app .product-directory--library .product-tool-section {
   margin: 0 0 28px;
@@ -88,12 +88,12 @@
   margin: 0 0 10px;
 }
 .product-app .product-directory--library .product-section-heading h2 {
-  font-size: 16px;
+  font-size: var(--studio-type-section);
   font-weight: 700;
   letter-spacing: -.016em;
 }
 .product-app .product-directory--library .product-section-heading > span {
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   color: var(--muted);
 }
 .product-app .product-directory--library .product-tool-grid {
@@ -110,7 +110,7 @@
   padding: 15px 14px;
   align-items: flex-start;
   min-width: 0;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-panel);
   border: 1px solid var(--line);
   box-shadow: none;
   background: var(--surface-strong);
@@ -126,7 +126,7 @@
   width: 38px;
   height: 42px;
   flex: 0 0 38px;
-  border-radius: 6px;
+  border-radius: var(--studio-radius-control);
 }
 .product-app .product-directory--library .product-tool-card .task-glyph svg {
   width: 22px;
@@ -138,12 +138,12 @@
   padding-right: 10px;
 }
 .product-app .product-directory--library .product-tool-card__body > strong {
-  font-size: 13px;
+  font-size: var(--studio-type-body);
   line-height: 1.35;
   font-weight: 700;
 }
 .product-app .product-directory--library .product-tool-card__body > span {
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   line-height: 1.43;
 }
 .product-app .product-directory--library .product-tool-card__arrow {
@@ -174,7 +174,7 @@
 }
 .product-app .product-directory--d2 .product-tool-card__caution,
 .product-app .product-directory--d2 .product-tool-card__recovery {
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   line-height: 1.45;
 }
 .product-app .product-directory--d2 .product-tool-card__recovery {
@@ -184,7 +184,7 @@
   margin: 24px 0 36px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--studio-radius-panel);
   background: var(--surface-subtle);
 }
 .product-app .product-directory--library .product-advanced[open] > summary {
@@ -198,13 +198,13 @@
   padding: 30px;
   background: var(--surface-strong);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--studio-radius-panel);
 }
 .product-app .product-directory--d2 .product-empty h3 {
   margin: 8px 0;
   font-size: 18px;
 }
-.product-app .product-directory--d2 .product-empty p { max-width: 500px; font-size: 13px; }
+.product-app .product-directory--d2 .product-empty p { max-width: 500px; font-size: var(--studio-type-body); }
 .product-app .product-directory--d2 .product-discovery-suggestions {
   display: flex;
   gap: 7px;
@@ -217,9 +217,9 @@
   color: var(--ink);
   background: var(--surface-subtle);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--studio-radius-control);
   text-transform: capitalize;
-  font-size: 12px;
+  font-size: var(--studio-type-label);
 }
 .product-app .product-directory--d2 .product-discovery-suggestions button:hover {
   border-color: var(--accent);
