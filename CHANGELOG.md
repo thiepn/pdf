@@ -2,6 +2,18 @@
 
 ## Unreleased — v7.2 development line
 
+### P17 — Deep Native-Content Fidelity
+
+- Adds specialist existing-image inspection using MuPDF paint tracing plus source mask metadata instead of treating every image rectangle as equally editable.
+- Qualifies plain/shared image edits and attached-soft-mask source transform/deletion, with action-level capability rules and post-save mask/untouched-instance validation; explicit masks, inherited clipping, non-Normal blending, and ambiguous image state fail closed.
+- Keeps shared-image edits instance-local rather than mutating a reusable source image resource.
+- Protects vector appearance override when the source depends on clipping, non-Normal blend state, Pattern/Lab/Indexed/Separation/unknown color state, while preserving the geometry-only path that retains inherited graphics state.
+- Classifies regular, nonuniform, merged, irregular, and merged-irregular detected tables and rejects overlapping, out-of-grid, or uncovered reconstruction geometry.
+- Extends paragraph flow to a uniquely detected two-region thread with deterministic adjacency, blocker, width, and page-boundary rules; arbitrary cross-page/multi-region reflow remains outside scope.
+- Adds a deterministic source-generated P17 PDF fixture plus focused policy, reflow, and browser qualification; native export remains gated by the existing P8 source/output fidelity validator.
+- Leaves executable version `7.1.4` and persistent formats 9 / 13 / 6 unchanged.
+- Hands implementation to P18: Compatibility and Human/Device Qualification (V72-06).
+
 ### P16 — Batch Parity & Encrypted-Queue Ergonomics
 
 - Evolves portable Batch recipes from schema v3 to **v4** with deterministic migration of existing v2/v3 ordered steps; project/package, IndexedDB, and native-editor schemas remain unchanged.

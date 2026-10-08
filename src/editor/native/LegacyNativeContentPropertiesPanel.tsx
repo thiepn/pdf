@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { cjkLanguageForScript, detectScript } from "../../native/nativeModel";
+import { vectorAppearanceOverrideRisks } from "../../native/nativeFidelity";
 import { pageForNativeObject } from "../../native/nativeInspectionRegistry";
 import { evaluateTextFit, findFittingFontSize } from "../../native/textFit";
 import { nativeTextSourceRects } from "../../native/textSourceGeometry";
@@ -164,7 +165,15 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
 }
 
 function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; queued?: NativeImageEdit; onQueue: (edit: NativeImageEdit) => void }) {
-  const initialAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+  // Independently gate bitmap replacement on source mask evidence. Even if a
+  // future inspector accidentally widens allowedActions, mask transfer must
+  // remain blocked in the UI and in the export worker.
+  const sourceHasMask = Boolean(object.fidelity?.softMask || object.fidelity?.explicitMask);
+  const allowedActions: NonNullable<NativeImageEdit["action"]>[] =
+    (object.fidelity?.allowedActions ?? (object.editability === "replace-region" ? ["transform", "replace", "delete"] : []))
+      .filter((candidate) => candidate !== "replace" || !sourceHasMask);
+  const preferredAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+  const initialAction: NonNullable<NativeImageEdit["action"]> = allowedActions.includes(preferredAction) ? preferredAction : (allowedActions[0] ?? "transform");
   const [action, setAction] = useState<NonNullable<NativeImageEdit["action"]>>(initialAction);
   const [bytes, setBytes] = useState<Uint8Array | undefined>(queued?.bytes);
   const [mimeType, setMimeType] = useState(queued?.mimeType ?? "image/png");
@@ -175,7 +184,8 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   const [opacity, setOpacity] = useState(queued?.opacity ?? 1);
 
   useEffect(() => {
-    setAction(queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform"));
+    const nextAction = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
+    setAction(allowedActions.includes(nextAction) ? nextAction : (allowedActions[0] ?? "transform"));
     setBytes(queued?.bytes);
     setMimeType(queued?.mimeType ?? "image/png");
     setFit(queued?.fit ?? "contain");
@@ -189,10 +199,28 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     if (!file) return;
     setBytes(new Uint8Array(await file.arrayBuffer()));
     setMimeType(file.type || "image/png");
-    setAction("replace");
+    if (!sourceHasMask && allowedActions.includes("replace")) setAction("replace");
   }
 
-  const queue = () => onQueue({
+  const protectedImage = object.editability === "fidelity-protected" || allowedActions.length === 0;
+  const actionAllowed = allowedActions.includes(action);
+  if (protectedImage) return <section className="property-section property-stack">
+    <p className="eyebrow">Existing image</p><h3>Fidelity-protected image</h3>
+    <div className="warning-banner"><strong>Direct mutation blocked</strong><span>{object.fidelity?.reason ?? object.capability.reason}</span></div>
+    <dl className="property-summary">
+      <dt>Class</dt><dd>{object.fidelity?.class ?? "ambiguous"}</dd>
+      <dt>Source resource</dt><dd>{object.fidelity?.resourceName ?? "Unresolved"}</dd>
+      <dt>Invocations</dt><dd>{object.fidelity?.invocationCount ?? "Unresolved"}</dd>
+      <dt>Mask</dt><dd>{object.fidelity?.softMask || object.fidelity?.explicitMask ? "Yes" : "No"}</dd>
+      <dt>Clipping</dt><dd>{object.fidelity?.clipped ? "Yes" : "No"}</dd>
+      <dt>Blend</dt><dd>{object.fidelity?.blendMode ?? "Unknown"}</dd>
+    </dl>
+    <p className="property-note">The source remains selectable and inspectable. P17 fails closed instead of flattening masks, clipping, or compositing into a visually similar but structurally different PDF.</p>
+  </section>;
+
+  const queue = () => {
+    if (!actionAllowed) return;
+    onQueue({
     id: queued?.id ?? crypto.randomUUID(),
     kind: "image",
     objectId: object.id,
@@ -206,10 +234,12 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     fit,
     rotation,
     opacity: Math.max(0, Math.min(1, opacity))
-  });
+    });
+  };
   return <section className="property-section property-stack">
     <p className="eyebrow">Existing image</p><h3>Image editing</h3>
-    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => setAction(event.target.value as NonNullable<NativeImageEdit["action"]>)}><option value="transform">Edit source image</option><option value="replace">Replace image</option><option value="delete">Delete image</option></select></label>
+    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => { const nextAction = event.target.value as NonNullable<NativeImageEdit["action"]>; if (allowedActions.includes(nextAction)) setAction(nextAction); }}><option disabled={!allowedActions.includes("transform")} value="transform">Edit source image</option><option disabled={!allowedActions.includes("replace")} value="replace">Replace image</option><option disabled={!allowedActions.includes("delete")} value="delete">Delete image</option></select></label>
+    {object.fidelity?.class === "masked" ? <div className="result-card"><strong>Attached soft mask preserved</strong><span>Source transform and deletion are qualified; bitmap replacement stays disabled because the source mask cannot be transferred safely to arbitrary replacement pixels.</span></div> : null}
     {action === "replace" ? <label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label> : null}
     {action !== "delete" ? <>
       <label className="property-field"><span>Fit</span><select aria-label="Image fit" value={fit} onChange={(event) => setFit(event.target.value as NativeImageEdit["fit"])}><option value="contain">Contain</option><option value="cover">Cover + crop</option><option value="stretch">Stretch</option></select></label>
@@ -217,8 +247,8 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
       <div className="property-grid-two"><label className="property-field"><span>Rotation</span><select aria-label="Image rotation" value={rotation} onChange={(event) => setRotation(Number(event.target.value) as NonNullable<NativeImageEdit["rotation"]>)}><option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option></select></label><NumberInput label="Opacity" value={opacity} min={0} max={1} step={0.05} onChange={setOpacity} /></div>
       {action === "replace" ? <label className="property-toggle"><input checked={removeUnderlying} type="checkbox" onChange={(event) => setRemoveUnderlying(event.target.checked)} />Remove the original image before drawing the replacement</label> : <p className="property-note">No replacement upload is required. PDF Studio reuses the selected source image locally, removes only its original image region, then redraws it with the requested transform.</p>}
     </> : <div className="warning-banner"><strong>Permanent image deletion</strong><span>Only image content intersecting the selected source image region is removed. Overlapping text and line art are preserved.</span></div>}
-    <p className="property-note">Source transforms preserve the selected image content, but PDF optimization may recompress the encoded image stream. Exact compressed source bytes are not guaranteed.</p>
-    <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "replace" && !bytes?.byteLength} onClick={queue} type="button">{queued ? "Update image change" : action === "delete" ? "Delete existing image" : action === "replace" ? "Apply image replacement" : "Apply source image transform"}</button>
+    <p className="property-note">{(object.fidelity?.invocationCount ?? 1) > 1 ? `This source image resource is shared across ${object.fidelity?.invocationCount} invocations. PDF Studio reconstructs only the selected instance and does not mutate the shared image resource. ` : ""}Source transforms preserve the selected image content, but PDF optimization may recompress the encoded image stream. Exact compressed source bytes are not guaranteed.</p>
+    <button className={action === "delete" ? "button button--danger" : "button"} disabled={!actionAllowed || (action === "replace" && !bytes?.byteLength)} onClick={queue} type="button">{queued ? "Update image change" : action === "delete" ? "Delete existing image" : action === "replace" ? "Apply image replacement" : "Apply source image transform"}</button>
   </section>;
 }
 
@@ -234,10 +264,12 @@ function parseDashPattern(value: string): number[] {
 
 function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject; queued?: NativeVectorEdit; onQueue: (edit: NativeVectorEdit) => void }) {
   const protectedPath = object.editability === "clip-protected";
+  const appearanceRisks = vectorAppearanceOverrideRisks(object);
+  const appearanceProtected = appearanceRisks.length > 0;
   const [action, setAction] = useState<NativeVectorEdit["action"]>(queued?.action ?? "edit");
   const [bounds, setBounds] = useState<NativeRect>(queued?.bounds ?? object.bounds);
   const [rotation, setRotation] = useState(queued?.rotation ?? 0);
-  const [appearanceOverride, setAppearanceOverride] = useState(queued?.appearanceOverride ?? false);
+  const [appearanceOverride, setAppearanceOverride] = useState(appearanceProtected ? false : (queued?.appearanceOverride ?? false));
   const [fillEnabled, setFillEnabled] = useState(queued?.fillEnabled ?? object.paint !== "stroke");
   const [strokeEnabled, setStrokeEnabled] = useState(queued?.strokeEnabled ?? object.paint !== "fill");
   const [fill, setFill] = useState(queued?.fillColor ?? object.fillColor ?? "#000000");
@@ -255,7 +287,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
     setAction(queued?.action ?? "edit");
     setBounds(queued?.bounds ?? object.bounds);
     setRotation(queued?.rotation ?? 0);
-    setAppearanceOverride(queued?.appearanceOverride ?? false);
+    setAppearanceOverride(appearanceProtected ? false : (queued?.appearanceOverride ?? false));
     setFillEnabled(queued?.fillEnabled ?? object.paint !== "stroke");
     setStrokeEnabled(queued?.strokeEnabled ?? object.paint !== "fill");
     setFill(queued?.fillColor ?? object.fillColor ?? "#000000");
@@ -268,7 +300,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
     setDashPhase(queued?.dashPhase ?? object.dashPhase);
     setAlpha(queued?.alpha ?? sourceAlpha(object));
     setEvenOdd(queued?.evenOdd ?? object.evenOdd);
-  }, [object.id]);
+  }, [object.id, appearanceProtected]);
 
   function queue(): void {
     if (protectedPath) return;
@@ -286,7 +318,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
       commands: object.commands,
       paint: object.paint,
       rotation,
-      appearanceOverride,
+      appearanceOverride: appearanceProtected ? false : appearanceOverride,
       fillEnabled,
       strokeEnabled,
       fillColor: fillEnabled ? fill : undefined,
@@ -316,8 +348,9 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
       {action === "edit" ? <>
         <GeometryEditor bounds={bounds} onChange={setBounds} />
         <NumberInput label="Rotation" value={rotation} min={-360} max={360} step={1} onChange={setRotation} />
-        <label className="property-toggle"><input checked={appearanceOverride} type="checkbox" onChange={(event) => setAppearanceOverride(event.target.checked)} />Override source appearance</label>
-        {!appearanceOverride ? <p className="property-note">Geometry-only editing keeps the original inherited PDF graphics state, including source color space, blend mode, opacity, clipping, dash style, caps and joins.</p> : <>
+        <label className="property-toggle"><input checked={appearanceOverride} disabled={appearanceProtected} type="checkbox" onChange={(event) => setAppearanceOverride(event.target.checked)} />Override source appearance</label>
+        {appearanceProtected ? <div className="warning-banner"><strong>Appearance override protected</strong><span>{appearanceRisks.join("; ")}. P17 permits geometry-only editing because it keeps the exact inherited source graphics state.</span></div> : null}
+        {!appearanceOverride ? <p className="property-note">Geometry-only editing keeps the original inherited PDF graphics state, including source color space, pattern/shading context, blend mode, opacity, clipping, dash style, caps and joins.</p> : <>
           <label className="property-toggle"><input checked={fillEnabled} type="checkbox" onChange={(event) => setFillEnabled(event.target.checked)} />Fill path</label>
           {fillEnabled ? <ColorInput label="Fill" value={fill} onChange={setFill} /> : null}
           <label className="property-toggle"><input checked={strokeEnabled} type="checkbox" onChange={(event) => setStrokeEnabled(event.target.checked)} />Stroke path</label>
@@ -329,7 +362,7 @@ function VectorEditor({ object, queued, onQueue }: { object: NativeVectorObject;
             <label className="property-field"><span>Dash pattern</span><input aria-label="Vector dash pattern" placeholder="6 3" value={dashText} onChange={(event) => setDashText(event.target.value)} /></label>
           </> : <NumberInput label="Opacity" value={alpha} min={0} max={1} step={0.05} onChange={setAlpha} />}
           {fillEnabled ? <label className="property-toggle"><input checked={evenOdd} type="checkbox" onChange={(event) => setEvenOdd(event.target.checked)} />Use even-odd fill rule</label> : null}
-          <p className="property-note">Appearance override is scoped to this path with its own graphics-state save/restore. Complex source color spaces are converted to DeviceRGB for the edited path only.</p>
+          <p className="property-note">Appearance override is available only for simple un-clipped Normal-blend source state. Complex color spaces, patterns, inherited clipping, and non-Normal blending remain fail-closed.</p>
         </>}
       </> : <div className="warning-banner"><strong>Permanent source-path deletion</strong><span>Only this exact path operator range is removed from its PDF content stream. Overlapping text, images and unrelated vector paths are not redacted.</span></div>}
       <button className={action === "delete" ? "button button--danger" : "button"} disabled={action === "edit" && appearanceOverride && !fillEnabled && !strokeEnabled} onClick={queue} type="button">{queued ? "Update vector change" : action === "delete" ? "Delete existing vector" : "Apply source vector edit"}</button>

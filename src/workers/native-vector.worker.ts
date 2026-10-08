@@ -1,4 +1,5 @@
 import * as mupdf from "mupdf";
+import { vectorAppearanceOverrideRisks } from "../native/nativeFidelity";
 import type {
   NativeCapability,
   NativeExportReport,
@@ -226,6 +227,7 @@ function colorSpace(value: string): NativeVectorColorSpace {
   if (/lab/i.test(normalized)) return "Lab";
   if (/indexed/i.test(normalized)) return "Indexed";
   if (/separation|devicen/i.test(normalized)) return "Separation";
+  if (/pattern/i.test(normalized)) return "Pattern";
   return "Unknown";
 }
 
@@ -261,7 +263,7 @@ function capabilityForVector(commands: NativePathCommand[], state: GraphicsState
     preserves: ["Original clipping behavior", "Following PDF content"],
     risks: ["Direct editing is intentionally blocked until nested clipping is handled as a first-class object."]
   };
-  const complexColor = [state.fillSpace, state.strokeSpace].some((space) => ["Lab", "Indexed", "Separation", "Unknown"].includes(space));
+  const complexColor = [state.fillSpace, state.strokeSpace].some((space) => ["Lab", "Indexed", "Separation", "Pattern", "Unknown"].includes(space));
   const complexBlend = state.blendMode !== "Normal";
   const confidence = clamp(0.98 - (commands.length > 100 ? 0.06 : 0) - (state.clipped ? 0.06 : 0) - (complexColor ? 0.05 : 0) - (complexBlend ? 0.05 : 0), 0.72, 0.98);
   return {
@@ -538,8 +540,14 @@ function parseStream(page: PdfPage, source: string, streamIndex: number): { reco
       continue;
     }
     if (op === "sc" || op === "scn" || op === "SC" || op === "SCN") {
-      const values = operands.map((item) => Number(item.value)).filter(Number.isFinite);
-      if (op === "sc" || op === "scn") state.fillComponents = values;
+      const targetFill = op === "sc" || op === "scn";
+      const hasPatternName = (op === "scn" || op === "SCN") && operands.some((item) => typeof item.value === "string");
+      const values = operands.map((item) => typeof item.value === "number" ? item.value : Number.NaN).filter(Number.isFinite);
+      if (hasPatternName) {
+        if (targetFill) state.fillSpace = "Pattern";
+        else state.strokeSpace = "Pattern";
+      }
+      if (targetFill) state.fillComponents = values;
       else state.strokeComponents = values;
       operands.length = 0;
       continue;
@@ -716,7 +724,10 @@ function inspectPage(page: PdfPage, pageNumber: number): VectorPageInspection {
   const vectors: NativeVectorObject[] = [];
   const streams = contentStreams(page);
   streams.forEach((stream, streamIndex) => {
-    const parsed = parseStream(page, byteString(streamBytes(stream)), streamIndex);
+    const source = byteString(streamBytes(stream));
+    const parsed = parseStream(page, source, streamIndex);
+    if (/\/[^\s]+\s+sh\b/.test(source)) warnings.push(`Page ${pageNumber} content stream ${streamIndex + 1} contains a shading paint operator. Shadings remain inspect-only so geometry edits cannot silently replace gradient state.`);
+    if (/\b(?:scn|SCN)\b/.test(source)) warnings.push(`Page ${pageNumber} content stream ${streamIndex + 1} uses pattern-capable color operators. Path geometry can be preserved, but appearance overrides are fail-closed for complex pattern state.`);
     if (parsed.inlineImage) {
       warnings.push(`Page ${pageNumber} content stream ${streamIndex + 1} contains an inline image; direct vector rewriting in that stream is disabled to preserve binary image data.`);
       return;
@@ -893,6 +904,10 @@ function appearancePrefix(pdf: PdfDocument, page: PdfPage, edit: NativeVectorEdi
 
 function replacementFor(pdf: PdfDocument, page: PdfPage, record: ParsedVector, edit: NativeVectorEdit): string {
   if (record.object.definesClip) throw new Error(`Vector ${edit.objectId} also defines a clipping path and is protected from direct editing.`);
+  if (edit.appearanceOverride) {
+    const risks = vectorAppearanceOverrideRisks(record.object);
+    if (risks.length) throw new Error(`Vector appearance override is blocked because ${risks.join(", ")}. Geometry-only editing remains available.`);
+  }
   if (edit.action === "delete") return "";
   const destination = destinationCommands(edit);
   const local = commandsInSourceSpace(page, record, destination);

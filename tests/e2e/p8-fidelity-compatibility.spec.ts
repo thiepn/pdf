@@ -1,4 +1,4 @@
-import { chooseEditorTool, switchMode } from "./helpers/taskFirst";
+import { chooseEditorTool, downloadEditorCopy, switchMode } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 const corpus = "tests/corpus/p8";
@@ -27,11 +27,7 @@ async function openEditorAndAddRectangle(page: import("@playwright/test").Page):
 }
 
 async function exportValidated(page: import("@playwright/test").Page): Promise<void> {
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 25_000 });
+  await downloadEditorCopy(page);
 }
 
 test("P8 preserves rotated crop geometry while exporting an edited real-world page", async ({ page }) => {

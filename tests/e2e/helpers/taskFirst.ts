@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Download, type Page } from "@playwright/test";
 import { createShowcasePdf } from "../../../src/fixtures/showcasePdf";
 
 /** Import the same showcase through the public task-first reader. This avoids
@@ -65,4 +65,19 @@ export async function closeReaderOptions(page: Page): Promise<void> {
 export async function readerCommand(page: Page, name: string): Promise<void> {
   await openReaderOptions(page);
   await page.getByRole("button", { name, exact: true }).click();
+}
+
+/** Explicitly download an edited copy, independent of the browser's local-file
+ * save capability. This follows the production menu and validates the receipt.
+ * Do not use the primary save action: capable browsers show "Save as PDF". */
+export async function downloadEditorCopy(page: Page): Promise<Download> {
+  const menu = page.locator(".editor-save-options");
+  await expect(menu).toBeVisible();
+  await menu.locator("summary").click();
+  const output = page.waitForEvent("download", { timeout: 30_000 });
+  await menu.getByRole("button", { name: "Download copy", exact: true }).click();
+  const downloaded = await output;
+  expect(downloaded.suggestedFilename()).toMatch(/_edited\\.pdf$/);
+  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 25_000 });
+  return downloaded;
 }

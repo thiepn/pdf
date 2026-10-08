@@ -1,4 +1,5 @@
 import { reconstructPageTextParagraphs } from "./nativeModel";
+import { annotatePageTextFlows } from "./layoutReflow";
 import { registerNativeInspectionPages } from "./nativeInspectionRegistry";
 import { recoverStructuredTables } from "./tableRecovery";
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
@@ -11,13 +12,21 @@ import type {
   NativeEdit,
   NativeExportReport,
   NativeImageEdit,
+  NativeImageObject,
   NativeInspection,
+  NativeRect,
   NativeTableEdit,
   NativeTableObject,
   NativeTextEdit,
   NativeVectorEdit,
   NativeVectorObject
 } from "../types/nativeEditor";
+
+export interface ImageInspection {
+  pages: Array<{ pageNumber: number; images: NativeImageObject[]; warnings: string[] }>;
+  total: number;
+  warnings: string[];
+}
 
 export interface VectorInspection {
   pages: Array<{ pageNumber: number; vectors: NativeVectorObject[]; warnings: string[] }>;
@@ -40,6 +49,7 @@ interface ComplexInspection {
 type Response =
   | { type: "READY" }
   | { type: "NATIVE_INSPECTION"; requestId: string; inspection: NativeInspection }
+  | { type: "IMAGE_INSPECTION"; requestId: string; inspection: ImageInspection }
   | { type: "VECTOR_INSPECTION"; requestId: string; inspection: VectorInspection }
   | { type: "TABLE_INSPECTION"; requestId: string; inspection: TableInspection }
   | { type: "COMPLEX_INSPECTION"; requestId: string; inspection: ComplexInspection }
@@ -126,7 +136,8 @@ function invoke<T>(worker: Worker, message: Record<string, unknown>, bytes: Uint
       else if (event.data.type === "NATIVE_INSPECTION") {
         const reconstructed = reconstructInspectionWithinResponsivenessBudget(event.data.inspection);
         resolve(registerNativeInspectionPages(reconstructed) as T);
-      } else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
+      } else if (event.data.type === "IMAGE_INSPECTION") resolve(event.data.inspection as T);
+      else if (event.data.type === "VECTOR_INSPECTION") resolve(event.data.inspection as T);
       else if (event.data.type === "TABLE_INSPECTION") resolve(event.data.inspection as T);
       else if (event.data.type === "COMPLEX_INSPECTION") resolve(event.data.inspection as T);
       else resolve({ bytes: new Uint8Array(event.data.output), report: event.data.report } as T);
@@ -141,6 +152,18 @@ function imageWorker(): Worker { return new Worker(new URL("../workers/native-im
 function vectorWorker(): Worker { return new Worker(new URL("../workers/native-vector.worker.ts", import.meta.url), { type: "module" }); }
 function tableWorker(): Worker { return new Worker(new URL("../workers/native-table.worker.ts", import.meta.url), { type: "module" }); }
 function complexWorker(): Worker { return new Worker(new URL("../workers/native-complex.worker.ts", import.meta.url), { type: "module" }); }
+
+function mergeImageInspection(base: NativeInspection, image: ImageInspection): NativeInspection {
+  const pages = base.pages.map((page) => {
+    const replacement = image.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.images ?? [];
+    const firstLegacyImage = page.objects.findIndex((object) => object.type === "image");
+    const withoutLegacy = page.objects.filter((object) => object.type !== "image");
+    const firstVector = withoutLegacy.findIndex((object) => object.type === "vector");
+    const insertion = firstLegacyImage >= 0 ? Math.min(firstLegacyImage, withoutLegacy.length) : Math.min(firstVector < 0 ? withoutLegacy.length : firstVector, withoutLegacy.length);
+    return { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+  });
+  return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, images: image.total }, warnings: [...base.warnings.filter((warning) => !/image/i.test(warning)), ...image.warnings] });
+}
 
 function mergeVectorInspection(base: NativeInspection, vector: VectorInspection): NativeInspection {
   const pages = base.pages.map((page) => {
@@ -161,18 +184,67 @@ function mergeTableInspection(base: NativeInspection, table: TableInspection): N
     const withoutLegacy = page.objects.filter((object) => object.type !== "table");
     const firstForm = withoutLegacy.findIndex((object) => object.type === "form");
     const insertion = firstLegacyTable >= 0 ? Math.min(firstLegacyTable, withoutLegacy.length) : Math.min(firstForm < 0 ? withoutLegacy.length : firstForm, withoutLegacy.length);
-    return { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+    const mergedPage = { ...page, objects: [...withoutLegacy.slice(0, insertion), ...replacement, ...withoutLegacy.slice(insertion)] };
+    return annotatePageTextFlows(mergedPage);
   });
   return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, tables: table.total }, warnings: [...base.warnings.filter((warning) => !/table/i.test(warning)), ...table.warnings] });
 }
 
+function containmentRatio(inner: NativeRect, outer: NativeRect): number {
+  const x0 = Math.max(inner.x, outer.x);
+  const y0 = Math.max(inner.y, outer.y);
+  const x1 = Math.min(inner.x + inner.w, outer.x + outer.w);
+  const y1 = Math.min(inner.y + inner.h, outer.y + outer.h);
+  const intersection = Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
+  return intersection / Math.max(1, inner.w * inner.h);
+}
+
+function protectNestedFormImage(image: NativeImageObject, complexObjects: NativeComplexObject[]): NativeImageObject {
+  const parent = complexObjects.find((object) => object.contentKinds.includes("image") && containmentRatio(image.bounds, object.bounds) >= 0.9);
+  if (!parent) return image;
+  const reason = `This image is contained by reusable Form XObject /${parent.resourceName}. Direct child-image mutation is blocked because it could bypass the qualified instance-level Form editing boundary.`;
+  return {
+    ...image,
+    editability: "fidelity-protected",
+    fidelity: {
+      class: "ambiguous",
+      resourceName: image.fidelity?.resourceName,
+      invocationCount: image.fidelity?.invocationCount,
+      softMask: image.fidelity?.softMask ?? false,
+      explicitMask: image.fidelity?.explicitMask ?? false,
+      clipped: image.fidelity?.clipped ?? false,
+      blendMode: image.fidelity?.blendMode ?? "Normal",
+      verified: false,
+      allowedActions: [],
+      reason
+    },
+    capability: {
+      level: "unsupported",
+      label: "Nested Form child image",
+      confidence: 1,
+      reason,
+      preserves: [...new Set([...image.capability.preserves, "Reusable Form XObject source", "Other Form instances"])],
+      risks: [...new Set([...image.capability.risks, "Editing this child directly could change shared or nested Form semantics."])]
+    }
+  };
+}
+
 function mergeComplexInspection(base: NativeInspection, complex: ComplexInspection): NativeInspection {
+  let protectedNestedImages = 0;
   const pages = base.pages.map((page) => {
     const replacement = complex.pages.find((candidate) => candidate.pageNumber === page.pageNumber)?.complex ?? [];
     const withoutLegacy = page.objects.filter((object) => object.type !== "complex");
-    return { ...page, objects: [...replacement, ...withoutLegacy] };
+    const objects = withoutLegacy.map((object) => {
+      if (object.type !== "image") return object;
+      const protectedImage = protectNestedFormImage(object, replacement);
+      if (protectedImage !== object) protectedNestedImages += 1;
+      return protectedImage;
+    });
+    return { ...page, objects: [...replacement, ...objects] };
   });
-  return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, complex: complex.total }, warnings: [...base.warnings.filter((warning) => !/nested|Form XObject/i.test(warning)), ...complex.warnings] });
+  const warnings = [...base.warnings.filter((warning) => !/nested|Form XObject/i.test(warning)), ...complex.warnings];
+  if (protectedNestedImages) warnings.push(`P17 protected ${protectedNestedImages} image selection${protectedNestedImages === 1 ? "" : "s"} contained by reusable Form XObjects; edit the qualified Form instance instead of mutating a nested child image directly.`);
+  return registerNativeInspectionPages({ ...base, pages, totals: { ...base.totals, complex: complex.total }, warnings });
 }
 
 export async function inspectNativePdf(bytes: Uint8Array, password?: string, signal?: AbortSignal): Promise<NativeInspection> {
@@ -186,14 +258,15 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
   try {
     const activeSignal = controller.signal;
     const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
-    const [vector, table] = await Promise.all([
+    const [image, vector, table] = await Promise.all([
+      invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal),
       invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal),
       invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal)
     ]);
     const recoveryInput = prepareVectorInspectionForTableRecovery(vector, table);
     const recoveredTable = recoverStructuredTables(base, recoveryInput.vector, table);
     const boundedRecoveredTable = recoveryInput.skippedPages.length ? { ...recoveredTable, warnings: [...recoveredTable.warnings, `Responsiveness guard skipped fallback table-grid recovery on ${recoveryInput.skippedPages.length} dense page${recoveryInput.skippedPages.length === 1 ? "" : "s"} (${recoveryInput.skippedPages.join(", ")}); specialist table results and all vector objects remain available.`] } : recoveredTable;
-    const established = mergeTableInspection(mergeVectorInspection(base, vector), boundedRecoveredTable);
+    const established = mergeTableInspection(mergeVectorInspection(mergeImageInspection(base, image), vector), boundedRecoveredTable);
     const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, activeSignal);
     return mergeComplexInspection(established, complex);
   } catch (reason) {

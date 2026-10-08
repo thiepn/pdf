@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "phase": "P17",
+  "roadmapItem": "V72-05",
+  "title": "Deep Native-Content Fidelity",
+  "status": "implemented-awaiting-stacked-merge",
+  "releaseBoundary": {
+    "executableVersion": "7.1.4",
+    "targetVersion": "7.2.0",
+    "versionCutAllowed": false,
+    "persistentFormats": {
+      "projectPackageVersion": 9,
+      "databaseSchemaVersion": 13,
+      "nativeEditorSchemaVersion": 6
+    },
+    "networkRequired": false
+  },
+  "imageFidelity": {
+    "specialistInspection": "MuPDF trace device plus image mask metadata",
+    "plain": [
+      "transform",
+      "replace",
+      "delete"
+    ],
+    "shared": "instance-local reconstruction; shared source resource is not mutated",
+    "attachedSoftMask": [
+      "transform",
+      "delete"
+    ],
+    "attachedSoftMaskReplacement": false,
+    "protected": [
+      "explicit image masks",
+      "inherited clipping",
+      "non-Normal blending",
+      "ambiguous trace state",
+      "nested Form XObject child images"
+    ],
+    "validation": [
+      "reopen output",
+      "destination image exists",
+      "untouched image instances remain",
+      "attached soft mask survives source transform",
+      "nested Form child images remain selectable but mutation-protected in favor of instance-level Form editing"
+    ]
+  },
+  "vectorFidelity": {
+    "geometryOnly": "preserves inherited source graphics state",
+    "appearanceOverride": "simple un-clipped Normal-blend RGB/Gray/CMYK/BGR state only",
+    "protectedAppearance": [
+      "inherited clipping",
+      "non-Normal blending",
+      "Lab",
+      "Indexed",
+      "Separation",
+      "Pattern",
+      "Unknown color state"
+    ],
+    "clipDefiningPath": "fully protected",
+    "shadingAndPatternOperators": "detected/warned; no false claim of editable shading or pattern objects"
+  },
+  "tableFidelity": {
+    "geometryKinds": [
+      "regular",
+      "nonuniform",
+      "merged",
+      "irregular",
+      "merged-irregular"
+    ],
+    "supported": "explicit rectangular full-grid cell coverage without embedded images/non-grid artwork",
+    "failClosed": [
+      "overlapping merges",
+      "out-of-grid spans",
+      "uncovered cells",
+      "embedded image content",
+      "non-grid artwork"
+    ]
+  },
+  "textReflow": {
+    "base": "conservative same-region flow",
+    "adjacentRegion": "one unique deterministic two-region thread",
+    "requirements": [
+      "similar region width",
+      "strong vertical overlap",
+      "bounded horizontal gap",
+      "no competing adjacency",
+      "safe movable text only"
+    ],
+    "failClosed": [
+      "page overflow",
+      "insufficient target width",
+      "insufficient target height",
+      "unrelated fixed-object blocker",
+      "ambiguous region adjacency"
+    ]
+  },
+  "collateralFidelity": {
+    "sourceOutputGate": "P8 validatePdfFidelity",
+    "changedPagesExplicit": true,
+    "generatedFixture": "src/fixtures/p17NativeFidelityPdf.ts",
+    "browserQualification": "tests/e2e/p17-native-fidelity.spec.ts",
+    "historicalRegressionCorpus": [
+      "tests/corpus/phase28/image-single.pdf",
+      "tests/corpus/phase28/images-12.pdf",
+      "tests/corpus/phase28/transparency.pdf",
+      "tests/corpus/phase28/vector-dense.pdf"
+    ]
+  },
+  "acceptance": [
+    "Every promoted object class has deterministic capability rules and a fail-closed unsupported state.",
+    "Plain/shared images support instance-local edits; attached-soft-mask images support source transform/delete only; explicit masks, clipping, non-Normal blending and ambiguous image state remain protected.",
+    "Qualified vector geometry edits preserve inherited graphics state, while unsafe appearance overrides and clip-defining paths are blocked.",
+    "Qualified nonuniform and rectangular merged/irregular tables preserve explicit full-grid cell geometry; ambiguous or embedded complex content is blocked.",
+    "Cross-region paragraph reflow is limited to a uniquely detected two-region thread with deterministic blocker, width and page-boundary rules.",
+    "Every native export still passes the existing P8 source/output fidelity gate before publication.",
+    "P17 adds no network dependency, executable-version cut, or project/database/native-editor schema migration."
+  ],
+  "nextPhase": {
+    "id": "P18",
+    "title": "Compatibility and Human/Device Qualification",
+    "roadmapItem": "V72-06"
+  }
+}

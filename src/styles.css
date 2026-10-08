@@ -2302,6 +2302,52 @@ pre {
 .editor-file-group span { color: var(--chrome-muted); font-size: .67rem; }
 .editor-commandbar__center { justify-content: center; gap: 5px; }
 .editor-commandbar__actions { justify-content: flex-end; gap: 7px; }
+
+/* Explicit, independently clickable commands for alternate save targets. */
+.editor-save-options { position: relative; flex: 0 0 auto; }
+.editor-save-options > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid var(--chrome-border);
+  border-radius: 7px;
+  list-style: none;
+  cursor: pointer;
+}
+.editor-save-options > summary::-webkit-details-marker { display: none; }
+.editor-save-options[open] { z-index: 85; }
+.editor-save-options__menu {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 3px;
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--chrome-border);
+  border-radius: 9px;
+  background: var(--chrome-bg);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 24%);
+}
+.editor-save-options__menu > button {
+  display: block;
+  position: relative;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--chrome-fg);
+  background: var(--chrome-control);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.editor-save-options__menu > button:disabled { opacity: .45; cursor: default; }
+
 .editor-commandbar__center > span { width: 1px; height: 24px; margin: 0 4px; background: var(--chrome-border); }
 .editor-commandbar__center button,
 .editor-contextbar button,

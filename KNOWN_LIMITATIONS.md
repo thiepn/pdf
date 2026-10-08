@@ -3,8 +3,8 @@
 - OCR creates searchable raster reconstructions rather than adding an invisible layer to the original page structure.
 - Tesseract targets printed text. Handwriting recognition is not claimed.
 - Existing static text replacement supports bounded Latin reconstruction, CJK CID-font reconstruction, and a qualified **Arabic-script/RTL fixed-box path** using a validated imported font, Unicode bidi ordering, HarfBuzz shaping, Identity-H CID glyph output, and logical `/ActualText`. Hebrew, Indic and other shaping-dependent scripts remain appearance-only/unsupported; Arabic cross-paragraph reflow and automatic bulk replacement are not qualified.
-- Paragraph reflow across neighboring objects/columns/pages and universal arbitrary content-stream rewriting are not implemented.
-- Image replacement is region-based and may not preserve original masks, clipping, blend modes, or shared-image semantics.
+- **P17** adds one bounded cross-region paragraph case: a uniquely detected two-region thread may move an overflowing suffix into the adjacent region when width, page bounds, and fixed-object blockers are deterministic. Arbitrary multi-column chains, cross-page Word-style reflow, RTL/vertical cross-region flow, and universal content-stream rewriting remain unsupported.
+- **P17** qualifies plain/shared image-instance editing; attached-soft-mask transforms/deletions are restricted to uniquely matched direct `q/cm/Do/Q` invocations in one ASCII page-content stream, preserving the original image resource and sibling uses. Mask survival and unrelated image positions are checked after reopening. Complex/ambiguous streams, arbitrary replacement of a masked image, explicit image masks, inherited clipping, and non-Normal blending remain protected rather than flattened.
 - Raster compression and imposition do not preserve interactive or vector structures.
 - Target-size compression uses at most **six bounded attempts**. Strict structure-preservation mode never rasterizes; target-priority mode may rasterize after the structural pass. Exact byte targets are not guaranteed; very small targets may end in best-effort/refusal, and raster fallback loses searchable/vector/interactive structure as disclosed in the result.
 - Batch recipe v4 covers the qualified deterministic single-PDF operations and records the remaining standalone-tool boundaries explicitly. Multi-input merge/visual organization, OCR review, repair/recovery, DOCX/text export, and output-password creation remain outside reusable Batch recipes.
@@ -53,8 +53,8 @@ The workspace now includes Phase 16 revision/transaction lineage and object-leve
 - Technical edit-confidence details are available under expandable details; they are implementation guidance, not PDF conformance or preservation guarantees.
 - CJK replacement may use a different font from the source, so exact glyph metrics can change within the fixed box.
 - Complex-script editable visual-text fallback depends on reader/font support and is not claimed as static shaped text.
-- Simple-vector detection is deliberately conservative and does not yet discover arbitrary nested paths, clipping stacks, shadings, patterns, or inherited graphics state.
-- Table detection is geometric/inferred and does not understand every merged-cell or semantic table structure.
+- P17 direct-vector geometry editing preserves inherited source graphics state, but clip-defining paths remain protected and appearance override is blocked for inherited clipping, non-Normal blending, Pattern/Lab/Indexed/Separation/unknown color state. Arbitrary nested vector discovery, editable shading/gradient resources, and unrestricted clipping-stack rewriting are not implemented.
+- P17 table reconstruction qualifies full rectangular grid coverage including nonuniform row/column sizes and rectangular merged cells. Detection is still geometric/inferred; semantic table roles, uncovered/non-rectangular spans, embedded images, and non-grid artwork remain unsupported.
 - AcroForm value editing is supported for common fields; signatures, XFA, read-only fields, and unsupported widget types are not mutated.
 
 
