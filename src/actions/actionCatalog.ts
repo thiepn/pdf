@@ -17,7 +17,6 @@ export interface ActionDescriptor {
   outputMime: "application/pdf" | "application/zip";
   outputKind: ActionOutputKind;
   terminal: boolean;
-  losslessClaim: boolean;
   risks: readonly ActionRisk[];
   options: readonly string[];
 }
@@ -36,7 +35,7 @@ export interface ActionPlan {
 }
 const d = (id: HeadlessActionId, label: string, description: string, options: string[], risks: ActionRisk[] = [], outputKind: ActionOutputKind = "pdf"): ActionDescriptor => ({
   id,label,description,inputMime:"application/pdf",outputMime:outputKind === "pdf" ? "application/pdf" : "application/zip",
-  outputKind,terminal:outputKind!=="pdf",losslessClaim:risks.length===0,risks,options
+  outputKind,terminal:outputKind!=="pdf",risks,options
 });
 export const HEADLESS_ACTIONS: readonly ActionDescriptor[] = [
   d("pdf.rotate","Rotate pages","Rotate the PDF page assembly.",["degrees"]),
@@ -84,7 +83,6 @@ export function validateActionRequest(input: unknown): ActionRequest {
     case "pdf.rotate": oneOf(params.degrees,"degrees",[90,180,270]); break;
     case "pdf.crop":
       for (const key of item.options) number(params[key],key,0,5000);
-      if (!item.options.some(key => Number(params[key])>0)) throw new Error("At least one crop margin must be positive.");
       break;
     case "pdf.decorate":
       for (const key of ["watermarkText","headerText","footerText"]) shortString(params[key],key,400);
