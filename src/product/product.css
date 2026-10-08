@@ -25,3 +25,6 @@
 
 /* D2 catalog presentation stays separate from the PDF editing engines. */
 @import "./studio-discovery-d2.css";
+
+/* D3 targets the live editor without modifying the PDF writer or canvas data. */
+@import "./studio-editor-d3-live.css";

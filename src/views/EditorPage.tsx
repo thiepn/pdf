@@ -1135,7 +1135,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>;
 
   return (
-    <div className="editor-app" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
+    <div className="editor-app editor-app--d3" data-d3-editor="true" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
       {!compactControls ? <header className="editor-commandbar">
         <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
         <div className="editor-commandbar__center" inert={processing ? true : undefined}>
