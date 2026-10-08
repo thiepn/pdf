@@ -51,8 +51,10 @@ import type { EditorAssetRecord, EditorDocumentState, EditorExportAsset, EditorH
 import type { ProjectManifest } from "../types/project";
 import { NATIVE_EDITOR_SCHEMA_VERSION, type NativeEdit, type NativeInspection, type NativePageObject, type NativeRect } from "../types/nativeEditor";
 import { Thumbnail } from "../viewer/Thumbnail";
+import { reviewStatus } from "../review/reviewModel";
+import { measurementLabel } from "../review/measurementModel";
 
-interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
+interface Props { projectId: string; taskId?: string; onTitleChange?: (title: string, subtitle?: string) => void }
 type LeftTab = "pages" | "layers" | "comments";
 type LocalSaveSnapshot = { editor: EditorDocumentState; native: Parameters<typeof writeNativeState>[0]; project: ProjectManifest };
 
@@ -84,13 +86,17 @@ const toolGroups: Array<{ label: string; tools: Array<{ id: EditorTool; label: s
     { id: "pen", label: "Draw", key: "P", icon: "pen" },
     { id: "note", label: "Comment", key: "C", icon: "comment" }
   ] },
+  { label: "Measure", tools: [
+    { id: "measure-distance", label: "Measure distance", icon: "line" },
+    { id: "measure-area", label: "Measure area", icon: "rectangle" }
+  ] },
   { label: "Redaction", tools: [
     { id: "redaction", label: "Mark redaction", key: "X", icon: "redaction" }
   ] }
 ];
 const tools = toolGroups.flatMap((group) => group.tools);
 
-export function EditorPage({ projectId, onTitleChange }: Props) {
+export function EditorPage({ projectId, taskId, onTitleChange }: Props) {
   const documentRef = useRef<PDFDocumentProxy | null>(null);
   const sourceBytesRef = useRef<Uint8Array | null>(null);
   const passwordRef = useRef<string | undefined>(undefined);
@@ -188,6 +194,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const lockedSelectedObjects = useMemo(() => selectedSourceObjects.filter((object) => object.locked), [selectedSourceObjects]);
   const hasLockedSelection = lockedSelectedObjects.length > 0;
   const currentPageObjects = useMemo(() => displayObjects.filter((object) => object.pageNumber === editorState.currentPage), [displayObjects, editorState.currentPage]);
+  useEffect(() => { if (taskId === "measure-pdf") setEditorState((current) => ({ ...current, activeTool: "measure-distance" })); if (taskId === "review-comments") { setLeftTab("comments"); setSidebarOpen(true); } }, [taskId]);
   const comments = useMemo(() => displayObjects.filter((object): object is Extract<EditorObject, { type: "note" }> => object.type === "note"), [displayObjects]);
   const redactionCount = useMemo(() => displayObjects.filter((object) => object.type === "redaction").length, [displayObjects]);
   const currentNativePage = useMemo(() => nativeInspection?.pages.find((page) => page.pageNumber === editorState.currentPage), [nativeInspection, editorState.currentPage]);
@@ -225,7 +232,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         const hydratedPage = Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage));
         const hydratedHistory = createHistory(storedState.objects, storedNativeState.queuedEdits, hydratedPage);
         setCleanHistoryContentId(storedState.dirty ? null : hydratedHistory.present.contentId);
-        setEditorState({ ...storedState, currentPage: hydratedPage });
+        setEditorState({ ...storedState, currentPage: hydratedPage, activeTool: taskId === "measure-pdf" ? "measure-distance" : taskId === "review-comments" ? "note" : storedState.activeTool });
         setHistory(hydratedHistory);
         await openDocument(manifest, bytes);
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
@@ -1050,7 +1057,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </header> : null}
 
       {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
-        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
+        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note", "measure-distance"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
         <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button>
       </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
         <CompactDocumentHome />
@@ -1131,8 +1138,9 @@ function LayerList({ objects, nativeObjects, nativeQueued, deletedNativeIds, sel
 function nativeObjectIcon(object: NativePageObject): string { return object.type === "text" ? "T" : object.type === "image" ? "▧" : object.type === "vector" ? "◇" : object.type === "table" ? "▦" : "⌑"; }
 
 function CommentList({ comments, onSelect }: { comments: Array<Extract<EditorObject, { type: "note" }>>; onSelect: (comment: Extract<EditorObject, { type: "note" }>) => void }) {
+  const [filter, setFilter] = useState<"all" | "open" | "in-progress" | "resolved">("all");
   if (!comments.length) return <div className="editor-panel-empty"><strong>No comments</strong><p>Use the Comment tool to place review notes.</p></div>;
-  return <div className="editor-comment-list">{comments.map((comment) => <button className={comment.resolved ? "resolved" : ""} key={comment.id} onClick={() => onSelect(comment)} type="button"><span style={{ background: comment.color }} /><div><strong>{comment.subject || "Comment"}</strong><p>{comment.contents}</p><small>Page {comment.pageNumber} · {comment.author}</small></div></button>)}</div>;
+  return <div className="editor-comment-list"><label className="editor-sidebar-select"><span>Filter reviews</span><select aria-label="Filter reviews" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="all">All ({comments.length})</option><option value="open">Open</option><option value="in-progress">In progress</option><option value="resolved">Resolved</option></select></label>{comments.filter((note) => filter === "all" || reviewStatus(note) === filter).map((comment) => <button className={reviewStatus(comment) === "resolved" ? "resolved" : ""} key={comment.id} onClick={() => onSelect(comment)} type="button"><span style={{ background: comment.color }} /><div><strong>{comment.subject || "Comment"}</strong><p>{comment.contents}</p><small>Page {comment.pageNumber} · {comment.author} · {reviewStatus(comment)} · {(comment.replies?.length ?? 0)} replies</small></div></button>)}</div>;
 }
 
 function PasswordDialog({ error, password, onChange, onSubmit, projectId }: { error: string | null; password: string; onChange: (value: string) => void; onSubmit: () => void; projectId: string }) {
@@ -1157,8 +1165,8 @@ async function readImageDimensions(file: File): Promise<{ width: number; height:
   });
 }
 
-function objectIcon(object: EditorObject): string { return object.type === "text" ? "T" : object.type === "image" ? "▧" : object.type === "shape" ? "□" : object.type === "ink" ? "✎" : object.type === "highlight" ? "▰" : object.type === "note" ? "●" : object.type === "link" ? "↗" : object.type === "signature" ? "✒" : object.type === "redaction" ? "■" : "印"; }
-function objectLabel(object: EditorObject): string { if (object.type === "text") return object.text.slice(0, 28) || "Text"; if (object.type === "image") return object.name; if (object.type === "note") return object.subject || "Comment"; if (object.type === "stamp") return object.label; if (object.type === "signature") return object.signerName || "Visual signature"; if (object.type === "redaction") return object.overlayText || "Redaction mark"; if (object.type === "link") return object.target || "Link"; return object.type === "shape" ? object.shape : object.type; }
+function objectIcon(object: EditorObject): string { if (object.type === "measurement") return "⌁"; return object.type === "text" ? "T" : object.type === "image" ? "▧" : object.type === "shape" ? "□" : object.type === "ink" ? "✎" : object.type === "highlight" ? "▰" : object.type === "note" ? "●" : object.type === "link" ? "↗" : object.type === "signature" ? "✒" : object.type === "redaction" ? "■" : "印"; }
+function objectLabel(object: EditorObject): string { if (object.type === "measurement") return measurementLabel(object); if (object.type === "text") return object.text.slice(0, 28) || "Text"; if (object.type === "image") return object.name; if (object.type === "note") return object.subject || "Comment"; if (object.type === "stamp") return object.label; if (object.type === "signature") return object.signerName || "Visual signature"; if (object.type === "redaction") return object.overlayText || "Redaction mark"; if (object.type === "link") return object.target || "Link"; return object.type === "shape" ? object.shape : object.type; }
 function isCompactViewport(): boolean { return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 760px)").matches : false; }
 function safeName(value: string): string { return value.replace(/[\\/:*?"<>|]+/g, "-").trim() || "document"; }
 function formatBytes(value: number): string { return value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`; }
