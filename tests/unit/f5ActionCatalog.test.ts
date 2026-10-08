@@ -15,7 +15,7 @@ describe("F5 headless PDF action registry", () => {
     expect(new Set(entries.map(x=>x.id)).size).toBe(entries.length);
     expect(entries.every(x=>x.inputMime==="application/pdf" && x.outputMime.startsWith("application/"))).toBe(true);
     const item=entries[0];
-    item.options.push("fake");
+    (item.options as string[]).push("fake");
     expect(getHeadlessAction(item.id).options).not.toContain("fake");
     expect(() => getHeadlessAction("pdf.hack")).toThrow(/Unknown PDF action/);
   });
