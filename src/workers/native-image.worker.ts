@@ -558,7 +558,7 @@ function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intr
  * This intentionally handles only simple, ASCII, single-stream q/cm/Do/Q
  * sequences. Complex/multiple-stream PDF operators remain fail-closed.
  */
-function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
+function rewriteDirectMaskedInvocation(page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
   const resourceName = image.fidelity?.resourceName;
   if (!resourceName || !image.fidelity?.softMask || image.fidelity.explicitMask || image.fidelity.clipped || image.fidelity.blendMode !== "Normal") {
     throw new Error("The masked image does not have a qualified direct source invocation; its original content was not modified.");
@@ -594,8 +594,8 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const drawing = action === "delete" ? "q Q\n" : imageDrawingContent(pdf, page, resourceName, image.width ?? 1, image.height ?? 1, edit);
   const rewritten = source.slice(0, target.start) + drawing + source.slice(target.start + target.length);
   // Preserve the existing /Contents stream reference and its page-resource
-  // relationships. Replacing it with a fresh indirect stream caused MuPDF to
-  // lose sibling image paints after garbage-collecting certain masked pages.
+  // relationships. It also avoids introducing another indirect stream when
+  // the existing one can be safely rewritten in place.
   // A single direct stream is required above; never rewrite stream arrays.
   if (!current.isStream?.() || typeof current.writeStream !== "function") {
     throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
@@ -718,7 +718,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           beforeClasses.set(edit.id, current.image.fidelity?.class);
           beforeCounts.set(edit.id, sourceMatches.length);
           if (current.image.fidelity?.class === "masked" && (action === "transform" || action === "delete")) {
-            rewriteDirectMaskedInvocation(pdf, page, current.image, edit, action);
+            rewriteDirectMaskedInvocation(page, current.image, edit, action);
             changed.add(edit.pageNumber);
             continue;
           }
