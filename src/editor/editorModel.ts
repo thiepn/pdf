@@ -1,4 +1,5 @@
 import type { Rect } from "../core/coordinates";
+import { makeFormField, fieldNameFromId } from "../forms/formModel";
 import { EDITOR_SCHEMA_VERSION, type EditorDocumentState, type EditorObject, type EditorTool } from "../types/editor";
 
 function id(): string {
@@ -116,6 +117,7 @@ export function createObjectForTool({ tool, pageNumber, bounds, author, zIndex }
     case "stamp": return { ...base, type: "stamp", label: "APPROVED", color: "#167044", backgroundColor: "#e6f6ed", borderColor: "#167044" };
     case "signature": return { ...base, type: "signature", signerName: author, reason: "", location: "", signedAt: now, color: "#17233c", showDate: true, showLabels: false };
     case "redaction": return { ...base, type: "redaction", fillColor: "#000000", overlayText: "REDACTED", applied: false };
+    case "form-field": return makeFormField(base);
     default: return null;
   }
 }
@@ -134,6 +136,7 @@ export function duplicateObjects(objects: EditorObject[], ids: Set<string>, offs
     return {
       ...structuredClone(object),
       id: id(),
+      ...(object.type === "form-field" ? { name: fieldNameFromId(id()) } : {}),
       groupId,
       bounds: moveRect(object.bounds, offset, -offset),
       zIndex: highest + ++index,
