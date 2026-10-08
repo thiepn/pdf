@@ -572,12 +572,11 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   if (!source || /[^\x09\x0a\x0d\x20-\x7e]/.test(source)) {
     throw new Error("The masked image has unsupported binary page-content operators. Its source was preserved.");
   }
-  const escaped = resourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\  const gs = graphicsState(pdf, page, Number(edit.opacity ?? 1));
-  const matrix = matrixForImage(x, y, width, height, rotation);
-  append(pdf, page, `q${clip ? ` ${x0} ${y0} ${boxWidth} ${boxHeight} re W n` : ""}${gs ? ` /${gs} gs` : ""} ${matrix} cm /${resource} Do Q\n`);
-}
-
-function rectDistance");
+  // The direct-content parser supports only simple, explicit PDF resource names.
+  if (!/^[A-Za-z0-9_.:+-]+$/.test(resourceName)) {
+    throw new Error("The masked image resource has an unsupported name and cannot be rewritten safely.");
+  }
+  const escaped = resourceName;
   const number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
   const invocation = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/${escaped}\\s+Do\\s+Q\\b`, "g");
   const requested = pdfRect(page, edit.sourceBounds ?? image.bounds);
