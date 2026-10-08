@@ -26,6 +26,8 @@ export interface HeadlessSequenceResult extends HeadlessActionResult {
 }
 export interface HeadlessExecutionOptions {
   signal: AbortSignal;
+  /** Runtime-only password for authorized protected documents; never serialized in action requests. */
+  password?: string;
   /** Called with 0..1 for the active action. */
   onProgress?: (progress: number, detail: string) => void;
   /** Skip redundant source PDF inspection when the previous action was just validated. */
@@ -54,7 +56,7 @@ export async function runHeadlessAction(
   if (missing.length) throw new Error(`Explicit permission required for: ${missing.join(", ")}.`);
   if (!(source instanceof Uint8Array) || !source.length) throw new Error("Input must be nonempty PDF bytes.");
   const start = performance.now();
-  const inputPageCount = options.knownPageCount ?? (await inspectPdfBytes(source)).pageCount;
+  const inputPageCount = options.knownPageCount ?? (await inspectPdfBytes(source,options.password)).pageCount;
   if (!Number.isSafeInteger(inputPageCount) || inputPageCount <= 0) throw new Error("Source PDF has no valid pages.");
   cancelled(signal);
   const params = request.params;
@@ -68,20 +70,20 @@ export async function runHeadlessAction(
       break;
     }
     case "pdf.optimize": {
-      const result = await optimizePdf(source,{},signal);
+      const result = await optimizePdf(source,{password:options.password},signal);
       output = result.bytes;
       warnings.push(...result.report.warnings);
       break;
     }
     case "pdf.metadata.remove": {
-      output = (await transformPdf(source,{removeMetadata:true},undefined,signal)).bytes;
+      output = (await transformPdf(source,{removeMetadata:true},options.password,signal)).bytes;
       break;
     }
     case "pdf.crop": {
       output = (await transformPdf(source,{crop:{enabled:true,
         topPt:mmToPt(readNumber(params,"topMm")),rightPt:mmToPt(readNumber(params,"rightMm")),
         bottomPt:mmToPt(readNumber(params,"bottomMm")),leftPt:mmToPt(readNumber(params,"leftMm"))
-      }},undefined,signal)).bytes;
+      }},options.password,signal)).bytes;
       break;
     }
     case "pdf.decorate": {
@@ -89,19 +91,19 @@ export async function runHeadlessAction(
         watermarkText:readString(params,"watermarkText"),headerText:readString(params,"headerText"),footerText:readString(params,"footerText"),
         pageNumbers:params.pageNumbers as boolean,startNumber:readNumber(params,"startNumber"),fontSize:10,
         marginPt:mmToPt(10),fontLanguage:(params.fontLanguage as "auto"|"ko"|"ja"|"zh-Hans"|"zh-Hant"|undefined)??"auto"
-      }},undefined,signal)).bytes;
+      }},options.password,signal)).bytes;
       break;
     }
     case "pdf.pages.blank": {
       output = (await transformPdf(source,{blankPages:{enabled:true,
         position:readString(params,"position") as "start"|"end",count:readNumber(params,"count"),
         widthPt:mmToPt(readNumber(params,"widthMm")),heightPt:mmToPt(readNumber(params,"heightMm"))
-      }},undefined,signal)).bytes;
+      }},options.password,signal)).bytes;
       break;
     }
     case "pdf.raster.compress":
     case "pdf.raster.grayscale": {
-      const pdf = await openPdfWithPdfJs(source);
+      const pdf = await openPdfWithPdfJs(source,options.password);
       try {
         const profile = RASTER_PROFILES.find(value=>value.id===params.profile);
         if (!profile) throw new Error("Unknown raster profile.");
@@ -126,7 +128,7 @@ export async function runHeadlessAction(
   checkBytes(output);
   let pageCount: number | null = null;
   if (action.outputKind === "pdf") {
-    const info = await inspectPdfBytes(output);
+    const info = await inspectPdfBytes(output,options.password);
     pageCount = info.pageCount;
     const expected = inputPageCount + (request.actionId==="pdf.pages.blank" ? readNumber(params,"count") : 0);
     if (pageCount !== expected) throw new Error(`PDF action page validation failed: expected ${expected} pages but got ${pageCount}.`);
@@ -156,7 +158,7 @@ export async function runHeadlessSequence(
   for (const [index,request] of actions.entries()) {
     cancelled(options.signal);
     last=await runHeadlessAction(bytes,request,{
-      signal:options.signal,knownPageCount:pageCount,
+      signal:options.signal,password:options.password,knownPageCount:pageCount,
       onProgress:(stepProgress,detail)=>options.onProgress?.((index+stepProgress)/actions.length,detail)
     });
     actionReports.push({actionId:request.actionId,durationMs:last.durationMs,inputBytes:last.inputBytes,outputBytes:last.outputBytes,warnings:[...last.warnings]});
