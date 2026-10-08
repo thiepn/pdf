@@ -108,11 +108,19 @@ export function HomePage() {
     window.addEventListener(PWA_LAUNCH_FILES_EVENT, listener); void consumeIncoming();
     return () => { cancelled = true; window.removeEventListener(PWA_LAUNCH_FILES_EVENT, listener); };
   }, [busy, pendingPassword]);
-  return <div className="product-home">
-    <section className="product-home-hero">
-      <span className="product-eyebrow">YOUR EVERYDAY PDF TOOLS</span>
-      <h1>Less work.<br className="product-mobile-break" /> <span>More done.</span></h1>
-      <p>Merge, edit, compress and convert. Choose a tool below, or start with your files.</p>
+  return <div className="product-home product-home--workspace">
+    <header className="studio-home-heading">
+      <div className="studio-home-heading__identity">
+        <span className="studio-home-kicker">DOCUMENT WORKSPACE</span>
+        <h1>Start with a file</h1>
+        <p>Open a PDF or image, or choose a tool below. Everything stays on your device.</p>
+      </div>
+      <nav aria-label="Workspace shortcuts" className="studio-home-shortcuts">
+        <a href={routeHref({ name: "projects" })}><Icon name="documents" size={18} /> Saved documents</a>
+        {!stagedFiles.length ? <button disabled={busy} onClick={() => void createFixture()} type="button"><Icon name="plus" size={18} /> Try an example</button> : null}
+      </nav>
+    </header>
+    <section className="product-home-hero" aria-label="Open or drop files">
       <div className={`product-home-drop${dragging ? " is-dragging" : ""}`} aria-label="Start with your files" onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }} onDrop={(event) => { event.preventDefault(); setDragging(false); stageFiles([...event.dataTransfer.files]); }}>
         <span className="product-upload-mark" aria-hidden="true"><Icon name="documents" size={30} /><span>+</span></span>
         <div><strong>{stagedFiles.length ? `${stagedFiles.length} ${stagedFiles.length === 1 ? "file" : "files"} ready` : "Drop your files here"}</strong><span>{stagedFiles.length ? "Choose what to do with them below." : "PDF, JPG, PNG or WebP · Up to 200 MB"}</span></div>
@@ -126,10 +134,12 @@ export function HomePage() {
     {error ? <div className="error-banner" role="alert"><strong>Could not open these files</strong><span>{error}</span><button type="button" onClick={() => setError(null)}>Dismiss</button></div> : null}
     {pendingPassword ? <form className="product-password" onSubmit={(event) => { event.preventDefault(); void retryPassword(); }}><h2>Enter the PDF password</h2><p>{pendingPassword.file.name}</p><label>PDF password<input autoFocus autoComplete="off" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><div><button className="button" disabled={!password || busy} type="submit">Open locally</button><button className="button button--secondary" onClick={() => { if (pendingPassword.inboxId) deferredInboxIds.current.add(pendingPassword.inboxId); if (pendingPassword.launchId) deferredLaunchIds.current.add(pendingPassword.launchId); setPendingPassword(null); setPassword(""); setError(null); }} type="button">Cancel</button></div></form> : null}
     {stagedFiles.length ? <section className="product-staged" aria-label="Selected files"><div className="product-staged__files">{stagedFiles.map((file, index) => <span key={`${file.name}:${index}`}><Icon name={inputKind === "images" ? "image" : "documents"} size={18} /><strong>{file.name}</strong><small>{formatBytes(file.size)}</small></span>)}</div><button className="button button--ghost" onClick={() => { setStagedFiles([]); setInputKind(undefined); }} type="button">Clear files</button></section> : null}
+    {projects.length && !stagedFiles.length ? <section aria-label="Recent documents" className="studio-home-recents">
+      <div className="studio-home-section-label"><h2>Recent documents</h2><a href={routeHref({ name: "projects" })}>View all</a></div>
+      <div className="studio-home-recents__list">{projects.slice(0, 3).map((project) => <a key={project.id} href={routeHref({ name: "workspace", projectId: project.id, mode: "editor" })}><Icon name="documents" size={19} /><strong>{project.name}</strong><span>{project.summary.pageCount} pages</span><Icon name="chevron-right" size={17} /></a>)}</div>
+    </section> : null}
     <TaskDirectory home kind={inputKind} fileCount={stagedFiles.length} onChoose={stagedFiles.length ? chooseStagedTask : undefined} />
     {stagedFiles.length && inputKind === "pdf" ? <p className="product-fine-print">Quick tools use temporary files. Editing, form filling and other document work saves a local project on this device.</p> : null}
-    {!stagedFiles.length ? <section className="product-home-bottom"><div><h2>Just need to look around?</h2><p>Try the editor with a sample document. No file of your own needed.</p></div><button className="button button--secondary" disabled={busy} onClick={() => void createFixture()} type="button">Try an example <span aria-hidden="true">→</span></button></section> : null}
-    {projects.length ? <details className="product-recents"><summary>Continue a saved document <span>{projects.length}</span></summary><div>{projects.map((project) => <a key={project.id} href={routeHref({ name: "workspace", projectId: project.id, mode: "editor" })}><Icon name="documents" /><strong>{project.name}</strong><span>{project.summary.pageCount} pages</span><Icon name="chevron-right" /></a>)}</div><a href={routeHref({ name: "projects" })}>All saved documents</a></details> : null}
-    <div className="product-home-links"><a href={routeHref({ name: "projects" })}>Saved documents</a>{supportsNativeFileOpen() ? <button disabled={busy} onClick={() => void openNativeDocument()} type="button">Open PDF</button> : null}<button disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore a project backup</button></div>
+    <div className="product-home-links">{supportsNativeFileOpen() ? <button disabled={busy} onClick={() => void openNativeDocument()} type="button">Open from this device</button> : null}<button disabled={busy} onClick={() => projectInputRef.current?.click()} type="button">Restore a project backup</button></div>
   </div>;
 }
