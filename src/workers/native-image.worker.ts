@@ -600,7 +600,7 @@ function rewriteDirectMaskedInvocation(page: PdfPage, image: NativeImageObject, 
   if (!current.isStream?.() || typeof current.writeStream !== "function") {
     throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
   }
-  current.writeStream(rewritten);
+  current.writeStream(new TextEncoder().encode(rewritten));
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
