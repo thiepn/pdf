@@ -52,7 +52,7 @@ export function ToolsPage() {
     void Promise.resolve().then(() => { if (cancelled || !task) return; const transfer = takeTaskTransfer(task.id); if (transfer?.files.length === 1) void openFile(transfer.files[0], transfer.passwords[0]); });
     return () => { cancelled = true; alive.current = false; };
   }, [task?.id]);
-  if (!task) return <div className="product-tools"><header className="product-directory-heading"><span className="product-eyebrow">ONE PLACE. EVERYDAY TASKS.</span><h1>Find your next PDF tool.</h1><p>Start with what you want to do. The right controls follow.</p></header><TaskDirectory /></div>;
+  if (!task) return <div className="product-tools product-tools--d2"><header className="product-directory-heading product-directory-heading--d2"><span className="product-eyebrow">PDF TOOL LIBRARY</span><h1>All PDF tools</h1><p>Search by action or browse a category. Open a tool directly—no extra setup screens.</p></header><TaskDirectory /></div>;
   return <div className="product-tool-start">
     <a className="product-back" href={routeHref({ name: "tools" })}><Icon name="arrow-left" size={17} />All PDF tools</a>
     <header className="product-task-intro"><TaskGlyph task={task} large /><h1>{task.label}</h1><p>{taskCopy(task)}</p></header>
