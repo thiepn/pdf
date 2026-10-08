@@ -19,3 +19,6 @@
 @import "./mobile-interaction.css";
 
 @import "./forms-redaction.css";
+
+/* D1 workspace redesign is deliberately last to override older Home-only layers. */
+@import "./studio-workspace-d1.css";
