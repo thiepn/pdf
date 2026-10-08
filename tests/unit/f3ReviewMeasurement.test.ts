@@ -54,7 +54,7 @@ describe("F3 calibrated review geometry", () => {
       try {
         expect(writeReviewNote(pdf,page,note,identity)).toBe(3);
         expect(writeMeasurement(pdf,page,length,identity)).toBe(1);
-        expect(writeMeasurement(pdf,page,area,identity)).toBe(1);
+        expect(writeMeasurement(pdf,page,area,identity)).toBe(2);
       } finally {page.destroy();}
       const buffer = pdf.saveToBuffer("compress=yes");
       try { bytes = Uint8Array.from(buffer.asUint8Array()); } finally {buffer.destroy();}
@@ -65,7 +65,7 @@ describe("F3 calibrated review geometry", () => {
       try {
         const annotations = page.getAnnotations();
         try {
-          expect(annotations).toHaveLength(5);
+          expect(annotations).toHaveLength(6);
           const parent = annotations.find((a) => a.getName() === "parent-note");
           expect(parent?.getContents()).toBe("Please verify");
           expect(parent?.getObject().get("State").asString()).toBe("Completed");
@@ -75,6 +75,7 @@ describe("F3 calibrated review geometry", () => {
           for(const child of children) expect(child.getObject().get("RT").asName()).toBe("R");
           const dimensions = annotations.filter((a) => ["length-1","area-1"].includes(a.getName()));
           expect(dimensions).toHaveLength(2);
+          expect(annotations.some((a) => a.getName() === "area-1-caption" && a.getContents() === measurementLabel(area))).toBe(true);
           for (const annotation of dimensions) {
             const measure = annotation.getObject().get("Measure");
             expect(measure.get("Subtype").asName()).toBe("RL");
