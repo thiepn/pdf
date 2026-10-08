@@ -1,0 +1,7 @@
+.editor-object--form-field { border: 1px dashed #36648a; background: rgba(230, 242, 249, .82); border-radius: 3px; }
+.f2-field { display:flex; gap:8px; align-items:center; box-sizing:border-box; width:100%; height:100%; padding:3px 8px; overflow:hidden; color:#173d57; font:500 12px/1.25 system-ui,sans-serif; }
+.f2-field__kind { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; flex:0 0 22px; border:1px solid #6897b8; border-radius:3px; background:#fff; font-weight:700; }
+.f2-field__content { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; min-width:0; }
+.f2-field__required { color:#ad402e; font-weight:800; margin-left:auto; }
+.editor-object--form-field.editor-object--selected { border-style:solid; border-color:#1a6fa8; }
+@media(prefers-color-scheme:dark) { .editor-object--form-field { background:rgba(28,65,84,.92); border-color:#6fabc9; }.f2-field{color:#d3eaf8;}.f2-field__kind{background:#132e41;color:#e1f1fd;} }
