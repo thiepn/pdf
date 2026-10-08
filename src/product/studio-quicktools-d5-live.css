@@ -4,7 +4,7 @@
   --d5-border: var(--line);
   --d5-bg: var(--surface-strong);
   --d5-accent: var(--accent);
-  width: min(1200px, calc(100% - 48px));
+  width: min(var(--studio-page-max), calc(100% - 48px));
   min-width: 0;
   margin-inline: auto;
   padding-bottom: 56px;
@@ -26,11 +26,11 @@
 .product-app [data-d5-quick="true"] .task-heading p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--studio-type-label);
   line-height: 1.5;
 }
 .product-app [data-d5-quick="true"] .task-step {
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   font-weight: 630;
   color: var(--muted);
   white-space: nowrap;
@@ -52,7 +52,7 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--studio-type-label);
 }
 .product-app [data-d5-quick="true"] .d5-live-steps li:first-child { padding-left: 0; }
 .product-app [data-d5-quick="true"] .d5-live-steps li > span {
@@ -62,7 +62,7 @@
   height: 24px;
   border-radius: 50%;
   border: 1px solid var(--d5-border);
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   font-weight: 700;
 }
 .product-app [data-d5-quick="true"] .d5-live-steps li > strong {
@@ -85,7 +85,7 @@
   min-height: 210px;
   padding: 25px 22px;
   border: 1.5px dashed var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--studio-radius-drop);
   background: var(--d5-bg);
   box-shadow: none;
 }
@@ -105,7 +105,7 @@
 .product-app [data-d5-quick="true"] .task-canvas,
 .product-app [data-d5-quick="true"] .task-options {
   min-width: 0;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-panel);
   border: 1px solid var(--d5-border);
   box-shadow: none;
   background: var(--d5-bg);
@@ -116,7 +116,7 @@
   flex-wrap: wrap;
 }
 .product-app [data-d5-quick="true"] .task-file-card {
-  border-radius: 7px;
+  border-radius: var(--studio-radius-panel);
   border-color: var(--d5-border);
   box-shadow: none;
 }
@@ -131,7 +131,7 @@
 .product-app [data-d5-quick="true"] .quick-field input,
 .product-app [data-d5-quick="true"] .quick-field select {
   min-height: 42px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
 }
 .product-app [data-d5-quick="true"] .task-action-dock {
   padding-top: 14px;
@@ -139,13 +139,13 @@
 }
 .product-app [data-d5-quick="true"] .task-action-dock .quick-run {
   min-height: 44px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
   font-weight: 700;
 }
 .product-app [data-d5-quick="true"] .quick-result {
   border: 1px solid var(--d5-border);
   border-left: 3px solid var(--d5-accent);
-  border-radius: 7px;
+  border-radius: var(--studio-radius-panel);
   background: var(--d5-bg);
   box-shadow: none;
 }
@@ -159,7 +159,7 @@
 }
 .product-app [data-d5-quick="true"] .quick-result > .button {
   min-height: 46px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
 }
 .product-app [data-d5-quick="true"] .quick-next {
   border-top: 1px solid var(--d5-border);
@@ -175,7 +175,7 @@
   .product-app [data-d5-quick="true"] .task-heading { flex-wrap: wrap; gap: 10px; min-height: 0; }
   .product-app [data-d5-quick="true"] .task-heading .task-step { margin-left: auto; }
   .product-app [data-d5-quick="true"] .d5-live-steps { margin-bottom: 17px; }
-  .product-app [data-d5-quick="true"] .d5-live-steps li { gap: 5px; padding-inline: 5px; font-size: 11px; }
+  .product-app [data-d5-quick="true"] .d5-live-steps li { gap: 5px; padding-inline: 5px; font-size: var(--studio-type-caption); }
   .product-app [data-d5-quick="true"] .d5-live-steps li strong { font-weight: 650; }
   .product-app [data-d5-quick="true"] .d5-live-steps li > span { flex-basis: 21px; height: 21px; }
   .product-app [data-d5-quick="true"] .task-dropzone { min-height: 180px; padding: 20px 14px; }

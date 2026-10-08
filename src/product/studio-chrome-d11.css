@@ -1,0 +1,156 @@
+/* D11 — application-level chrome and interaction primitives.
+ * This file owns the header/footer and shared controls only. The D1–D10
+ * surface sheets retain layout, editor canvas geometry and PDF functionality. */
+.product-app .product-header {
+  height: 66px;
+  min-height: 66px;
+  gap: 26px;
+  padding-inline: max(24px, calc((100vw - var(--studio-page-max)) / 2));
+  background: var(--studio-chrome-bg);
+}
+.product-app .product-brand {
+  gap: 9px;
+  font-size: 20px;
+  letter-spacing: -.045em;
+}
+.product-app .product-mark {
+  width: 32px;
+  height: 32px;
+}
+.product-app .product-header__links {
+  gap: 22px;
+}
+.product-app .product-header__end {
+  gap: 13px;
+}
+.product-app .product-footer {
+  padding: 15px max(24px, calc((100vw - var(--studio-page-max)) / 2));
+  font-size: var(--studio-type-caption);
+}
+.product-app .product-header :is(.command-palette-trigger, .product-menu-button) {
+  min-height: var(--studio-touch-height);
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) :is(.product-search, .product-home-drop) {
+  border-color: var(--studio-panel-border);
+  box-shadow: none;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-search:focus-within {
+  border-color: var(--studio-focus-ring);
+  outline: 2px solid color-mix(in srgb, var(--studio-focus-ring) 22%, transparent);
+  outline-offset: 1px;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) :is(.product-tool-card, .product-staged) {
+  border-color: var(--studio-panel-border);
+  border-radius: var(--studio-radius-panel);
+  box-shadow: none;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card:focus-visible {
+  outline: 3px solid var(--studio-focus-ring);
+  outline-offset: 2px;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card:hover:not(:disabled):not(.product-tool-card--blocked) {
+  border-color: var(--accent);
+  box-shadow: none;
+  transform: none;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card__body > strong {
+  font-size: var(--studio-type-body);
+  line-height: 1.35;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card__body > span {
+  font-size: var(--studio-type-caption);
+  line-height: 1.45;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .task-glyph {
+  border-radius: var(--studio-radius-control);
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-section-heading h2 {
+  font-size: var(--studio-type-section);
+}
+/* The real page strip and contextual inspector share one paper/graphite
+ * surface scale; selection capabilities and field behavior remain native. */
+.product-app [data-d3-editor="true"] :is(.editor-left-panel, .editor-properties) {
+  background: var(--studio-chrome-bg);
+  border-color: var(--studio-panel-border);
+}
+.product-app [data-d3-editor="true"] .editor-sidebar-select {
+  padding: 11px;
+  background: var(--studio-chrome-bg);
+  border-bottom-color: var(--studio-panel-border);
+}
+.product-app [data-d3-editor="true"] .editor-sidebar-select select {
+  min-height: var(--studio-control-height);
+  border: 1px solid var(--studio-panel-border);
+  border-radius: var(--studio-radius-control);
+  background: var(--surface-subtle);
+}
+.product-app [data-d3-editor="true"] .editor-left-body .thumbnail {
+  border-radius: var(--studio-radius-panel);
+  background: var(--studio-surface-hover);
+}
+.product-app [data-d3-editor="true"] .editor-properties .property-section {
+  border-bottom-color: var(--studio-panel-border);
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-section h3, .native-capability-card h2) {
+  font-size: var(--studio-type-body);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -.015em;
+  line-height: 1.35;
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-field, .property-toggle, .property-note) {
+  color: var(--muted);
+  font-size: var(--studio-type-label);
+  line-height: 1.45;
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-field input, .property-field select, .property-field textarea) {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--studio-radius-control);
+  color: var(--ink);
+  background: var(--surface-strong);
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(.property-field input, .property-field select) {
+  min-height: var(--studio-control-height);
+}
+.product-app [data-d3-editor="true"] .editor-properties .property-actions button {
+  min-height: var(--studio-control-height);
+  border-radius: var(--studio-radius-control);
+}
+.product-app [data-d3-editor="true"] .editor-properties :is(input, select, textarea, button):focus-visible {
+  outline: 3px solid var(--studio-focus-ring);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .product-app [data-d3-editor="true"] .editor-properties :is(.property-field input, .property-field select, .property-actions button) {
+    min-height: var(--studio-touch-height);
+  }
+}
+@media (max-width: 680px) {
+  .product-app .product-header {
+    height: 60px;
+    min-height: 60px;
+    gap: 9px;
+    padding-inline: 15px;
+  }
+  .product-app .product-brand { font-size: 18px; }
+  .product-app .product-mark { width: 29px; height: 29px; }
+  .product-app .product-header__end { gap: 6px; }
+  .product-app .product-footer {
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+  .product-app .product-footer nav {
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-app :is(.product-header, .product-tool-card, .task-glyph) { transition: none; }
+}
+@media (forced-colors: active) {
+  .product-app .task-glyph { color: CanvasText; background: Canvas; outline: 1px solid CanvasText; }
+  .product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card { border-color: ButtonText; }
+  .product-app :is(.product-home--workspace, .product-tools--d2) .product-search:focus-within { outline-color: Highlight; }
+}

@@ -19,7 +19,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--line-strong);
-  border-radius: 9px;
+  border-radius: var(--studio-radius-panel);
   background: var(--surface-strong);
   color: var(--ink);
   padding: 22px;
@@ -39,7 +39,7 @@
   margin: 0 0 5px;
 }
 .product-app .editor-app[data-d7-polish="true"] .d7-shortcut-dialog p {
-  font-size: 12px;
+  font-size: var(--studio-type-label);
   color: var(--muted);
   line-height: 1.5;
   margin: 0;
@@ -48,7 +48,7 @@
   flex: 0 0 auto;
   min-height: 44px;
   padding: 8px 12px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
   border: 1px solid var(--line);
   background: var(--surface-strong);
   color: var(--ink);
@@ -75,14 +75,14 @@
   padding: 5px 9px;
   background: var(--surface-subtle);
   color: var(--ink);
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   white-space: normal;
   font-family: inherit;
   font-weight: 700;
 }
 .product-app .editor-app[data-d7-polish="true"] .d7-shortcut-dialog dd {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--studio-type-label);
 }
 @media (max-width: 480px) {
   .product-app .editor-app[data-d7-polish="true"] .d7-help-backdrop {

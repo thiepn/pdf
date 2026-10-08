@@ -2,7 +2,7 @@
  * Scoped to Home; specialist PDF canvases and task pages are intentionally untouched.
  * No giant landing hero, floating cards, or gradients. */
 .product-app .product-home--workspace {
-  width: min(1220px, calc(100% - 48px));
+  width: min(var(--studio-page-max), calc(100% - 48px));
   padding-block: clamp(20px, 3vw, 42px) 46px;
 }
 .product-home--workspace .studio-home-heading {
@@ -25,7 +25,7 @@
 }
 .product-app .product-home--workspace .studio-home-heading h1 {
   margin: 0;
-  font-size: clamp(23px, 2.8vw, 31px);
+  font-size: var(--studio-type-title);
   line-height: 1.15;
   letter-spacing: -.035em;
   font-weight: 730;
@@ -33,7 +33,7 @@
 .product-home--workspace .studio-home-heading p {
   margin: 9px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--studio-type-body);
   line-height: 1.55;
 }
 .product-home--workspace .studio-home-shortcuts {
@@ -51,8 +51,8 @@
   background: var(--surface-strong);
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 7px;
-  font-size: 12px;
+  border-radius: var(--studio-radius-control);
+  font-size: var(--studio-type-label);
   font-weight: 650;
   text-decoration: none;
   white-space: nowrap;
@@ -75,7 +75,7 @@
   margin: 0;
   padding: clamp(20px, 3vw, 32px);
   border: 1.5px dashed var(--line-strong);
-  border-radius: 10px;
+  border-radius: var(--studio-radius-drop);
   background: var(--surface-strong);
   box-shadow: none;
   transition: background 150ms ease, border-color 150ms ease;
@@ -88,12 +88,12 @@
 .product-home--workspace .product-upload-mark {
   width: 60px;
   height: 68px;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-control);
   border: 1px solid var(--line);
   background: var(--surface-subtle);
   color: var(--accent);
 }
-.product-home--workspace .product-upload-mark > span { font-size: 13px; }
+.product-home--workspace .product-upload-mark > span { font-size: var(--studio-type-body); }
 .product-home--workspace .product-home-drop > div {
   display: grid;
   min-width: 0;
@@ -104,11 +104,11 @@
   font-weight: 675;
 }
 .product-home--workspace .product-home-drop > div > span {
-  font-size: 12px;
+  font-size: var(--studio-type-label);
 }
 .product-app .product-home--workspace .product-home-drop .button {
   margin-left: auto;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-control);
   min-height: 44px;
   white-space: nowrap;
   box-shadow: none;
@@ -117,13 +117,13 @@
   justify-content: flex-start;
   gap: 14px;
   padding: 11px 3px 0;
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
 }
 .product-home--workspace .product-trust-line > span+span::before { margin-right: 8px; }
 .product-home--workspace .product-staged {
   margin-top: 0;
   margin-bottom: 22px;
-  border-radius: 8px;
+  border-radius: var(--studio-radius-panel);
 }
 .product-home--workspace .studio-home-recents {
   margin: 0 0 28px;
@@ -142,7 +142,7 @@
   letter-spacing: -.015em;
 }
 .product-home--workspace .studio-home-section-label a {
-  font-size: 12px;
+  font-size: var(--studio-type-label);
   text-decoration: none;
   color: var(--muted);
 }
@@ -159,11 +159,11 @@
   gap: 9px;
   min-width: 0;
   padding: 13px 12px;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-control);
   border: 1px solid var(--line);
   background: var(--surface-strong);
   color: var(--ink);
-  font-size: 12px;
+  font-size: var(--studio-type-label);
   text-decoration: none;
 }
 .product-home--workspace .studio-home-recents__list a:hover { border-color: var(--line-strong); background: var(--surface-subtle); }
@@ -173,7 +173,7 @@
   white-space: nowrap;
   font-weight: 625;
 }
-.product-home--workspace .studio-home-recents__list a > span { color: var(--muted); white-space: nowrap; font-size: 11px; }
+.product-home--workspace .studio-home-recents__list a > span { color: var(--muted); white-space: nowrap; font-size: var(--studio-type-caption); }
 .product-home--workspace .studio-home-recents__list a > svg:first-child { color: var(--accent); }
 .product-home--workspace .studio-home-recents__list a > svg:last-child { color: var(--muted); }
 .product-home--workspace .product-directory { margin-top: 0; }
@@ -182,12 +182,12 @@
   min-height: 48px;
   margin: 0 0 26px;
   padding: 5px 12px;
-  border-radius: 7px;
+  border-radius: var(--studio-radius-control);
   box-shadow: none;
 }
-.product-app .product-home--workspace .product-search input { font-size: 13px; }
+.product-app .product-home--workspace .product-search input { font-size: var(--studio-type-body); }
 .product-home--workspace .product-section-heading { margin: 0 0 12px; }
-.product-app .product-home--workspace .product-section-heading h2 { font-size: 16px; font-weight: 700; }
+.product-app .product-home--workspace .product-section-heading h2 { font-size: var(--studio-type-section); font-weight: 700; }
 .product-app .product-home--workspace .product-tool-grid {
   grid-template-columns: repeat(4,minmax(0,1fr));
   gap: 9px;
@@ -199,7 +199,7 @@
   min-height: 112px;
   gap: 12px;
   padding: 17px 13px;
-  border-radius: 8px;
+  border-radius: var(--studio-radius-panel);
   background: var(--surface-strong);
   border: 1px solid var(--line);
   box-shadow: none;
@@ -218,9 +218,9 @@
 }
 .product-home--workspace .product-tool-card .task-glyph svg { width: 23px; height: 23px; }
 .product-home--workspace .product-tool-card__body { min-width: 0; gap: 4px; padding-right: 10px; }
-.product-home--workspace .product-tool-card__body > strong { font-size: 13px; font-weight: 700; line-height: 1.35; }
-.product-home--workspace .product-tool-card__body > span { font-size: 11px; line-height: 1.42; }
-.product-home--workspace .product-tool-card__arrow { top: 14px; right: 11px; font-size: 13px; }
+.product-home--workspace .product-tool-card__body > strong { font-size: var(--studio-type-body); font-weight: 700; line-height: 1.35; }
+.product-home--workspace .product-tool-card__body > span { font-size: var(--studio-type-caption); line-height: 1.42; }
+.product-home--workspace .product-tool-card__arrow { top: 14px; right: 11px; font-size: var(--studio-type-body); }
 .product-home--workspace .product-home-links {
   justify-content: flex-start;
   gap: 16px;
@@ -228,7 +228,7 @@
   padding: 14px 0 20px;
   border-top: 1px solid var(--line);
 }
-.product-home--workspace .product-home-links button { font-size: 12px; }
+.product-home--workspace .product-home-links button { font-size: var(--studio-type-label); }
 @media (max-width: 1030px) {
   .product-app .product-home--workspace .product-tool-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .product-home--workspace .studio-home-recents__list { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -241,20 +241,20 @@
 @media (max-width: 600px) {
   .product-app .product-home--workspace { width: calc(100% - 32px); padding-top: 19px; }
   .product-app .product-home--workspace .studio-home-heading h1 { font-size: 25px; }
-  .product-home--workspace .studio-home-heading p { font-size: 12px; }
+  .product-home--workspace .studio-home-heading p { font-size: var(--studio-type-label); }
   .product-home--workspace .studio-home-shortcuts { width: 100%; }
-  .product-app .product-home--workspace .studio-home-shortcuts > :is(a,button) { flex: 1; min-width: 0; font-size: 11px; padding: 8px; }
+  .product-app .product-home--workspace .studio-home-shortcuts > :is(a,button) { flex: 1; min-width: 0; font-size: var(--studio-type-caption); padding: 8px; }
   .product-home--workspace .product-home-hero { padding-bottom: 18px; }
   .product-home--workspace .product-home-drop { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 12px; padding: 17px 15px; min-height: 0; }
   .product-home--workspace .product-upload-mark { width: 40px; height: 48px; }
   .product-home--workspace .product-home-drop strong { font-size: 14px; }
-  .product-home--workspace .product-home-drop > div > span { font-size: 11px; }
+  .product-home--workspace .product-home-drop > div > span { font-size: var(--studio-type-caption); }
   .product-app .product-home--workspace .product-home-drop .button { width: 100%; grid-column: 1 / -1; margin: 2px 0 0; }
   .product-home--workspace .product-trust-line { gap: 7px 13px; line-height: 1.4; font-size: 10px; }
   .product-home--workspace .product-trust-line > span+span::before { display: none; }
   .product-app .product-home--workspace .product-tool-grid { grid-template-columns: 1fr; gap: 7px; }
   .product-app .product-home--workspace .product-tool-card { min-height: 78px; padding: 13px 12px; }
-  .product-home--workspace .product-tool-card__body > span { font-size: 11px; }
+  .product-home--workspace .product-tool-card__body > span { font-size: var(--studio-type-caption); }
   .product-app .product-home--workspace .product-search { margin-bottom: 20px; }
   .product-home--workspace .product-home-links { flex-wrap: wrap; gap: 13px; }
 }

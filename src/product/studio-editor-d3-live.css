@@ -21,7 +21,7 @@
   gap: 2px;
 }
 .product-app [data-d3-editor="true"] .editor-purpose {
-  font-size: 12px;
+  font-size: var(--studio-type-label);
   font-weight: 730;
   letter-spacing: -.015em;
 }
@@ -47,7 +47,7 @@
 }
 .product-app [data-d3-editor="true"] .editor-commandbar__center :is(button, input, select) {
   min-height: 37px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
   box-shadow: none;
 }
 .product-app [data-d3-editor="true"] .editor-commandbar__center button {
@@ -59,14 +59,14 @@
 }
 .product-app [data-d3-editor="true"] .editor-commandbar__actions > .button {
   min-height: 39px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
   font-weight: 700;
 }
 .product-app [data-d3-editor="true"] .editor-save-options > summary {
   width: 40px;
   height: 40px;
   border: 1px solid var(--d3-edge);
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
 }
 .product-app [data-d3-editor="true"] .editing-toolbar {
   min-height: 54px;
@@ -87,7 +87,7 @@
   min-height: 42px;
   padding: 8px 11px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
   font-weight: 625;
   transform: none;
   box-shadow: none;
@@ -110,7 +110,7 @@
 }
 .product-app [data-d3-editor="true"] .editor-contextbar button {
   min-height: 32px;
-  border-radius: 5px;
+  border-radius: var(--studio-radius-control);
 }
 .product-app [data-d3-editor="true"] .editor-layout {
   min-width: 0;
@@ -125,7 +125,7 @@
   overscroll-behavior: contain;
 }
 .product-app [data-d3-editor="true"] .editor-page-layers {
-  box-shadow: 0 2px 6px rgb(0 0 0 / 12%), 0 13px 38px rgb(0 0 0 / 15%);
+  box-shadow: var(--studio-document-shadow);
 }
 .product-app [data-d3-editor="true"] .editor-left-panel,
 .product-app [data-d3-editor="true"] .editor-properties {

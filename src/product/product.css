@@ -1,4 +1,7 @@
 @import "./foundation.css";
+
+/* D11 vocabulary resolves in D1–D10 sheets without cascading overrides. */
+@import "./studio-tokens-d11.css";
 @import "./tasks.css";
 @import "./document.css";
 @import "./responsive.css";
@@ -43,3 +46,6 @@
 
 /* D10: compact live document status and resilient editor flex layout. */
 @import "./studio-editor-d10-status.css";
+
+/* D11 shared header, component semantics and dark-theme glyphs. */
+@import "./studio-chrome-d11.css";

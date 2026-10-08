@@ -46,7 +46,7 @@ test.setTimeout(60000);
 test("homepage is a task-first surface on desktop and mobile, without navigation tabs", async ({ page }, info) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("./#/home");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Less work.");
+    await expect(page.getByRole("heading", { level: 1, name: "Start with a file" })).toBeVisible();
     await expect(page.locator(".product-tool-card")).toHaveCount(12);
     await expect(page.locator('[role="tablist"],.app-sidebar,.workspace-tabs')).toHaveCount(0);
     await noOverflow(page);
