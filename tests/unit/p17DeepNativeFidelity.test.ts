@@ -1,3 +1,4 @@
+import { Buffer as NodeBuffer } from "node:buffer";
 import * as mupdf from "mupdf";
 import { describe, expect, it } from "vitest";
 import { createP17NativeFidelityPdf } from "../../src/fixtures/p17NativeFidelityPdf";
@@ -51,7 +52,7 @@ describe("P17 deep native-content fidelity policy", () => {
   });
 
   it("retains sibling masked-image paints after rewriting the original content stream", () => {
-    const pdf = mupdf.Document.openDocument(createP17NativeFidelityPdf(), "application/pdf") as mupdf.PDFDocument;
+    const pdf = mupdf.Document.openDocument(NodeBuffer.from(createP17NativeFidelityPdf()), "application/pdf") as mupdf.PDFDocument;
     try {
       const page = pdf.loadPage(0);
       try {
@@ -66,11 +67,11 @@ describe("P17 deep native-content fidelity policy", () => {
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
         const newPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
         expect(source).toContain(oldPaint);
-        content.writeStream(new TextEncoder().encode(source.replace(oldPaint, newPaint)));
+        content.writeStream(NodeBuffer.from(source.replace(oldPaint, newPaint), "latin1"));
       } finally { page.destroy(); }
       const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
       try {
-        const reopened = mupdf.Document.openDocument(saved.asUint8Array(), "application/pdf") as mupdf.PDFDocument;
+        const reopened = mupdf.Document.openDocument(NodeBuffer.from(saved.asUint8Array()), "application/pdf") as mupdf.PDFDocument;
         try {
           const page = reopened.loadPage(0);
           try {
