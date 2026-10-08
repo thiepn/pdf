@@ -38,7 +38,7 @@ test("D1 preserves file selection and routes tasks through the existing handoff"
   await expect(page.getByText("first.pdf", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "What would you like to do with these files?" })).toBeVisible();
   await page.getByRole("button", { name: /^Merge PDFs/ }).click();
-  await expect(page).toHaveURL(/#\/merge$/);
+  await expect(page).toHaveURL(/#\/quick\/merge-pdfs$/);
 });
 
 test("D1 phone layout maintains usable controls and single-column task rows", async ({ page }, testInfo) => {
