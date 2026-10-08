@@ -4,6 +4,8 @@ import { batchStepLabel, defaultBatchStep, runBatchRecipe } from "../processing/
 import { batchRecipeExecutionFingerprint, parseBatchRecipeJson, serializeBatchRecipe } from "../processing/batchModel";
 import { downloadBlob } from "../projects/download";
 import { BATCH_RECIPE_SCHEMA_VERSION, type BatchItemStatus, type BatchRecipe, type BatchStep } from "../types/batch";
+import { WorkflowComposer } from "../automation/WorkflowComposer";
+import { F6_MAX_FILES, createWorkflowRunEvidence, validateWorkflowDraft, type WorkflowFailurePolicy, type WorkflowRunEvidence } from "../automation/workflowComposerModel";
 import { createStoredZip } from "../toolbox/zip";
 
 interface BatchItem { id: string; file: File; status: BatchItemStatus; progress: number; message: string; output?: Uint8Array; outputExtension?: ".pdf" | ".zip"; outputRecipeFingerprint?: string; outputMime?: string; error?: string }
@@ -15,26 +17,61 @@ const STEP_TYPES: Array<{type:BatchStep["type"];label:string}> = [
 export function BatchPage() {
   const inputRef=useRef<HTMLInputElement|null>(null),recipeInputRef=useRef<HTMLInputElement|null>(null),abortRef=useRef<AbortController|null>(null),pauseRef=useRef(false);
   const [items,setItems]=useState<BatchItem[]>([]),[recipe,setRecipe]=useState<BatchRecipe>(DEFAULT_RECIPE),[recipes,setRecipes]=useState<BatchRecipe[]>([]);
-  const [running,setRunning]=useState(false),[paused,setPaused]=useState(false),[error,setError]=useState<string|null>(null),[newStepType,setNewStepType]=useState<BatchStep["type"]>("rotate");
+  const [running,setRunning]=useState(false),[paused,setPaused]=useState(false),[error,setError]=useState<string|null>(null);
+  const [failurePolicy,setFailurePolicy]=useState<WorkflowFailurePolicy>("continue");
+  const [approvalFingerprint,setApprovalFingerprint]=useState<string | null>(null);
+  const [lastRunEvidence,setLastRunEvidence]=useState<WorkflowRunEvidence|null>(null);
   const recipeLocked = running || paused;
   const recipeFingerprint = batchRecipeExecutionFingerprint(recipe);
+  const preflight = validateWorkflowDraft(recipe);
+  const approvalRequired = preflight.risks.length > 0;
+  const approvalValid = !approvalRequired || approvalFingerprint === recipeFingerprint;
+  const readyToRun = preflight.valid && approvalValid;
   const hasCurrentOutput = (item: BatchItem) => Boolean(item.output && item.outputRecipeFingerprint === recipeFingerprint);
   const needsRun = (item: BatchItem) => !hasCurrentOutput(item) || item.status !== "complete";
   const currentOutputFilename = (item: BatchItem) => `${item.file.name.replace(/\.pdf$/i,"")}-${recipe.outputSuffix||"processed"}${item.outputExtension||".pdf"}`;
   useEffect(()=>{void listBatchRecipes().then(setRecipes);},[]);
-  function addFiles(files:FileList|File[]){setItems(current=>[...current,...[...files].filter(file=>file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf")).map(file=>({id:crypto.randomUUID(),file,status:"pending" as const,progress:0,message:"Queued"}))]);}
+  function addFiles(files:FileList|File[]){const accepted=[...files].filter(file=>file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf"));if(items.length+accepted.length>F6_MAX_FILES){setError("A single queue can hold at most 100 PDF files.");return;}setItems(current=>[...current,...accepted.map(file=>({id:crypto.randomUUID(),file,status:"pending" as const,progress:0,message:"Queued"}))]);setLastRunEvidence(null);}
   function patch(id:string,value:Partial<BatchItem>){setItems(current=>current.map(item=>item.id===id?{...item,...value}:item));}
   function patchStep(id:string,value:Partial<BatchStep>){setRecipe(current=>({...current,steps:current.steps.map(step=>step.id===id?{...step,...value} as BatchStep:step)}));}
-  const isTerminalStep=(step:BatchStep)=>step.type==="split-fixed"||step.type==="page-images";
-  function appendStep(type:BatchStep["type"]){setRecipe(current=>{const next=defaultBatchStep(type);if(isTerminalStep(next))return{...current,steps:[...current.steps.filter(step=>!isTerminalStep(step)),next]};const terminalIndex=current.steps.findIndex(isTerminalStep);if(terminalIndex<0)return{...current,steps:[...current.steps,next]};const steps=[...current.steps];steps.splice(terminalIndex,0,next);return{...current,steps};});}
-  function moveStep(index:number,direction:-1|1){setRecipe(current=>{const steps=[...current.steps],target=index+direction;if(target<0||target>=steps.length)return current;const moving=steps[index],other=steps[target];if(isTerminalStep(moving)&&target!==steps.length-1)return current;if(isTerminalStep(other)&&direction===1)return current;[steps[index],steps[target]]=[steps[target],steps[index]];return {...current,steps};});}
-  async function run(){if(!recipe.steps.length){setError("Add at least one workflow step.");return;} const recipeSnapshot=structuredClone(recipe),runFingerprint=batchRecipeExecutionFingerprint(recipeSnapshot);if(!items.some(item=>!item.output||item.outputRecipeFingerprint!==runFingerprint||item.status!=="complete"))return;setRunning(true);setPaused(false);setError(null);pauseRef.current=false;
-    for(const item of items){if(pauseRef.current){setPaused(true);break;}if(item.output&&item.outputRecipeFingerprint===runFingerprint&&item.status==="complete")continue;const controller=new AbortController();abortRef.current=controller;patch(item.id,{status:"running",progress:.01,message:"Opening…",error:undefined,output:undefined,outputExtension:undefined,outputRecipeFingerprint:undefined,outputMime:undefined});try{const source=new Uint8Array(await item.file.arrayBuffer());const artifact=await runBatchRecipe(source,recipeSnapshot,controller.signal,(progress,message)=>patch(item.id,{progress:Math.max(.01,Math.min(.98,progress)),message}));patch(item.id,{status:"complete",progress:1,message:`${(artifact.bytes.byteLength/1_000_000).toFixed(2)} MB · Ready`,output:artifact.bytes,outputExtension:artifact.extension,outputRecipeFingerprint:runFingerprint,outputMime:artifact.mimeType});}catch(reason){const cancelled=reason instanceof DOMException&&reason.name==="AbortError";patch(item.id,{status:cancelled?"cancelled":"failed",message:cancelled?"Cancelled":"Failed",error:cancelled?undefined:reason instanceof Error?reason.message:String(reason)});}}
+  async function run(){
+    if(!preflight.valid){setError(preflight.errors.join(" "));return;}
+    if(!approvalValid){setError("Review and approve the destructive workflow effects before running.");return;}
+    if(!recipe.steps.length){setError("Add at least one workflow step.");return;}
+    const recipeSnapshot=structuredClone(recipe),runFingerprint=batchRecipeExecutionFingerprint(recipeSnapshot);
+    if(!items.some(item=>!item.output||item.outputRecipeFingerprint!==runFingerprint||item.status!=="complete"))return;
+    const startedAt=new Date().toISOString();
+    const entries:WorkflowRunEvidence["entries"]=[];
+    setLastRunEvidence(null);setRunning(true);setPaused(false);setError(null);pauseRef.current=false;
+    for(const item of items){
+      if(pauseRef.current){setPaused(true);break;}
+      if(item.output&&item.outputRecipeFingerprint===runFingerprint&&item.status==="complete")continue;
+      const controller=new AbortController();abortRef.current=controller;
+      patch(item.id,{status:"running",progress:.01,message:"Opening…",error:undefined,output:undefined,outputExtension:undefined,outputRecipeFingerprint:undefined,outputMime:undefined});
+      try{
+        const source=new Uint8Array(await item.file.arrayBuffer());
+        const artifact=await runBatchRecipe(source,recipeSnapshot,controller.signal,(progress,message)=>patch(item.id,{progress:Math.max(.01,Math.min(.98,progress)),message}));
+        patch(item.id,{status:"complete",progress:1,message:`${(artifact.bytes.byteLength/1_000_000).toFixed(2)} MB · Ready`,output:artifact.bytes,outputExtension:artifact.extension,outputRecipeFingerprint:runFingerprint,outputMime:artifact.mimeType});
+        entries.push({name:item.file.name,status:"complete",bytesIn:source.byteLength,bytesOut:artifact.bytes.byteLength});
+      }catch(reason){
+        const cancelled=controller.signal.aborted || (reason instanceof DOMException&&reason.name==="AbortError");
+        const message=reason instanceof Error?reason.message:String(reason);
+        patch(item.id,{status:cancelled?"cancelled":"failed",message:cancelled?"Cancelled":"Failed",error:cancelled?undefined:message});
+        entries.push({name:item.file.name,status:cancelled?"cancelled":"failed",bytesIn:item.file.size,bytesOut:null,...(cancelled?{}:{error:message})});
+        if(failurePolicy==="stop" || cancelled)break;
+      }
+    }
     abortRef.current=null;setRunning(false);
+    setLastRunEvidence(createWorkflowRunEvidence({recipeName:recipeSnapshot.name,fingerprint:runFingerprint,failurePolicy,startedAt,completedAt:new Date().toISOString(),entries}));
   }
-  async function saveRecipe(){const saved={...recipe,id:recipe.id==="current"?crypto.randomUUID():recipe.id,updatedAt:Date.now()};await saveBatchRecipe(saved);setRecipe(saved);setRecipes(await listBatchRecipes());}
+  async function saveRecipe(){if(!preflight.valid){setError(preflight.errors.join(" "));return;}const saved={...recipe,id:recipe.id==="current"?crypto.randomUUID():recipe.id,updatedAt:Date.now()};await saveBatchRecipe(saved);setRecipe(saved);setRecipes(await listBatchRecipes());}
   function exportRecipe(){const blob=new Blob([serializeBatchRecipe(recipe)],{type:"application/json;charset=utf-8"});downloadBlob(blob,`${(recipe.name||"batch-recipe").replace(/[^a-zA-Z0-9_-]+/g,"-").replace(/^-+|-+$/g,"")||"batch-recipe"}.lpsrecipe.json`);}
-  async function importRecipe(file:File){setError(null);try{const imported=parseBatchRecipeJson(await file.text());setRecipe(imported);await saveBatchRecipe(imported);setRecipes(await listBatchRecipes());}catch(reason){setError(reason instanceof Error?reason.message:String(reason));}}
+  async function importRecipe(file:File){setError(null);try{const imported=parseBatchRecipeJson(await file.text());const validation=validateWorkflowDraft(imported);if(!validation.valid)throw new Error(validation.errors.join(" "));setRecipe(imported);setApprovalFingerprint(null);await saveBatchRecipe(imported);setRecipes(await listBatchRecipes());}catch(reason){setError(reason instanceof Error?reason.message:String(reason));}}
+  function downloadReport(){
+    if(!lastRunEvidence)return;
+    const payload=new Blob([JSON.stringify(lastRunEvidence,null,2)],{type:"application/json;charset=utf-8"});
+    downloadBlob(payload,`workflow-run-${lastRunEvidence.startedAt.slice(0,19).replace(/[:T]/g,"-")}.json`);
+  }
   function downloadAll(){const outputs=items.filter((item):item is BatchItem & {output:Uint8Array}=>hasCurrentOutput(item));if(!outputs.length)return;const zip=createStoredZip(outputs.map((item,index)=>({name:`${String(index+1).padStart(3,"0")}-${currentOutputFilename(item)}`,bytes:item.output})));downloadBlob(new Blob([Uint8Array.from(zip).buffer],{type:"application/zip"}),"batch-outputs.zip");} 
   return <div className="batch-page"><section className="tools-hero"><p className="eyebrow">Batch automation</p><h2>Apply the same saved actions to multiple PDFs.</h2><p>Choose actions in order, add several PDFs, and run the same workflow on all of them. If you split PDFs or export page images, that action must be last because it creates multiple files.</p></section>{error?<div className="error-banner"><strong>Batch issue</strong><span>{error}</span></div>:null}<div className="batch-layout"><aside className="batch-recipe"><h3>Workflow</h3><label>Name<input disabled={recipeLocked} value={recipe.name} onChange={event=>setRecipe({...recipe,name:event.target.value})}/></label>
     <div className="batch-step-add"><select disabled={recipeLocked} value={newStepType} onChange={event=>setNewStepType(event.target.value as BatchStep["type"])}>{STEP_TYPES.map(item=><option key={item.type} value={item.type}>{item.label}</option>)}</select><button className="button button--small" disabled={recipeLocked} onClick={()=>appendStep(newStepType)} type="button">Add step</button></div>
