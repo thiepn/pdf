@@ -1,0 +1,27 @@
+name: D9 real runtime integration audit
+
+on:
+  pull_request:
+    paths:
+      - scripts/design/d9_live_mount_audit.py
+      - tests/d9_live_mount_test.py
+      - docs/design/D9_LIVE_INTEGRATION_STATUS.md
+      - .github/workflows/d9-live-integration.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-actual-mounts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Reject CSS-only and unmounted phases
+        run: python -m unittest discover -s tests -p d9_live_mount_test.py -v
+      - name: Audit real source integration
+        run: python scripts/design/d9_live_mount_audit.py --repo .
