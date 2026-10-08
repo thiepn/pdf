@@ -51,7 +51,11 @@ describe("P17 deep native-content fidelity policy", () => {
   });
 
   it("retains sibling masked-image paints after rewriting the original content stream", () => {
-    const pdf = new mupdf.PDFDocument(createP17NativeFidelityPdf());
+    // Vitest's DOM Uint8Array lives in a separate realm; construct the
+    // native MuPDF buffer explicitly instead of relying on instanceof checks.
+    const sourceBytes = new mupdf.Buffer();
+    for (const byte of createP17NativeFidelityPdf()) sourceBytes.writeByte(byte);
+    const pdf = mupdf.Document.openDocument(sourceBytes, "application/pdf") as mupdf.PDFDocument;
     try {
       const page = pdf.loadPage(0);
       try {
@@ -60,17 +64,19 @@ describe("P17 deep native-content fidelity policy", () => {
         expect(content.isStream()).toBe(true);
         const buffer = content.readStream();
         let source: string;
-        try { source = new TextDecoder().decode(buffer.asUint8Array()); }
+        try { source = buffer.asString(); }
         finally { buffer.destroy(); }
         expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
         const newPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
         expect(source).toContain(oldPaint);
-        content.writeStream(source.replace(oldPaint, newPaint));
+        const rewritten = new mupdf.Buffer(source.replace(oldPaint, newPaint));
+        try { content.writeStream(rewritten); }
+        finally { rewritten.destroy(); }
       } finally { page.destroy(); }
       const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
       try {
-        const reopened = new mupdf.PDFDocument(saved.asUint8Array());
+        const reopened = mupdf.Document.openDocument(saved, "application/pdf") as mupdf.PDFDocument;
         try {
           const page = reopened.loadPage(0);
           try {
@@ -85,7 +91,7 @@ describe("P17 deep native-content fidelity policy", () => {
           } finally { page.destroy(); }
         } finally { reopened.destroy(); }
       } finally { saved.destroy(); }
-    } finally { pdf.destroy(); }
+    } finally { pdf.destroy(); sourceBytes.destroy(); }
   });
 
   it("keeps plain and shared image instances editable without mutating shared resource semantics", () => {
