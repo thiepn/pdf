@@ -1,0 +1,47 @@
+name: D5 real quick-tool output qualification
+
+on:
+  pull_request:
+    paths:
+      - src/views/QuickToolPage.tsx
+      - src/product/studio-quicktools-d5-live.css
+      - src/product/product.css
+      - tests/e2e/d5-live-output.spec.ts
+      - .github/workflows/d5-live-quicktools.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d5-live-output-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick-output-browser-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify real PDF export and responsive intake
+        run: npx playwright test tests/e2e/d5-live-output.spec.ts --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Store screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d5-live-output-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
