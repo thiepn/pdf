@@ -16,7 +16,7 @@ function fixture() {
   } finally { pdf.destroy(); font.destroy(); }
 }
 
-test("D10 displays live document context and follows real page, zoom and tool state", async ({ page }) => {
+test("D10 displays live document context and follows real page, zoom and tool state", async ({ page }, testInfo) => {
   test.setTimeout(60000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("./#/tools/edit-pdf");
@@ -38,13 +38,14 @@ test("D10 displays live document context and follows real page, zoom and tool st
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(status).toContainText("Add text");
   await expect(page.locator(".editor-stage canvas").first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("d10-editor-desktop.png"), animations: "disabled" });
   const width = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth
   }));
   expect(width.content).toBeLessThanOrEqual(width.viewport + 1);
 });
 
-test("D10 mobile status and panel dock remain available at narrow widths", async ({ page }) => {
+test("D10 mobile status and panel dock remain available at narrow widths", async ({ page }, testInfo) => {
   test.setTimeout(60000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("./#/tools/edit-pdf");
@@ -55,6 +56,10 @@ test("D10 mobile status and panel dock remain available at narrow widths", async
   await expect(status).toBeVisible({ timeout: 30000 });
   await expect(status).toContainText("Page 1 of 3");
   await expect(page.getByRole("navigation", { name: "Editor panel shortcuts" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("d10-editor-mobile.png"), animations: "disabled" });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await page.screenshot({ path: testInfo.outputPath("d10-editor-dark-mobile.png"), animations: "disabled" });
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth
   }));
