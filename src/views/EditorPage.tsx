@@ -227,7 +227,7 @@ export function EditorPage({ projectId, taskId, onTitleChange }: Props) {
         const hydratedPage = Math.max(1, Math.min(manifest.summary.pageCount, storedState.currentPage));
         const hydratedHistory = createHistory(storedState.objects, storedNativeState.queuedEdits, hydratedPage);
         setCleanHistoryContentId(storedState.dirty ? null : hydratedHistory.present.contentId);
-        setEditorState({ ...storedState, currentPage: hydratedPage });
+        setEditorState({ ...storedState, currentPage: hydratedPage, activeTool: taskId === "prepare-forms" ? "form-field" : storedState.activeTool });
         setHistory(hydratedHistory);
         await openDocument(manifest, bytes);
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
