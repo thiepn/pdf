@@ -40,3 +40,6 @@
 
 /* D7 real keyboard/modal accessibility and motion polish. */
 @import "./studio-polish-d7-live.css";
+
+/* D10: compact live document status and resilient editor flex layout. */
+@import "./studio-editor-d10-status.css";

@@ -56,6 +56,7 @@ import { Thumbnail } from "../viewer/Thumbnail";
 import { commitPreparedNativePdfWrite, prepareNativePdfWrite, readNativeFileStatus, supportsNativeFileSave, writeExternalProjectBackup, type NativeFileStatus, type PreparedNativePdfWrite } from "../files/nativeFileWorkflow";
 import { verifyOutputTrust, type OutputTrustReport } from "../trust/outputVerification";
 import { OutputTrustPanel } from "../components/OutputTrustPanel";
+import { EditorDocumentStatus } from "../product/EditorDocumentStatus";
 import { validatePdfFidelity } from "../fidelity/pdfFidelityClient";
 
 interface Props { projectId: string; onTitleChange?: (title: string, subtitle?: string) => void }
@@ -1139,9 +1140,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </div>;
 
   return (
-    <div className="editor-app editor-app--d3" data-d3-editor="true" data-d7-polish="true" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
+    <div className="editor-app editor-app--d3" data-d3-editor="true" data-d10-status="true" data-d7-polish="true" data-editor-dirty={contentDirty ? "true" : "false"} data-native-preview-state={nativeEdits.length ? nativePreviewState : "source"}>
       {!compactControls ? <header className="editor-commandbar">
-        <div className="editor-file-group"><span className="editor-purpose">Edit your PDF</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
+        <div className="editor-file-group"><span className="editor-purpose" title={project.name}>{project.name}</span><span className="editor-runtime-status">Ready · {detectedPdfItemCount} PDF item{detectedPdfItemCount === 1 ? "" : "s"} · {history.present.objects.length} added object{history.present.objects.length === 1 ? "" : "s"}</span></div>
         <div className="editor-commandbar__center" inert={processing ? true : undefined}>
           <button aria-label="Undo" disabled={!history.past.length || processing} onClick={undo} title="Undo last change" type="button"><Icon name="undo" /></button><button aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} title="Redo last change" type="button"><Icon name="redo" /></button><span />
           <button aria-label="Previous page" disabled={editorState.currentPage <= 1} onClick={() => navigateToPage(editorState.currentPage - 1)} type="button"><Icon name="chevron-left" /></button><ReaderPageInput page={editorState.currentPage} total={document.numPages} onChange={navigateToPage} /><button aria-label="Next page" disabled={editorState.currentPage >= document.numPages} onClick={() => navigateToPage(editorState.currentPage + 1)} type="button"><Icon name="chevron-right" /></button><span />
@@ -1187,6 +1188,18 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
         {propertiesOpen ? unifiedSelectionCount > 1 ? <UnifiedLayoutPropertiesPanel items={unifiedItems} nativeCount={selectedNativeIds.size} onAlign={alignUnified} onDelete={deleteSelection} onDistribute={distributeUnified} onDuplicateOverlays={duplicateSelection} onGroupOverlays={groupSelection} onMatchSize={matchUnifiedSize} onRotate={rotateUnified} onUngroupOverlays={ungroupSelection} overlayCount={selectedIds.size} primaryKey={primaryUnifiedKey} /> : selectedNativeObject ? <NativeContentPropertiesPanel object={selectedNativeObject} page={selectedNativePage} onQueue={queueNativeEdits} onRemove={removeNativeEdits} queuedEdits={nativeEdits} /> : <EditorPropertiesPanel onBringFront={() => arrange("front")} onChange={commitObject} onDelete={deleteSelection} onDuplicate={duplicateSelection} onSendBack={() => arrange("back")} selected={selectedObjects} /> : null}
       </div>
+      <EditorDocumentStatus
+        name={project.name}
+        page={editorState.currentPage}
+        totalPages={document.numPages}
+        zoom={editorState.zoom}
+        tool={activeTool.label}
+        selectedCount={unifiedSelectionCount}
+        pendingNativeEdits={nativeEdits.length}
+        localSaveLabel={localSaveLabel}
+        localSavePhase={localSave.phase}
+        originalPreview={reviewOriginal}
+      />
       <D7KeyboardHelp onClose={closeShortcutHelp} open={shortcutHelpOpen} returnFocusRef={shortcutHelpTriggerRef} />
       <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
       {mobileToolsOpen ? <div className="product-modal-backdrop editor-tools-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMobileTools(); }}>
