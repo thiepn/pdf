@@ -18,12 +18,17 @@ async function openP17Fixture(page: Page): Promise<void> {
 async function selectByPanelEvidence(page: Page, buttons: ReturnType<Page["getByRole"]>, evidence: string | RegExp): Promise<void> {
   const panel = page.locator(".native-unified-properties");
   const count = await buttons.count();
+  const observed: string[] = [];
   for (let index = 0; index < count; index += 1) {
-    await buttons.nth(index).click();
-    await page.waitForTimeout(25);
+    const button = buttons.nth(index);
+    const label = await button.getAttribute("aria-label") ?? `object ${index + 1}`;
+    await button.click();
+    await expect(panel).toBeVisible();
+    const text = (await panel.innerText()).replace(/\\s+/g, " ").slice(0, 800);
+    observed.push(`${index + 1} [${label}]: ${text}`);
     if (await panel.getByText(evidence, typeof evidence === "string" ? { exact: true } : undefined).isVisible().catch(() => false)) return;
   }
-  throw new Error(`No detected object exposed the expected panel evidence: ${String(evidence)}`);
+  throw new Error(`No detected object exposed ${String(evidence)}. Inspected ${count} objects:\\n${observed.join("\\n")}`);
 }
 
 test("P17 preserves an attached soft mask during source-image transform and keeps replacement blocked", async ({ page }) => {
