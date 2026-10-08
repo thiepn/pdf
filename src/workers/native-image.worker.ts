@@ -558,7 +558,7 @@ function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intr
  * This intentionally handles only simple, ASCII, single-stream q/cm/Do/Q
  * sequences. Complex/multiple-stream PDF operators remain fail-closed.
  */
-function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
+function rewriteDirectMaskedInvocation(page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
   const resourceName = image.fidelity?.resourceName;
   if (!resourceName || !image.fidelity?.softMask || image.fidelity.explicitMask || image.fidelity.clipped || image.fidelity.blendMode !== "Normal") {
     throw new Error("The masked image does not have a qualified direct source invocation; its original content was not modified.");
@@ -593,7 +593,14 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const target = matches[0];
   const drawing = action === "delete" ? "q Q\n" : imageDrawingContent(pdf, page, resourceName, image.width ?? 1, image.height ?? 1, edit);
   const rewritten = source.slice(0, target.start) + drawing + source.slice(target.start + target.length);
-  pageObject.put("Contents", pdf.addStream(rewritten));
+  // Preserve the existing /Contents stream reference and its page-resource
+  // relationships. It also avoids introducing another indirect stream when
+  // the existing one can be safely rewritten in place.
+  // A single direct stream is required above; never rewrite stream arrays.
+  if (!current.isStream?.() || typeof current.writeStream !== "function") {
+    throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
+  }
+  current.writeStream(rewritten);
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
@@ -711,7 +718,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           beforeClasses.set(edit.id, current.image.fidelity?.class);
           beforeCounts.set(edit.id, sourceMatches.length);
           if (current.image.fidelity?.class === "masked" && (action === "transform" || action === "delete")) {
-            rewriteDirectMaskedInvocation(pdf, page, current.image, edit, action);
+            rewriteDirectMaskedInvocation(page, current.image, edit, action);
             changed.add(edit.pageNumber);
             continue;
           }
@@ -738,13 +745,24 @@ self.onmessage = (event: MessageEvent<Request>) => {
         for (const edit of request.edits) {
           const page = reopened.loadPage(edit.pageNumber - 1);
           try {
-            const rects = imageRects(page);
+            // MuPDF's structured-text JSON can omit masked images after a
+            // rewritten /Contents stream even while the actual page paint
+            // operators and attached /SMask are still present. For the P17
+            // direct-invocation path, verify every painted image with the
+            // same graphics-state Device used to qualify the source edit.
+            // Never lower the expected count or waive sibling positions.
+            const maskedInspection = beforeClasses.get(edit.id) === "masked"
+              ? inspectImagePage(page, edit.pageNumber)
+              : undefined;
+            const rects = maskedInspection
+              ? maskedInspection.images.map((image) => image.bounds)
+              : imageRects(page);
             const action = edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform");
             const sourceBounds = edit.sourceBounds ?? edit.bounds;
             const originals = beforeRects.get(edit.id) ?? [];
             const sourceCount = beforeCounts.get(edit.id) ?? 0;
             const expectedMinimum = Math.max(0, originals.length - sourceCount + (action === "delete" ? 0 : 1));
-            if (rects.length < expectedMinimum) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared.`);
+            if (rects.length < expectedMinimum) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared (expected at least ${expectedMinimum} painted instances; observed ${rects.length}; originally ${originals.length}; source-region matches ${sourceCount}; device warnings ${maskedInspection?.warnings.length ?? 0}).`);
             for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
               if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: an untouched image instance changed position or disappeared.`);
             }
