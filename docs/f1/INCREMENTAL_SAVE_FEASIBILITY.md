@@ -42,6 +42,19 @@ node --experimental-strip-types scripts/f1/incremental-save-probe.mjs
 
 The probe uses `src/fixtures/minimalPdf.ts` (synthetic content only) and runs separate metadata and annotation edits in subprocesses with a hard **12-second** limit each. The result passes only if the input is eligible/unrepaired; the save completes; the output is strictly longer with an **exact unchanged prefix**; the output reopens without repair; MuPDF reports one more version; and the intended modification survives.
 
+### Measured Node/WASM results (2026-10-08)
+
+The [F1 GitHub Actions run](https://github.com/thiepn/pdf/actions/runs/37846224561) on the pinned MuPDF dependency completed both synthetic operations within the bounded probe:
+
+| Operation | Source | Saved output | Appended | Versions | Prefix preserved | Reopened and edit verified |
+|---|---:|---:|---:|---|---|---|
+| Metadata title | 2,042 bytes | 2,222 bytes | +180 bytes | 1 → 2 | Yes | Yes |
+| Text annotation | 2,042 bytes | 2,830 bytes | +788 bytes | 1 → 2 | Yes | Yes |
+
+Both reported `canSaveIncrementally=true`, `wasRepaired=false`, `reopenedWasRepaired=false`, and zero contract failures. The exact [workflow artifact](https://github.com/thiepn/pdf/actions/runs/37846224561) is `f1-node-wasm-evidence`.
+
+**Interpretation:** MuPDF's Node/WASM path can produce valid incremental output for these two simple synthetic edits. It does **not** resolve the existing browser-worker stall warning, prove broad PDF compatibility, or qualify secure removal and signed PDFs. **Production decision remains NO-GO** pending browser-specific and external-reader evidence.
+
 These are necessary checks, **not a production readiness certificate**. The F1 GitHub workflow records experiment results but deliberately does not gate or change the existing release path.
 
 ## Qualification matrix
