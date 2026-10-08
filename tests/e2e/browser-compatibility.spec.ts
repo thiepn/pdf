@@ -50,6 +50,7 @@ test("rapid hash navigation and browser history keep the selected tool visible",
   await page.goBack();
   await expect(page.getByRole("button", { name: "Choose files", exact: true })).toBeVisible();
   await page.goForward();
+  await expect.poll(() => new URL(page.url()).hash, { timeout: 10_000 }).toBe("#/tools/read-pdf");
   await expect(page.getByRole("heading", { name: "Read PDF", exact: true })).toBeVisible();
   await expect(page.locator('input[type="file"][accept*="pdf"]').first()).toBeAttached();
 });

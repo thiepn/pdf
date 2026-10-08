@@ -203,6 +203,8 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     <div className="warning-banner"><strong>Direct mutation blocked</strong><span>{object.fidelity?.reason ?? object.capability.reason}</span></div>
     <dl className="property-summary">
       <dt>Class</dt><dd>{object.fidelity?.class ?? "ambiguous"}</dd>
+      <dt>Source resource</dt><dd>{object.fidelity?.resourceName ?? "Unresolved"}</dd>
+      <dt>Invocations</dt><dd>{object.fidelity?.invocationCount ?? "Unresolved"}</dd>
       <dt>Mask</dt><dd>{object.fidelity?.softMask || object.fidelity?.explicitMask ? "Yes" : "No"}</dd>
       <dt>Clipping</dt><dd>{object.fidelity?.clipped ? "Yes" : "No"}</dd>
       <dt>Blend</dt><dd>{object.fidelity?.blendMode ?? "Unknown"}</dd>
