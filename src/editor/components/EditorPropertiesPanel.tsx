@@ -1,5 +1,7 @@
 import type { EditorObject } from "../../types/editor";
 import { rectHeight, rectWidth } from "../editorModel";
+import { ReviewThreadControls } from "../../review/ReviewThreadControls";
+import { MeasurementProperties } from "../../review/MeasurementProperties";
 
 interface Props {
   selected: EditorObject[];
@@ -62,6 +64,7 @@ export function EditorPropertiesPanel({ selected, onChange, onDelete, onDuplicat
           {object.type === "stamp" ? <StampProperties object={object} patch={patch} /> : null}
           {object.type === "signature" ? <SignatureProperties object={object} patch={patch} /> : null}
           {object.type === "redaction" ? <RedactionProperties object={object} patch={patch} /> : null}
+          {object.type === "measurement" ? <MeasurementProperties object={object} onPatch={(changes,label,mergeKey) => patch(changes,label,mergeKey)} /> : null}
 
           <section className="property-section">
             <h3>Arrange</h3>
@@ -103,7 +106,7 @@ function InkProperties({ object, patch }: { object: Extract<EditorObject, { type
 }
 
 function NoteProperties({ object, patch }: { object: Extract<EditorObject, { type: "note" }>; patch: PatchFn<typeof object> }) {
-  return <section className="property-section"><h3>Comment</h3><label className="property-field"><span>Author</span><input onChange={(event) => patch({ author: event.target.value }, "Edit comment author", `note-author:${object.id}`)} value={object.author} /></label><label className="property-field"><span>Subject</span><input onChange={(event) => patch({ subject: event.target.value }, "Edit comment subject", `note-subject:${object.id}`)} value={object.subject} /></label><label className="property-field"><span>Comment</span><textarea onChange={(event) => patch({ contents: event.target.value }, "Edit comment", `note:${object.id}`)} rows={6} value={object.contents} /></label><ColorField label="Color" value={object.color} onChange={(color) => patch({ color })} /><label className="property-toggle"><input checked={object.resolved} onChange={(event) => patch({ resolved: event.target.checked }, event.target.checked ? "Resolve comment" : "Reopen comment", undefined)} type="checkbox" />Resolved</label></section>;
+  return <section className="property-section"><h3>Comment</h3><label className="property-field"><span>Author</span><input onChange={(event) => patch({ author: event.target.value }, "Edit comment author", `note-author:${object.id}`)} value={object.author} /></label><label className="property-field"><span>Subject</span><input onChange={(event) => patch({ subject: event.target.value }, "Edit comment subject", `note-subject:${object.id}`)} value={object.subject} /></label><label className="property-field"><span>Comment</span><textarea onChange={(event) => patch({ contents: event.target.value }, "Edit comment", `note:${object.id}`)} rows={6} value={object.contents} /></label><ColorField label="Color" value={object.color} onChange={(color) => patch({ color })} /></section>;
 }
 
 function LinkProperties({ object, patch }: { object: Extract<EditorObject, { type: "link" }>; patch: PatchFn<typeof object> }) {
