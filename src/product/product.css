@@ -37,3 +37,6 @@
 
 /* D6 mobile state controls are mounted by EditorPage. */
 @import "./studio-responsive-d6-live.css";
+
+/* D7 real keyboard/modal accessibility and motion polish. */
+@import "./studio-polish-d7-live.css";
