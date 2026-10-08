@@ -2,6 +2,8 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { Rect } from "../../core/coordinates";
 import type { EditorObject } from "../../types/editor";
 import { rectHeight, rectWidth } from "../editorModel";
+import { measurementLabel } from "../../review/measurementModel";
+import "./f3-review.css";
 
 interface Props {
   object: EditorObject;
@@ -83,6 +85,7 @@ function ObjectContent({ object, assetUrl, viewportScale }: { object: EditorObje
     case "stamp": return <div className="editor-stamp-object" style={{ color: object.color, background: object.backgroundColor, borderColor: object.borderColor }}>{object.label}</div>;
     case "signature": return <div className="editor-signature-object" style={{ color: object.color }}><strong>{object.signerName || "Signature"}</strong>{object.showDate ? <small>{new Date(object.signedAt).toLocaleDateString()}</small> : null}{object.showLabels && object.reason ? <span>{object.reason}</span> : null}</div>;
     case "redaction": return <div className="editor-redaction-object" style={{ background: object.fillColor }}><span>{object.overlayText || "REDACTED"}</span></div>;
+    case "measurement": return <div className={`f3-measurement f3-measurement--${object.kind}`}><svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none"><path d={object.kind === "distance" ? "M 2 98 L 98 2" : "M 2 2 L 98 2 L 98 98 L 2 98 Z"} fill={object.kind === "area" ? "rgba(22,108,161,.08)" : "none"} stroke={object.strokeColor} strokeWidth={Math.max(1,object.lineWidth * viewportScale)} vectorEffect="non-scaling-stroke" /></svg><span>{measurementLabel(object)}</span></div>;
   }
 }
 
