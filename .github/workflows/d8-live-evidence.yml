@@ -1,0 +1,26 @@
+name: D8 release evidence inventory
+
+on:
+  pull_request:
+    paths:
+      - docs/design/D8_RELEASE_EVIDENCE.template.json
+      - scripts/design/d8_live_gate.py
+      - tests/d8_live_gate_test.py
+      - .github/workflows/d8-live-evidence.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fail-closed-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Test all release-gate refusal paths
+        run: python -m unittest discover -s tests -p d8_live_gate_test.py -v
+      - name: Report qualification state (not an approval)
+        run: python scripts/design/d8_live_gate.py --evidence docs/design/D8_RELEASE_EVIDENCE.template.json
