@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
+import { chooseEditorTool, downloadEditorCopy, openSample, switchMode } from "./helpers/taskFirst";
 
 async function openEditorFile(page: import("@playwright/test").Page, path: string) {
   await page.goto("./#/tools/read-pdf");
@@ -144,9 +144,7 @@ test("existing PDF edits participate in Undo/Redo and survive export", async ({ 
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
   await expect(editor).toHaveValue("UNDO OK");
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
+  const download = await downloadEditorCopy(page);
   await reopenDownload(page, download);
   expect(await searchDocument(page, "UNDO OK")).toContain("1 match");
 });
@@ -171,9 +169,7 @@ test("hidden added objects stay out of exported PDF", async ({ page }) => {
   await sidebar.getByTitle("Hide").click();
   await expect(page.locator(".editor-object")).toHaveCount(0);
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
+  const download = await downloadEditorCopy(page);
   await reopenDownload(page, download);
   expect(await searchDocument(page, "HIDDEN EXPORT MARKER")).toContain("0 matches");
 });
@@ -228,9 +224,7 @@ test("editable source text can be deleted, previewed, undone and exported", asyn
   await expect(page.locator(".native-queued-count")).toContainText(/PDF edit(?:s)? ready/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
+  const download = await downloadEditorCopy(page);
   await reopenDownload(page, download);
   expect(await searchDocument(page, "SAMPLE BRIEF")).toContain("0 matches");
 });
@@ -250,9 +244,7 @@ test("export creates a clean history checkpoint that Undo can return to", async 
   await content.fill("SAVED REVISION");
   await expect(app).toHaveAttribute("data-editor-dirty", "true");
 
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  await download;
+  await downloadEditorCopy(page);
   await expect(app).toHaveAttribute("data-editor-dirty", "false", { timeout: 20_000 });
 
   await content.fill("AFTER EXPORT");
