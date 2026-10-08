@@ -37,11 +37,9 @@ test("F6 composer edits an ordered workflow with safety review",async({page})=>{
 });
 test("F6 executes approved workflows and downloads validated PDF and JSON run report",async({page})=>{
   await page.goto("./#/batch");
-  const add=page.getByRole("button",{name:"Add PDFs"});
-  await add.click();
-  const chooser=await page.waitForEvent("filechooser",{timeout:3000}).catch(()=>null);
-  if(chooser) await chooser.setFiles({name:"f6.pdf",mimeType:"application/pdf",buffer:fixture()});
-  else await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({name:"f6.pdf",mimeType:"application/pdf",buffer:fixture()});
+  const pendingChooser=page.waitForEvent("filechooser");
+  await page.getByRole("button",{name:"Add PDFs"}).click();
+  await (await pendingChooser).setFiles({name:"f6.pdf",mimeType:"application/pdf",buffer:fixture()});
   await expect(page.locator(".batch-item")).toHaveCount(1);
   await page.getByRole("button",{name:"Run workflow"}).click();
   await expect(page.locator(".batch-item--complete")).toHaveCount(1,{timeout:60000});
