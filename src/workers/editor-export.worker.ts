@@ -1,4 +1,5 @@
 import * as mupdf from "mupdf";
+import { writeMeasurement, writeReviewNote } from "../review/pdfReviewWriter";
 import type { AffineMatrix, Point, Rect } from "../core/coordinates";
 import type { EditorExportAsset, EditorObject } from "../types/editor";
 
@@ -149,17 +150,6 @@ function addHighlight(page: any, object: Extract<EditorObject, { type: "highligh
   annotation.update?.();
 }
 
-function addNote(page: any, object: Extract<EditorObject, { type: "note" }>, transform: AffineMatrix): void {
-  const annotation = page.createAnnotation("Text");
-  setCommon(annotation, object, object.author);
-  annotation.setRect(rect(transform, object.bounds));
-  annotation.setContents(object.contents);
-  annotation.setSubject?.(object.subject);
-  annotation.setColor(color(object.color) ?? [1, 0.8, 0.2]);
-  annotation.setIcon?.(object.resolved ? "Check" : "Comment");
-  annotation.update?.();
-}
-
 function addLink(pdf: any, page: any, object: Extract<EditorObject, { type: "link" }>, transform: AffineMatrix): void {
   let uri = object.target.trim();
   if (object.targetType === "email" && !uri.startsWith("mailto:")) uri = `mailto:${uri}`;
@@ -266,7 +256,8 @@ self.onmessage = (event: MessageEvent<Request>) => {
             case "shape": addShape(page, object, pdfToFitz); annotationCount += 1; break;
             case "ink": addInk(page, object, pdfToFitz); annotationCount += 1; break;
             case "highlight": addHighlight(page, object, pdfToFitz); annotationCount += 1; break;
-            case "note": addNote(page, object, pdfToFitz); annotationCount += 1; break;
+            case "note": annotationCount += writeReviewNote(pdf, page, object, pdfToFitz); break;
+            case "measurement": annotationCount += writeMeasurement(pdf, page, object, pdfToFitz); break;
             case "link": addLink(pdf, page, object, pdfToFitz); linkCount += 1; break;
             case "stamp": addStamp(page, object, pdfToFitz); annotationCount += 1; break;
             case "signature": addSignature(page, object, pdfToFitz, warnings); annotationCount += 1; break;
