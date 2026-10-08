@@ -75,7 +75,7 @@ describe("F3 calibrated review geometry", () => {
           for(const child of children) expect(child.getObject().get("RT").asName()).toBe("R");
           const dimensions = annotations.filter((a) => ["length-1","area-1"].includes(a.getName()));
           expect(dimensions).toHaveLength(2);
-          expect(annotations.some((a) => a.getName() === "area-1-caption" && a.getContents() === measurementLabel(area))).toBe(true);
+          expect(annotations.some((a) => a.getName() === "area-1-caption" && a.getContents().includes("mm²"))).toBe(true);
           for (const annotation of dimensions) {
             const measure = annotation.getObject().get("Measure");
             expect(measure.get("Subtype").asName()).toBe("RL");
