@@ -1,0 +1,64 @@
+name: F7 AI workflow planning qualification
+on:
+  pull_request:
+    paths:
+      - "src/automation/aiWorkflowPlanning.ts"
+      - "src/automation/AIWorkflowPlanner.tsx"
+      - "src/automation/aiWorkflowPlanner.css"
+      - "src/views/BatchPage.tsx"
+      - "tests/unit/f7AIWorkflowPlanning.test.ts"
+      - "tests/e2e/f7-ai-workflow.spec.mjs"
+      - ".github/workflows/f7-ai-workflow-planning.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  f7-planner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript
+        id: types
+        continue-on-error: true
+        run: npm run typecheck
+      - name: F5-F7 planning, execution and recipe regression tests
+        id: tests
+        continue-on-error: true
+        run: npx vitest run tests/unit/f5ActionCatalog.test.ts tests/unit/f5ActionRunner.test.ts tests/unit/f6WorkflowComposer.test.ts tests/unit/f7AIWorkflowPlanning.test.ts tests/unit/batchOutputFingerprint.test.ts tests/unit/batchOutputValidity.test.ts
+      - name: Production build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: UI proposal review, security and explicit execution
+        id: browser
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
+          PLAYWRIGHT_BASE_PATH: "/pdf/"
+        run: npx playwright test tests/e2e/f7-ai-workflow.spec.mjs --project=chromium --workers=1 --retries=0
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f7-ai-workflow-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+      - name: Enforce complete qualification
+        if: always()
+        run: |
+          echo "typescript=${{ steps.types.outcome }} unit=${{ steps.tests.outcome }} build=${{ steps.build.outcome }} browser=${{ steps.browser.outcome }}"
+          test "${{ steps.types.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success
