@@ -1,4 +1,4 @@
-import { actionFromBatchStep, getHeadlessAction, planHeadlessActions, type ActionPlan, type ActionRisk } from "../actions/actionCatalog";
+import { actionFromBatchStep, planHeadlessActions, type ActionPlan, type ActionRisk } from "../actions/actionCatalog";
 import { batchRecipeExecutionFingerprint, defaultBatchStep } from "../processing/batchModel";
 import type { BatchRecipe, BatchStep } from "../types/batch";
 
