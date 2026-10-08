@@ -22,7 +22,7 @@ The inspector traces page painting operations and records clipping, mask, transp
 
 **Shared image instances** use instance-local reconstruction. Editing one placement does not rewrite the shared source image resource, so another placement is not implicitly changed.
 
-**Images with an attached soft mask** support source transform and deletion. Source transform reuses the original MuPDF Image, including its attached mask, and the saved PDF is reopened to confirm the destination image is still classified as masked. Arbitrary bitmap replacement is disabled because P17 cannot safely transfer the source mask semantics to unrelated replacement pixels.
+**Images with an attached soft mask** support source transform and deletion only for uniquely identifiable, simple direct page-content `q/cm/Do/Q` invocations in a single ASCII content stream. P17 rewrites the selected image invocation in place while retaining the original `/SMask` XObject resource and every sibling invocation; it does not use image-region redaction for this case. The output is reopened to confirm the mask and unrelated images survive. Multiple content streams, binary/complex operators, ambiguous invocation geometry, and arbitrary bitmap replacement remain blocked rather than risking collateral changes.
 
 ### Protected classes
 

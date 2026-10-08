@@ -516,11 +516,7 @@ function matrixForImage(x: number, y: number, width: number, height: number, rot
   return `${width} 0 0 ${height} ${x} ${y}`;
 }
 
-function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intrinsicWidth: number, intrinsicHeight: number, edit: NativeImageEdit): void {
-  const dictionary = resources(pdf, page, "XObject");
-  const resource = `LPSIMG${++sequence}`;
-  dictionary.put(resource, imageObject);
-
+function imageDrawingContent(pdf: PdfDocument, page: PdfPage, resource: string, intrinsicWidth: number, intrinsicHeight: number, edit: NativeImageEdit): string {
   const [x0, y0, x1, y1] = pdfRect(page, edit.bounds);
   const boxWidth = Math.max(0.01, x1 - x0);
   const boxHeight = Math.max(0.01, y1 - y0);
@@ -546,7 +542,58 @@ function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intr
 
   const gs = graphicsState(pdf, page, Number(edit.opacity ?? 1));
   const matrix = matrixForImage(x, y, width, height, rotation);
-  append(pdf, page, `q${clip ? ` ${x0} ${y0} ${boxWidth} ${boxHeight} re W n` : ""}${gs ? ` /${gs} gs` : ""} ${matrix} cm /${resource} Do Q\n`);
+  return `q${clip ? ` ${x0} ${y0} ${boxWidth} ${boxHeight} re W n` : ""}${gs ? ` /${gs} gs` : ""} ${matrix} cm /${resource} Do Q\n`;
+}
+
+function drawImageObject(pdf: PdfDocument, page: PdfPage, imageObject: any, intrinsicWidth: number, intrinsicHeight: number, edit: NativeImageEdit): void {
+  const dictionary = resources(pdf, page, "XObject");
+  const resource = `LPSIMG${++sequence}`;
+  dictionary.put(resource, imageObject);
+  append(pdf, page, imageDrawingContent(pdf, page, resource, intrinsicWidth, intrinsicHeight, edit));
+}
+
+/**
+ * Change only one qualified direct XObject invocation. Image-only redaction
+ * can remove sibling uses of a shared /SMask resource, which is unacceptable.
+ * This intentionally handles only simple, ASCII, single-stream q/cm/Do/Q
+ * sequences. Complex/multiple-stream PDF operators remain fail-closed.
+ */
+function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: NativeImageObject, edit: NativeImageEdit, action: "transform" | "delete"): void {
+  const resourceName = image.fidelity?.resourceName;
+  if (!resourceName || !image.fidelity?.softMask || image.fidelity.explicitMask || image.fidelity.clipped || image.fidelity.blendMode !== "Normal") {
+    throw new Error("The masked image does not have a qualified direct source invocation; its original content was not modified.");
+  }
+  const pageObject = page.getObject();
+  const current = pageObject.get("Contents");
+  if (!current || current.isNull?.() || current.isArray?.()) {
+    throw new Error("The masked image uses multiple or missing page-content streams. Editing is blocked to preserve other image instances.");
+  }
+  const source = streamText(current);
+  if (!source || /[^\x09\x0a\x0d\x20-\x7e]/.test(source)) {
+    throw new Error("The masked image has unsupported binary page-content operators. Its source was preserved.");
+  }
+  // The direct-content parser supports only simple, explicit PDF resource names.
+  if (!/^[A-Za-z0-9_.:+-]+$/.test(resourceName)) {
+    throw new Error("The masked image resource has an unsupported name and cannot be rewritten safely.");
+  }
+  const escaped = resourceName;
+  const number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
+  const invocation = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/${escaped}\\s+Do\\s+Q\\b`, "g");
+  const requested = pdfRect(page, edit.sourceBounds ?? image.bounds);
+  const matches = Array.from(source.matchAll(invocation)).map((match) => {
+    const matrix = match.slice(1, 7).map(Number);
+    const bounds = imageBoundsFromMatrix(matrix);
+    const score = Math.abs(bounds.x - requested[0]) + Math.abs(bounds.y - requested[1])
+      + Math.abs(bounds.x + bounds.w - requested[2]) + Math.abs(bounds.y + bounds.h - requested[3]);
+    return { start: match.index ?? -1, length: match[0].length, score };
+  }).sort((a, b) => a.score - b.score);
+  if (!matches.length || matches[0].start < 0 || matches[0].score > 5 || (matches[1] && Math.abs(matches[1].score - matches[0].score) < 2)) {
+    throw new Error("The selected masked-image invocation could not be uniquely matched; no source PDF operators were changed.");
+  }
+  const target = matches[0];
+  const drawing = action === "delete" ? "q Q\n" : imageDrawingContent(pdf, page, resourceName, image.width ?? 1, image.height ?? 1, edit);
+  const rewritten = source.slice(0, target.start) + drawing + source.slice(target.start + target.length);
+  pageObject.put("Contents", pdf.addStream(rewritten));
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
@@ -655,7 +702,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           if (!current || current.score > 4) throw new Error("The selected source image could not be matched safely before export.");
           const action = edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform");
           const allowedActions = current.image.fidelity?.allowedActions ?? (current.image.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
-          if (!allowedActions.includes(action)) throw new Error(current.image.fidelity?.reason ?? "This image operation is fidelity-protected and cannot be applied safely.");
+          if (!allowedActions.includes(action) || (action === "replace" && (current.image.fidelity?.softMask || current.image.fidelity?.explicitMask))) throw new Error(current.image.fidelity?.reason ?? "This image operation is fidelity-protected and cannot be applied safely.");
           const sourceRects = imageRects(page);
           const sourceMatches = sourceRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
           const removesSourceRegion = action === "transform" || action === "delete" || (action === "replace" && edit.removeUnderlying !== false);
@@ -663,6 +710,11 @@ self.onmessage = (event: MessageEvent<Request>) => {
           beforeRects.set(edit.id, sourceRects);
           beforeClasses.set(edit.id, current.image.fidelity?.class);
           beforeCounts.set(edit.id, sourceMatches.length);
+          if (current.image.fidelity?.class === "masked" && (action === "transform" || action === "delete")) {
+            rewriteDirectMaskedInvocation(pdf, page, current.image, edit, action);
+            changed.add(edit.pageNumber);
+            continue;
+          }
           const source = action === "transform" ? sourceImageObject(pdf, page, sourceBounds) : undefined;
 
           if (action === "transform" || action === "delete" || edit.removeUnderlying) redactImageOnly(page, sourceBounds);
