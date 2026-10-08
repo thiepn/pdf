@@ -1,0 +1,37 @@
+name: F2 form designer qualification
+
+on:
+  pull_request:
+    paths:
+      - "src/forms/**"
+      - "src/editor/**"
+      - "src/views/EditorPage.tsx"
+      - "src/workers/editor-export.worker.ts"
+      - "src/fidelity/**"
+      - "src/types/editor.ts"
+      - "src/ia/taskCatalog.ts"
+      - "tests/unit/formDesigner.test.ts"
+      - ".github/workflows/f2-form-designer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forms:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked packages
+        run: npm ci --no-audit --no-fund
+      - name: Test form round trips and fidelity contracts
+        run: npx vitest run tests/unit/formDesigner.test.ts tests/unit/pdfFidelity.test.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
