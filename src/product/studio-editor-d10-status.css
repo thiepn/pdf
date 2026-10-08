@@ -21,7 +21,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--studio-type-label);
   font-weight: 735;
 }
 .product-app .editor-app[data-d10-status="true"] .editor-file-group {
@@ -40,7 +40,7 @@
   color: var(--muted);
   background: var(--surface-strong);
   border-top: 1px solid var(--line);
-  font-size: 11px;
+  font-size: var(--studio-type-caption);
   line-height: 1.3;
   font-variant-numeric: tabular-nums;
 }
@@ -99,7 +99,7 @@
   background: var(--accent);
 }
 .product-app .editor-app[data-d10-status="true"] .d10-document-status__save:is([data-save-phase="pending"],[data-save-phase="saving"]) .d10-document-status__signal {
-  background: #a77b28;
+  background: var(--warning);
 }
 .product-app .editor-app[data-d10-status="true"] .d10-document-status__save[data-save-phase="error"] {
   color: var(--danger);
