@@ -4,6 +4,7 @@ import { assembleSources, compilePagePlan, mergePdfSources } from "../tools/page
 import { createStoredZip } from "../toolbox/zip";
 import { transformPdf } from "../toolbox/toolboxClient";
 import { optimizePdf, repairPdf } from "../processing/processingClient";
+import { smartOptimizePreservedPdf } from "../preservation/preservationClient";
 import { RASTER_PROFILES, rasterTransformPdf } from "../processing/rasterCompression";
 import { applySecurity } from "../security/securityClient";
 import { createSecurityState } from "../security/securityModel";
@@ -34,7 +35,7 @@ export function validateQuickOptions(task: QuickTaskId, inputs: QuickInput[], op
   if (task === "add-watermark" && !options.watermark.trim()) throw new Error("Enter the watermark text.");
   if (task === "add-page-numbers" && (!Number.isSafeInteger(options.startNumber) || options.startNumber < 1)) throw new Error("Start number must be a positive whole number.");
   if (task === "crop-pages" && (Object.values(options.crop).some((n) => !Number.isFinite(n) || n < 0) || !Object.values(options.crop).some((n) => n > 0))) throw new Error("Enter a positive crop margin. Margins cannot be negative.");
-  if (task === "compress-pdf" && options.compression !== "lossless" && !options.acceptRaster) throw new Error("Confirm that image-based compression can remove selectable text and interactive content.");
+  if (task === "compress-pdf" && options.compression !== "lossless" && options.compression !== "smart" && !options.acceptRaster) throw new Error("Confirm that image-based compression can remove selectable text and interactive content.");
   if (["pdf-to-jpg", "pdf-to-png"].includes(task) && ![72, 150, 300].includes(options.dpi)) throw new Error("Choose 72, 150, or 300 DPI.");
   if (task === "images-to-pdf" && ![0, 10, 20].includes(options.margin)) throw new Error("Choose a supported image margin.");
 }
@@ -149,7 +150,13 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
     } finally { await pdf.loadingTask.destroy(); }
   } else if (task === "compress-pdf") {
     let output: Uint8Array;
-    if (options.compression === "lossless") {
+    if (options.compression === "smart") {
+      progress("Trying structurally verified, non-raster optimization…");
+      const result = await smartOptimizePreservedPdf(input.bytes, { mode: options.smartStrength }, input.password, signal);
+      if (!result.report.passed) throw new Error("The PDF failed the preservation contract.");
+      output = result.bytes;
+      warnings.push(...result.report.warnings);
+    } else if (options.compression === "lossless") {
       progress("Optimizing without rasterizing pages…");
       const result = await optimizePdf(input.bytes, { password: input.password }, signal); output = result.bytes; warnings.push(...result.report.warnings);
     } else {
@@ -160,7 +167,7 @@ export async function runQuickOperation(task: QuickTaskId, inputs: QuickInput[],
       } finally { await pdf.loadingTask.destroy(); }
       warnings.push("Image-based compression removes selectable text, interactive forms, links, layers, and digital signatures. Password protection is not retained.");
     }
-    if (output.byteLength >= input.bytes.byteLength) { output = input.bytes; warnings.length = 0; warnings.push("This PDF is already smaller than the compressed result. The original file is offered unchanged instead."); }
+    if (output.byteLength >= input.bytes.byteLength) { output = input.bytes; if (options.compression !== "smart") { warnings.length = 0; warnings.push("This PDF is already smaller than the compressed result. The original file is offered unchanged instead."); } }
     files.push(asPdf(name, output));
   } else if (task === "repair-pdf") {
     progress("Rebuilding a separate copy and checking that it opens…");
