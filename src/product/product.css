@@ -28,3 +28,6 @@
 
 /* D3 targets the live editor without modifying the PDF writer or canvas data. */
 @import "./studio-editor-d3-live.css";
+
+/* D4 object controls operate on persisted real editor transactions. */
+@import "./studio-layers-d4-live.css";
