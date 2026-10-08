@@ -1,0 +1,108 @@
+/* D11 — application-level chrome and interaction primitives.
+ * This file owns the header/footer and shared controls only. The D1–D10
+ * surface sheets retain layout, editor canvas geometry and PDF functionality. */
+.product-app .product-header {
+  height: 66px;
+  min-height: 66px;
+  gap: 26px;
+  padding-inline: max(24px, calc((100vw - var(--studio-page-max)) / 2));
+  background: var(--studio-chrome-bg);
+}
+.product-app .product-brand {
+  gap: 9px;
+  font-size: 20px;
+  letter-spacing: -.045em;
+}
+.product-app .product-mark {
+  width: 32px;
+  height: 32px;
+}
+.product-app .product-header__links {
+  gap: 22px;
+}
+.product-app .product-header__end {
+  gap: 13px;
+}
+.product-app .product-footer {
+  padding: 15px max(24px, calc((100vw - var(--studio-page-max)) / 2));
+  font-size: var(--studio-type-caption);
+}
+.product-app .product-header :is(.command-palette-trigger, .product-menu-button) {
+  min-height: var(--studio-touch-height);
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) :is(.product-search, .product-home-drop) {
+  border-color: var(--studio-panel-border);
+  box-shadow: none;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-search:focus-within {
+  border-color: var(--studio-focus-ring);
+  outline: 2px solid color-mix(in srgb, var(--studio-focus-ring) 22%, transparent);
+  outline-offset: 1px;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) :is(.product-tool-card, .product-staged) {
+  border-color: var(--studio-panel-border);
+  border-radius: var(--studio-radius-panel);
+  box-shadow: none;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card:focus-visible {
+  outline: 3px solid var(--studio-focus-ring);
+  outline-offset: 2px;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card:hover:not(:disabled):not(.product-tool-card--blocked) {
+  border-color: var(--accent);
+  box-shadow: none;
+  transform: none;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card__body > strong {
+  font-size: var(--studio-type-body);
+  line-height: 1.35;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card__body > span {
+  font-size: var(--studio-type-caption);
+  line-height: 1.45;
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .task-glyph {
+  border-radius: var(--studio-radius-control);
+}
+.product-app :is(.product-home--workspace, .product-tools--d2) .product-section-heading h2 {
+  font-size: var(--studio-type-section);
+}
+.product-app .task-glyph {
+  color: var(--studio-glyph-default-fg);
+  background: var(--studio-glyph-default-bg);
+}
+.product-app .task-glyph[data-tone="green"] { color: var(--studio-glyph-green-fg); background: var(--studio-glyph-green-bg); }
+.product-app .task-glyph[data-tone="rose"] { color: var(--studio-glyph-rose-fg); background: var(--studio-glyph-rose-bg); }
+.product-app .task-glyph[data-tone="amber"] { color: var(--studio-glyph-amber-fg); background: var(--studio-glyph-amber-bg); }
+.product-app .task-glyph[data-tone="blue"] { color: var(--studio-glyph-blue-fg); background: var(--studio-glyph-blue-bg); }
+.product-app .task-glyph[data-tone="indigo"] { color: var(--studio-glyph-indigo-fg); background: var(--studio-glyph-indigo-bg); }
+.product-app .task-glyph[data-tone="violet"] { color: var(--studio-glyph-violet-fg); background: var(--studio-glyph-violet-bg); }
+
+@media (max-width: 680px) {
+  .product-app .product-header {
+    height: 60px;
+    min-height: 60px;
+    gap: 9px;
+    padding-inline: 15px;
+  }
+  .product-app .product-brand { font-size: 18px; }
+  .product-app .product-mark { width: 29px; height: 29px; }
+  .product-app .product-header__end { gap: 6px; }
+  .product-app .product-footer {
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+  .product-app .product-footer nav {
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-app :is(.product-header, .product-tool-card, .task-glyph) { transition: none; }
+}
+@media (forced-colors: active) {
+  .product-app .task-glyph { color: CanvasText; background: Canvas; outline: 1px solid CanvasText; }
+  .product-app :is(.product-home--workspace, .product-tools--d2) .product-tool-card { border-color: ButtonText; }
+  .product-app :is(.product-home--workspace, .product-tools--d2) .product-search:focus-within { outline-color: Highlight; }
+}
