@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "baseline_commit": "4eadaafe24a17dbdb8729849792c9b8c2817d0f3",
+  "baseline_commit": "b2ec1a3e5042a1606c058ad80fe3aa8483ac6621",
   "run_id": "reader-YYYYMMDD-NN",
   "evidence_source": "human-external-application",
   "human_attestation": true,

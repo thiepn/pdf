@@ -5,7 +5,7 @@
   "title": "Compatibility and Human/Device Qualification",
   "status": "FRAMEWORK_READY_EVIDENCE_PENDING",
   "productBaseline": {
-    "commit": "4eadaafe24a17dbdb8729849792c9b8c2817d0f3",
+    "commit": "b2ec1a3e5042a1606c058ad80fe3aa8483ac6621",
     "sourcePhase": "P17",
     "executableVersion": "7.1.4",
     "targetVersion": "7.2.0",

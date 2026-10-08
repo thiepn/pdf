@@ -165,7 +165,13 @@ function TextEditor({ object, queued, onQueue }: { object: NativeTextObject; que
 }
 
 function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; queued?: NativeImageEdit; onQueue: (edit: NativeImageEdit) => void }) {
-  const allowedActions: NonNullable<NativeImageEdit["action"]>[] = object.fidelity?.allowedActions ?? (object.editability === "replace-region" ? ["transform", "replace", "delete"] : []);
+  // Independently gate bitmap replacement on source mask evidence. Even if a
+  // future inspector accidentally widens allowedActions, mask transfer must
+  // remain blocked in the UI and in the export worker.
+  const sourceHasMask = Boolean(object.fidelity?.softMask || object.fidelity?.explicitMask);
+  const allowedActions: NonNullable<NativeImageEdit["action"]>[] =
+    (object.fidelity?.allowedActions ?? (object.editability === "replace-region" ? ["transform", "replace", "delete"] : []))
+      .filter((candidate) => candidate !== "replace" || !sourceHasMask);
   const preferredAction: NonNullable<NativeImageEdit["action"]> = queued?.action ?? (queued?.bytes?.byteLength ? "replace" : "transform");
   const initialAction: NonNullable<NativeImageEdit["action"]> = allowedActions.includes(preferredAction) ? preferredAction : (allowedActions[0] ?? "transform");
   const [action, setAction] = useState<NonNullable<NativeImageEdit["action"]>>(initialAction);
@@ -193,7 +199,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     if (!file) return;
     setBytes(new Uint8Array(await file.arrayBuffer()));
     setMimeType(file.type || "image/png");
-    setAction("replace");
+    if (!sourceHasMask && allowedActions.includes("replace")) setAction("replace");
   }
 
   const protectedImage = object.editability === "fidelity-protected" || allowedActions.length === 0;
@@ -232,7 +238,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   };
   return <section className="property-section property-stack">
     <p className="eyebrow">Existing image</p><h3>Image editing</h3>
-    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => setAction(event.target.value as NonNullable<NativeImageEdit["action"]>)}><option disabled={!allowedActions.includes("transform")} value="transform">Edit source image</option><option disabled={!allowedActions.includes("replace")} value="replace">Replace image</option><option disabled={!allowedActions.includes("delete")} value="delete">Delete image</option></select></label>
+    <label className="property-field"><span>Operation</span><select aria-label="Image operation" value={action} onChange={(event) => { const nextAction = event.target.value as NonNullable<NativeImageEdit["action"]>; if (allowedActions.includes(nextAction)) setAction(nextAction); }}><option disabled={!allowedActions.includes("transform")} value="transform">Edit source image</option><option disabled={!allowedActions.includes("replace")} value="replace">Replace image</option><option disabled={!allowedActions.includes("delete")} value="delete">Delete image</option></select></label>
     {object.fidelity?.class === "masked" ? <div className="result-card"><strong>Attached soft mask preserved</strong><span>Source transform and deletion are qualified; bitmap replacement stays disabled because the source mask cannot be transferred safely to arbitrary replacement pixels.</span></div> : null}
     {action === "replace" ? <label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label> : null}
     {action !== "delete" ? <>

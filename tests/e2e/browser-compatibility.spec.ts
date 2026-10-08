@@ -44,13 +44,17 @@ test("opens and renders a real PDF without Map upsert proposal APIs", async ({ p
 
 test("rapid hash navigation and browser history keep the selected tool visible", async ({ page }) => {
   await page.goto("./#/home");
-  await page.goto("./#/tools/read-pdf");
+  await page.getByRole("link", { name: "All PDF tools", exact: true }).first().click();
+  await expect.poll(() => new URL(page.url()).hash).toBe("#/tools");
+  await page.locator("a.product-tool-card").filter({ hasText: "Read PDF" }).click();
+  await expect.poll(() => new URL(page.url()).hash).toBe("#/tools/read-pdf");
   await expect(page.getByRole("heading", { name: "Read PDF", exact: true })).toBeVisible();
   await expect(page.locator('input[type="file"][accept*="pdf"]').first()).toBeAttached();
   await page.goBack();
-  await expect(page.getByRole("button", { name: "Choose files", exact: true })).toBeVisible();
+  await expect.poll(() => new URL(page.url()).hash).toBe("#/tools");
+  await expect(page.getByRole("heading", { name: "PDF tasks", exact: true })).toBeVisible();
   await page.goForward();
-  await expect.poll(() => new URL(page.url()).hash, { timeout: 10_000 }).toBe("#/tools/read-pdf");
+  await expect.poll(() => new URL(page.url()).hash).toBe("#/tools/read-pdf");
   await expect(page.getByRole("heading", { name: "Read PDF", exact: true })).toBeVisible();
   await expect(page.locator('input[type="file"][accept*="pdf"]').first()).toBeAttached();
 });
