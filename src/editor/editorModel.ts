@@ -138,6 +138,7 @@ export function duplicateObjects(objects: EditorObject[], ids: Set<string>, offs
       ...structuredClone(object),
       id: id(),
       groupId,
+      ...(object.type === "note" ? { replies: (object.replies ?? []).map((reply) => ({ ...reply, id: id() })) } : {}),
       bounds: moveRect(object.bounds, offset, -offset),
       zIndex: highest + ++index,
       createdAt: now,
