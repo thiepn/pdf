@@ -24,7 +24,7 @@ async function selectByPanelEvidence(page: Page, buttons: ReturnType<Page["getBy
     const label = await button.getAttribute("aria-label") ?? `object ${index + 1}`;
     await button.click();
     await expect(panel).toBeVisible();
-    const text = (await panel.innerText()).replace(/\\s+/g, " ").slice(0, 800);
+    const text = (await panel.innerText()).replace(/\s+/g, " ").slice(0, 800);
     observed.push(`${index + 1} [${label}]: ${text}`);
     if (await panel.getByText(evidence, typeof evidence === "string" ? { exact: true } : undefined).isVisible().catch(() => false)) return;
   }
