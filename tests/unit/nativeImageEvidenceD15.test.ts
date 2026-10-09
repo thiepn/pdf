@@ -56,13 +56,13 @@ describe("D15 native image export evidence", () => {
 
   it("does not count the moved target as a second untouched sibling", () => {
     const selected = { bounds: rect(390, 474), masked: true };
-    const sibling = { bounds: rect(402, 474), masked: true };
+    const sibling = { bounds: rect(478, 474), masked: true };
     const originals = [selected, sibling];
     const after = [
-      { bounds: rect(402, 474), masked: true },
+      { bounds: rect(478, 474), masked: true },
       { bounds: rect(70, 190), masked: true }
     ];
-    expect(() => requirePreservedImageSiblings(originals, after, selected.bounds, rect(402, 474)))
+    expect(() => requirePreservedImageSiblings(originals, after, selected.bounds, rect(478, 474)))
       .toThrow(/untouched image instance/);
   });
 
