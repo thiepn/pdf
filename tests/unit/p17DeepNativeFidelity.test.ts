@@ -46,7 +46,7 @@ describe("P17 deep native-content fidelity policy", () => {
   it("keeps the generated deep-fidelity fixture structurally explicit", () => {
     const source = new TextDecoder().decode(createP17NativeFidelityPdf());
     expect(source).toContain("/SMask 7 0 R");
-    expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
+      expect(source.split("/ImSoft Do").length - 1).toBe(2);
     expect(source).toContain("/GSBlend gs");
     expect(source).toContain("re W n");
   });
@@ -67,7 +67,7 @@ describe("P17 deep native-content fidelity policy", () => {
         let source: string;
         try { source = buffer.asString(); }
         finally { buffer.destroy(); }
-        expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
+      expect(source.split("/ImSoft Do").length - 1).toBe(2);
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
         const newPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
         expect(source).toContain(oldPaint);
@@ -110,7 +110,7 @@ describe("P17 deep native-content fidelity policy", () => {
       finally { sourceBuffer.destroy(); }
       const originalPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
       const updatedPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
-      expect(source.match(/\\/ImSoft Do/g)).toHaveLength(2);
+      expect(source.split("/ImSoft Do").length - 1).toBe(2);
       expect(source).toContain(originalPaint);
       // Exercise the same page-object replacement API as the D14 writer.
       const replacement = pdf.addStream(source.replace(originalPaint, updatedPaint));
