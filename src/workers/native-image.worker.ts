@@ -623,19 +623,21 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const target = matches[0];
   const drawing = action === "delete" ? "q Q\n" : imageDrawingContent(pdf, page, resourceName, image.width ?? 1, image.height ?? 1, edit);
   const rewritten = source.slice(0, target.start) + drawing + source.slice(target.start + target.length);
-  // Preserve the existing /Contents stream reference and its page-resource
-  // relationships. It also avoids introducing another indirect stream when
-  // the existing one can be safely rewritten in place.
-  // A single direct stream is required above; never rewrite stream arrays.
-  if (!current.isStream?.() || typeof current.writeStream !== "function") {
-    throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
+  // Copy on write: never mutate the indirect source /Contents object in
+  // place. MuPDF can retain an old display list for a previously loaded page,
+  // and other references may still resolve to that original stream. Installing
+  // an entirely new stream gives the reopened document one unambiguous page
+  // content graph while leaving the source object intact for rollback.
+  // Only qualified single-stream, page-local invocations reach this point;
+  // multiple streams and shared page content are rejected above.
+  if (!current.isStream?.()) {
+    throw new Error("The masked image content stream cannot be copied safely; the source remains unchanged.");
   }
-  // Match the engine-level round-trip regression: use MuPDF's own Buffer
-  // so the native stream writer sees a Wasm-owned buffer, not an external
-  // JS typed-array view whose lifetime/realm may differ across workers.
-  const nativeBytes = new (mupdf as any).Buffer(rewritten);
-  try { current.writeStream(nativeBytes); }
-  finally { nativeBytes.destroy(); }
+  const replacement = pdf.addStream(rewritten);
+  if (!replacement?.isStream?.()) {
+    throw new Error("The masked image replacement content stream was not created.");
+  }
+  pageObject.put("Contents", replacement);
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
