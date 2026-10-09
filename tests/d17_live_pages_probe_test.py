@@ -8,7 +8,10 @@ class D17LivePagesTests(unittest.TestCase):
     def setUp(self):
         self.metadata = {"schemaVersion": 1, "version": "7.1.4", "channel": "stable", "buildEpoch": 1790860000000}
         self.integrity = {"schemaVersion": 1, "fileCount": 2, "files": [{"name": "index.html"}, {"name": "sw.js"}]}
-        self.offline = {"assets": ["index.html", "release-metadata.json"]}
+        self.offline = {"schemaVersion": 2, "strategy": "consumer-core-plus-runtime-features",
+                        "assets": ["./index.html", "./release-metadata.json"],
+                        "coreAssets": ["./index.html", "./release-metadata.json"],
+                        "optionalAssets": ["./workers/native-image.js"]}
         self.worker = ('const RELEASE_VERSION = "7.1.4";\n'
                        'const RELEASE_CHANNEL = "stable";\n'
                        'const RELEASE_BUILD_EPOCH = Number("1790860000000")')
@@ -30,6 +33,10 @@ class D17LivePagesTests(unittest.TestCase):
     def test_rejects_incomplete_integrity_inventory(self):
         self.integrity["fileCount"] += 1
         self.assertTrue(any("integrity fileCount" in error for error in self.audit()))
+
+    def test_rejects_dropped_or_duplicate_offline_assets(self):
+        self.offline["assets"] = ["./index.html", "./index.html"]
+        self.assertTrue(any("core assets" in error for error in self.audit()))
 
     def test_rejects_non_pdf_studio_site(self):
         self.assertTrue(assess_live_assets(self.metadata, self.integrity, self.offline,
