@@ -39,7 +39,8 @@ test("D13 real two-page PDF opens, edits UI state, downloads and reopens indepen
   });
   const status = page.getByLabel("Document status bar");
   await expect(status).toBeVisible({ timeout: 40000 });
-  await expect(status).toContainText("D13 release candidate.pdf");
+  // The imported project display name intentionally omits the .pdf suffix.
+  await expect(status).toContainText("D13 release candidate");
   await expect(status).toContainText("Page 1 of 2");
   await expect(page.getByRole("region", { name: "PDF page canvas" })).toBeVisible();
   await page.getByRole("button", { name: "Next page" }).click();
