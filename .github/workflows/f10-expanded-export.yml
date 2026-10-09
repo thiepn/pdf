@@ -1,0 +1,67 @@
+name: F10 expanded browser export and form-data qualification
+
+on:
+  pull_request:
+    paths:
+      - "scripts/f10/**"
+      - "tests/e2e/f10-export-corpus.spec.mjs"
+      - "tests/unit/f10FormDataExport.test.ts"
+      - "src/inspector/**"
+      - "src/views/InspectorPage.tsx"
+      - ".github/workflows/f10-expanded-export.yml"
+      - "src/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-export-and-feature:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install qpdf, Poppler and supported Python PDF readers
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install --yes --no-install-recommends qpdf poppler-utils
+          python -m pip install --requirement requirements-phase11.txt
+      - name: Install exact JavaScript dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate real interactive F10 source documents
+        run: python scripts/f10/generate_export_corpus.py
+      - name: Test fail-closed independent validation and CSV privacy
+        run: |
+          python -m unittest discover -s scripts/f10 -p 'test_*.py' -v
+          npm run typecheck
+          npx vitest run tests/unit/f10FormDataExport.test.ts
+      - name: Build verified browser application
+        run: npm run build:verified
+        env:
+          VITE_BASE_PATH: /pdf/
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run real browser exports (forms, measurement, optimization, batch)
+        run: npx playwright test tests/e2e/f10-export-corpus.spec.mjs --project=chromium --workers=1 --retries=0
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
+          PLAYWRIGHT_BASE_PATH: /pdf/
+      - name: Reopen every browser PDF independently and certify semantics
+        run: python scripts/f10/validate_extended_exports.py --export-dir artifacts/f10-exports --report artifacts/f10-report.json
+      - name: Preserve externally verifiable evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f10-actual-exports-and-external-readers
+          path: |
+            artifacts/f10-exports
+            artifacts/f10-report.json
+            playwright-report
+          if-no-files-found: ignore
