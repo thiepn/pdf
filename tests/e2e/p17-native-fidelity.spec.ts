@@ -34,12 +34,21 @@ async function selectByPanelEvidence(page: Page, buttons: ReturnType<Page["getBy
 async function downloadEditedPdf(page: Page): Promise<void> {
   const options = page.locator(".editor-save-options");
   await options.locator("summary").click();
-  const downloadPromise = page.waitForEvent("download", { timeout: 15_000 });
+  // A corrupt native source must be refused, not silently downloaded. Capture
+  // the actual validation error instead of masking it behind a download timeout.
+  const pending = page.waitForEvent("download", { timeout: 25_000 })
+    .then(download => ({ kind: "download" as const, download }), error => ({ kind: "timeout" as const, error }));
+  const validationRefusal = page.locator('.editor-banner, [role="alert"]')
+    .filter({ hasText: /Image edit validation failed|Masked image transform did not preserve|fidelity validation failed/i })
+    .first().waitFor({ state: "visible", timeout: 25_000 })
+    .then(() => ({ kind: "refused" as const }), () => ({ kind: "no-refusal" as const }));
   await options.getByRole("button", { name: "Download copy", exact: true }).click();
-  const download = await downloadPromise.catch(async (reason) => {
+  const outcome = await Promise.race([pending, validationRefusal]);
+  if (outcome.kind !== "download") {
     const diagnostics = await page.locator('.editor-banner, [role="alert"], [role="status"], .editor-operation-status, .editor-commandbar').allInnerTexts();
-    throw new Error(`Edited PDF download did not start. UI diagnostics: ${JSON.stringify(diagnostics.slice(0, 20))}`, { cause: reason });
-  });
+    throw new Error(`P17 PDF download was ${outcome.kind}: ${JSON.stringify(diagnostics.slice(0, 20))}`);
+  }
+  const download = outcome.download;
   expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
   await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
 }

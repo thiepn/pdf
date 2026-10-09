@@ -1,0 +1,140 @@
+name: D18 native image fidelity, browser and mobile closure
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/d18-browser-fidelity.yml
+      - src/native/nativeImageEvidence.ts
+      - src/workers/native-image.worker.ts
+      - src/views/EditorPage.tsx
+      - tests/unit/nativeImageEvidenceD15.test.ts
+      - tests/unit/d18NativeGeometryRoundTrip.test.ts
+      - tests/e2e/mobile.spec.ts
+      - tests/e2e/pwa.spec.ts
+      - docs/design/D18_RELEASE_GATE_STATUS.md
+      - scripts/design/d17_live_pages_probe.py
+      - tests/d17_live_pages_probe_test.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d18-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-source:
+    name: Native source, real MuPDF geometry, typecheck, build and release refusal
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: npm ci --no-audit --no-fund
+      - name: Require real MuPDF geometry and strict XObject/SMask evidence
+        run: npx vitest run tests/unit/nativeImageEvidenceD15.test.ts tests/unit/d18NativeGeometryRoundTrip.test.ts tests/unit/p17DeepNativeFidelity.test.ts
+      - name: Real application typecheck and verified production build
+        run: |
+          npm run typecheck
+          npm run build:verified
+      - name: Production security and privacy audit
+        run: npm run audit:security
+      - name: Retain D8 human and ancestry refusal
+        run: |
+          python -m unittest discover -s tests -p d16_release_scope_test.py -v
+          python -m scripts.design.d16_release_scope --repo . --check-ancestors --assert-prepared
+          python -m scripts.design.d15_evidence_inventory
+
+  native-browsers:
+    name: Real source-image edit and independently reopened PDF (${{ matrix.browser }})
+    needs: native-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Source fidelity, downloaded PDF, offline/PWA and visual editor regression
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d14-native-export.spec.mjs tests/e2e/pwa.spec.ts tests/e2e/d11-visual-consistency.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: d18-native-browser-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  touch-devices:
+    name: Real browser-emulated mobile and tablet interaction (${{ matrix.browser }})
+    needs: native-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [mobile-chromium, tablet-webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Compact viewport, 44px targets, focus recovery and actual PDF download
+        run: npx playwright test tests/e2e/mobile.spec.ts --project=${{ matrix.browser }} --workers=1 --retries=0
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: d18-compact-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  published-pages:
+    name: Check documented GitHub Pages site without deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Audit the actual public URL documented by this repository
+        run: |
+          mkdir -p evidence
+          python -m scripts.design.d17_live_pages_probe --url "https://thiepn.github.io/pdf/" | tee evidence/d18-published-pages.json
+      - name: Preserve fetched identity evidence without claiming tag attestation
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d18-public-pages-evidence
+          path: evidence/d18-published-pages.json
+          if-no-files-found: ignore
+          retention-days: 14

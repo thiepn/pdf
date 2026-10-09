@@ -108,3 +108,46 @@ export function requirePreservedImageSiblings(
     }
   }
 }
+
+/** A verified masked /Do invocation plus its independently painted geometry. */
+export interface MaskedInvocationEvidence {
+  resourceName: string;
+  bounds: NativeRect;
+  softMask: boolean;
+  explicitMask: boolean;
+  clipped: boolean;
+  blendMode: string;
+}
+
+/**
+ * Match content-stream /SMask-backed invocations to actual device-rendered
+ * image positions, without depending on structured-text ordering or count.
+ *
+ * Fail closed on any non-unique geometry: neither an unpainted /Do operator
+ * nor an ambiguous rendered rectangle qualifies a native image for editing.
+ */
+export function matchRenderedMaskedInvocations(
+  invocations: readonly MaskedInvocationEvidence[],
+  rendered: readonly NativeRect[],
+  tolerance = 4
+): Map<number, MaskedInvocationEvidence> {
+  const result = new Map<number, MaskedInvocationEvidence>();
+  if (!Number.isFinite(tolerance) || tolerance < 0) {
+    throw new Error("Masked image mapping requires a nonnegative finite tolerance.");
+  }
+  const claimed = new Set<number>();
+  for (const invocation of invocations) {
+    if (!invocation.softMask || invocation.explicitMask || invocation.clipped || invocation.blendMode !== "Normal") continue;
+    const candidates = rendered.flatMap((bounds, index) =>
+      imageBoxDistance(bounds, invocation.bounds) <= tolerance ? [index] : []);
+    if (candidates.length !== 1 || claimed.has(candidates[0])) continue;
+    // No second source paint may claim this same trace, even with a different
+    // resource name. Such pages remain conservatively fidelity-protected.
+    const rival = invocations.some(other => other !== invocation
+      && imageBoxDistance(other.bounds, rendered[candidates[0]]) <= tolerance);
+    if (rival) continue;
+    result.set(candidates[0], invocation);
+    claimed.add(candidates[0]);
+  }
+  return result;
+}
