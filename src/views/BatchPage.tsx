@@ -5,6 +5,7 @@ import { batchRecipeExecutionFingerprint, parseBatchRecipeJson, serializeBatchRe
 import { downloadBlob } from "../projects/download";
 import { BATCH_RECIPE_SCHEMA_VERSION, type BatchItemStatus, type BatchRecipe, type BatchStep } from "../types/batch";
 import { WorkflowComposer } from "../automation/WorkflowComposer";
+import { AIWorkflowPlanner } from "../automation/AIWorkflowPlanner";
 import { F6_MAX_FILES, F6_MAX_QUEUE_BYTES, createWorkflowRunEvidence, validateWorkflowDraft, type WorkflowFailurePolicy, type WorkflowRunEvidence } from "../automation/workflowComposerModel";
 import { createStoredZip } from "../toolbox/zip";
 
@@ -81,6 +82,7 @@ export function BatchPage() {
         <input ref={recipeInputRef} hidden accept="application/json,.json" type="file" onChange={event=>{const file=event.target.files?.[0];if(file)void importRecipe(file);event.target.value="";}}/>
       </div>
     </div>
+    <AIWorkflowPlanner recipe={recipe} disabled={recipeLocked} onApply={next=>{setRecipe(next);setApprovalFingerprint(null);setLastRunEvidence(null);setError(null);}} />
     <WorkflowComposer steps={recipe.steps} disabled={recipeLocked} onChange={steps=>{setError(null);setRecipe(current=>({...current,steps}));}} onError={setError}
       renderParameters={step=><StepEditor step={step} disabled={recipeLocked} patch={value=>patchStep(step.id,value)}/>} />
     <section className={`f6-preflight${preflight.valid?"":" f6-preflight--invalid"}`} aria-label="Workflow preflight">
