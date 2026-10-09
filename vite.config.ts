@@ -1,6 +1,5 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
-import { URL } from "node:url";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -40,7 +39,11 @@ function nativeLunaCsp(mode: string) {
     env.VITE_PDF_CORE_URL,
     env.VITE_PDF_ACCOUNT_SUPABASE_URL
   ].filter((value): value is string => Boolean(value)).map((value) => {
-    const url = new URL(value);
+    const UrlCtor = (globalThis as unknown as { URL: new (input: string) => {
+      protocol: string; hostname: string; username: string; password: string;
+      search: string; hash: string; pathname: string; origin: string;
+    } }).URL;
+    const url = new UrlCtor(value);
     const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
     if ((url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
       url.username || url.password || url.search || url.hash || url.pathname !== "/") {
