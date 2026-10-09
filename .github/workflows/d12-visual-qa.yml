@@ -1,0 +1,63 @@
+name: D12 visual QA and CSS ownership
+
+on:
+  pull_request:
+    paths:
+      - "src/product/studio-visual-qa-d12.css"
+      - "src/product/studio-editor-d3-live.css"
+      - "src/product/product.css"
+      - "tests/unit/studioDesignD11.test.ts"
+      - "tests/unit/studioDesignD12.test.ts"
+      - "tests/e2e/d12-visual-qa.spec.ts"
+      - ".github/workflows/d12-visual-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d12-visual-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  css-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify D11 source audit and D12 CSS ownership
+        run: npx vitest run tests/unit/studioDesignD11.test.ts tests/unit/studioDesignD12.test.ts
+      - run: npm run typecheck
+
+  browser-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify live desktop, tablet and mobile layout
+        run: npx playwright test tests/e2e/d12-visual-qa.spec.ts --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Retain screenshot evidence and traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d12-visual-qa-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
