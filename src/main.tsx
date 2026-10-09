@@ -14,9 +14,7 @@ import { MobileViewportManager } from "./mobile/MobileViewportManager";
 import { initializePwaInstallCapture } from "./pwa/installManager";
 import { registerPwaFileHandling } from "./pwa/launchFiles";
 import { ReleaseHealthReporter } from "./release/ReleaseHealthReporter";
-
-// PKCE callback returns without a hash; route to Batch before the planner exchanges its one-use code.
-if (new URL(window.location.href).searchParams.has("code") && window.sessionStorage.getItem("pdf-studio:f8:oauth-verifier")) window.location.hash = "#/batch";
+import { finishPdfAccountSignIn, isPdfOAuthCallback, nativeLunaConfig } from "./automation/nativeLunaAccount";
 
 initializePwaInstallCapture();
 registerPwaFileHandling();
@@ -45,4 +43,19 @@ if (!safeMode) void registerAppServiceWorker().catch((reason) => { if (settings.
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
-createRoot(root).render(<StrictMode><AppErrorBoundary><MobileViewportManager />{!safeMode ? <ReleaseHealthReporter /> : null}<App /></AppErrorBoundary></StrictMode>);
+function renderApp():void{
+  createRoot(root!).render(<StrictMode><AppErrorBoundary><MobileViewportManager />{!safeMode ? <ReleaseHealthReporter /> : null}<App /></AppErrorBoundary></StrictMode>);
+}
+let accountConfig:ReturnType<typeof nativeLunaConfig>=null;
+try{accountConfig=nativeLunaConfig();}catch{/* Missing/invalid public configuration disables native AI. */}
+if(accountConfig&&isPdfOAuthCallback(accountConfig,window.location)){
+  // Complete the one-use OAuth callback before mounting the normal app/router.
+  // State is validated and the code is erased from history synchronously.
+  root.textContent="Completing THIEPN Account sign-in…";
+  void finishPdfAccountSignIn(accountConfig)
+    .then(()=>{sessionStorage.setItem("pdf-studio:f8b:login-result","connected");})
+    .catch(reason=>{sessionStorage.setItem("pdf-studio:f8b:login-result",reason instanceof Error?reason.message:"Account sign-in failed.");})
+    .finally(renderApp);
+}else{
+  renderApp();
+}

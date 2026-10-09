@@ -1,6 +1,6 @@
 import {test,expect} from "@playwright/test";
 
-test.skip(!process.env.VITE_PDF_CORE_URL, "Native Luna tests require explicit public Core test configuration; tested in dedicated F8 qualification.");
+test.skip(!process.env.VITE_PDF_CORE_URL || !process.env.VITE_PDF_ACCOUNT_CLIENT_ID, "Native Account tests require explicit nonsecret test origins and registered client ID; tested in dedicated F8 qualification.");
 
 test.setTimeout(90_000);
 const session={
@@ -9,7 +9,14 @@ const session={
   expires_at:Math.floor(Date.now()/1000)+3600
 };
 test("F8 native GPT-6 Luna proposes, validates, waits for apply and never executes itself",async({page})=>{
-  await page.addInitScript(s=>sessionStorage.setItem("pdf-studio:f8:account-session",JSON.stringify(s)),session);
+  await page.addInitScript(s=>localStorage.setItem("pdf-studio:f8b:tokens:33333333-3333-4333-8333-333333333333",JSON.stringify(s)),session);
+  await page.route("https://account.example/auth/v1/user",async route=>{
+    if(route.request().method()==="OPTIONS"){
+      await route.fulfill({status:204,headers:{"Access-Control-Allow-Origin":"http://127.0.0.1:4173","Access-Control-Allow-Methods":"GET, OPTIONS","Access-Control-Allow-Headers":"Authorization, apikey"}});
+      return;
+    }
+    await route.fulfill({headers:{"Access-Control-Allow-Origin":"http://127.0.0.1:4173"},json:{id:"11111111-1111-4111-8111-111111111111"}});
+  });
   let modelCalls=0;
   await page.route("https://core.example/v1/pdf/ai/plan",async route=>{
     if(route.request().method()==="OPTIONS"){
