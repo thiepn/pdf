@@ -46,6 +46,12 @@ def check_manifest(data: dict) -> list[str]:
     main = data.get("observed_main", {})
     if not isinstance(main, dict) or main.get("branch") != "main" or main.get("review_required") is not True or not FULL_SHA.fullmatch(str(main.get("sha", ""))):
         problems.append("Missing pinned production baseline and review")
+    stable = data.get("observed_stable_release", {})
+    if (not isinstance(stable, dict) or stable.get("tag") != "v7.1.4"
+            or stable.get("release_review_required") is not True
+            or not FULL_SHA.fullmatch(str(stable.get("commit_sha", "")))
+            or not FULL_SHA.fullmatch(str(stable.get("tag_object_sha", "")))):
+        problems.append("Pinned annotated Stable v7.1.4 rollback release missing or incomplete")
     compare = main.get("compare_to_d15", {}) if isinstance(main, dict) else {}
     if not isinstance(compare, dict) or compare.get("ahead_by", 0) < 700 or compare.get("changed_files", 0) < 250 or compare.get("behind_by") != 0:
         problems.append("Observed broad P17 + redesign scope must be recorded accurately")
@@ -98,6 +104,13 @@ def evaluate(manifest: dict, d13: dict, d8: dict, repo: Path | None = None) -> d
         rc, remote_main = git(repo, "rev-parse", "refs/remotes/origin/main")
         if rc or remote_main != main:
             errors.append("Production main moved or is not fetched; manual reconciliation required")
+        stable_release = manifest.get("observed_stable_release", {})
+        rc, tag_commit = git(repo, "rev-parse", "refs/tags/v7.1.4^{commit}")
+        if rc or tag_commit != stable_release.get("commit_sha"):
+            errors.append("Published stable rollback tag moved or is unavailable")
+        rc, tag_object = git(repo, "rev-parse", "refs/tags/v7.1.4")
+        if rc or tag_object != stable_release.get("tag_object_sha"):
+            errors.append("Annotated stable rollback tag object moved or is unavailable")
         for label, sha in (
             ("main", main),
             ("P17-root", manifest.get("upstream_root", {}).get("sha", "")),
