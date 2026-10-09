@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 // Vitest can resolve CSS ?raw imports to empty strings in its Node test runner.
 // Read literal repository files instead, so these assertions fail on missing
 // or wrong CSS rather than depending on the Vite CSS transformation pipeline.
-const productSource = (filename: string): string =>
+const productSource = (filename) =>
   readFileSync(resolve(process.cwd(), "src", "product", filename), "utf8");
 
 const imports = productSource("product.css");

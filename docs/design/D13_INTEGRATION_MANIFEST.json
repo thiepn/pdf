@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "repository": "thiepn/pdf",
+  "candidate_branch": "design/d13-integration-release-candidate",
+  "status": "PREPARATION_ONLY",
+  "automatic_merge_allowed": false,
+  "automatic_deployment_allowed": false,
+  "release_qualified": false,
+  "observed_main_sha": "6f4f5c1b3b20a0565795879bef77265a4cdea6c0",
+  "root_dependency": {
+    "branch": "feature/p17-deep-native-content-fidelity",
+    "sha": "dd23b3c2a0563de7c429fe42738f0d5d748e478e",
+    "review_required": true,
+    "reason": "D1 is based on P17, not directly on main; reconcile dependency and upstream divergence before merging."
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "pr": 125,
+      "branch": "design/d1-file-first-workspace",
+      "commit_sha": "b6f36b409ad1afa5046fbf4c11c6703fc32dc4dd",
+      "base_branch": "feature/p17-deep-native-content-fidelity"
+    },
+    {
+      "phase": 2,
+      "pr": 126,
+      "branch": "design/d2-tool-discovery",
+      "commit_sha": "77f0980973bc904e27c9222afc509a985cdcb557",
+      "base_branch": "design/d1-file-first-workspace"
+    },
+    {
+      "phase": 3,
+      "pr": 130,
+      "branch": "design/d3-live-editor-integration",
+      "commit_sha": "c4ef25d983a88306d15de0ff4b1ba49da03350d6",
+      "base_branch": "design/d2-tool-discovery"
+    },
+    {
+      "phase": 4,
+      "pr": 131,
+      "branch": "design/d4-live-selection-layers",
+      "commit_sha": "4d076018ff9bfd340d0d8054df04eb3103ecc90c",
+      "base_branch": "design/d3-live-editor-integration"
+    },
+    {
+      "phase": 5,
+      "pr": 133,
+      "branch": "design/d5-live-quick-workflow",
+      "commit_sha": "fae344e01dd3557860afba97df005b9cd4ae59a8",
+      "base_branch": "design/d4-live-selection-layers",
+      "equivalent_applied_commit_sha": "13436ff643d51adc61f8946e3e1c2f0d4a2b6f60",
+      "equivalence_note": "D5's final fix was independently replayed on D6 as an identical patch. The D13 gate must compare both patch-ids, not assume ancestor."
+    },
+    {
+      "phase": 6,
+      "pr": 134,
+      "branch": "design/d6-live-mobile-panels",
+      "commit_sha": "13436ff643d51adc61f8946e3e1c2f0d4a2b6f60",
+      "base_branch": "design/d5-live-quick-workflow"
+    },
+    {
+      "phase": 7,
+      "pr": 135,
+      "branch": "design/d7-live-accessibility",
+      "commit_sha": "456df20336e3dd9e20c624eae9019b08e1ff817d",
+      "base_branch": "design/d6-live-mobile-panels"
+    },
+    {
+      "phase": 8,
+      "pr": 136,
+      "branch": "design/d8-live-release-gate",
+      "commit_sha": "553575eef0bfb4228811285b53a23090fa3a42f0",
+      "base_branch": "design/d7-live-accessibility"
+    },
+    {
+      "phase": 9,
+      "pr": 137,
+      "branch": "design/d9-live-integration-qualification",
+      "commit_sha": "2dcce97836f26494c84ea584358745f236bf1015",
+      "base_branch": "design/d8-live-release-gate"
+    },
+    {
+      "phase": 10,
+      "pr": 139,
+      "branch": "design/d10-editor-document-status",
+      "commit_sha": "72d85f48bdba5e419df969e3e3e50b8ddc34a8cf",
+      "base_branch": "design/d9-live-integration-qualification"
+    },
+    {
+      "phase": 11,
+      "pr": 141,
+      "branch": "design/d11-design-system-consolidation",
+      "commit_sha": "a3ae81ab077eb2c8149c60f86fe749d4f8ed4bb4",
+      "base_branch": "design/d10-editor-document-status"
+    },
+    {
+      "phase": 12,
+      "pr": 143,
+      "branch": "design/d12-visual-qa-css-cleanup",
+      "commit_sha": "25944058e9fd72af97e2cd68b81d27897f4cb289",
+      "base_branch": "design/d11-design-system-consolidation"
+    }
+  ],
+  "required_ci": [
+    "PDF Studio CI",
+    "D1 workspace UI qualification",
+    "D2 tool discovery qualification",
+    "D3 live editor qualification",
+    "D4 real editor layer transactions",
+    "D5 real quick-tool output qualification",
+    "D6 real mobile and tablet qualification",
+    "D7 real accessibility interaction",
+    "D12 visual QA and CSS ownership"
+  ],
+  "required_manual": [
+    "D8 18-item evidence review",
+    "P17 native PDF fidelity",
+    "P18 real device/reader tests",
+    "independent PDF export/reopen",
+    "dark/light and screen-reader review",
+    "rollback plan and explicit deploy approval"
+  ],
+  "evidence_file": "docs/design/D8_RELEASE_EVIDENCE.template.json",
+  "notes": "Source ancestry is verified except the explicitly listed D5 equivalent replay; the preflight compares Git patch-ids to establish equivalence. Preparation is not a release certification."
+}
