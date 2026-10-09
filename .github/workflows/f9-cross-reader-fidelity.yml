@@ -28,6 +28,7 @@ jobs:
           python-version: "3.13"
       - name: Install independently developed PDF readers
         run: |
+          sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install --yes --no-install-recommends qpdf poppler-utils
           python -m pip install --requirement requirements-phase11.txt
       - name: Install locked JS packages
@@ -47,13 +48,14 @@ jobs:
       - name: Install Chromium browser
         run: npx playwright install --with-deps chromium
       - name: Export actual edited PDFs through Chromium UI
-        run: npx playwright test tests/e2e/f9-export-roundtrip.spec.ts --project=chromium --workers=1 --retries=0
+        run: |
+          mkdir -p artifacts/f9-exports
+          npx playwright test tests/e2e/f9-export-roundtrip.spec.ts --project=chromium --workers=1 --retries=0
         env:
           PLAYWRIGHT_SKIP_BUILD: "1"
           PLAYWRIGHT_BASE_PATH: /pdf/
-          F9_EXPORT_DIR: test-results/f9-exports
       - name: Require qpdf and Poppler round-trip consistency
-        run: python scripts/f9/validate_export_roundtrip.py --export-dir test-results/f9-exports --report docs/f9/cross-reader-report.json
+        run: python scripts/f9/validate_export_roundtrip.py --export-dir artifacts/f9-exports --report docs/f9/cross-reader-report.json
       - name: Upload independent-reader evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -61,6 +63,6 @@ jobs:
           name: f9-independent-reader-evidence
           path: |
             docs/f9/cross-reader-report.json
-            test-results/f9-exports
+            artifacts/f9-exports
             playwright-report
           if-no-files-found: ignore
