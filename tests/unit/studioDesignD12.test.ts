@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 function source(path: string): string {
-  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+  return readFileSync(resolve(process.cwd(), path), "utf8");
 }
 const imports = source("src/product/product.css");
 const d3 = source("src/product/studio-editor-d3-live.css");
