@@ -54,7 +54,7 @@ jobs:
           PLAYWRIGHT_SKIP_BUILD: "1"
           PLAYWRIGHT_BASE_PATH: /pdf/
       - name: Reopen every browser PDF independently and certify semantics
-        run: python scripts/f10/validate_extended_exports.py --export-dir artifacts/f10-exports --report artifacts/f10-report.json
+        run: python scripts/f10/validate_extended_exports.py --export-dir artifacts/f10-exports/chromium --report artifacts/f10-report.json
       - name: Preserve externally verifiable evidence
         if: always()
         uses: actions/upload-artifact@v7
