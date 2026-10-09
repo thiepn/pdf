@@ -486,7 +486,12 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
   const directBlendHasRisk = directPaints.some((paint) => paint.blendMode !== "Normal");
   const paintMappingAvailable = directPaints.length === visibleTraceIndexes.length;
   const directPaintByTrace = new Map<number, (typeof directPaints)[number]>();
-  if (paintMappingAvailable) visibleTraceIndexes.forEach((traceIndex, paintIndex) => directPaintByTrace.set(traceIndex, directPaints[paintIndex]));
+  if (paintMappingAvailable) visibleTraceIndexes.forEach((traceIndex, paintIndex) => {
+    const paint = directPaints[paintIndex];
+    // Masked identity is never established from enumeration order alone:
+    // source /SMask and rendered CTM geometry must uniquely correspond.
+    if (!paint.softMask && !paint.explicitMask) directPaintByTrace.set(traceIndex, paint);
+  });
   // Always reconcile masked XObjects by unique original user-space geometry,
   // including when structured text happens to return the same number of
   // images but in a different order. A stale positional mapping must never
@@ -518,7 +523,10 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       // exists, trust its explicit W/W* state; otherwise remain conservative.
       clipped: paint ? paint.clipped : trace.clipped,
       blendMode: paint ? paint.blendMode : trace.blendMode,
-      ambiguous: blendMappingAmbiguous && !paint
+      // A rendered/structured mask with no verified /SMask-to-device mapping
+      // is inspectable but not qualified for source reconstruction.
+      ambiguous: (blendMappingAmbiguous && !paint)
+        || ((trace.softMask || Boolean(structuredMask?.softMask)) && !paint)
     });
     return {
       id: `p${pageNumber}:image:${index}`,
