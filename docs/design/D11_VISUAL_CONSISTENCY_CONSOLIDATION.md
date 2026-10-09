@@ -39,7 +39,7 @@ Tokens load immediately after `foundation.css`; the chrome file loads after D10 
 
 ```sh
 npm run typecheck
-npx vitest run tests/unit/studioDesignD11.test.ts
+npx vitest run tests/unit/studioDesignD11.test.mjs
 npx playwright test tests/e2e/d11-visual-consistency.spec.mjs --project=chromium --project=firefox --project=webkit
 python scripts/design/d9_live_mount_audit.py --repo .
 python scripts/design/d8_live_gate.py --evidence docs/design/D8_RELEASE_EVIDENCE.template.json
