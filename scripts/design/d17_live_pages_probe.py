@@ -47,8 +47,15 @@ def assess_live_assets(metadata: dict, integrity: dict, offline: dict, service_w
     ):
         if token not in service_worker:
             failures.append(f"Published service worker {name} differs from release metadata")
-    if "__LPS_RELEASE_" in service_worker:
-        failures.append("Unresolved service worker release placeholders")
+    # sw.js intentionally retains a *guard* against unexpanded placeholders:
+    # RELEASE_VERSION.startsWith("__LPS_RELEASE_"). That constant string is
+    # safe in a production worker. Reject only unresolved actual assignments.
+    if any(token in service_worker for token in (
+        'const RELEASE_VERSION = "__LPS_RELEASE_VERSION__";',
+        'const RELEASE_CHANNEL = "__LPS_RELEASE_CHANNEL__";',
+        'const RELEASE_BUILD_EPOCH = Number("__LPS_RELEASE_BUILD_EPOCH__")'
+    )):
+        failures.append("Unresolved service worker release assignments")
     return failures
 
 
