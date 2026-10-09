@@ -64,7 +64,7 @@ test("D14 masked-image export preserves original sibling instances in the downlo
   await page.getByRole("button", { name: "Download copy", exact: true }).click();
   const download = await pending;
   const outputBytes = await readFile(await download.path());
-  expect(download.suggestedFilename()).toMatch(/_edited\\.pdf$/i);
+  expect(download.suggestedFilename()).toMatch(/_edited[.]pdf$/i);
   const output = inspectRenderedImages(outputBytes);
   expect(output.pages).toBe(baseline.pages);
   expect(output.images).toHaveLength(4);
