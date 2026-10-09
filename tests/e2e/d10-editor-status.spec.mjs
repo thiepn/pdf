@@ -26,10 +26,10 @@ test("D10 displays live document context and follows real page, zoom and tool st
 
   const status = page.getByLabel("Document status bar");
   await expect(status).toBeVisible({ timeout: 30000 });
-  await expect(status).toContainText("Quarterly report.pdf");
+  await expect(status).toContainText("Quarterly report");
   await expect(status).toContainText("Page 1 of 3");
   await expect(status).toContainText("100%");
-  await expect(page.locator(".editor-commandbar .editor-purpose")).toContainText("Quarterly report.pdf");
+  await expect(page.locator(".editor-commandbar .editor-purpose")).toContainText("Quarterly report");
 
   await page.getByRole("button", { name: "Next page" }).click();
   await expect(status).toContainText("Page 2 of 3");

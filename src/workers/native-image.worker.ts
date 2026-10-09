@@ -1,6 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
+import { imagePreservationBaseline, imageBoxDistance } from "../native/nativeImageEvidence";
 import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
@@ -640,9 +641,7 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   pageObject.put("Contents", replacement);
 }
 
-function rectDistance(a: NativeRect, b: NativeRect): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.w - b.w) + Math.abs(a.h - b.h);
-}
+const rectDistance = imageBoxDistance;
 
 function sourceImageObject(pdf: PdfDocument, page: PdfPage, bounds: NativeRect): { object: any; width: number; height: number } {
   const structured = page.toStructuredText("preserve-images");
@@ -754,9 +753,24 @@ self.onmessage = (event: MessageEvent<Request>) => {
           const sourceMatches = sourceRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
           const removesSourceRegion = action === "transform" || action === "delete" || (action === "replace" && edit.removeUnderlying !== false);
           if (removesSourceRegion && sourceMatches.length !== 1) throw new Error("The selected image region overlaps multiple source image instances; destructive reconstruction is blocked to avoid collateral image removal.");
-          beforeRects.set(edit.id, sourceRects);
+          // Masked content is validated after reopening with Device tracing:
+          // structured text can omit attached-mask paints even when Device
+          // still renders them. Baselines and outcomes must use the *same*
+          // coordinate and enumeration source, not JSON-before/Device-after.
+          // Keep structured text's unique-source-region refusal independently.
+          const maskedSource = current.image.fidelity?.class === "masked";
+          const baselineRects = imagePreservationBaseline(
+            current.image.fidelity?.class,
+            sourceRects,
+            maskedSource ? inspectImagePage(page, edit.pageNumber).images.map((image) => image.bounds) : []
+          );
+          const baselineMatches = baselineRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
+          if (maskedSource && baselineMatches.length !== 1) {
+            throw new Error("The masked source image cannot be isolated in device-space evidence; its PDF was not modified.");
+          }
+          beforeRects.set(edit.id, baselineRects);
           beforeClasses.set(edit.id, current.image.fidelity?.class);
-          beforeCounts.set(edit.id, sourceMatches.length);
+          beforeCounts.set(edit.id, maskedSource ? baselineMatches.length : sourceMatches.length);
           if (current.image.fidelity?.class === "masked" && (action === "transform" || action === "delete")) {
             rewriteDirectMaskedInvocation(pdf, page, current.image, edit, action);
             changed.add(edit.pageNumber);
@@ -814,7 +828,10 @@ self.onmessage = (event: MessageEvent<Request>) => {
               throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared (expected at least ${expectedMinimum} painted instances; observed ${rects.length}; structured ${structuredCount}; direct paints ${outputPaints.length} including ${directMaskedPaints} with attached masks; observed masked ${maskedCount}; originally ${originals.length}; source-region matches ${sourceCount}; device warnings ${maskedInspection?.warnings.length ?? 0}).`);
             }
             for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
-              if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) throw new Error(`Image edit validation failed on page ${edit.pageNumber}: an untouched image instance changed position or disappeared.`);
+              if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) {
+                const diagnostic = (values: NativeRect[]) => values.map((value) => [value.x, value.y, value.w, value.h].map((number) => Math.round(number * 100) / 100));
+                throw new Error(`Image edit validation failed on page ${edit.pageNumber}: an untouched image instance changed position or disappeared (baseline ${JSON.stringify(diagnostic(originals))}; after ${JSON.stringify(diagnostic(rects))}; selected ${JSON.stringify(diagnostic([sourceBounds]))}).`);
+              }
             }
             if (beforeClasses.get(edit.id) === "masked" && action === "transform") {
               const inspected = inspectImagePage(page, edit.pageNumber).images

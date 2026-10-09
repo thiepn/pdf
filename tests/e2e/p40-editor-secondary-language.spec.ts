@@ -33,9 +33,12 @@ test("editor status and secondary surfaces use product language", async ({ page 
   await expect(fileGroup).toContainText("1 added object");
   await expect(page.locator(".editor-contextbar strong")).toHaveText("Changes saved locally", { timeout: 10_000 });
 
+  // Native save is browser-specific. Use the explicit portable PDF download.
+  await page.getByLabel("More save options").click();
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF" }).click();
-  await downloadPromise;
+  await page.getByRole("button", { name: "Download copy", exact: true }).click();
+  const downloaded = await downloadPromise;
+  expect(downloaded.suggestedFilename()).toMatch(/[.]pdf$/i);
   await expect(page.getByRole("status", { name: "Document status", exact: true })).toHaveText("Edited PDF downloaded");
   await expect(page.locator(".editor-contextbar strong")).toContainText(/0 PDF content edits · 1 added object · /);
 });
