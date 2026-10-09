@@ -278,11 +278,11 @@ function imageBoundsFromMatrix(matrix: number[]): NativeRect {
  */
 function directMaskedInvocationBounds(page: PdfPage, paints: ReturnType<typeof directImagePaints>): MaskedInvocationEvidence[] {
   const candidates: MaskedInvocationEvidence[] = [];
-  const pageToPdf = safe(() => page.getTransform?.(), null as number[] | null);
-  // Without a finite MuPDF page-space → PDF-space transform, direct /Do
-  // operators cannot safely be associated with any rendered image instance.
-  if (!Array.isArray(pageToPdf) || pageToPdf.length !== 6
-    || pageToPdf.some(value => !Number.isFinite(value))) return candidates;
+  // MuPDF bindings may expose Matrix as an array or a typed-array view.
+  // Materialize its six actual numeric entries; do not silently substitute
+  // identity for a missing/invalid page transform.
+  const pageToPdf = safe(() => Array.from(page.getTransform?.() ?? []) as number[], [] as number[]);
+  if (pageToPdf.length !== 6 || pageToPdf.some(value => !Number.isFinite(value))) return candidates;
   const number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
   const pattern = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/([A-Za-z0-9_.:+-]+)\\s+Do\\s+Q\\b`, "g");
   for (const stream of contentStreams(page)) {
