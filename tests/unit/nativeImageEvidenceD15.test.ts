@@ -1,8 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { imageBoxDistance, imagePreservationBaseline, requirePreservedImageSiblings, matchRenderedMaskedInvocations } from "../../src/native/nativeImageEvidence";
+import { imageBoxDistance, imagePreservationBaseline, requirePreservedImageSiblings, matchRenderedMaskedInvocations, pdfInvocationToRenderedBounds } from "../../src/native/nativeImageEvidence";
 import type { NativeRect } from "../../src/types/nativeEditor";
 
 const rect = (x: number, y: number): NativeRect => ({ x, y, w: 70, h: 50 });
+
+describe("D19 PDF content-stream to MuPDF device-space transform", () => {
+  it("converts standard bottom-left PDF bounds into top-left rendered page-space", () => {
+    const pdf = { x: 402, y: 474, w: 70, h: 50 };
+    const render = pdfInvocationToRenderedBounds(pdf, [1, 0, 0, -1, 0, 792]);
+    expect(render).toEqual({ x: 402, y: 268, w: 70, h: 50 });
+    const matched = matchRenderedMaskedInvocations(
+      [{ resourceName: "ImSoft", bounds: render, softMask: true, explicitMask: false, clipped: false, blendMode: "Normal" }],
+      [render]
+    );
+    expect(matched.size).toBe(1);
+  });
+
+  it("supports crop offsets and a 90-degree rotated page without changing tolerance", () => {
+    expect(pdfInvocationToRenderedBounds({ x: 70, y: 650, w: 40, h: 30 }, [1, 0, 0, -1, 20, 765]))
+      .toEqual({ x: 50, y: 85, w: 40, h: 30 });
+    expect(pdfInvocationToRenderedBounds({ x: 50, y: 100, w: 40, h: 30 }, [0, 1, 1, 0, 10, 20]))
+      .toEqual({ x: 80, y: 40, w: 30, h: 40 });
+  });
+
+  it("refuses unknown, singular or nonfinite page transforms and invalid source boxes", () => {
+    const pdf = { x: 402, y: 474, w: 70, h: 50 };
+    for (const transform of [[], [1, 0, 0, 0, 0, 0], [1, 0, 0, -1, 0, Infinity]]) {
+      expect(() => pdfInvocationToRenderedBounds(pdf, transform)).toThrow();
+    }
+    expect(() => pdfInvocationToRenderedBounds({ ...pdf, w: 0 }, [1, 0, 0, -1, 0, 792]))
+      .toThrow(/invalid original PDF bounds/);
+  });
+});
 
 describe("D18 image XObject-to-rendered paint correspondence", () => {
   const masked = (x: number, y: number, overrides = {}) => ({
