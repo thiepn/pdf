@@ -1,6 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
+import { imagePreservationBaseline, imageBoxDistance } from "../native/nativeImageEvidence";
 import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
@@ -640,9 +641,7 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   pageObject.put("Contents", replacement);
 }
 
-function rectDistance(a: NativeRect, b: NativeRect): number {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.w - b.w) + Math.abs(a.h - b.h);
-}
+const rectDistance = imageBoxDistance;
 
 function sourceImageObject(pdf: PdfDocument, page: PdfPage, bounds: NativeRect): { object: any; width: number; height: number } {
   const structured = page.toStructuredText("preserve-images");
@@ -760,9 +759,11 @@ self.onmessage = (event: MessageEvent<Request>) => {
           // coordinate and enumeration source, not JSON-before/Device-after.
           // Keep structured text's unique-source-region refusal independently.
           const maskedSource = current.image.fidelity?.class === "masked";
-          const baselineRects = maskedSource
-            ? inspectImagePage(page, edit.pageNumber).images.map((image) => image.bounds)
-            : sourceRects;
+          const baselineRects = imagePreservationBaseline(
+            current.image.fidelity?.class,
+            sourceRects,
+            maskedSource ? inspectImagePage(page, edit.pageNumber).images.map((image) => image.bounds) : []
+          );
           const baselineMatches = baselineRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
           if (maskedSource && baselineMatches.length !== 1) {
             throw new Error("The masked source image cannot be isolated in device-space evidence; its PDF was not modified.");
