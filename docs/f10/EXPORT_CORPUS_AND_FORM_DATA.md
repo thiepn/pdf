@@ -18,7 +18,7 @@ The F10 source corpus is deterministically synthesized with PyMuPDF and pypdf in
 | `batch-alpha.pdf` | F6 batch workflow/download | PDF integrity, source text and page geometry preserved |
 | `batch-beta.pdf` | F6 batch workflow/download | PDF integrity, source text and page geometry preserved |
 
-The validator fails on missing outputs, broken file headers, nonzero qpdf status, pypdf parsing or semantic changes, independent Poppler text/page mismatches, missing real forms/measurements and unexpected annotation changes. Both the dedicated F10 CI and inherited full CI run actual browser actions. The dedicated workflow uploads exported bytes and a machine-readable report for review.
+Browser-export artifacts are isolated by Playwright project name; the dedicated Chromium validator must read the exact `artifacts/f10-exports/chromium` subtree, avoiding concurrent cross-browser writes to shared PDF filenames. The validator fails on missing outputs, broken file headers, nonzero qpdf status, pypdf parsing or semantic changes, independent Poppler text/page mismatches, missing real forms/measurements and unexpected annotation changes. Both the dedicated F10 CI and inherited full CI run actual browser actions. The dedicated workflow uploads exported bytes and a machine-readable report for review.
 
 ## Boundaries
 This is not a claim of PDF/A conformance, Excel macro security, Acrobat equivalence, trusted digital signatures or real-device certification. Existing F8B Account signoff, D-series fidelity/real-device acceptance and human/manual release decisions remain separate requirements. Do not merge, deploy, replace screenshot baselines or activate production APIs without approval.
