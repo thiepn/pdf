@@ -59,8 +59,11 @@ describe("D18 real MuPDF masked-instance geometry", () => {
         try {
           const page = reopened.loadPage(0) as mupdf.PDFPage;
           try {
-            const resource = page.getObject().get("Resources")?.get("XObject")?.get("ImSoft");
-            expect(resource?.get("SMask")?.isNull()).toBe(false);
+            const rawResource = page.getObject().get("Resources")?.get("XObject")?.get("ImSoft");
+            const resource = rawResource?.resolve?.() ?? rawResource;
+            const smask = resource?.get?.("SMask");
+            expect(smask, "The independently reopened source XObject must retain its attached /SMask").toBeTruthy();
+            expect(smask?.isNull()).toBe(false);
             const observed = tracedImages(page);
             const masked = [402, 478].map(x => ({
               resourceName: "ImSoft", bounds: { x, y:474, w:70, h:50 },
