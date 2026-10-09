@@ -26,8 +26,13 @@ test("Phase 26 exposes hybrid Compare 3.0", async ({ page }) => {
 
 test("Phase 26 Batch 3.0 exposes terminal multi-output steps", async ({ page }) => {
   await page.goto("./#/batch");
-  await expect(page.getByRole("heading", { name: /Apply the same saved actions to multiple PDFs/i })).toBeVisible();
-  const select=page.locator(".batch-step-add select");
-  await expect(select.locator('option[value="split-fixed"]')).toHaveText("Split into PDF parts");
-  await expect(select.locator('option[value="page-images"]')).toHaveText("Export page images");
+  await expect(page.getByRole("heading", { name: "Visual workflow composer" })).toBeVisible();
+  const composer=page.getByLabel("Visual workflow composer");
+  await composer.getByRole("button", {name:"Split to ZIP",exact:true}).click();
+  await expect(composer.getByRole("article",{name:/Step 2: Split to ZIP/})).toBeVisible();
+  await expect(composer.locator(".f6-sequence-end")).toContainText("ZIP");
+  await composer.getByRole("button", {name:"Export page images",exact:true}).click();
+  await expect(composer.getByRole("article",{name:/Step 2: Export page images/})).toBeVisible();
+  await expect(composer.getByRole("article",{name:/Split to ZIP/})).toHaveCount(0);
+  await expect(composer.locator(".f6-sequence-end")).toContainText("ZIP");
 });
