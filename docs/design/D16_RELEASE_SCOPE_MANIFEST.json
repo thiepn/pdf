@@ -77,5 +77,13 @@
       "last_confirmed": "pending"
     }
   ],
-  "release_policy": "PREPARATION_ONLY_NOT_RELEASE_APPROVAL"
+  "release_policy": "PREPARATION_ONLY_NOT_RELEASE_APPROVAL",
+  "observed_stable_release": {
+    "tag": "v7.1.4",
+    "tag_object_sha": "f697ff30b9bb1974eec3993720f12eb8b060ffe3",
+    "commit_sha": "2116a61b73b6fdb18aa19a8175d9ebae4b43c159",
+    "published_at": "2026-10-01T12:49:57Z",
+    "release_review_required": true,
+    "source": "GitHub annotated tag + published release"
+  }
 }
