@@ -34,7 +34,9 @@ function shouldPrecacheByDefault(asset, htmlReferences) {
   const extension = extname(normalized);
   if (htmlReferences.has(asset)) return true;
   if (["./license.txt", "./third_party_notices.txt", "./license-inventory.json"].includes(normalized)) return true;
-  if ([".css", ".woff", ".woff2"].includes(extension)) return true;
+  // Lazy route CSS is fetched with its route. Precache only styles the HTML actually loads.
+  if (extension === ".css") return htmlReferences.has(asset);
+  if ([".woff", ".woff2"].includes(extension)) return true;
   if (normalized.includes("pdf.worker")) return true;
   if (normalized.includes("/icons/") || normalized.includes("/color/")) return true;
   if (["./", "./index.html", "./manifest.webmanifest", "./sw.js", "./release-metadata.json"].includes(normalized)) return true;
