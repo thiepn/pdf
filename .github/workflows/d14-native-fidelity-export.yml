@@ -10,6 +10,7 @@ on:
       - tests/unit/p17DeepNativeFidelity.test.ts
       - tests/e2e/p17-native-fidelity.spec.ts
       - tests/e2e/d13-release-candidate.spec.mjs
+      - tests/e2e/d14-native-export.spec.mjs
       - docs/design/D14_NATIVE_FIDELITY_EXPORT.md
   workflow_dispatch:
 
@@ -52,7 +53,7 @@ jobs:
       - name: Install real browser
         run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Qualify masked source images and PDF export/reopen
-        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d13-release-candidate.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d13-release-candidate.spec.mjs tests/e2e/d14-native-export.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
       - name: Retain evidence without approval
         if: always()
         uses: actions/upload-artifact@v6
