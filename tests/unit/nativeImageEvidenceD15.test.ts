@@ -39,7 +39,7 @@ describe("D15 native image export evidence", () => {
       original[2],
       original[3]
     ];
-    expect(() => requirePreservedImageSiblings(original, after, original[0].bounds)).not.toThrow();
+    expect(() => requirePreservedImageSiblings(original, after, original[0].bounds, after[0].bounds)).not.toThrow();
   });
 
   it("rejects one output mask being reused to satisfy multiple overlapping sibling images", () => {
@@ -51,7 +51,19 @@ describe("D15 native image export evidence", () => {
       sibling,
       { bounds: rect(90, 70), masked: true }
     ];
-    expect(() => requirePreservedImageSiblings(original, after, selected.bounds)).toThrow(/untouched image instance/);
+    expect(() => requirePreservedImageSiblings(original, after, selected.bounds, after[0].bounds)).toThrow(/untouched image instance/);
+  });
+
+  it("does not count the moved target as a second untouched sibling", () => {
+    const selected = { bounds: rect(390, 474), masked: true };
+    const sibling = { bounds: rect(402, 474), masked: true };
+    const originals = [selected, sibling];
+    const after = [
+      { bounds: rect(402, 474), masked: true },
+      { bounds: rect(70, 190), masked: true }
+    ];
+    expect(() => requirePreservedImageSiblings(originals, after, selected.bounds, rect(402, 474)))
+      .toThrow(/untouched image instance/);
   });
 
   it("does not accept a rendered image whose original attached soft mask has been dropped", () => {
@@ -60,7 +72,7 @@ describe("D15 native image export evidence", () => {
     expect(() => requirePreservedImageSiblings(
       [selected, sibling],
       [{ bounds: rect(402, 474), masked: false }, sibling],
-      selected.bounds
+      selected.bounds, rect(402, 474)
     )).toThrow(/soft masks disappeared/);
   });
 
@@ -70,7 +82,7 @@ describe("D15 native image export evidence", () => {
     expect(() => requirePreservedImageSiblings(
       [selected, sibling, { bounds: rect(30, 230), masked: false }],
       [{ bounds: rect(402, 474), masked: true }, sibling],
-      selected.bounds
+      selected.bounds, rect(402, 474)
     )).toThrow(/rendered instances/);
   });
 
