@@ -36,7 +36,15 @@ async function editor(page) {
 }
 async function downloadPdf(page) {
     const pending = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+    // Editor offers a stable explicit download independent of whether native
+    // save-as is available; Quick Tools keep their ordinary Download PDF button.
+    const editorSave = page.getByLabel("More save options");
+    if (await editorSave.isVisible()) {
+        await editorSave.click();
+        await page.getByRole("button", { name: "Download copy", exact: true }).click();
+    } else {
+        await page.getByRole("button", { name: "Download PDF", exact: true }).click();
+    }
     const result = await pending;
     const path = await result.path();
     expect(path).toBeTruthy();
@@ -144,11 +152,15 @@ test("opened PDFs surface local task recommendations through the existing worksp
     await expect(recommendations).toContainText("Nothing is uploaded and no AI model reads the document.");
     await expect(recommendations.getByRole("button").first()).toBeEnabled();
 
+    // D12 moved suggestions inside the real editor work area and bounds them
+    // to keep the PDF canvas usable; they no longer sit above workspace-body.
     const recommendationBox = await recommendations.boundingBox();
-    const workspaceBox = await page.locator(".workspace-body").boundingBox();
+    const stageBox = await page.locator(".editor-stage").boundingBox();
     expect(recommendationBox).toBeTruthy();
-    expect(workspaceBox).toBeTruthy();
-    expect(recommendationBox.y + recommendationBox.height).toBeLessThanOrEqual(workspaceBox.y + 1);
+    expect(stageBox).toBeTruthy();
+    expect(recommendationBox.height).toBeLessThanOrEqual(169);
+    expect(stageBox.height).toBeGreaterThan(300);
+    await noOverflow(page);
 
     const addText = page.getByRole("button", { name: "Add text", exact: true });
     await addText.click();
