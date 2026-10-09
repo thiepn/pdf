@@ -6,19 +6,12 @@ import argparse
 import json
 from pathlib import Path
 
+from scripts.design.d8_live_gate import REQUIRED as D8_REQUIRED, ALLOWED_SOURCES
+
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "docs/design/D8_RELEASE_EVIDENCE.template.json"
-EXPECTED_REQUIREMENTS = {
-    "d3_editor_integrated", "d4_selection_history_and_persistence",
-    "d5_real_processor_and_verified_download", "d6_phone_tablet_runtime",
-    "d7_keyboard_focus_and_status", "typecheck_and_verified_build",
-    "chromium_real_app", "firefox_real_app", "webkit_real_app",
-    "pdf_export_reopen_and_fidelity", "p17_native_fidelity_qualified",
-    "p18_device_reader_qualified", "security_privacy_review",
-    "dark_light_forced_colors_review", "keyboard_screen_reader_review",
-    "physical_phone_tablet_review", "zero_release_blockers",
-    "rollback_and_deploy_approval",
-}
+# D8 owns the authoritative set; never duplicate or redefine its 18 gates.
+EXPECTED_REQUIREMENTS = set(D8_REQUIRED)
 
 
 def audit_evidence(document: dict) -> dict:
@@ -40,23 +33,26 @@ def audit_evidence(document: dict) -> dict:
         state = item.get("status")
         if state == "pending":
             pending += 1
-        elif state == "approved":
-            if not all(isinstance(item.get(field), str) and item[field].strip() for field in ("source", "reference", "reviewed_by")):
-                problems.append(f"{key}: approved evidence requires source, reference and reviewer")
+        elif state == "passed":
+            if item.get("source") not in ALLOWED_SOURCES or len(str(item.get("reference", "")).strip()) < 12 or len(str(item.get("reviewed_by", "")).strip()) < 3:
+                problems.append(f"{key}: passed evidence requires a D8-approved source, substantial reference and named reviewer")
         else:
             problems.append(f"{key}: unsupported status {state!r}")
         if state == "pending" and any(item.get(field) for field in ("source", "reference", "reviewed_by")):
             problems.append(f"{key}: incomplete evidence contains unapproved review fields")
-    qualified = not problems and pending == 0 and bool(document.get("candidate_sha")) and document.get("status") == "QUALIFIED"
-    if document.get("status") == "QUALIFIED" and not qualified:
-        problems.append("The release is labeled QUALIFIED without all required verified evidence.")
+    ready = not problems and pending == 0 and isinstance(document.get("candidate_sha"), str) and len(document["candidate_sha"]) == 40
+    if document.get("status") not in {"NOT_QUALIFIED", "QUALIFIED_FOR_REVIEW"}:
+        problems.append("Evidence status cannot grant release approval.")
     if pending and document.get("status") != "NOT_QUALIFIED":
         problems.append("Incomplete release evidence must remain NOT_QUALIFIED.")
+    if document.get("status") == "QUALIFIED_FOR_REVIEW" and not ready:
+        problems.append("Cannot qualify incomplete or unbound evidence for review.")
     return {
         "inventory_valid": not problems,
-        "release_qualified": qualified,
+        "ready_for_review": bool(ready and not problems),
+        "release_qualified": False,  # D8 never grants publication permission
         "pending": pending,
-        "approved": 18 - pending,
+        "passed": len(EXPECTED_REQUIREMENTS) - pending,
         "problems": problems,
     }
 
@@ -68,9 +64,9 @@ def main() -> int:
                         help="Hard release gate; must fail while any review is pending")
     args = parser.parse_args()
     result = audit_evidence(json.loads(args.path.read_text(encoding="utf-8")))
-    result["status"] = "QUALIFIED" if result["release_qualified"] else "NOT_QUALIFIED"
+    result["status"] = "QUALIFIED_FOR_REVIEW" if result["ready_for_review"] else "NOT_QUALIFIED"
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result["inventory_valid"] and (not args.require_qualified or result["release_qualified"]) else 1
+    return 0 if result["inventory_valid"] and (not args.require_qualified or result["ready_for_review"]) else 1
 
 
 if __name__ == "__main__":
