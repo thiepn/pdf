@@ -18,7 +18,7 @@ test.setTimeout(90_000);
 test("F7 plans via constrained prompt, stages proposal, and does not bypass user consent",async({page})=>{
   await page.goto("./#/batch");
   const planner=page.locator(".f7-planner");
-  await expect(planner.getByRole("heading",{name:"Plan with ChatGPT"})).toBeVisible();
+  await expect(planner.getByRole("heading",{name:/Plan with (GPT-6 Luna or )?ChatGPT/})).toBeVisible();
   await planner.getByRole("textbox",{name:"PDF workflow goal"}).fill("Remove document metadata and rotate all pages 90 degrees.");
   await planner.getByRole("button",{name:"Copy ChatGPT prompt"}).click();
   await planner.getByText("View or manually copy generated prompt").click();
