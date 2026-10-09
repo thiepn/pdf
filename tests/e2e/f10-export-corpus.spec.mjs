@@ -6,13 +6,14 @@ const outDir = "artifacts/f10-exports";
 const corpus = "tests/corpus/f10";
 test.setTimeout(120_000);
 
-async function captureDownload(page, click, filename) {
+async function captureDownload(page, click, filename, browserProject) {
   const pending = page.waitForEvent("download");
   await click();
   const download = await pending;
-  await mkdir(outDir, { recursive: true });
-  await download.saveAs(outDir + "/" + filename);
-  const bytes = await readFile(outDir + "/" + filename);
+  const projectDir = outDir + "/" + browserProject;
+  await mkdir(projectDir, { recursive: true });
+  await download.saveAs(projectDir + "/" + filename);
+  const bytes = await readFile(projectDir + "/" + filename);
   expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
   expect(bytes.length).toBeGreaterThan(100);
 }
@@ -38,24 +39,24 @@ async function drawRectangle(page) {
 }
 
 for (const filename of ["forms.pdf", "comments-measurements.pdf"]) {
-  test("F10 real edited browser export preserves " + filename, async ({ page }) => {
+  test("F10 real edited browser export preserves " + filename, async ({ page }, testInfo) => {
     await openSource(page, filename);
     await drawRectangle(page);
-    await captureDownload(page, () => page.getByRole("button", { name: "Download PDF", exact: true }).click(), filename);
+    await captureDownload(page, () => page.getByRole("button", { name: "Download PDF", exact: true }).click(), filename, testInfo.project.name);
     await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 25000 });
   });
 }
 
-test("F10 actual consumer optimization export", async ({ page }) => {
+test("F10 actual consumer optimization export", async ({ page }, testInfo) => {
   await page.goto("./#/quick/compress-pdf");
   await page.locator('input[type="file"]').first().setInputFiles(corpus + "/optimization.pdf");
   await page.getByRole("button", { name: "Compress PDF", exact: true }).click();
   const result = page.getByRole("region", { name: "Your files are ready" });
   await expect(result).toBeVisible({ timeout: 75000 });
-  await captureDownload(page, () => result.getByRole("button", { name: "Download PDF" }).click(), "optimization.pdf");
+  await captureDownload(page, () => result.getByRole("button", { name: "Download PDF" }).click(), "optimization.pdf", testInfo.project.name);
 });
 
-test("F10 two real independent F6 batch exports", async ({ page }) => {
+test("F10 two real independent F6 batch exports", async ({ page }, testInfo) => {
   await page.goto("./#/batch");
   const choose = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Add PDFs" }).click();
@@ -65,12 +66,12 @@ test("F10 two real independent F6 batch exports", async ({ page }) => {
   await expect(page.locator(".batch-item--complete")).toHaveCount(2, { timeout: 90000 });
   for (const filename of ["batch-alpha.pdf", "batch-beta.pdf"]) {
     const row = page.locator(".batch-item").filter({ hasText: filename });
-    await captureDownload(page, () => row.getByRole("button", { name: "Download", exact: true }).click(), filename);
+    await captureDownload(page, () => row.getByRole("button", { name: "Download", exact: true }).click(), filename, testInfo.project.name);
   }
   await expect(page.getByRole("button", { name: "Download run report" })).toBeEnabled();
 });
 
-test("F10 real inspector CSV includes existing AcroForm names and values", async ({ page }) => {
+test("F10 real inspector CSV includes existing AcroForm names and values", async ({ page }, testInfo) => {
   await openSource(page, "forms.pdf");
   const match = page.url().match(/#\/workspace\/([^/]+)\/viewer/);
   expect(match).not.toBeNull();
