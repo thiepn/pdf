@@ -50,7 +50,7 @@ class D15EvidenceInventoryTests(unittest.TestCase):
         data = copy.deepcopy(self.template)
         data["candidate_sha"] = "f" * 40
         for item in data["requirements"].values():
-            item.update(status="passed", source="physical test", reference="artifact:verified", reviewed_by="Release Owner")
+            item.update(status="passed", source="real_device", reference="artifact:verified", reviewed_by="Release Owner")
         # Still fail closed if a release owner did not explicitly qualify the candidate.
         result = audit_evidence(data)
         self.assertEqual(result["pending"], 0)
