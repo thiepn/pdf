@@ -31,7 +31,7 @@ export function NativeLunaControls({goal,disabled,onProposal}:Props) {
       const signedIn=await verifyPdfAccount(config);
       if(!active)return;
       setConnected(signedIn);
-      if(!signedIn&&!lastResult&&navigator.onLine){
+      if(!signedIn&&!currentAccountSession(config)&&!lastResult&&navigator.onLine){
         const result=await probePdfAccountSso(config);
         if(!active)return;
         if(result==="signed-in"){
