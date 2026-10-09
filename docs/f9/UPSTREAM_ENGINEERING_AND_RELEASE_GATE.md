@@ -5,9 +5,13 @@
 ## Implemented F9 slice
 
 - `tests/e2e/f9-export-roundtrip.spec.ts` creates an actual rectangular PDF editor change on two existing P8 corpus PDFs and downloads the generated PDF. A test that did not reach the browser download cannot supply its export artifact.
-- `scripts/f9/validate_export_roundtrip.py` reopens those exact exports with pypdf and independent qpdf/Poppler tools. It verifies structural integrity, page count, page geometry (including nonzero crop/rotation), preserved source annotations, original text extraction and ability to render the first page. A rectangle-only edit must not rewrite the original text. Absent exports or tools fail closed.
+- `scripts/f9/validate_export_roundtrip.py` reopens those exact exports with pypdf and independent qpdf/Poppler tools. It verifies structural integrity, page count, page geometry (including nonzero crop/rotation), preserved source annotations **and exactly one newly authored, renderable /Square annotation**, original text extraction and ability to render the first page. A rectangle-only edit must not rewrite the original text. Absent exports or tools fail closed.
 - `scripts/f9/test_validate_export_roundtrip.py` verifies that missing exports and tools never certify as success.
 - `.github/workflows/f9-cross-reader-fidelity.yml` runs on a draft PR and stores artifact bytes and machine-readable evidence for review; it does not upload user documents, replace screenshot goldens, approve releases, merge or deploy anything.
+
+## F9 exact-head remediation
+
+The first F9 independent-reader run `37989549272` (repaired intake HEAD `25ee6f4`) successfully produced two real PDFs, verified them with qpdf/Poppler, and reported a single invariant mismatch: annotation counts increased by one on both PDFs. Inspection of the actual downloaded export artifact `11644372834` confirmed PDF Studio correctly adds a `/Square` PDF annotation with an appearance stream when the browser Rectangle tool is used. The original gate erroneously required an *unchanged annotation count*, contradicting its own edit operation. The repaired validator preserves the original annotation signatures and now mandates exactly one valid, renderable `/Square` annotation on the edited page, without permitting removed/modified original annotations or additional annotations on other pages. Negative tests cover missing, duplicate, malformed or unexpected annotations. This is a correction to the expected domain semantics, not a relaxed preservation requirement.
 
 ## Scope and unresolved risks
 
