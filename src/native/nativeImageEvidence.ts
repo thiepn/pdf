@@ -45,6 +45,7 @@ export function requirePreservedImageSiblings(
   originals: readonly ObservedImageInstance[],
   output: readonly ObservedImageInstance[],
   selectedSource: NativeRect,
+  selectedDestination: NativeRect,
   tolerance = 4
 ): void {
   if (!originals.length || !output.length) {
@@ -72,6 +73,17 @@ export function requirePreservedImageSiblings(
   }
   // Bipartite match rather than checking each original independently with
   // Array.some(), which could silently reuse one surviving sibling twice.
+  // Reserve the edited image itself: otherwise a moved target that overlaps an
+  // untouched sibling could count both as the edited image and a surviving
+  // sibling. This reservation must be backed by a real masked output paint.
+  const destinationMatches = output.flatMap((image, index) =>
+    image.masked && imageBoxDistance(image.bounds, selectedDestination) <= tolerance
+      ? [{ index, distance: imageBoxDistance(image.bounds, selectedDestination) }]
+      : []).sort((a, b) => a.distance - b.distance || a.index - b.index);
+  if (!destinationMatches.length) {
+    throw new Error("Image fidelity validation failed: transformed source image or its attached soft mask is missing.");
+  }
+  const selectedOutputIndex = destinationMatches[0].index;
   const assignedToOriginal = new Map<number, number>();
   const visit = (source: number, used: Set<number>): boolean => {
     const from = untouched[source];
@@ -80,7 +92,7 @@ export function requirePreservedImageSiblings(
         ? [{ index, distance: imageBoxDistance(image.bounds, from.bounds) }]
         : []).sort((a, b) => a.distance - b.distance || a.index - b.index);
     for (const { index } of candidates) {
-      if (used.has(index)) continue;
+      if (index === selectedOutputIndex || used.has(index)) continue;
       used.add(index);
       const previous = assignedToOriginal.get(index);
       if (previous === undefined || visit(previous, used)) {
