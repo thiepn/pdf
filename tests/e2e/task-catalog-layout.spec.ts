@@ -15,7 +15,7 @@ async function applyDarkPalette(page: import("@playwright/test").Page): Promise<
 
 test("task catalog keeps icons visible and capability metadata in normal flow", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: "Find your next PDF tool." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "All PDF tools" })).toBeVisible();
   await page.locator(".product-advanced summary").click();
 
   // Reproduce a dark palette explicitly so this regression cannot hide behind
