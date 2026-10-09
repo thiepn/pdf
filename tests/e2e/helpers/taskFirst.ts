@@ -44,7 +44,8 @@ export async function openDocumentActions(page: Page): Promise<void> {
   // Reader/workspace hydration can briefly precede the responsive chrome. Wait
   // for the actual desktop or compact entry point, then follow the public
   // compact menu instead of assuming its contents are already in the DOM.
-  await expect(action.or(compactMenu)).toBeVisible({ timeout: 10_000 });
+  await expect.poll(async () => await action.isVisible() || await compactMenu.isVisible(),
+    { timeout: 10_000 }).toBe(true);
   if (await action.isVisible()) {
     await action.click();
   } else {
