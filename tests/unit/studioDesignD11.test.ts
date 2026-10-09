@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 // Vitest can resolve CSS ?raw imports to empty strings in its Node test runner.
 // Read literal repository files instead, so these assertions fail on missing
 // or wrong CSS rather than depending on the Vite CSS transformation pipeline.
 const productSource = (filename: string): string =>
-  readFileSync(new URL(`../../src/product/${filename}`, import.meta.url), "utf8");
+  readFileSync(resolve(process.cwd(), "src", "product", filename), "utf8");
 
 const imports = productSource("product.css");
 const tokens = productSource("studio-tokens-d11.css");
@@ -23,7 +24,8 @@ const tokenDefinitions = new Set(tokenNames);
 describe("D11 visual design-system contract", () => {
   it("loads tokens immediately after the foundation and chrome at the end", () => {
     expect(importedFiles.slice(0, 2)).toEqual(["foundation.css", "studio-tokens-d11.css"]);
-    expect(importedFiles.at(-1)).toBe("studio-chrome-d11.css");
+    expect(importedFiles.at(-2)).toBe("studio-chrome-d11.css");
+    expect(importedFiles.at(-1)).toBe("studio-visual-qa-d12.css");
     expect(new Set(importedFiles).size).toBe(importedFiles.length);
     expect(importedFiles).toContain("studio-editor-d10-status.css");
   });
