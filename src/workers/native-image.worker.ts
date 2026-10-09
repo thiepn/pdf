@@ -1,7 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
-import { imagePreservationBaseline, imageBoxDistance } from "../native/nativeImageEvidence";
+import { imagePreservationBaseline, imageBoxDistance, requirePreservedImageSiblings, type ObservedImageInstance } from "../native/nativeImageEvidence";
 import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
@@ -269,6 +269,30 @@ function imageBoundsFromMatrix(matrix: number[]): NativeRect {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+/**
+ * Qualified direct invocations can be paired with actual graphics-device image
+ * paints by exact bounds even when structured text omitted a masked image.
+ * This is not evidence by itself: XObject /SMask and a distinct rendered trace
+ * at that same location must both exist before restoring native classification.
+ * Unsupported chained cm, clipping, nesting, or binary content is ignored.
+ */
+function directMaskedInvocationBounds(page: PdfPage): Array<{ resourceName: string; bounds: NativeRect }> {
+  const candidates: Array<{ resourceName: string; bounds: NativeRect }> = [];
+  const number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
+  const pattern = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/([A-Za-z0-9_.:+-]+)\\s+Do\\s+Q\\b`, "g");
+  for (const stream of contentStreams(page)) {
+    const data = streamText(stream);
+    if (/[^\\x09\\x0a\\x0d\\x20-\\x7e]/.test(data)) continue;
+    for (const match of data.matchAll(pattern)) {
+      const resourceName = match[7];
+      const mask = imageXObjectMaskEvidence(page, resourceName);
+      if (!mask.softMask || mask.explicitMask) continue;
+      candidates.push({ resourceName, bounds: imageBoundsFromMatrix(match.slice(1, 7).map(Number)) });
+    }
+  }
+  return candidates;
+}
+
 function imageEvidenceOverlap(first: NativeRect, second: NativeRect): number {
   const x0 = Math.max(first.x, second.x);
   const y0 = Math.max(first.y, second.y);
@@ -451,6 +475,23 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
   const paintMappingAvailable = directPaints.length === visibleTraceIndexes.length;
   const directPaintByTrace = new Map<number, (typeof directPaints)[number]>();
   if (paintMappingAvailable) visibleTraceIndexes.forEach((traceIndex, paintIndex) => directPaintByTrace.set(traceIndex, directPaints[paintIndex]));
+  if (!paintMappingAvailable) {
+    // Structured text sometimes omits attached-mask renders. Accept only
+    // one-to-one source-operator geometry backed by both a real Device trace
+    // and an XObject that still has its original attached /SMask.
+    const reserved = new Set<number>();
+    for (const invocation of directMaskedInvocationBounds(page)) {
+      const candidates = traces.map((trace, index) => ({ index, score: rectDistance(trace.bounds, invocation.bounds) }))
+        .filter(item => item.score <= 4 && !reserved.has(item.index))
+        .sort((a, b) => a.score - b.score || a.index - b.index);
+      if (candidates.length !== 1) continue; // Ambiguous geometry stays protected.
+      const paints = directPaints.filter(paint => paint.resourceName === invocation.resourceName
+        && paint.softMask && !paint.explicitMask && !paint.clipped && paint.blendMode === "Normal");
+      if (!paints.length || directPaintByTrace.has(candidates[0].index)) continue;
+      directPaintByTrace.set(candidates[0].index, paints[0]);
+      reserved.add(candidates[0].index);
+    }
+  }
   const blendMappingAmbiguous = directBlendHasRisk && !paintMappingAvailable;
   const resourceCounts = new Map<string, number>();
   for (const paint of directPaints) resourceCounts.set(paint.resourceName, (resourceCounts.get(paint.resourceName) ?? 0) + 1);
@@ -469,7 +510,7 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       // exists, trust its explicit W/W* state; otherwise remain conservative.
       clipped: paint ? paint.clipped : trace.clipped,
       blendMode: paint ? paint.blendMode : trace.blendMode,
-      ambiguous: blendMappingAmbiguous
+      ambiguous: blendMappingAmbiguous && !paint
     });
     return {
       id: `p${pageNumber}:image:${index}`,
@@ -735,6 +776,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const changed = new Set<number>();
       const beforeCounts = new Map<string, number>();
       const beforeRects = new Map<string, NativeRect[]>();
+      const beforeMaskedInstances = new Map<string, ObservedImageInstance[]>();
       const beforeClasses = new Map<string, NativeImageFidelityClass | undefined>();
 
       for (const edit of request.edits) {
@@ -759,11 +801,18 @@ self.onmessage = (event: MessageEvent<Request>) => {
           // coordinate and enumeration source, not JSON-before/Device-after.
           // Keep structured text's unique-source-region refusal independently.
           const maskedSource = current.image.fidelity?.class === "masked";
+          const maskedOriginals = maskedSource ? inspectImagePage(page, edit.pageNumber).images : [];
           const baselineRects = imagePreservationBaseline(
             current.image.fidelity?.class,
             sourceRects,
-            maskedSource ? inspectImagePage(page, edit.pageNumber).images.map((image) => image.bounds) : []
+            maskedOriginals.map((image) => image.bounds)
           );
+          if (maskedSource) {
+            beforeMaskedInstances.set(edit.id, maskedOriginals.map((image) => ({
+              bounds: image.bounds,
+              masked: Boolean(image.fidelity?.softMask)
+            })));
+          }
           const baselineMatches = baselineRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
           if (maskedSource && baselineMatches.length !== 1) {
             throw new Error("The masked source image cannot be isolated in device-space evidence; its PDF was not modified.");
@@ -826,6 +875,14 @@ self.onmessage = (event: MessageEvent<Request>) => {
               const maskedCount = maskedInspection?.images.filter((image) => image.fidelity?.softMask).length ?? -1;
               const directMaskedPaints = outputPaints.filter((paint) => paint.softMask).length;
               throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared (expected at least ${expectedMinimum} painted instances; observed ${rects.length}; structured ${structuredCount}; direct paints ${outputPaints.length} including ${directMaskedPaints} with attached masks; observed masked ${maskedCount}; originally ${originals.length}; source-region matches ${sourceCount}; device warnings ${maskedInspection?.warnings.length ?? 0}).`);
+            }
+            const originalMasked = beforeMaskedInstances.get(edit.id);
+            if (originalMasked) {
+              if (!maskedInspection) throw new Error("Masked image validation failed: device evidence was not recorded after export.");
+              requirePreservedImageSiblings(originalMasked, maskedInspection.images.map((image) => ({
+                bounds: image.bounds,
+                masked: Boolean(image.fidelity?.softMask)
+              })), sourceBounds, edit.bounds);
             }
             for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
               if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) {
