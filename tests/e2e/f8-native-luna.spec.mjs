@@ -1,5 +1,7 @@
 import {test,expect} from "@playwright/test";
 
+test.skip(!process.env.VITE_PDF_CORE_URL || !process.env.VITE_PDF_ACCOUNT_CLIENT_ID, "Native Account tests require explicit nonsecret test origins and registered client ID; tested in dedicated F8 qualification.");
+
 test.setTimeout(90_000);
 const session={
   access_token:"test-account-access-token-long-enough",
