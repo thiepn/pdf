@@ -1,0 +1,62 @@
+name: F6 visual workflow composer qualification
+on:
+  pull_request:
+    paths:
+      - "src/automation/**"
+      - "src/views/BatchPage.tsx"
+      - "tests/unit/f6WorkflowComposer.test.ts"
+      - "tests/e2e/f6-workflow-composer.spec.mjs"
+      - ".github/workflows/f6-workflow-composer.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  composer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.16.0"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript typecheck
+        id: types
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Workflow composer, F5 and batch regressions
+        id: tests
+        continue-on-error: true
+        run: npx vitest run tests/unit/f6WorkflowComposer.test.ts tests/unit/f5ActionCatalog.test.ts tests/unit/f5ActionRunner.test.ts tests/unit/batchOutputFingerprint.test.ts tests/unit/batchOutputValidity.test.ts
+      - name: Production build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser composition and batch processing
+        id: browser
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_SKIP_BUILD: "1"
+          PLAYWRIGHT_BASE_PATH: "/pdf/"
+        run: npx playwright test tests/e2e/f6-workflow-composer.spec.mjs --project=chromium --workers=1 --retries=0
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f6-workflow-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+      - name: Require qualification
+        if: always()
+        run: |
+          echo "types=${{ steps.types.outcome }} unit=${{ steps.tests.outcome }} build=${{ steps.build.outcome }} browser=${{ steps.browser.outcome }}"
+          test "${{ steps.types.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success
