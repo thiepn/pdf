@@ -12,6 +12,8 @@ on:
       - tests/e2e/mobile.spec.ts
       - tests/e2e/pwa.spec.ts
       - docs/design/D18_RELEASE_GATE_STATUS.md
+      - scripts/design/d17_live_pages_probe.py
+      - tests/d17_live_pages_probe_test.py
   workflow_dispatch:
 
 permissions:
@@ -108,5 +110,31 @@ jobs:
           path: |
             test-results/
             playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  published-pages:
+    name: Check documented GitHub Pages site without deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Audit the actual public URL documented by this repository
+        run: |
+          mkdir -p evidence
+          python -m scripts.design.d17_live_pages_probe --url "https://thiepn.github.io/pdf/" | tee evidence/d18-published-pages.json
+      - name: Preserve fetched identity evidence without claiming tag attestation
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d18-public-pages-evidence
+          path: evidence/d18-published-pages.json
           if-no-files-found: ignore
           retention-days: 14
