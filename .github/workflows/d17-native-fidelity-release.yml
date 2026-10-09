@@ -1,0 +1,118 @@
+name: D17 exact-head PDF integrity, cross-browser and published Pages evidence
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/d17-native-fidelity-release.yml
+      - src/native/nativeImageEvidence.ts
+      - src/workers/native-image.worker.ts
+      - tests/unit/nativeImageEvidenceD15.test.ts
+      - tests/e2e/p17-native-fidelity.spec.ts
+      - tests/e2e/d14-native-export.spec.mjs
+      - scripts/design/d17_live_pages_probe.py
+      - tests/d17_live_pages_probe_test.py
+      - docs/design/D17_QUALIFICATION_STATUS.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d17-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-source:
+    name: Native mask invariants, source, typecheck, verified build and security
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify immutable ancestry and no automatic release permission
+        run: |
+          python -m unittest discover -s tests -p 'd16_release_scope_test.py' -v
+          python -m scripts.design.d16_release_scope --repo . --check-ancestors --assert-prepared
+      - name: Verify published evidence probe invariants offline
+        run: python -m unittest discover -s tests -p 'd17_live_pages_probe_test.py' -v
+      - name: Verify mask/sibling and P17 native PDF round-trips
+        run: npx vitest run tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts
+      - name: TypeScript application and tests
+        run: npm run typecheck
+      - name: Build exact source
+        run: npm run build:verified
+      - name: Security and privacy audit
+        run: npm run audit:security
+
+  browser-native:
+    name: Real PDF import, masked edit, download, independent reopen (${{ matrix.browser }})
+    needs: native-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Require real native PDF edit and MuPDF independently reopened bytes
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d14-native-export.spec.mjs tests/e2e/d13-release-candidate.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: d17-masked-image-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  published-pages:
+    name: Probe the independently configured real GitHub Pages stable URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PDF_STUDIO_PUBLIC_URL: ${{ vars.PDF_STUDIO_PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Require configured canonical production hostname
+        run: |
+          if [ -z "$PDF_STUDIO_PUBLIC_URL" ]; then
+            echo '::error::Set repo variable PDF_STUDIO_PUBLIC_URL to the actual publicly served GitHub Pages base; do not guess the deployment URL.'
+            exit 1
+          fi
+      - name: Fetch released HTML, metadata, integrity, offline inventory and service worker
+        run: |
+          mkdir -p evidence
+          python -m scripts.design.d17_live_pages_probe --url "$PDF_STUDIO_PUBLIC_URL" | tee evidence/d17-live-pages.json
+      - name: Retain remote metadata evidence, not release approval
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d17-published-pages-inspection
+          path: evidence/d17-live-pages.json
+          if-no-files-found: ignore
+          retention-days: 14
