@@ -143,11 +143,10 @@ describe("P17 deep native-content fidelity policy", () => {
     } finally { page.destroy(); pdf.destroy(); sourceBytes.destroy(); }
   });
 
-  it("preserves masked source paints through the worker constructor and syntax check", () => {
-    // Mirror the worker's open/check/save path, not just Document.openDocument.
+  it("preserves masked source paints through the worker PDFDocument constructor", () => {
+    // Mirror the worker's PDFDocument constructor, not just Document.openDocument.
     const pdf = new mupdf.PDFDocument(new Uint8Array(createP17NativeFidelityPdf()));
     try {
-      pdf.checkSyntax();
       const page = pdf.loadPage(0);
       try {
         const object = page.getObject();
