@@ -41,5 +41,30 @@ class F9ValidationSafetyTests(unittest.TestCase):
             self.assertFalse(all(report["passed"] for report in reports))
 
 
+    def test_rectangle_annotation_is_required_and_not_counted_as_data_loss(self):
+        previous = {"/Subtype": "/Text", "/Rect": [2, 2, 8, 8], "/T": "Reviewer",
+                    "renderableAppearance": True}
+        added = {"/Subtype": "/Square", "/Rect": [10, 10, 60, 60], "/T": "PDF Studio",
+                 "renderableAppearance": True}
+        self.assertEqual(validator.compare_annotations([[previous]], [[previous, added]]), [])
+        self.assertTrue(validator.compare_annotations([[previous]], [[previous]]))
+        self.assertTrue(validator.compare_annotations([[previous]], [[added]]))
+        self.assertTrue(validator.compare_annotations([[previous]], [[previous, added, added]]))
+
+    def test_rectangle_requires_rendered_appearance_and_valid_bounds(self):
+        square = {"/Subtype": "/Square", "/Rect": [10, 10, 50, 50],
+                  "/T": "PDF Studio", "renderableAppearance": True}
+        self.assertFalse(validator.compare_annotations([[]], [[square]]))
+        self.assertTrue(validator.compare_annotations([[]], [[{**square, "renderableAppearance": False}]]))
+        self.assertTrue(validator.compare_annotations([[]], [[{**square, "/Rect": [50, 10, 10, 50]}]]))
+        self.assertTrue(validator.compare_annotations([[]], [[{**square, "/Subtype": "/Text"}]]))
+        self.assertTrue(validator.compare_annotations([[]], [[{**square, "/T": "Untrusted"}]]))
+
+    def test_non_edited_pages_cannot_gain_annotations(self):
+        square = {"/Subtype": "/Square", "/Rect": [10, 10, 50, 50],
+                  "/T": "PDF Studio", "renderableAppearance": True}
+        self.assertTrue(validator.compare_annotations([[], []], [[square], [square]]))
+
+
 if __name__ == "__main__":
     unittest.main()
