@@ -33,6 +33,7 @@
   .product-app .editor-app[data-d3-editor="true"] .editing-toolbar__primary > button {
     flex: 0 0 auto;
     width: max-content;
+    min-height: var(--studio-touch-height);
     white-space: nowrap;
   }
 
