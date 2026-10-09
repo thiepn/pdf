@@ -1,7 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
-import { imagePreservationBaseline, imageBoxDistance, requirePreservedImageSiblings, type ObservedImageInstance } from "../native/nativeImageEvidence";
+import { imagePreservationBaseline, imageBoxDistance, requirePreservedImageSiblings, matchRenderedMaskedInvocations, type ObservedImageInstance, type MaskedInvocationEvidence } from "../native/nativeImageEvidence";
 import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
@@ -276,8 +276,8 @@ function imageBoundsFromMatrix(matrix: number[]): NativeRect {
  * at that same location must both exist before restoring native classification.
  * Unsupported chained cm, clipping, nesting, or binary content is ignored.
  */
-function directMaskedInvocationBounds(page: PdfPage): Array<{ resourceName: string; bounds: NativeRect }> {
-  const candidates: Array<{ resourceName: string; bounds: NativeRect }> = [];
+function directMaskedInvocationBounds(page: PdfPage, paints: ReturnType<typeof directImagePaints>): MaskedInvocationEvidence[] {
+  const candidates: MaskedInvocationEvidence[] = [];
   const number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
   const pattern = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/([A-Za-z0-9_.:+-]+)\\s+Do\\s+Q\\b`, "g");
   for (const stream of contentStreams(page)) {
@@ -287,7 +287,19 @@ function directMaskedInvocationBounds(page: PdfPage): Array<{ resourceName: stri
       const resourceName = match[7];
       const mask = imageXObjectMaskEvidence(page, resourceName);
       if (!mask.softMask || mask.explicitMask) continue;
-      candidates.push({ resourceName, bounds: imageBoundsFromMatrix(match.slice(1, 7).map(Number)) });
+      // A resource painted under mixed clipping/blending states is not
+      // safely classifiable by resource name alone: keep those cases blocked.
+      const corresponding = paints.filter(paint => paint.resourceName === resourceName);
+      if (!corresponding.length || corresponding.some(paint => paint.clipped || paint.blendMode !== "Normal"
+          || !paint.softMask || paint.explicitMask)) continue;
+      candidates.push({
+        resourceName,
+        bounds: imageBoundsFromMatrix(match.slice(1, 7).map(Number)),
+        softMask: true,
+        explicitMask: false,
+        clipped: false,
+        blendMode: "Normal"
+      });
     }
   }
   return candidates;
@@ -475,22 +487,18 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
   const paintMappingAvailable = directPaints.length === visibleTraceIndexes.length;
   const directPaintByTrace = new Map<number, (typeof directPaints)[number]>();
   if (paintMappingAvailable) visibleTraceIndexes.forEach((traceIndex, paintIndex) => directPaintByTrace.set(traceIndex, directPaints[paintIndex]));
-  if (!paintMappingAvailable) {
-    // Structured text sometimes omits attached-mask renders. Accept only
-    // one-to-one source-operator geometry backed by both a real Device trace
-    // and an XObject that still has its original attached /SMask.
-    const reserved = new Set<number>();
-    for (const invocation of directMaskedInvocationBounds(page)) {
-      const candidates = traces.map((trace, index) => ({ index, score: rectDistance(trace.bounds, invocation.bounds) }))
-        .filter(item => item.score <= 4 && !reserved.has(item.index))
-        .sort((a, b) => a.score - b.score || a.index - b.index);
-      if (candidates.length !== 1) continue; // Ambiguous geometry stays protected.
-      const paints = directPaints.filter(paint => paint.resourceName === invocation.resourceName
-        && paint.softMask && !paint.explicitMask && !paint.clipped && paint.blendMode === "Normal");
-      if (!paints.length || directPaintByTrace.has(candidates[0].index)) continue;
-      directPaintByTrace.set(candidates[0].index, paints[0]);
-      reserved.add(candidates[0].index);
-    }
+  // Always reconcile masked XObjects by unique original user-space geometry,
+  // including when structured text happens to return the same number of
+  // images but in a different order. A stale positional mapping must never
+  // erase a genuine /SMask or assign it to an unrelated plain image.
+  const qualifiedMasked = matchRenderedMaskedInvocations(
+    directMaskedInvocationBounds(page, directPaints),
+    traces.map(trace => trace.bounds)
+  );
+  for (const [index, invocation] of qualifiedMasked) {
+    const paint = directPaints.find(candidate => candidate.resourceName === invocation.resourceName
+      && candidate.softMask && !candidate.explicitMask && !candidate.clipped && candidate.blendMode === "Normal");
+    if (paint) directPaintByTrace.set(index, paint);
   }
   const blendMappingAmbiguous = directBlendHasRisk && !paintMappingAvailable;
   const resourceCounts = new Map<string, number>();
