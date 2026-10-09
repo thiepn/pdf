@@ -126,15 +126,19 @@ export async function startPdfAccountSignIn(config:NativeLunaConfig):Promise<voi
   const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)));
   sessionStorage.setItem(PENDING_KEY,JSON.stringify({state,verifier,startedAt:Date.now(),clientId:config.clientId} satisfies PendingAuthorization));
   clearOptOut(config);
+  window.location.assign(buildPdfAccountAuthorizationUrl(config,state,b64(digest)));
+}
+export function buildPdfAccountAuthorizationUrl(config:NativeLunaConfig,state:string,challenge:string):string{
+  if(!STATE.test(state)||!STATE.test(challenge))throw new Error("Invalid OAuth state or PKCE challenge.");
   const url=new URL("/auth/v1/oauth/authorize",config.accountUrl);
   url.searchParams.set("response_type","code");
   url.searchParams.set("client_id",config.clientId);
   url.searchParams.set("redirect_uri",config.redirectUri.href);
   url.searchParams.set("scope","openid email profile offline_access");
   url.searchParams.set("state",state);
-  url.searchParams.set("code_challenge",b64(digest));
+  url.searchParams.set("code_challenge",challenge);
   url.searchParams.set("code_challenge_method","S256");
-  window.location.assign(url.href);
+  return url.href;
 }
 export function isPdfOAuthCallback(config:NativeLunaConfig,location:Pick<Location,"href"|"hash">):boolean{
   const url=new URL(location.href);
