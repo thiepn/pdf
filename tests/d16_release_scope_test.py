@@ -46,6 +46,11 @@ class D16ReleaseScopeTests(unittest.TestCase):
         self.assertTrue(any("P17" in message for message in problems))
         self.assertTrue(any("production baseline" in message for message in problems))
 
+    def test_refuses_missing_immutable_stable_rollback_target(self):
+        data = copy.deepcopy(self.manifest)
+        data["observed_stable_release"]["tag_object_sha"] = "unverified"
+        self.assertTrue(any("rollback" in error.lower() for error in check_manifest(data)))
+
     def test_rejects_hidden_unreviewed_release_blockers(self):
         data = copy.deepcopy(self.manifest)
         data["known_blockers"] = []
