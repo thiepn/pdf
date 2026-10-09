@@ -22,6 +22,8 @@ jobs:
       VITE_PDF_CORE_URL: https://core.example/
       VITE_PDF_ACCOUNT_SUPABASE_URL: https://account.example/
       VITE_PDF_ACCOUNT_PUBLIC_KEY: public-test-key
+      VITE_PDF_ACCOUNT_CLIENT_ID: 33333333-3333-4333-8333-333333333333
+      VITE_PDF_ACCOUNT_REDIRECT_URI: http://127.0.0.1:4173/pdf/
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
