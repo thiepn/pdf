@@ -113,7 +113,7 @@ describe("P17 deep native-content fidelity policy", () => {
       expect(source.split("/ImSoft Do").length - 1).toBe(2);
       expect(source).toContain(originalPaint);
       // Exercise the same page-object replacement API as the D14 writer.
-      const replacement = pdf.addStream(source.replace(originalPaint, updatedPaint));
+      const replacement = pdf.addStream(source.replace(originalPaint, updatedPaint), pdf.newDictionary());
       pageObject.put("Contents", replacement);
       // Before the final garbage-collecting save, the old indirect object is
       // still unchanged; after garbage=4 it may legitimately be unreachable.
