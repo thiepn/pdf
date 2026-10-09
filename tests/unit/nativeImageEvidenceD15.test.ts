@@ -1,8 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { imageBoxDistance, imagePreservationBaseline, requirePreservedImageSiblings } from "../../src/native/nativeImageEvidence";
+import { imageBoxDistance, imagePreservationBaseline, requirePreservedImageSiblings, matchRenderedMaskedInvocations } from "../../src/native/nativeImageEvidence";
 import type { NativeRect } from "../../src/types/nativeEditor";
 
 const rect = (x: number, y: number): NativeRect => ({ x, y, w: 70, h: 50 });
+
+describe("D18 image XObject-to-rendered paint correspondence", () => {
+  const masked = (x: number, y: number, overrides = {}) => ({
+    resourceName: "ImSoft", bounds: rect(x, y),
+    softMask: true, explicitMask: false, clipped: false, blendMode: "Normal", ...overrides
+  });
+
+  it("matches two distinct shared masked XObject invocations regardless of display order", () => {
+    const positions = [rect(478, 474), rect(22, 170), rect(390, 474), rect(386, 350)];
+    const mapped = matchRenderedMaskedInvocations([masked(390, 474), masked(478, 474)], positions);
+    expect([...mapped.keys()].sort((a, b) => a - b)).toEqual([0, 2]);
+    expect(mapped.get(0)?.resourceName).toBe("ImSoft");
+    expect(mapped.get(2)?.softMask).toBe(true);
+  });
+
+  it("refuses a Do invocation with no real rendered image", () => {
+    expect(matchRenderedMaskedInvocations([masked(390, 474)], [rect(90, 80)])).toHaveProperty("size", 0);
+  });
+
+  it("refuses ambiguous two-to-one source and display positions", () => {
+    const map = matchRenderedMaskedInvocations([masked(390, 474), masked(390, 474)], [rect(390, 474)]);
+    expect(map.size).toBe(0);
+    const alsoAmbiguous = matchRenderedMaskedInvocations([masked(390, 474)], [rect(390, 474), rect(390, 474)]);
+    expect(alsoAmbiguous.size).toBe(0);
+  });
+
+  it("protects clipped, blended, explicit-mask and missing-mask source states", () => {
+    for (const overrides of [
+      { clipped: true }, { blendMode: "Multiply" },
+      { explicitMask: true }, { softMask: false }
+    ]) {
+      expect(matchRenderedMaskedInvocations([masked(390, 474, overrides)], [rect(390, 474)]).size).toBe(0);
+    }
+  });
+
+  it("refuses missing and invalid CTM tolerance instead of broadening matching", () => {
+    expect(matchRenderedMaskedInvocations([masked(390, 474)], [rect(401, 474)]).size).toBe(0);
+    expect(() => matchRenderedMaskedInvocations([], [], -1)).toThrow(/nonnegative/);
+    expect(() => matchRenderedMaskedInvocations([], [], Number.NaN)).toThrow(/nonnegative/);
+  });
+});
 
 describe("D15 native image export evidence", () => {
   it("uses the same graphics-device image coordinate source before and after a masked transform", () => {
