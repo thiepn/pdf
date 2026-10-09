@@ -26,8 +26,18 @@ def assess_live_assets(metadata: dict, integrity: dict, offline: dict, service_w
         failures.append("Published asset integrity manifest is malformed")
     if not isinstance(integrity.get("files"), list) or len(integrity["files"]) != integrity.get("fileCount"):
         failures.append("Published asset integrity fileCount does not match file records")
-    if not isinstance(offline.get("assets", offline.get("core", [])), (dict, list)):
-        failures.append("Published offline asset inventory is malformed")
+    if offline.get("schemaVersion") != 2 or offline.get("strategy") != "consumer-core-plus-runtime-features":
+        failures.append("Published offline inventory schema or runtime strategy does not match production")
+    assets = offline.get("assets")
+    core = offline.get("coreAssets")
+    optional = offline.get("optionalAssets")
+    if any(not isinstance(group, list) or not group for group in (assets, core, optional)):
+        failures.append("Published offline core, optional or service-worker asset list is missing")
+    else:
+        if len(assets) != len(set(assets)) or set(assets) != set(core) or set(core).intersection(optional):
+            failures.append("Published service-worker core assets are inconsistent or duplicated")
+        if any(not isinstance(item, str) or not item.startswith("./") for group in (assets, core, optional) for item in group):
+            failures.append("Published offline inventory contains invalid asset paths")
     if "PDF Studio" not in html:
         failures.append("Published URL did not serve the PDF Studio application shell")
     for name, token in (
