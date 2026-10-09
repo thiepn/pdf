@@ -151,3 +151,49 @@ export function matchRenderedMaskedInvocations(
   }
   return result;
 }
+
+/**
+ * MuPDF page.getTransform maps rendered page coordinates to PDF user-space.
+ * Content-stream cm operators are in PDF user-space, while runPageContents
+ * graphics-device rectangles are in rendered page coordinates. Project the
+ * four content rectangle corners through the inverse page transform *before*
+ * attempting the unique XObject/Device correspondence. This also preserves
+ * rotated/cropped page handling instead of assuming the standard PDF y-flip.
+ *
+ * Singular, missing or malformed transforms fail closed. Never accept a
+ * source /Do paint based on a fabricated identity matrix.
+ */
+export function pdfInvocationToRenderedBounds(
+  source: NativeRect,
+  renderedPageToPdf: readonly number[]
+): NativeRect {
+  if (renderedPageToPdf.length !== 6 || renderedPageToPdf.some(value => !Number.isFinite(value))) {
+    throw new Error("Masked image source cannot be matched: page transform is unavailable.");
+  }
+  const [a, b, c, d, e, f] = renderedPageToPdf;
+  const determinant = a * d - b * c;
+  if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-10) {
+    throw new Error("Masked image source cannot be matched: page transform is singular.");
+  }
+  const convert = (pdfX: number, pdfY: number): [number, number] => {
+    const x = pdfX - e, y = pdfY - f;
+    return [(d * x - c * y) / determinant, (-b * x + a * y) / determinant];
+  };
+  if (![source.x, source.y, source.w, source.h].every(Number.isFinite)
+    || source.w <= 0 || source.h <= 0) {
+    throw new Error("Masked image source cannot be matched: invalid original PDF bounds.");
+  }
+  const corners = [
+    convert(source.x, source.y),
+    convert(source.x + source.w, source.y),
+    convert(source.x + source.w, source.y + source.h),
+    convert(source.x, source.y + source.h)
+  ];
+  const xs = corners.map(value => value[0]);
+  const ys = corners.map(value => value[1]);
+  return {
+    x: Math.min(...xs), y: Math.min(...ys),
+    w: Math.max(...xs) - Math.min(...xs),
+    h: Math.max(...ys) - Math.min(...ys)
+  };
+}

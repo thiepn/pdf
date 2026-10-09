@@ -129,6 +129,7 @@ jobs:
       - name: Audit the actual public URL documented by this repository
         run: |
           mkdir -p evidence
+          set -o pipefail
           python -m scripts.design.d17_live_pages_probe --url "https://thiepn.github.io/pdf/" | tee evidence/d18-published-pages.json
       - name: Preserve fetched identity evidence without claiming tag attestation
         if: always()

@@ -2,7 +2,7 @@
 import * as mupdf from "mupdf";
 import { describe, expect, it } from "vitest";
 import { createP17NativeFidelityPdf } from "../../src/fixtures/p17NativeFidelityPdf";
-import { matchRenderedMaskedInvocations } from "../../src/native/nativeImageEvidence";
+import { matchRenderedMaskedInvocations, pdfInvocationToRenderedBounds } from "../../src/native/nativeImageEvidence";
 import type { NativeRect } from "../../src/types/nativeEditor";
 
 function boundsFor(matrix: number[]): NativeRect {
@@ -69,9 +69,14 @@ describe("D18 real MuPDF masked-instance geometry", () => {
               resourceName: "ImSoft", bounds: { x, y:474, w:70, h:50 },
               softMask:true, explicitMask:false, clipped:false, blendMode:"Normal"
             }));
-            const match = matchRenderedMaskedInvocations(masked, observed);
+            const pageTransform = page.getTransform();
+            const transformed = masked.map(source => ({
+              ...source,
+              bounds: pdfInvocationToRenderedBounds(source.bounds, pageTransform)
+            }));
+            const match = matchRenderedMaskedInvocations(transformed, observed);
             expect(observed.length).toBeGreaterThanOrEqual(4);
-            expect(match.size).toBe(2);
+            expect(match.size, `MuPDF page transform ${JSON.stringify(pageTransform)}; PDF-space ${JSON.stringify(masked.map(v => v.bounds))}; device ${JSON.stringify(observed)}; projected ${JSON.stringify(transformed.map(v => v.bounds))}`).toBe(2);
             const matchedX = [...match.keys()].map(i => observed[i].x).sort((a,b)=>a-b);
             expect(matchedX).toEqual([402, 478]);
           } finally { page.destroy(); }

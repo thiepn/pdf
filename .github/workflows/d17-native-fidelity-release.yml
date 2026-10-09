@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PDF_STUDIO_PUBLIC_URL: ${{ vars.PDF_STUDIO_PUBLIC_URL }}
+      PDF_STUDIO_PUBLIC_URL: ${{ vars.PDF_STUDIO_PUBLIC_URL || 'https://thiepn.github.io/pdf/' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -98,15 +98,16 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - name: Require configured canonical production hostname
+      - name: Require documented HTTPS production hostname
         run: |
           if [ -z "$PDF_STUDIO_PUBLIC_URL" ]; then
-            echo '::error::Set repo variable PDF_STUDIO_PUBLIC_URL to the actual publicly served GitHub Pages base; do not guess the deployment URL.'
+            echo '::error::Canonical README URL and optional PDF_STUDIO_PUBLIC_URL are both missing; cannot verify live Pages identity.'
             exit 1
           fi
       - name: Fetch released HTML, metadata, integrity, offline inventory and service worker
         run: |
           mkdir -p evidence
+          set -o pipefail
           python -m scripts.design.d17_live_pages_probe --url "$PDF_STUDIO_PUBLIC_URL" | tee evidence/d17-live-pages.json
       - name: Retain remote metadata evidence, not release approval
         if: always()
