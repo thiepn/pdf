@@ -47,13 +47,14 @@ function unzipStored(bytes) {
 async function screenshot(page, info, name) { await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true }); }
 test.setTimeout(90_000);
 test("home search discovers direct everyday tools and reports unavailable Office conversion", async ({ page }, info) => {
-  await page.goto("./#/home"); await page.getByRole("searchbox", { name: "Find a PDF tool" }).fill("remove pages");
-  await page.locator('.home-task-card[href="#/quick/remove-pages"]').click();
+  // D2 moved full search into the Tool Library; Home is file-first.
+  await page.goto("./#/tools"); await page.getByRole("searchbox", { name: "Find a PDF tool" }).fill("remove pages");
+  await page.locator('.product-tool-card[href="#/quick/remove-pages"]').click();
   await expect(page.getByRole("heading", { name: "Remove pages", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Choose PDF", exact: true })).toBeVisible();
   await screenshot(page, info, "desktop-file-first");
-  await page.goto("./#/home"); await page.getByRole("searchbox", { name: "Find a PDF tool" }).fill("Word");
-  await expect(page.getByText(/Full-layout Office conversion, Excel and PowerPoint conversion, and Office-file import are not implemented/)).toBeVisible();
+  await page.goto("./#/tools"); await page.getByRole("searchbox", { name: "Find a PDF tool" }).fill("Word");
+  await expect(page.getByText(/Excel\/PowerPoint conversion and Office-file import remain outside this tool/)).toBeVisible();
 });
 test("extract preserves selected order, text, and source; changing options invalidates the result", async ({ page }, info) => {
   await upload(page, "extract-pages"); await page.getByRole("textbox", { name: "Pages", exact: true }).fill("4, 2-3");
