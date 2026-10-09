@@ -1,5 +1,7 @@
 import {test,expect} from "@playwright/test";
 
+test.skip(!process.env.VITE_PDF_CORE_URL, "Native Luna tests require explicit public Core test configuration; tested in dedicated F8 qualification.");
+
 test.setTimeout(90_000);
 const session={
   access_token:"test-account-access-token-long-enough",
