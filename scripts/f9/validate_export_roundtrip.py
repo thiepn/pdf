@@ -7,6 +7,7 @@ parser errors, and loss of source page semantics fail the gate rather than skip.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import re
 import subprocess
@@ -41,15 +42,70 @@ def geometry(page: object) -> dict[str, object]:
     }
 
 
-def count_annotations(page: object) -> dict[str, int]:
-    counts = {"annotations": 0, "links": 0, "widgets": 0}
-    annotations = page.get("/Annots")
-    for ref in (annotations.get_object() if annotations is not None else []):
-        annot = ref.get_object()
-        subtype = str(annot.get("/Subtype", ""))
-        key = "links" if subtype == "/Link" else "widgets" if subtype == "/Widget" else "annotations"
-        counts[key] += 1
-    return counts
+def annotation_records(page: object) -> list[dict[str, object]]:
+    """Stable visible/semantic annotation properties, independent of object IDs.
+
+    Rectangle drawing in PDF Studio creates a real /Square annotation, not page
+    content. Compare inherited annotations and require precisely one *new* /Square.
+    """
+    def stable(value: object) -> object:
+        if hasattr(value, "get_object"):
+            value = value.get_object()
+        if isinstance(value, dict):
+            return {str(key): stable(item) for key, item in sorted(value.items())}
+        if isinstance(value, (list, tuple)):
+            return [stable(item) for item in value]
+        if isinstance(value, (int, float)):
+            return round(float(value), 4)
+        if value is None:
+            return None
+        return str(value)
+
+    records = []
+    refs = page.get("/Annots")
+    for reference in (refs.get_object() if refs is not None else []):
+        obj = reference.get_object()
+        appearance = obj.get("/AP")
+        normal = appearance.get_object().get("/N") if appearance else None
+        normal = normal.get_object() if normal is not None else None
+        has_appearance = normal is not None and hasattr(normal, "get_data") and len(normal.get_data()) > 0
+        fields = ("/Subtype", "/Rect", "/Contents", "/T", "/F", "/C", "/BS", "/Border", "/IC", "/RD")
+        record = {key: stable(obj.get(key)) for key in fields}
+        record["renderableAppearance"] = has_appearance
+        records.append(record)
+    return records
+
+
+def compare_annotations(source: list[list[dict[str, object]]],
+                        exported: list[list[dict[str, object]]]) -> list[str]:
+    """Require preservation of old annotations plus exactly one rendered rectangle."""
+    failures: list[str] = []
+    if len(source) != len(exported):
+        return ["Annotation page count changed."]
+    for page_index, (original, result) in enumerate(zip(source, exported), 1):
+        before = Counter(json.dumps(item, sort_keys=True) for item in original)
+        after = Counter(json.dumps(item, sort_keys=True) for item in result)
+        missing = before - after
+        additions = after - before
+        if missing:
+            failures.append(f"Page {page_index}: original annotations were removed or altered.")
+        if page_index == 1:
+            if sum(additions.values()) != 1:
+                failures.append(f"Page {page_index}: expected exactly one new rectangle annotation.")
+            else:
+                added = json.loads(next(iter(additions)))
+                box = added.get("/Rect")
+                valid_box = (isinstance(box, list) and len(box) == 4
+                             and all(isinstance(n, (int, float)) for n in box)
+                             and box[2] > box[0] and box[3] > box[1])
+                if (added.get("/Subtype") != "/Square"
+                        or added.get("/T") != "PDF Studio"
+                        or not added.get("renderableAppearance")
+                        or not valid_box):
+                    failures.append(f"Page {page_index}: new /Square has invalid identity, appearance or bounds.")
+        elif additions:
+            failures.append(f"Page {page_index}: unexpected annotation was added.")
+    return failures
 
 
 def reader_profile(path: Path) -> dict[str, object]:
@@ -59,7 +115,7 @@ def reader_profile(path: Path) -> dict[str, object]:
     return {
         "pages": len(reader.pages),
         "geometry": [geometry(page) for page in reader.pages],
-        "annotations": [count_annotations(page) for page in reader.pages],
+        "annotations": [annotation_records(page) for page in reader.pages],
         "text": [normalized(page.extract_text() or "") for page in reader.pages],
     }
 
@@ -99,9 +155,10 @@ def verify_case(name: str, exports: Path) -> dict[str, object]:
             export_poppler = poppler_profile(target)
             facts["exportBytes"] = target.stat().st_size
             facts["pages"] = export_reader["pages"]
-            for field in ("pages", "geometry", "annotations", "text"):
+            for field in ("pages", "geometry", "text"):
                 if source_reader[field] != export_reader[field]:
                     failures.append(f"pypdf changed {field} on a rectangle-only edit")
+            failures.extend(compare_annotations(source_reader["annotations"], export_reader["annotations"]))
             if source_poppler["pages"] != export_poppler["pages"]:
                 failures.append("Poppler page count changed after export")
             if source_poppler["text"] != export_poppler["text"]:
