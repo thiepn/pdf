@@ -1,0 +1,84 @@
+name: D13 redesign candidate integration qualification
+
+on:
+  pull_request:
+    paths:
+      - "docs/design/D13_INTEGRATION_MANIFEST.json"
+      - "docs/design/D13_RELEASE_CANDIDATE.md"
+      - "scripts/design/d13_integration_preflight.py"
+      - "tests/d13_integration_preflight_test.py"
+      - "tests/e2e/d13-release-candidate.spec.mjs"
+      - "tests/unit/studioDesignD11.test.mjs"
+      - "tests/unit/studioDesignD12.test.mjs"
+      - ".github/workflows/d13-integration-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d13-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preparation:
+    name: Immutable ancestry, app wiring and source qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Check all 12 prior phase commits are ancestors
+        run: python scripts/design/d13_integration_preflight.py --repo . --check-ancestors --assert-prepared
+      - name: Test fail-closed manifest and UI wiring contract
+        run: python -m unittest discover -s tests -p 'd13_integration_preflight_test.py' -v
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify D11/D12 CSS source contracts without Node/TS type collision
+        run: npx vitest run tests/unit/studioDesignD11.test.mjs tests/unit/studioDesignD12.test.mjs
+      - name: Verify application and test TypeScript compile cleanly
+        run: npm run typecheck
+      - name: Re-run unchanged D9 structural integration audit
+        run: python scripts/design/d9_live_mount_audit.py --repo .
+      - name: D8 evidence is still independently NOT QUALIFIED
+        run: python scripts/design/d8_live_gate.py --evidence docs/design/D8_RELEASE_EVIDENCE.template.json
+
+  browser-evidence:
+    name: Real document import/export and mobile browser evidence (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    needs: preparation
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Exercise real PDF import, export-reopen and narrow workspace
+        run: npx playwright test tests/e2e/d13-release-candidate.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Preserve browser screenshots and error traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d13-real-pdf-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
