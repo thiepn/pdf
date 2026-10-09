@@ -1,7 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
-import { imagePreservationBaseline, imageBoxDistance } from "../native/nativeImageEvidence";
+import { imagePreservationBaseline, imageBoxDistance, requirePreservedImageSiblings, type ObservedImageInstance } from "../native/nativeImageEvidence";
 import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
@@ -735,6 +735,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
       const changed = new Set<number>();
       const beforeCounts = new Map<string, number>();
       const beforeRects = new Map<string, NativeRect[]>();
+      const beforeMaskedInstances = new Map<string, ObservedImageInstance[]>();
       const beforeClasses = new Map<string, NativeImageFidelityClass | undefined>();
 
       for (const edit of request.edits) {
@@ -759,11 +760,18 @@ self.onmessage = (event: MessageEvent<Request>) => {
           // coordinate and enumeration source, not JSON-before/Device-after.
           // Keep structured text's unique-source-region refusal independently.
           const maskedSource = current.image.fidelity?.class === "masked";
+          const maskedOriginals = maskedSource ? inspectImagePage(page, edit.pageNumber).images : [];
           const baselineRects = imagePreservationBaseline(
             current.image.fidelity?.class,
             sourceRects,
-            maskedSource ? inspectImagePage(page, edit.pageNumber).images.map((image) => image.bounds) : []
+            maskedOriginals.map((image) => image.bounds)
           );
+          if (maskedSource) {
+            beforeMaskedInstances.set(edit.id, maskedOriginals.map((image) => ({
+              bounds: image.bounds,
+              masked: Boolean(image.fidelity?.softMask)
+            })));
+          }
           const baselineMatches = baselineRects.filter((rect) => intersectionRatio(rect, sourceBounds) >= 0.5);
           if (maskedSource && baselineMatches.length !== 1) {
             throw new Error("The masked source image cannot be isolated in device-space evidence; its PDF was not modified.");
@@ -826,6 +834,14 @@ self.onmessage = (event: MessageEvent<Request>) => {
               const maskedCount = maskedInspection?.images.filter((image) => image.fidelity?.softMask).length ?? -1;
               const directMaskedPaints = outputPaints.filter((paint) => paint.softMask).length;
               throw new Error(`Image edit validation failed on page ${edit.pageNumber}: unrelated image instances disappeared (expected at least ${expectedMinimum} painted instances; observed ${rects.length}; structured ${structuredCount}; direct paints ${outputPaints.length} including ${directMaskedPaints} with attached masks; observed masked ${maskedCount}; originally ${originals.length}; source-region matches ${sourceCount}; device warnings ${maskedInspection?.warnings.length ?? 0}).`);
+            }
+            const originalMasked = beforeMaskedInstances.get(edit.id);
+            if (originalMasked) {
+              if (!maskedInspection) throw new Error("Masked image validation failed: device evidence was not recorded after export.");
+              requirePreservedImageSiblings(originalMasked, maskedInspection.images.map((image) => ({
+                bounds: image.bounds,
+                masked: Boolean(image.fidelity?.softMask)
+              })), sourceBounds);
             }
             for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
               if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) {
