@@ -49,3 +49,6 @@
 
 /* D11 shared header, component semantics and dark-theme glyphs. */
 @import "./studio-chrome-d11.css";
+
+/* D12 only: verified visual defect corrections after shared chrome. */
+@import "./studio-visual-qa-d12.css";
