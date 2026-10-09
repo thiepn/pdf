@@ -633,7 +633,7 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   if (!current.isStream?.()) {
     throw new Error("The masked image content stream cannot be copied safely; the source remains unchanged.");
   }
-  const replacement = pdf.addStream(rewritten);
+  const replacement = pdf.addStream(rewritten, pdf.newDictionary());
   if (!replacement?.isStream?.()) {
     throw new Error("The masked image replacement content stream was not created.");
   }
