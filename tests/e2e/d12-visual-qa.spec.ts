@@ -7,7 +7,7 @@ async function openPDF(page: Page) {
   await page.locator('input[type="file"][accept*="pdf"]').first().setInputFiles({
     name: "D12 visual review.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.from(createShowcasePdf())
+    buffer: (globalThis as any).Buffer.from(createShowcasePdf())
   });
   const editor = page.locator('.editor-app[data-d3-editor="true"]');
   await expect(editor.getByRole("region", { name: "PDF page canvas" })).toBeVisible({ timeout: 45_000 });
