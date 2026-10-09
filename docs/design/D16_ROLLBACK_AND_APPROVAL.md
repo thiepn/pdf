@@ -13,6 +13,7 @@ GitHub Pages and the service worker can remain pointed at a previously qualified
 | Baseline | Immutable reference | Meaning |
 | --- | --- | --- |
 | Observed production `main` | `6f4f5c1b3b20a0565795879bef77265a4cdea6c0` | Must be rechecked immediately before any promotion |
+| Published stable `v7.1.4` | `2116a61b73b6fdb18aa19a8175d9ebae4b43c159` (annotated tag `f697ff30b9bb1974eec3993720f12eb8b060ffe3`) | Verified GitHub release published 1 October 2026; potential rollback source only, not proof of current live Pages asset |
 | D1 inherited P17 foundation | `dd23b3c2a0563de7c429fe42738f0d5d748e478e` | D1 was based on P17, not directly on main |
 | D13 draft | `8adbc91071123ee5df4784b099042d82e8739658` | Main redesign integration + P17 inherited scope |
 | D14 draft | `7b2b16b8c3c045536ad5454e1118d55a8f1a7bdc` | Soft-mask copy-on-write, still unqualified |
