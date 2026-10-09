@@ -40,7 +40,7 @@ test("F8B Account callback exchanges only state-bound PKCE for the registered PD
   });
   await page.goto("./?code=test-code-one-time&state="+state);
   const native=page.getByLabel("Native GPT-6 Luna planner");
-  await expect(native.getByText("THIEPN Account connected")).toBeVisible({timeout:20000});
+  await expect(native.getByText("THIEPN Account connected",{exact:true})).toBeVisible({timeout:20000});
   expect(exchanges).toBe(1);
   expect(page.url()).not.toContain("test-code-one-time");
   expect(page.url()).not.toContain("state=");
