@@ -35,12 +35,12 @@ describe("D12 CSS ownership and real-browser regression policy", () => {
   });
 
   it("disallows PDF render mutation and new high-priority overrides in QA CSS", () => {
-    const rules = d12.replace(/\\/\\*[\\s\\S]*?\\*\\//g, "");
+    const rules = d12.replace(/\/\*[\s\S]*?\*\//g, "");
     expect(rules).not.toMatch(/!important/i);
-    expect(rules).not.toMatch(/\\btransform\\s*:/);
-    expect(rules).not.toMatch(/\\bzoom\\s*:/);
-    expect(rules).not.toMatch(/\\bcanvas\\s*\\{/);
-    expect(rules).not.toMatch(/\\bdisplay\\s*:\\s*none\\b/);
+    expect(rules).not.toMatch(/\btransform\s*:/);
+    expect(rules).not.toMatch(/\bzoom\s*:/);
+    expect(rules).not.toMatch(/\bcanvas\s*\{/);
+    expect(rules).not.toMatch(/\bdisplay\s*:\s*none\b/);
   });
 
   it("does not depend on the Vitest CSS raw-import transform for source audits", () => {
