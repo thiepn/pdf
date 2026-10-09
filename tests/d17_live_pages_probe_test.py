@@ -22,6 +22,19 @@ class D17LivePagesTests(unittest.TestCase):
     def test_consistent_stable_release_artifacts(self):
         self.assertEqual(self.audit(), [])
 
+    def test_accepts_intentional_runtime_placeholder_guard(self):
+        # The published worker may contain this literal in a diagnostic guard;
+        # the actual RELEASE_* assignments must still carry stable identity.
+        self.worker += '\\nreturn !RELEASE_VERSION.startsWith("__LPS_RELEASE_");'
+        self.assertEqual(self.audit(), [])
+
+    def test_rejects_unexpanded_release_assignments(self):
+        self.worker = self.worker.replace(
+            'const RELEASE_VERSION = "7.1.4";',
+            'const RELEASE_VERSION = "__LPS_RELEASE_VERSION__";'
+        )
+        self.assertTrue(any("Unresolved service worker release assignments" in issue for issue in self.audit()))
+
     def test_rejects_service_worker_from_other_channel(self):
         self.worker = self.worker.replace('"stable"', '"release-candidate"')
         self.assertTrue(any("service worker channel" in error for error in self.audit()))
