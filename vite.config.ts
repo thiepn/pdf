@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { loadEnv } from "vite";
+import { URL } from "node:url";
 
 declare const process: { env: Record<string, string | undefined> };
 
