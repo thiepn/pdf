@@ -91,6 +91,18 @@ export function AIWorkflowPlanner({recipe,disabled,onApply}: Props) {
         <label htmlFor="f7-goal">What should happen to the PDFs?</label>
         <textarea id="f7-goal" aria-label="PDF workflow goal" value={goal} onChange={event=>setGoal(event.target.value)} maxLength={1200}
           rows={3} disabled={disabled} placeholder="E.g., rotate every page 90 degrees, add page numbers, then split into five-page PDFs."/>
+        <NativeLunaControls goal={goal} disabled={disabled} onProposal={(json,model,requestId)=>{
+          try {
+            const proposal=parseAIWorkflowProposal(json,recipe);
+            setResponse(json);
+            setReview({proposal,fingerprint:batchRecipeExecutionFingerprint(recipe)});
+            setConfirmReplace(false);setError("");
+            setFeedback(`${model} produced a reviewable plan · request ${requestId}. Nothing has been applied or run.`);
+          } catch(reason) {
+            setReview(null);setConfirmReplace(false);
+            setError(reason instanceof Error?reason.message:"Luna produced an invalid workflow.");
+          }
+        }}/>
         <div className="f7-planner__actions">
           <button type="button" className="button button--secondary" disabled={disabled||!goal.trim()} onClick={()=>void copyPrompt()}>Copy ChatGPT prompt</button>
           <a className="f7-planner__link" href="https://chatgpt.com/" rel="noopener noreferrer" target="_blank">Open ChatGPT ↗</a>
