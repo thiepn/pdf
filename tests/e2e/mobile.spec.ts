@@ -109,6 +109,35 @@ async function expectCompactWorkspace(page: import("@playwright/test").Page, sta
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 }
 
+test("320px editor fits touch controls and preserves shortcut help through More tools", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await openSample(page, "editor");
+  const bar = page.locator(".compact-editor-bar");
+  await expect(bar).toBeVisible();
+  const buttons = bar.locator(":scope > .icon-button");
+  await expect(buttons).toHaveCount(7);
+  const viewport = page.viewportSize()!;
+  for (const bounds of await buttons.evaluateAll(nodes => nodes.map(node => {
+    const b = node.getBoundingClientRect();
+    return { left: b.left, right: b.right, width: b.width, height: b.height };
+  }))) {
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(viewport.width + 1);
+  }
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  const more = bar.getByRole("button", { name: "More tools", exact: true });
+  await more.click();
+  const menu = page.getByRole("dialog", { name: "Editor tools", exact: true });
+  await menu.getByRole("button", { name: "Keyboard shortcuts", exact: true }).click();
+  const help = page.getByRole("dialog", { name: "Keyboard shortcuts", exact: true });
+  await expect(help.getByText("Save or download the PDF")).toBeVisible();
+  await help.getByRole("button", { name: "Close keyboard shortcuts" }).click();
+  await expect(help).toHaveCount(0);
+  await expect(more).toBeFocused();
+});
+
 test("phone reader preserves usable compact controls and page canvas across orientations", async ({ page }, info) => {
   await page.setViewportSize({width:390,height:844});
   await page.goto("./#/tools/read-pdf");
