@@ -49,9 +49,15 @@ test("D13 real two-page PDF opens, edits UI state, downloads and reopens indepen
   await expect(status).toContainText("125%");
   await noOverflow(page);
   await page.screenshot({ path: info.outputPath("d13-editor-desktop.png"), animations: "disabled" });
-  const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await pending;
+  // "Save PDF" / "Save as PDF" uses native file-system APIs where supported;
+  // "Download copy" is the explicit cross-browser download operation.
+  await page.getByLabel("More save options").click();
+  const downloadAction = page.getByRole("button", { name: "Download copy", exact: true });
+  await expect(downloadAction).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 20_000 }),
+    downloadAction.click()
+  ]);
   const bytes = await readFile(await download.path());
   const reopened = mupdf.Document.openDocument(bytes, "application/pdf");
   try {
