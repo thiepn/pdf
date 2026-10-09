@@ -17,7 +17,9 @@ describe("P41 product-wide consumer language", () => {
     expect(taskCatalogSource).not.toContain('label: "Sanitize PDF"');
     expect(compressionSource).toContain("Choose how much to shrink the PDF");
     expect(compressionSource).not.toContain("Optimize or raster-compress");
-    expect(batchSource).toContain('<aside className="batch-recipe"><h3>Workflow</h3>');
+    expect(batchSource).toContain("<h2>Visual workflow composer</h2>");
+    expect(batchSource).toContain("Execution preview");
+    expect(batchSource).toContain(">Save workflow</button>");
     expect(batchSource).not.toContain(">Export JSON</button>");
   });
 
