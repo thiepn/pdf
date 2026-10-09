@@ -35,7 +35,7 @@ jobs:
       - name: Verify D8 evidence inventory without approving it
         run: |
           python3 -m unittest discover -s tests -p d15_evidence_inventory_test.py -v
-          python3 scripts/design/d15_evidence_inventory.py
+          python3 -m scripts.design.d15_evidence_inventory
       - name: Validate D15 real-image geometry evidence
         run: npx vitest run tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts
       - name: Compile the actual app
