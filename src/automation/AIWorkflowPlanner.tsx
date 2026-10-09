@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NativeLunaControls } from "./NativeLunaControls";
 import { batchRecipeExecutionFingerprint } from "../processing/batchModel";
 import type { BatchRecipe } from "../types/batch";
 import {
@@ -78,11 +79,11 @@ export function AIWorkflowPlanner({recipe,disabled,onApply}: Props) {
   return <section className="f7-planner" aria-label="AI-assisted workflow planning">
     <div className="f7-planner__header">
       <div>
-        <span className="f6-kicker">F7 / ASSISTED PLANNING</span>
-        <h3>Plan with ChatGPT</h3>
-        <p>Describe the outcome. ChatGPT proposes actions; PDF Studio validates the plan. Nothing is applied or executed automatically.</p>
+        <span className="f6-kicker">F8 / NATIVE LUNA + ASSISTED PLANNING</span>
+        <h3>Plan with GPT-6 Luna or ChatGPT</h3>
+        <p>Describe the outcome. Native Luna or ChatGPT can propose actions; PDF Studio validates the plan. Nothing is applied or executed automatically.</p>
       </div>
-      <span className="f7-planner__mode">Manual AI bridge · no API credentials</span>
+      <span className="f7-planner__mode">Native Account-authenticated AI · manual fallback</span>
     </div>
     <div className="f7-planner__columns">
       <div className="f7-planner__stage">
@@ -90,6 +91,18 @@ export function AIWorkflowPlanner({recipe,disabled,onApply}: Props) {
         <label htmlFor="f7-goal">What should happen to the PDFs?</label>
         <textarea id="f7-goal" aria-label="PDF workflow goal" value={goal} onChange={event=>setGoal(event.target.value)} maxLength={1200}
           rows={3} disabled={disabled} placeholder="E.g., rotate every page 90 degrees, add page numbers, then split into five-page PDFs."/>
+        <NativeLunaControls goal={goal} disabled={disabled} onProposal={(json,model,requestId)=>{
+          try {
+            const proposal=parseAIWorkflowProposal(json,recipe);
+            setResponse(json);
+            setReview({proposal,fingerprint:batchRecipeExecutionFingerprint(recipe)});
+            setConfirmReplace(false);setError("");
+            setFeedback(`${model} produced a reviewable plan · request ${requestId}. Nothing has been applied or run.`);
+          } catch(reason) {
+            setReview(null);setConfirmReplace(false);
+            setError(reason instanceof Error?reason.message:"Luna produced an invalid workflow.");
+          }
+        }}/>
         <div className="f7-planner__actions">
           <button type="button" className="button button--secondary" disabled={disabled||!goal.trim()} onClick={()=>void copyPrompt()}>Copy ChatGPT prompt</button>
           <a className="f7-planner__link" href="https://chatgpt.com/" rel="noopener noreferrer" target="_blank">Open ChatGPT ↗</a>

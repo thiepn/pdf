@@ -15,6 +15,9 @@ import { initializePwaInstallCapture } from "./pwa/installManager";
 import { registerPwaFileHandling } from "./pwa/launchFiles";
 import { ReleaseHealthReporter } from "./release/ReleaseHealthReporter";
 
+// PKCE callback returns without a hash; route to Batch before the planner exchanges its one-use code.
+if (new URL(window.location.href).searchParams.has("code") && window.sessionStorage.getItem("pdf-studio:f8:oauth-verifier")) window.location.hash = "#/batch";
+
 initializePwaInstallCapture();
 registerPwaFileHandling();
 

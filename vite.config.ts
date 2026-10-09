@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -32,8 +33,37 @@ function tesseractBrowserManifest() {
   };
 }
 
-export default defineConfig({
-  plugins: [tesseractBrowserManifest()],
+function nativeLunaCsp(mode: string) {
+  const env = loadEnv(mode, ".", "VITE_");
+  const sources = [
+    env.VITE_PDF_CORE_URL,
+    env.VITE_PDF_ACCOUNT_SUPABASE_URL
+  ].filter((value): value is string => Boolean(value)).map((value) => {
+    const UrlCtor = (globalThis as unknown as { URL: new (input: string) => {
+      protocol: string; hostname: string; username: string; password: string;
+      search: string; hash: string; pathname: string; origin: string;
+    } }).URL;
+    const url = new UrlCtor(value);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if ((url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
+      url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+      throw new Error("F8 CSP requires exact configured Core and Account origins.");
+    }
+    return url.origin;
+  });
+  const origins = [...new Set(sources)];
+  return {
+    name: "f8-native-luna-csp",
+    transformIndexHtml(html: string) {
+      const base = "connect-src 'self' https://tessdata.projectnaptha.com;";
+      if (!html.includes(base)) throw new Error("PDF Studio CSP source was not found.");
+      return html.replace(base, `connect-src 'self' https://tessdata.projectnaptha.com${origins.map(x => " " + x).join("")};`);
+    }
+  };
+}
+
+export default defineConfig(({ mode }) => ({
+  plugins: [tesseractBrowserManifest(), nativeLunaCsp(mode)],
   define: { "import.meta.env.VITE_BUILD_TIMESTAMP": JSON.stringify(process.env.VITE_BUILD_TIMESTAMP || new Date().toISOString()) },
   base: resolveBase(),
   build: {
@@ -55,4 +85,4 @@ export default defineConfig({
       reporter: ["text", "json", "html"]
     }
   }
-});
+}));
