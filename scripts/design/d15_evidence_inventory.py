@@ -18,9 +18,11 @@ def audit_evidence(document: dict) -> dict:
     problems: list[str] = []
     requirements = document.get("requirements")
     if not isinstance(requirements, dict):
-        return {"inventory_valid": False, "release_qualified": False, "pending": 18, "problems": ["Requirements must be a dictionary."]}
+        return {"inventory_valid": False, "ready_for_review": False, "release_qualified": False, "pending": 18, "passed": 0, "problems": ["Requirements must be a dictionary."]}
     if document.get("schema_version") != 2 or document.get("repository") != "thiepn/pdf":
         problems.append("Unexpected release evidence schema or repository.")
+    if document.get("target_branch") != "design/d8-live-release-gate":
+        problems.append("The authoritative D8 candidate target branch changed.")
     if set(requirements) != EXPECTED_REQUIREMENTS:
         problems.append("D8 evidence must retain exactly the 18 original requirements.")
     pending = 0
@@ -60,13 +62,13 @@ def audit_evidence(document: dict) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=Path, default=TEMPLATE)
-    parser.add_argument("--require-qualified", action="store_true",
+    parser.add_argument("--require-review-ready", action="store_true",
                         help="Hard release gate; must fail while any review is pending")
     args = parser.parse_args()
     result = audit_evidence(json.loads(args.path.read_text(encoding="utf-8")))
     result["status"] = "QUALIFIED_FOR_REVIEW" if result["ready_for_review"] else "NOT_QUALIFIED"
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result["inventory_valid"] and (not args.require_qualified or result["ready_for_review"]) else 1
+    return 0 if result["inventory_valid"] and (not args.require_review_ready or result["ready_for_review"]) else 1
 
 
 if __name__ == "__main__":
