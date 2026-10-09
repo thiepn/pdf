@@ -107,6 +107,7 @@ jobs:
       - name: Fetch released HTML, metadata, integrity, offline inventory and service worker
         run: |
           mkdir -p evidence
+          set -o pipefail
           python -m scripts.design.d17_live_pages_probe --url "$PDF_STUDIO_PUBLIC_URL" | tee evidence/d17-live-pages.json
       - name: Retain remote metadata evidence, not release approval
         if: always()
