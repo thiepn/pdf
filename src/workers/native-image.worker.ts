@@ -841,7 +841,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
               requirePreservedImageSiblings(originalMasked, maskedInspection.images.map((image) => ({
                 bounds: image.bounds,
                 masked: Boolean(image.fidelity?.softMask)
-              })), sourceBounds);
+              })), sourceBounds, edit.bounds);
             }
             for (const original of originals.filter((rect) => intersectionRatio(rect, sourceBounds) < 0.5)) {
               if (!rects.some((candidate) => rectDistance(candidate, original) <= 4)) {
