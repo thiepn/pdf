@@ -5,6 +5,7 @@
 ## Exactly what D13 contributes
 
 - Exact, inspectable D1–D12 branch/commit/PR inventory: `D13_INTEGRATION_MANIFEST.json`.
+- Git lineage audit found D5 PR #133 ended with a fix commit that was independently replayed as the final commit of D6. The GitHub commit patches for `fae344e0` and `13436ff6` are identical. D13 keeps both SHAs and **requires matching Git `patch-id --stable` fingerprints and inclusion of the replay commit**; an unverified rebase is rejected.
 - A reproducible source/ancestry preflight that rejects broken lineage, duplicates, missing real mounts or altered D8 evidence. It **never** grants release approval.
 - Repair of D11/D12 CSS tests: move Node filesystem assertions to `.test.mjs` (the app's TypeScript compilation does not include Node types). The CSS-pattern audit now strips comments before inspecting actual CSS rules, so writing the word `!important` in a caution comment does not fail CI.
 - Dedicated D13 browser test opening a genuine two-page PDF, changing the page/zoom, downloading a real output and reopening it through an independent MuPDF reader; mobile light/dark visual captures included.
