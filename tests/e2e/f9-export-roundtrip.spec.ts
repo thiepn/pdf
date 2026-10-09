@@ -1,9 +1,5 @@
-import { mkdir } from "node:fs/promises";
-import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { chooseEditorTool, switchMode } from "./helpers/taskFirst";
-
-const exportDirectory = resolve(process.env.F9_EXPORT_DIR ?? "test-results/f9-exports");
 
 async function prepareRectangleEdit(page: Page, filename: string): Promise<void> {
   await page.goto("./#/tools/read-pdf");
@@ -33,7 +29,7 @@ for (const fixture of ["rotated-crop", "incremental"] as const) {
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
     await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 25_000 });
-    await mkdir(exportDirectory, { recursive: true });
-    await download.saveAs(resolve(exportDirectory, fixture + "-edited.pdf"));
+    // CI creates this folder outside Playwright outputDir, which the runner clears.
+    await download.saveAs("artifacts/f9-exports/" + fixture + "-edited.pdf");
   });
 }
