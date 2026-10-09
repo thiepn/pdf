@@ -47,7 +47,9 @@
       "pr": 133,
       "branch": "design/d5-live-quick-workflow",
       "commit_sha": "fae344e01dd3557860afba97df005b9cd4ae59a8",
-      "base_branch": "design/d4-live-selection-layers"
+      "base_branch": "design/d4-live-selection-layers",
+      "equivalent_applied_commit_sha": "13436ff643d51adc61f8946e3e1c2f0d4a2b6f60",
+      "equivalence_note": "D5's final fix was independently replayed on D6 as an identical patch. The D13 gate must compare both patch-ids, not assume ancestor."
     },
     {
       "phase": 6,
@@ -119,5 +121,5 @@
     "rollback plan and explicit deploy approval"
   ],
   "evidence_file": "docs/design/D8_RELEASE_EVIDENCE.template.json",
-  "notes": "This manifest records code ancestry and review obligations, not validation or authority to deploy."
+  "notes": "Source ancestry is verified except the explicitly listed D5 equivalent replay; the preflight compares Git patch-ids to establish equivalence. Preparation is not a release certification."
 }
