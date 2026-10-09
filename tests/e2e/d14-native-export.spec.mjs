@@ -60,11 +60,25 @@ test("D14 masked-image export preserves original sibling instances in the downlo
   await expect(page.locator(".native-queued-count").filter({ hasText: "1 PDF edit ready" })).toHaveCount(1);
 
   await page.getByLabel("More save options").click();
-  const pending = page.waitForEvent("download", { timeout: 60_000 });
+  // Never report a vague download timeout when the real PDF-fidelity validator
+  // has already refused to emit an unsafe document. Retain both outcomes:
+  // only an actual downloaded file proceeds to independent MuPDF reopening.
+  const pending = page.waitForEvent("download", { timeout: 60_000 })
+    .then(download => ({ kind: "download", download }), error => ({ kind: "timeout", error }));
+  const blocked = page.locator('.editor-banner, [role="alert"]')
+    .filter({ hasText: /Image edit validation failed|P8 fidelity validation failed|Masked image transform did not preserve|The edited PDF could not be verified/i })
+    .first()
+    .waitFor({ state: "visible", timeout: 60_000 })
+    .then(() => ({ kind: "fidelity-refused" }), () => ({ kind: "watch-ended" }));
   await page.getByRole("button", { name: "Download copy", exact: true }).click();
-  const download = await pending;
-  const outputBytes = await readFile(await download.path());
-  expect(download.suggestedFilename()).toMatch(/_edited[.]pdf$/i);
+  const outcome = await Promise.race([pending, blocked]);
+  if (outcome.kind !== "download") {
+    const diagnostic = await page.locator('.editor-banner, [role="alert"], [role="status"]')
+      .allInnerTexts();
+    throw new Error(`D16 refused unverified PDF export (${outcome.kind}). Diagnostic: ${JSON.stringify(diagnostic.slice(0, 15))}`);
+  }
+  const outputBytes = await readFile(await outcome.download.path());
+  expect(outcome.download.suggestedFilename()).toMatch(/_edited[.]pdf$/i);
   const output = inspectRenderedImages(outputBytes);
   expect(output.pages).toBe(baseline.pages);
   expect(output.images).toHaveLength(4);
