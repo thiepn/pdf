@@ -2,7 +2,7 @@ import {beforeEach,afterEach,describe,expect,it,vi} from "vitest";
 import {
  accountAccessToken,currentAccountSession,pdfAccountLocallyDisconnected,
  parsePdfSsoProbeMessage,signOutPdfAccount,
- startPdfAccountSignIn,verifyPdfAccount,
+ buildPdfAccountAuthorizationUrl,verifyPdfAccount,
  type NativeLunaConfig
 } from "../../src/automation/nativeLunaAccount";
 import {planPdfWithLuna} from "../../src/automation/nativeLunaClient";
@@ -121,16 +121,18 @@ describe("F8B native Account SSO and Luna browser security",()=>{
     expect(parsePdfSsoProbeMessage({type:"thiepn:sso-probe:v1",clientId,signedIn:false,eligible:true},clientId)).toBe("signed-out");
     expect(parsePdfSsoProbeMessage({type:"thiepn:sso-probe:v1",clientId:"not-the-client",signedIn:true,eligible:true},clientId)).toBeNull();
   });
-  it("never sends the user directly to Google or creates a browser app secret",async()=>{
-    const assign=vi.spyOn(window.location,"assign").mockImplementation(()=>{});
-    await startPdfAccountSignIn(config);
-    const target=new URL(assign.mock.calls[0][0]);
+  it("builds a first-party public OAuth 2.1 S256 request, never a Google redirect",()=>{
+    const state="a".repeat(43), challenge="b".repeat(43);
+    const target=new URL(buildPdfAccountAuthorizationUrl(config,state,challenge));
     expect(target.pathname).toBe("/auth/v1/oauth/authorize");
     expect(target.searchParams.get("client_id")).toBe(clientId);
     expect(target.searchParams.get("redirect_uri")).toBe(config.redirectUri.href);
+    expect(target.searchParams.get("response_type")).toBe("code");
     expect(target.searchParams.get("code_challenge_method")).toBe("S256");
-    expect(target.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(target.searchParams.get("state")).toBe(state);
+    expect(target.searchParams.get("code_challenge")).toBe(challenge);
     expect(target.searchParams.get("provider")).toBeNull();
     expect(target.hostname).not.toContain("google");
+    expect(()=>buildPdfAccountAuthorizationUrl(config,"short",challenge)).toThrow();
   });
 });
