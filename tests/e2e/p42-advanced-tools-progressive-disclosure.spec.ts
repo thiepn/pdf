@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 test("global Tools keeps advanced and recovery tasks available without crowding the default catalog", async ({ page }) => {
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: "Find your next PDF tool." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "All PDF tools" })).toBeVisible();
 
   const advancedDisclosure = page.locator(".product-advanced summary");
   await expect(advancedDisclosure).toBeVisible();
