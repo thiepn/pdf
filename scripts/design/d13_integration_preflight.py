@@ -44,6 +44,21 @@ def git(root: Path, *args: str) -> tuple[int, str]:
     except (OSError, subprocess.TimeoutExpired):
         return 127, ""
 
+def patch_id(root: Path, commit: str) -> str | None:
+    """Independent git patch fingerprint; identical replays get the same value."""
+    try:
+        diff = subprocess.run(
+            ("git", "-C", str(root), "show", "--format=", "--no-ext-diff", commit),
+            text=True, capture_output=True, check=False, timeout=15)
+        if diff.returncode or not diff.stdout.strip():
+            return None
+        patch = subprocess.run(
+            ("git", "patch-id", "--stable"),
+            text=True, input=diff.stdout, capture_output=True, check=False, timeout=15)
+        return patch.stdout.split()[0] if patch.returncode == 0 and patch.stdout.split() else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
 def validate_manifest(manifest: dict) -> list[str]:
     errors = []
     if manifest.get("schema_version") != 1 or manifest.get("repository") != "thiepn/pdf":
@@ -85,6 +100,12 @@ def validate_manifest(manifest: dict) -> list[str]:
             errors.append(f"{ref}: immutable full commit SHA required")
         if branch in seen_branches or sha in seen_shas:
             errors.append(f"{ref}: duplicate branch/SHA")
+        replay_sha = phase.get("equivalent_applied_commit_sha")
+        if expected_phase == 5:
+            if not re.fullmatch("[0-9a-f]{40}", str(replay_sha)):
+                errors.append("phase 5: equivalent D6 replay SHA required")
+        elif replay_sha is not None:
+            errors.append(f"{ref}: unexpected replay exception")
         seen_branches.add(branch)
         seen_shas.add(sha)
     if previous != "design/d12-visual-qa-css-cleanup":
@@ -129,9 +150,19 @@ def evaluate(manifest: dict, root: Path, *, ancestors: bool = False) -> dict:
         for phase in manifest.get("phases", []):
             sha = phase.get("commit_sha", "")
             exit_code, _ = git(root, "merge-base", "--is-ancestor", sha, "HEAD")
-            ancestry.append({"phase": phase.get("phase"), "ancestor": exit_code == 0})
+            ancestry_row = {"phase": phase.get("phase"), "ancestor": exit_code == 0,
+                            "equivalent_patch_verified": False}
             if exit_code != 0:
-                errors.append(f"phase {phase.get('phase')} commit absent from candidate history")
+                replay = phase.get("equivalent_applied_commit_sha")
+                replay_ancestor = bool(replay) and git(root, "merge-base", "--is-ancestor", replay, "HEAD")[0] == 0
+                original_patch = patch_id(root, sha) if replay_ancestor else None
+                replay_patch = patch_id(root, replay) if replay_ancestor else None
+                if replay_ancestor and original_patch and replay_patch and original_patch == replay_patch:
+                    ancestry_row["equivalent_patch_verified"] = True
+                    ancestry_row["replay_commit"] = replay
+                else:
+                    errors.append(f"phase {phase.get('phase')} commit absent without verified identical patch")
+            ancestry.append(ancestry_row)
         root_sha = manifest.get("root_dependency", {}).get("sha", "")
         if git(root, "merge-base", "--is-ancestor", root_sha, "HEAD")[0] != 0:
             errors.append("P17 foundation absent from candidate")
