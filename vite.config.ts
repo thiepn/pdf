@@ -57,7 +57,14 @@ function nativeLunaCsp(mode: string) {
     transformIndexHtml(html: string) {
       const base = "connect-src 'self' https://tessdata.projectnaptha.com;";
       if (!html.includes(base)) throw new Error("PDF Studio CSP source was not found.");
-      return html.replace(base, `connect-src 'self' https://tessdata.projectnaptha.com${origins.map(x => " " + x).join("")};`);
+      let output = html.replace(base, `connect-src 'self' https://tessdata.projectnaptha.com${origins.map(x => " " + x).join("")};`);
+      // The Account probe iframe transmits only signed-in/eligibility booleans.
+      // It is permitted only when the full first-party OAuth client is configured.
+      if (env.VITE_PDF_ACCOUNT_CLIENT_ID && env.VITE_PDF_ACCOUNT_REDIRECT_URI) {
+        if (!output.includes("object-src 'none';")) throw new Error("Expected object-src CSP anchor");
+        output = output.replace("object-src 'none';", "frame-src https://account.thiepn.dev; object-src 'none';");
+      }
+      return output;
     }
   };
 }
