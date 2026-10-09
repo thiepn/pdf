@@ -30,6 +30,7 @@ interface PendingAuthorization {state:string;verifier:string;startedAt:number;cl
 let callbackFlight:Promise<boolean>|null=null;
 let refreshFlight:Promise<AccountSession|null>|null=null;
 let lastProbe=0;
+let probeFlight:Promise<PdfSsoProbe>|null=null;
 let signOutGeneration=0;
 
 function exactOrigin(raw:string):URL {
@@ -240,10 +241,11 @@ export function parsePdfSsoProbeMessage(raw:unknown,clientId:string):PdfSsoProbe
   return row.eligible?"signed-in":"disconnected";
 }
 export async function probePdfAccountSso(config:NativeLunaConfig):Promise<PdfSsoProbe>{
+  if(probeFlight)return probeFlight;
   if(pdfAccountLocallyDisconnected(config)||typeof document==="undefined"||!document.body||
     !navigator.onLine||Date.now()-lastProbe<30_000)return "unavailable";
   lastProbe=Date.now();
-  return new Promise(resolve=>{
+  const pending=new Promise<PdfSsoProbe>(resolve=>{
     const iframe=document.createElement("iframe");
     iframe.hidden=true;iframe.tabIndex=-1;iframe.setAttribute("aria-hidden","true");
     iframe.setAttribute("sandbox","allow-scripts allow-same-origin");
@@ -263,4 +265,6 @@ export async function probePdfAccountSso(config:NativeLunaConfig):Promise<PdfSso
     timeout=setTimeout(()=>finish("unavailable"),PROBE_TIMEOUT_MS);
     try{document.body.appendChild(iframe);}catch{finish("unavailable");}
   });
+  probeFlight=pending.finally(()=>{probeFlight=null;});
+  return probeFlight;
 }
