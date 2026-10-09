@@ -706,13 +706,16 @@ function intersectionRatio(a: NativeRect, b: NativeRect): number {
   return area / Math.max(1, Math.min(a.w * a.h, b.w * b.h));
 }
 
-function save(pdf: PdfDocument): Uint8Array {
-  // P3 source transforms do not need a document-wide clean pass, annotation
-  // appearance rebuild, or image/font recompression. Those aggressive save
-  // options rewrite unrelated object graphs and make a subsequent P6 overlay
-  // pass unnecessarily expensive. Garbage collection still removes unreachable
-  // redacted image objects; the writer immediately reopens and validates output.
-  const buffer = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
+function save(pdf: PdfDocument, preserveMaskedSources = false): Uint8Array {
+  // For exclusively source-preserving masked transforms, do not garbage
+  // collect or recompress the document's shared image/SMask object graph.
+  // Both operations may change a resource graph that the edit never touched.
+  // Never use this mode for deletion or redaction: such outputs require the
+  // original garbage collection so removed source bytes are not retained.
+  const options = preserveMaskedSources
+    ? "garbage=0,compress=no,encrypt=keep"
+    : "garbage=4,compress=yes,encrypt=keep";
+  const buffer = pdf.saveToBuffer(options);
   try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
 }
 
@@ -774,7 +777,11 @@ self.onmessage = (event: MessageEvent<Request>) => {
         } finally { page.destroy(); }
       }
 
-      const output = save(pdf);
+      const onlyMaskedSourceTransforms = request.edits.length > 0 && request.edits.every((edit) =>
+        beforeClasses.get(edit.id) === "masked"
+        && (edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform")) === "transform"
+      );
+      const output = save(pdf, onlyMaskedSourceTransforms);
       const reopened = new (mupdf as any).PDFDocument(output);
       try {
         auth(reopened, request.password);
