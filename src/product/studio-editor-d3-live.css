@@ -151,20 +151,7 @@
   .product-app [data-d3-editor="true"] .editor-commandbar__center {
     flex: 1 1 auto;
   }
-  .product-app [data-d3-editor="true"] .editing-toolbar {
-    justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: thin;
-  }
-  .product-app [data-d3-editor="true"] .editing-toolbar__primary {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-  }
-  .product-app [data-d3-editor="true"] .editing-toolbar button {
-    flex: 0 0 auto;
-    min-height: 44px;
-    white-space: nowrap;
-  }
+  /* Tablet editing-toolbar overflow is owned by D12 visual QA. */
 }
 @media (max-width: 800px) {
   .product-app [data-d3-editor="true"] .editing-toolbar.compact-editor-bar {
