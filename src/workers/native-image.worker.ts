@@ -1,7 +1,7 @@
 import * as mupdf from "mupdf";
 import { rectFromArray } from "../native/nativeModel";
 import { classifyImageFidelity } from "../native/nativeFidelity";
-import { imagePreservationBaseline, imageBoxDistance, requirePreservedImageSiblings, matchRenderedMaskedInvocations, type ObservedImageInstance, type MaskedInvocationEvidence } from "../native/nativeImageEvidence";
+import { imagePreservationBaseline, imageBoxDistance, requirePreservedImageSiblings, matchRenderedMaskedInvocations, pdfInvocationToRenderedBounds, type ObservedImageInstance, type MaskedInvocationEvidence } from "../native/nativeImageEvidence";
 import type { NativeExportReport, NativeImageEdit, NativeImageFidelityClass, NativeImageObject, NativeImageRotation, NativeRect } from "../types/nativeEditor";
 
 type Request =
@@ -278,6 +278,11 @@ function imageBoundsFromMatrix(matrix: number[]): NativeRect {
  */
 function directMaskedInvocationBounds(page: PdfPage, paints: ReturnType<typeof directImagePaints>): MaskedInvocationEvidence[] {
   const candidates: MaskedInvocationEvidence[] = [];
+  const pageToPdf = safe(() => page.getTransform?.(), null as number[] | null);
+  // Without a finite MuPDF page-space → PDF-space transform, direct /Do
+  // operators cannot safely be associated with any rendered image instance.
+  if (!Array.isArray(pageToPdf) || pageToPdf.length !== 6
+    || pageToPdf.some(value => !Number.isFinite(value))) return candidates;
   const number = "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))";
   const pattern = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/([A-Za-z0-9_.:+-]+)\\s+Do\\s+Q\\b`, "g");
   for (const stream of contentStreams(page)) {
@@ -294,7 +299,10 @@ function directMaskedInvocationBounds(page: PdfPage, paints: ReturnType<typeof d
           || !paint.softMask || paint.explicitMask)) continue;
       candidates.push({
         resourceName,
-        bounds: imageBoundsFromMatrix(match.slice(1, 7).map(Number)),
+        bounds: pdfInvocationToRenderedBounds(
+          imageBoundsFromMatrix(match.slice(1, 7).map(Number)),
+          pageToPdf
+        ),
         softMask: true,
         explicitMask: false,
         clipped: false,
