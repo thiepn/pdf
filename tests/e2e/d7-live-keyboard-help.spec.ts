@@ -39,8 +39,15 @@ test("D7 phone focus dialog remains reachable in reduced motion and forced color
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
   const editor = await realEditor(page);
-  const trigger = editor.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: "Keyboard shortcuts" });
+  // D18 intentionally moved Keyboard shortcuts out of the 320px bar to
+  // preserve seven 44px touch controls. Keep genuine dialog/focus/forced-
+  // colors acceptance and open the help from its new accessible location.
+  const trigger = editor.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: "More tools", exact: true });
   await trigger.click();
+  const menu = editor.getByRole("dialog", { name: "Editor tools" });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("button", { name: "Keyboard shortcuts", exact: true }).click();
+  await expect(menu).toHaveCount(0);
   const dialog = editor.getByRole("dialog", { name: "Keyboard shortcuts" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Close keyboard shortcuts" }).focus();
