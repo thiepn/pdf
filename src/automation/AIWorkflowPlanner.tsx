@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NativeLunaControls } from "./NativeLunaControls";
 import { batchRecipeExecutionFingerprint } from "../processing/batchModel";
 import type { BatchRecipe } from "../types/batch";
 import {
@@ -78,11 +79,11 @@ export function AIWorkflowPlanner({recipe,disabled,onApply}: Props) {
   return <section className="f7-planner" aria-label="AI-assisted workflow planning">
     <div className="f7-planner__header">
       <div>
-        <span className="f6-kicker">F7 / ASSISTED PLANNING</span>
-        <h3>Plan with ChatGPT</h3>
-        <p>Describe the outcome. ChatGPT proposes actions; PDF Studio validates the plan. Nothing is applied or executed automatically.</p>
+        <span className="f6-kicker">F8 / NATIVE LUNA + ASSISTED PLANNING</span>
+        <h3>Plan with GPT-6 Luna or ChatGPT</h3>
+        <p>Describe the outcome. Native Luna or ChatGPT can propose actions; PDF Studio validates the plan. Nothing is applied or executed automatically.</p>
       </div>
-      <span className="f7-planner__mode">Manual AI bridge · no API credentials</span>
+      <span className="f7-planner__mode">Native Account-authenticated AI · manual fallback</span>
     </div>
     <div className="f7-planner__columns">
       <div className="f7-planner__stage">
