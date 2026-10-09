@@ -143,6 +143,43 @@ describe("P17 deep native-content fidelity policy", () => {
     } finally { page.destroy(); pdf.destroy(); sourceBytes.destroy(); }
   });
 
+  it("preserves masked source paints through the worker constructor and syntax check", () => {
+    // Mirror the worker's open/check/save path, not just Document.openDocument.
+    const pdf = new mupdf.PDFDocument(new Uint8Array(createP17NativeFidelityPdf()));
+    try {
+      pdf.checkSyntax();
+      const page = pdf.loadPage(0);
+      try {
+        const object = page.getObject();
+        const original = object.get("Contents");
+        if (!original?.isStream()) throw new Error("Missing source stream");
+        const buffer = original.readStream();
+        let stream: string;
+        try { stream = buffer.asString(); }
+        finally { buffer.destroy(); }
+        const from = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
+        const to = "q 50 0 0 50 412 474 cm /ImSoft Do Q";
+        expect(stream).toContain(from);
+        object.put("Contents", pdf.addStream(stream.replace(from, to), pdf.newDictionary()));
+      } finally { page.destroy(); }
+      const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
+      try {
+        const reopened = new mupdf.PDFDocument(new Uint8Array(saved.asUint8Array()));
+        try {
+          const page = reopened.loadPage(0);
+          try {
+            const images: number[][] = [];
+            const structured = page.toStructuredText("preserve-images");
+            try { structured.walk({ onImageBlock(bbox: number[]) { images.push(Array.from(bbox)); } }); }
+            finally { structured.destroy(); }
+            expect(images).toHaveLength(4);
+            expect(images.some((bbox) => Math.abs(bbox[0] - 478) < 2)).toBe(true);
+          } finally { page.destroy(); }
+        } finally { reopened.destroy(); }
+      } finally { saved.destroy(); }
+    } finally { pdf.destroy(); }
+  });
+
   it("keeps plain and shared image instances editable without mutating shared resource semantics", () => {
     const plain = classifyImageFidelity({ invocationCount: 1 });
     const shared = classifyImageFidelity({ invocationCount: 3 });
