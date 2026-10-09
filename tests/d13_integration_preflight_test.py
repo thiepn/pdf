@@ -31,6 +31,16 @@ class D13IntegrationPreflightTests(unittest.TestCase):
         altered["phases"].pop(5)
         self.assertIn("expected precisely twelve phases", validate_manifest(altered))
 
+    def test_equivalent_d5_replay_must_be_immutable_and_disclosed(self):
+        original = self.manifest["phases"][4]["commit_sha"]
+        replay = self.manifest["phases"][4]["equivalent_applied_commit_sha"]
+        self.assertEqual(len(original), 40)
+        self.assertEqual(len(replay), 40)
+        self.assertNotEqual(original, replay)
+        altered = copy.deepcopy(self.manifest)
+        del altered["phases"][4]["equivalent_applied_commit_sha"]
+        self.assertIn("phase 5: equivalent D6 replay SHA required", validate_manifest(altered))
+
     def test_base_branch_drift_is_rejected(self):
         altered = copy.deepcopy(self.manifest)
         altered["phases"][8]["base_branch"] = "main"
