@@ -1,0 +1,89 @@
+name: D16 release-scope reconciliation and evidence qualification
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/d16-release-reconciliation.yml
+      - docs/design/D16_RELEASE_SCOPE_MANIFEST.json
+      - docs/design/D16_ROLLBACK_AND_APPROVAL.md
+      - scripts/design/d16_release_scope.py
+      - tests/d16_release_scope_test.py
+      - src/workers/native-image.worker.ts
+      - src/native/nativeImageEvidence.ts
+      - tests/e2e/d14-native-export.spec.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d16-reconciliation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preparation:
+    name: Exact ancestry, D8 inventory and release-scope refusal
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Test fail-closed ancestry and evidence rules
+        run: |
+          python -m unittest discover -s tests -p 'd16_release_scope_test.py' -v
+          python -m unittest discover -s tests -p 'd15_evidence_inventory_test.py' -v
+      - name: Verify pinned root/main and D13-D15 immutable commit ancestors
+        run: python -m scripts.design.d16_release_scope --repo . --check-ancestors --assert-prepared
+      - name: Preserve independent D8 release refusal
+        run: |
+          python -m scripts.design.d15_evidence_inventory
+          python scripts/design/d8_live_gate.py --evidence docs/design/D8_RELEASE_EVIDENCE.template.json
+      - name: Install exact dependencies
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Test real source-evidence reconstruction and P17 deep native fidelity
+        run: npx vitest run tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts
+      - name: Run full TypeScript validation
+        run: npm run typecheck
+      - name: Build exact browser artifact
+        run: npm run build
+
+  browsers:
+    name: Real PDF masked export and cross-browser integration (${{ matrix.browser }})
+    needs: preparation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify downloaded PDF and untouched image instances after independent reopen
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d14-native-export.spec.mjs tests/e2e/d13-release-candidate.spec.mjs tests/e2e/d10-editor-status.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Retain visual evidence for human approval, not automatic acceptance
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d16-pdf-release-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

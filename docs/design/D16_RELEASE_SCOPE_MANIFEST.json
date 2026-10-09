@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "repository": "thiepn/pdf",
+  "phase": "D16",
+  "candidate_branch": "release/d16-reconciliation-and-qualification",
+  "status": "REVIEW_BLOCKED",
+  "release_qualified": false,
+  "automatic_merge_allowed": false,
+  "automatic_deployment_allowed": false,
+  "observed_main": {
+    "branch": "main",
+    "sha": "6f4f5c1b3b20a0565795879bef77265a4cdea6c0",
+    "observed_date": "2026-10-09",
+    "compare_to_d15": {
+      "ahead_by": 731,
+      "behind_by": 0,
+      "changed_files": 295
+    },
+    "review_required": true
+  },
+  "upstream_root": {
+    "branch": "feature/p17-deep-native-content-fidelity",
+    "sha": "dd23b3c2a0563de7c429fe42738f0d5d748e478e",
+    "review_required": true
+  },
+  "dependency_stack": [
+    {
+      "phase": "D13",
+      "pr": 145,
+      "branch": "design/d13-integration-release-candidate",
+      "sha": "8adbc91071123ee5df4784b099042d82e8739658",
+      "base": "design/d12-visual-qa-css-cleanup"
+    },
+    {
+      "phase": "D14",
+      "pr": 147,
+      "branch": "design/d14-native-fidelity-export-reliability",
+      "sha": "7b2b16b8c3c045536ad5454e1118d55a8f1a7bdc",
+      "base": "design/d13-integration-release-candidate"
+    },
+    {
+      "phase": "D15",
+      "pr": 148,
+      "branch": "design/d15-regression-evidence-closure",
+      "sha": "68e285281507358ede15ed5c07a0dd7548c0ea2a",
+      "base": "design/d14-native-fidelity-export-reliability"
+    }
+  ],
+  "d8_template": "docs/design/D8_RELEASE_EVIDENCE.template.json",
+  "d8_original_requirements": 18,
+  "d8_approved_at_capture": 0,
+  "known_blockers": [
+    {
+      "id": "P17-MASKED-EXPORT",
+      "required": "Chromium/Firefox/WebKit real PDF transform preserves all four painted images, both soft masks and untouched sibling after reopen",
+      "last_confirmed": "failure",
+      "run": "https://github.com/thiepn/pdf/actions/runs/37935321130"
+    },
+    {
+      "id": "D15-EXACT-HEAD-CI",
+      "required": "D15 full CI plus D14 independent export, P17, performance, R10, and D15 evidence matrix pass on exact final head",
+      "last_confirmed": "pending"
+    },
+    {
+      "id": "D8-HUMAN-APPROVAL",
+      "required": "18 source-backed D8 records reviewed and all manual/device gates accepted",
+      "last_confirmed": "pending"
+    },
+    {
+      "id": "P17-P18-DEVICES",
+      "required": "independent physical phone, tablet, WebKit/Safari, keyboard and screen-reader acceptance",
+      "last_confirmed": "pending"
+    },
+    {
+      "id": "MAIN-DEPLOY-RECONCILIATION",
+      "required": "review 731 inherited commits/295 files and P17 dependency, approve rollback and promotion",
+      "last_confirmed": "pending"
+    }
+  ],
+  "release_policy": "PREPARATION_ONLY_NOT_RELEASE_APPROVAL",
+  "observed_stable_release": {
+    "tag": "v7.1.4",
+    "tag_object_sha": "f697ff30b9bb1974eec3993720f12eb8b060ffe3",
+    "commit_sha": "2116a61b73b6fdb18aa19a8175d9ebae4b43c159",
+    "published_at": "2026-10-01T12:49:57Z",
+    "release_review_required": true,
+    "source": "GitHub annotated tag + published release"
+  }
+}
