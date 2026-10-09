@@ -23,9 +23,10 @@ function exactOrigin(raw:string):URL {
   return url;
 }
 export function nativeLunaConfig():NativeLunaConfig|null {
-  const core=import.meta.env.VITE_PDF_CORE_URL;
-  const account=import.meta.env.VITE_PDF_ACCOUNT_SUPABASE_URL;
-  const key=import.meta.env.VITE_PDF_ACCOUNT_PUBLIC_KEY;
+  const env = import.meta.env as unknown as Record<string, string | undefined>;
+  const core=env["VITE_PDF_CORE_URL"];
+  const account=env["VITE_PDF_ACCOUNT_SUPABASE_URL"];
+  const key=env["VITE_PDF_ACCOUNT_PUBLIC_KEY"];
   if(!core||!account||!key)return null;
   return {coreUrl:exactOrigin(core),accountUrl:exactOrigin(account),publicKey:key};
 }
