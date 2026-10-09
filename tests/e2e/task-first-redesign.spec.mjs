@@ -155,10 +155,13 @@ test("opened PDFs surface local task recommendations through the existing worksp
     // D12 moved suggestions inside the real editor work area and bounds them
     // to keep the PDF canvas usable; they no longer sit above workspace-body.
     const recommendationBox = await recommendations.boundingBox();
+    const overlayBox = await page.locator(".document-entry-overlay").boundingBox();
     const stageBox = await page.locator(".editor-stage").boundingBox();
     expect(recommendationBox).toBeTruthy();
+    expect(overlayBox).toBeTruthy();
     expect(stageBox).toBeTruthy();
-    expect(recommendationBox.height).toBeLessThanOrEqual(169);
+    // The scrollable overlay, not its scrollable contents, owns the 168px cap.
+    expect(overlayBox.height).toBeLessThanOrEqual(169);
     expect(stageBox.height).toBeGreaterThan(300);
     await noOverflow(page);
 
