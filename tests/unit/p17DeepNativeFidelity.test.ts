@@ -46,7 +46,7 @@ describe("P17 deep native-content fidelity policy", () => {
   it("keeps the generated deep-fidelity fixture structurally explicit", () => {
     const source = new TextDecoder().decode(createP17NativeFidelityPdf());
     expect(source).toContain("/SMask 7 0 R");
-    expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
+      expect(source.split("/ImSoft Do").length - 1).toBe(2);
     expect(source).toContain("/GSBlend gs");
     expect(source).toContain("re W n");
   });
@@ -67,7 +67,7 @@ describe("P17 deep native-content fidelity policy", () => {
         let source: string;
         try { source = buffer.asString(); }
         finally { buffer.destroy(); }
-        expect(source.match(/\/ImSoft Do/g)).toHaveLength(2);
+      expect(source.split("/ImSoft Do").length - 1).toBe(2);
         const oldPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
         const newPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
         expect(source).toContain(oldPaint);
@@ -93,6 +93,90 @@ describe("P17 deep native-content fidelity policy", () => {
         } finally { reopened.destroy(); }
       } finally { saved.destroy(); }
     } finally { pdf.destroy(); sourceBytes.destroy(); }
+  });
+
+  it("round-trips a copy-on-write masked invocation without dropping sibling images", () => {
+    const sourceBytes = new mupdf.Buffer();
+    for (const byte of createP17NativeFidelityPdf()) sourceBytes.writeByte(byte);
+    const pdf = mupdf.Document.openDocument(sourceBytes, "application/pdf") as mupdf.PDFDocument;
+    const page = pdf.loadPage(0);
+    try {
+      const pageObject = page.getObject();
+      const originalContents = pageObject.get("Contents");
+      if (!originalContents?.isStream()) throw new Error("Missing single-page source stream");
+      const sourceBuffer = originalContents.readStream();
+      let source: string;
+      try { source = sourceBuffer.asString(); }
+      finally { sourceBuffer.destroy(); }
+      const originalPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
+      const updatedPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
+      expect(source.split("/ImSoft Do").length - 1).toBe(2);
+      expect(source).toContain(originalPaint);
+      // Exercise the same page-object replacement API as the D14 writer.
+      const replacement = pdf.addStream(source.replace(originalPaint, updatedPaint), pdf.newDictionary());
+      pageObject.put("Contents", replacement);
+      // Before the final garbage-collecting save, the old indirect object is
+      // still unchanged; after garbage=4 it may legitimately be unreachable.
+      const preserved = originalContents.readStream();
+      try { expect(preserved.asString()).toContain(originalPaint); }
+      finally { preserved.destroy(); }
+      const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
+      try {
+        const reopened = mupdf.Document.openDocument(saved, "application/pdf") as mupdf.PDFDocument;
+        try {
+          const updatedPage = reopened.loadPage(0);
+          try {
+            const imageBounds: number[][] = [];
+            const structured = updatedPage.toStructuredText("preserve-images");
+            try {
+              structured.walk({ onImageBlock(bbox: number[]) { imageBounds.push(Array.from(bbox)); } });
+            } finally { structured.destroy(); }
+            expect(imageBounds).toHaveLength(4);
+            expect(imageBounds.some((bbox) => Math.abs(bbox[0] - 402) < 2)).toBe(true);
+            // The second instance of the same /SMask resource is untouched.
+            expect(imageBounds.some((bbox) => Math.abs(bbox[0] - 478) < 2)).toBe(true);
+            expect(imageBounds.filter((bbox) => bbox[0] > 350 && bbox[0] < 470)).toHaveLength(2);
+          } finally { updatedPage.destroy(); }
+        } finally { reopened.destroy(); }
+      } finally { saved.destroy(); }
+
+    } finally { page.destroy(); pdf.destroy(); sourceBytes.destroy(); }
+  });
+
+  it("preserves masked source paints through the worker PDFDocument constructor", () => {
+    // Mirror the worker's PDFDocument constructor, not just Document.openDocument.
+    const pdf = new mupdf.PDFDocument(new Uint8Array(createP17NativeFidelityPdf()));
+    try {
+      const page = pdf.loadPage(0);
+      try {
+        const object = page.getObject();
+        const original = object.get("Contents");
+        if (!original?.isStream()) throw new Error("Missing source stream");
+        const buffer = original.readStream();
+        let stream: string;
+        try { stream = buffer.asString(); }
+        finally { buffer.destroy(); }
+        const from = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
+        const to = "q 50 0 0 50 412 474 cm /ImSoft Do Q";
+        expect(stream).toContain(from);
+        object.put("Contents", pdf.addStream(stream.replace(from, to), pdf.newDictionary()));
+      } finally { page.destroy(); }
+      const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
+      try {
+        const reopened = new mupdf.PDFDocument(new Uint8Array(saved.asUint8Array()));
+        try {
+          const page = reopened.loadPage(0);
+          try {
+            const images: number[][] = [];
+            const structured = page.toStructuredText("preserve-images");
+            try { structured.walk({ onImageBlock(bbox: number[]) { images.push(Array.from(bbox)); } }); }
+            finally { structured.destroy(); }
+            expect(images).toHaveLength(4);
+            expect(images.some((bbox) => Math.abs(bbox[0] - 478) < 2)).toBe(true);
+          } finally { page.destroy(); }
+        } finally { reopened.destroy(); }
+      } finally { saved.destroy(); }
+    } finally { pdf.destroy(); }
   });
 
   it("keeps plain and shared image instances editable without mutating shared resource semantics", () => {

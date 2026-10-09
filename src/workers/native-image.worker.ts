@@ -623,19 +623,21 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const target = matches[0];
   const drawing = action === "delete" ? "q Q\n" : imageDrawingContent(pdf, page, resourceName, image.width ?? 1, image.height ?? 1, edit);
   const rewritten = source.slice(0, target.start) + drawing + source.slice(target.start + target.length);
-  // Preserve the existing /Contents stream reference and its page-resource
-  // relationships. It also avoids introducing another indirect stream when
-  // the existing one can be safely rewritten in place.
-  // A single direct stream is required above; never rewrite stream arrays.
-  if (!current.isStream?.() || typeof current.writeStream !== "function") {
-    throw new Error("The masked image content stream cannot be rewritten safely; the source remains unchanged.");
+  // Copy on write: never mutate the indirect source /Contents object in
+  // place. MuPDF can retain an old display list for a previously loaded page,
+  // and other references may still resolve to that original stream. Installing
+  // an entirely new stream gives the reopened document one unambiguous page
+  // content graph while leaving the source object intact for rollback.
+  // Only qualified single-stream, page-local invocations reach this point;
+  // multiple streams and shared page content are rejected above.
+  if (!current.isStream?.()) {
+    throw new Error("The masked image content stream cannot be copied safely; the source remains unchanged.");
   }
-  // Match the engine-level round-trip regression: use MuPDF's own Buffer
-  // so the native stream writer sees a Wasm-owned buffer, not an external
-  // JS typed-array view whose lifetime/realm may differ across workers.
-  const nativeBytes = new (mupdf as any).Buffer(rewritten);
-  try { current.writeStream(nativeBytes); }
-  finally { nativeBytes.destroy(); }
+  const replacement = pdf.addStream(rewritten, pdf.newDictionary());
+  if (!replacement?.isStream?.()) {
+    throw new Error("The masked image replacement content stream was not created.");
+  }
+  pageObject.put("Contents", replacement);
 }
 
 function rectDistance(a: NativeRect, b: NativeRect): number {
@@ -704,13 +706,16 @@ function intersectionRatio(a: NativeRect, b: NativeRect): number {
   return area / Math.max(1, Math.min(a.w * a.h, b.w * b.h));
 }
 
-function save(pdf: PdfDocument): Uint8Array {
-  // P3 source transforms do not need a document-wide clean pass, annotation
-  // appearance rebuild, or image/font recompression. Those aggressive save
-  // options rewrite unrelated object graphs and make a subsequent P6 overlay
-  // pass unnecessarily expensive. Garbage collection still removes unreachable
-  // redacted image objects; the writer immediately reopens and validates output.
-  const buffer = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
+function save(pdf: PdfDocument, preserveMaskedSources = false): Uint8Array {
+  // For exclusively source-preserving masked transforms, do not garbage
+  // collect or recompress the document's shared image/SMask object graph.
+  // Both operations may change a resource graph that the edit never touched.
+  // Never use this mode for deletion or redaction: such outputs require the
+  // original garbage collection so removed source bytes are not retained.
+  const options = preserveMaskedSources
+    ? "garbage=0,compress=no,encrypt=keep"
+    : "garbage=4,compress=yes,encrypt=keep";
+  const buffer = pdf.saveToBuffer(options);
   try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
 }
 
@@ -772,7 +777,11 @@ self.onmessage = (event: MessageEvent<Request>) => {
         } finally { page.destroy(); }
       }
 
-      const output = save(pdf);
+      const onlyMaskedSourceTransforms = request.edits.length > 0 && request.edits.every((edit) =>
+        beforeClasses.get(edit.id) === "masked"
+        && (edit.action ?? (edit.bytes?.byteLength ? "replace" : "transform")) === "transform"
+      );
+      const output = save(pdf, onlyMaskedSourceTransforms);
       const reopened = new (mupdf as any).PDFDocument(output);
       try {
         auth(reopened, request.password);

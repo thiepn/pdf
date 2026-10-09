@@ -1,0 +1,66 @@
+name: D14 native fidelity and export qualification
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/d14-native-fidelity-export.yml
+      - src/workers/native-image.worker.ts
+      - src/native/nativeFidelity.ts
+      - src/fixtures/p17NativeFidelityPdf.ts
+      - tests/unit/p17DeepNativeFidelity.test.ts
+      - tests/e2e/p17-native-fidelity.spec.ts
+      - tests/e2e/d13-release-candidate.spec.mjs
+      - tests/e2e/d14-native-export.spec.mjs
+      - docs/design/D14_NATIVE_FIDELITY_EXPORT.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-unit:
+    name: Real masked-image round trip and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: P17 deep-fidelity unit tests
+        run: npx vitest run tests/unit/p17DeepNativeFidelity.test.ts
+      - name: Full application and test typecheck
+        run: npm run typecheck
+
+  browser-evidence:
+    name: Native masked-image export and independent reopen (${{ matrix.browser }})
+    needs: native-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install real browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Qualify masked source images and PDF export/reopen
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d13-release-candidate.spec.mjs tests/e2e/d14-native-export.spec.mjs --project=${{ matrix.browser }} --workers=1 --retries=0
+      - name: Retain evidence without approval
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d14-native-export-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
