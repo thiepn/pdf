@@ -115,6 +115,11 @@ describe("P17 deep native-content fidelity policy", () => {
       // Exercise the same page-object replacement API as the D14 writer.
       const replacement = pdf.addStream(source.replace(originalPaint, updatedPaint));
       pageObject.put("Contents", replacement);
+      // Before the final garbage-collecting save, the old indirect object is
+      // still unchanged; after garbage=4 it may legitimately be unreachable.
+      const preserved = originalContents.readStream();
+      try { expect(preserved.asString()).toContain(originalPaint); }
+      finally { preserved.destroy(); }
       const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
       try {
         const reopened = mupdf.Document.openDocument(saved, "application/pdf") as mupdf.PDFDocument;
@@ -134,11 +139,7 @@ describe("P17 deep native-content fidelity policy", () => {
           } finally { updatedPage.destroy(); }
         } finally { reopened.destroy(); }
       } finally { saved.destroy(); }
-      // Copy-on-write preserves the old indirect stream for undo/debug
-      // rather than mutating unrelated references in the original PDF graph.
-      const preserved = originalContents.readStream();
-      try { expect(preserved.asString()).toContain(originalPaint); }
-      finally { preserved.destroy(); }
+
     } finally { page.destroy(); pdf.destroy(); sourceBytes.destroy(); }
   });
 
