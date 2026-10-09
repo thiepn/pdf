@@ -1,0 +1,90 @@
+/* D12 — evidence-led correction of real D11 browser captures.
+ * Ownership: viewport presentation only; no PDF content scale/transform
+ * or editing/export logic. This sheet intentionally contains no !important.
+ */
+
+/* D11 Chromium tablet capture: long tool names collided because the toolbar
+ * flex row compressed its primary group instead of scrolling that group. */
+@media (min-width: 801px) and (max-width: 1100px) {
+  .product-app .editor-app[data-d3-editor="true"] .editing-toolbar:not(.compact-editor-bar) {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow: hidden;
+    min-width: 0;
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .product-app .editor-app[data-d3-editor="true"] .editing-toolbar__primary {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .product-app .editor-app[data-d3-editor="true"] .editing-toolbar__primary > button {
+    flex: 0 0 auto;
+    width: max-content;
+    min-height: var(--studio-touch-height);
+    white-space: nowrap;
+  }
+
+  .product-app .editor-app[data-d3-editor="true"] .editing-toolbar > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+/* D11 Chromium desktop capture: recommendation details occupied around a
+ * quarter of the viewport before the first PDF page. Keep them accessible
+ * through a bounded scroll area; the document remains the dominant surface.
+ * Do not hide or remove capability warnings/recommendation actions. */
+@media (min-width: 901px) {
+  .product-app .document-entry-overlay {
+    max-height: min(168px, 22dvh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    border-radius: var(--studio-radius-panel);
+  }
+  .product-app .document-entry-overlay .document-entry-recommendations {
+    border-radius: var(--studio-radius-panel);
+    box-shadow: none;
+  }
+  .product-app .document-entry-overlay .document-entry-recommendations__header {
+    padding-block: 8px 6px;
+  }
+  .product-app .document-entry-overlay .document-entry-recommendation {
+    padding: 9px 11px;
+  }
+}
+
+/* Avoid visually fighting the more important page preview with stacked panel
+ * shadows. Keep visible boundaries and active selection colors. */
+.product-app .editor-app[data-d3-editor="true"] .editor-left-panel,
+.product-app .editor-app[data-d3-editor="true"] .editor-properties {
+  box-shadow: none;
+}
+.product-app .editor-app[data-d3-editor="true"] .editor-page-layers {
+  box-shadow: var(--studio-document-shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-app .editor-app[data-d3-editor="true"] .editing-toolbar__primary {
+    scroll-behavior: auto;
+  }
+}
+@media (forced-colors: active) {
+  .product-app .document-entry-overlay .document-entry-recommendations {
+    border-color: CanvasText;
+  }
+}

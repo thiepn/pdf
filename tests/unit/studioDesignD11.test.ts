@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
-import imports from "../../src/product/product.css?raw";
-import tokens from "../../src/product/studio-tokens-d11.css?raw";
-import chrome from "../../src/product/studio-chrome-d11.css?raw";
-import foundation from "../../src/product/foundation.css?raw";
-import home from "../../src/product/studio-workspace-d1.css?raw";
-import directory from "../../src/product/studio-discovery-d2.css?raw";
-import editor from "../../src/product/studio-editor-d3-live.css?raw";
-import quick from "../../src/product/studio-quicktools-d5-live.css?raw";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+// Vitest can resolve CSS ?raw imports to empty strings in its Node test runner.
+// Read literal repository files instead, so these assertions fail on missing
+// or wrong CSS rather than depending on the Vite CSS transformation pipeline.
+const productSource = (filename: string): string =>
+  readFileSync(resolve(process.cwd(), "src", "product", filename), "utf8");
+
+const imports = productSource("product.css");
+const tokens = productSource("studio-tokens-d11.css");
+const chrome = productSource("studio-chrome-d11.css");
+const foundation = productSource("foundation.css");
+const home = productSource("studio-workspace-d1.css");
+const directory = productSource("studio-discovery-d2.css");
+const editor = productSource("studio-editor-d3-live.css");
+const quick = productSource("studio-quicktools-d5-live.css");
 
 const importedFiles = Array.from(imports.matchAll(/@import\s+"\.\/([^"]+)";/g), (match) => match[1]);
 const tokenNames = Array.from(tokens.matchAll(/(--studio-[a-z0-9-]+)\s*:/g), (match) => match[1]);
@@ -15,7 +24,8 @@ const tokenDefinitions = new Set(tokenNames);
 describe("D11 visual design-system contract", () => {
   it("loads tokens immediately after the foundation and chrome at the end", () => {
     expect(importedFiles.slice(0, 2)).toEqual(["foundation.css", "studio-tokens-d11.css"]);
-    expect(importedFiles.at(-1)).toBe("studio-chrome-d11.css");
+    expect(importedFiles.at(-2)).toBe("studio-chrome-d11.css");
+    expect(importedFiles.at(-1)).toBe("studio-visual-qa-d12.css");
     expect(new Set(importedFiles).size).toBe(importedFiles.length);
     expect(importedFiles).toContain("studio-editor-d10-status.css");
   });
