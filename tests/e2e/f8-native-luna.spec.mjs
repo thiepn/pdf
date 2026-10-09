@@ -10,11 +10,15 @@ test("F8 native GPT-6 Luna proposes, validates, waits for apply and never execut
   await page.addInitScript(s=>sessionStorage.setItem("pdf-studio:f8:account-session",JSON.stringify(s)),session);
   let modelCalls=0;
   await page.route("https://core.example/v1/pdf/ai/plan",async route=>{
+    if(route.request().method()==="OPTIONS"){
+      await route.fulfill({status:204,headers:{"Access-Control-Allow-Origin":"http://127.0.0.1:4173","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Authorization, Content-Type"}});
+      return;
+    }
     modelCalls++;
     const data=route.request().postDataJSON();
     expect(data).toEqual({input:{goal:"Rotate every page and remove metadata"}});
     expect(route.request().headers().authorization).toMatch(/^Bearer test-account-access/);
-    await route.fulfill({json:{
+    await route.fulfill({headers:{"Access-Control-Allow-Origin":"http://127.0.0.1:4173"},json:{
       ok:true,meta:{requestId:"req-f8-e2e"},data:{
         capability:"pdf.planWorkflow",version:1,model:"gpt-6-luna",data:{
           schemaVersion:1,title:"Rotate and clean metadata",rationale:"Two requested actions.",
@@ -33,7 +37,7 @@ test("F8 native GPT-6 Luna proposes, validates, waits for apply and never execut
   await expect(native.getByText("THIEPN Account connected")).toBeVisible();
   await planner.getByRole("textbox",{name:"PDF workflow goal"}).fill("Rotate every page and remove metadata");
   await native.getByRole("button",{name:"Generate with Luna"}).click();
-  await expect(page.getByLabel("Proposed workflow review")).toBeVisible({timeout:15000});
+  await expect(page.locator(".f7-review")).toBeVisible({timeout:15000});
   await expect(page.getByLabel("Proposed workflow review")).toContainText("Rotate and clean metadata");
   expect(modelCalls).toBe(1);
   await expect(page.locator(".f6-step")).toHaveCount(1);
