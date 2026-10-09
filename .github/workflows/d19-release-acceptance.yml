@@ -1,0 +1,112 @@
+name: D19 coordinate fidelity and human acceptance handoff
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/d19-release-acceptance.yml
+      - src/native/nativeImageEvidence.ts
+      - src/workers/native-image.worker.ts
+      - tests/unit/d18NativeGeometryRoundTrip.test.ts
+      - tests/unit/nativeImageEvidenceD15.test.ts
+      - tests/e2e/d7-live-keyboard-help.spec.ts
+      - scripts/design/d17_live_pages_probe.py
+      - tests/d17_live_pages_probe_test.py
+      - docs/design/D19_HUMAN_ACCEPTANCE_PACKET.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d19-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-policy:
+    name: PDF page transforms, real render, source/build/security and fail-closed D8
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: npm ci --no-audit --no-fund
+      - name: Original four rendered images and two source-attached masks
+        run: npx vitest run tests/unit/d18NativeGeometryRoundTrip.test.ts tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts
+      - name: Verify service worker against live-assignment identity and D8 inventory
+        run: |
+          python -m unittest discover -s tests -p d17_live_pages_probe_test.py -v
+          python -m unittest discover -s tests -p d15_evidence_inventory_test.py -v
+          python -m scripts.design.d15_evidence_inventory
+      - name: Check immutable stable rollback, inherited branch ancestry and human-only release refusal
+        run: python -m scripts.design.d16_release_scope --repo . --check-ancestors --assert-prepared
+      - name: Full TypeScript and exact distribution validation
+        run: |
+          npm run typecheck
+          npm run build:verified
+      - name: Production privacy/security gate
+        run: npm run audit:security
+
+  pdf-browsers:
+    name: Independent downloaded PDF geometry/SMask and D7 focus (${{ matrix.browser }})
+    needs: source-and-policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: P17 real source edit and independent reopen, D14 masked download and D7 keyboard/focus
+        run: npx playwright test tests/e2e/p17-native-fidelity.spec.ts tests/e2e/d14-native-export.spec.mjs tests/e2e/d7-live-keyboard-help.spec.ts --project=${{ matrix.browser }} --workers=1 --retries=0
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: d19-pdf-device-evidence-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  live-production:
+    name: Read-only published v7.1.4 Pages metadata and SW identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Fail on any unverified or inconsistent live identity
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          python -m scripts.design.d17_live_pages_probe --url https://thiepn.github.io/pdf/ | tee evidence/d19-live-pages.json
+      - name: Save factual remote hash evidence for independent review
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: d19-live-pages-evidence
+          path: evidence/d19-live-pages.json
+          retention-days: 14
+          if-no-files-found: ignore
