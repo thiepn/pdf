@@ -95,6 +95,53 @@ describe("P17 deep native-content fidelity policy", () => {
     } finally { pdf.destroy(); sourceBytes.destroy(); }
   });
 
+  it("round-trips a copy-on-write masked invocation without dropping sibling images", () => {
+    const sourceBytes = new mupdf.Buffer();
+    for (const byte of createP17NativeFidelityPdf()) sourceBytes.writeByte(byte);
+    const pdf = mupdf.Document.openDocument(sourceBytes, "application/pdf") as mupdf.PDFDocument;
+    const page = pdf.loadPage(0);
+    try {
+      const pageObject = page.getObject();
+      const originalContents = pageObject.get("Contents");
+      if (!originalContents?.isStream()) throw new Error("Missing single-page source stream");
+      const sourceBuffer = originalContents.readStream();
+      let source: string;
+      try { source = sourceBuffer.asString(); }
+      finally { sourceBuffer.destroy(); }
+      const originalPaint = "q 70 0 0 50 390 474 cm /ImSoft Do Q";
+      const updatedPaint = "q 70 0 0 50 402 474 cm /ImSoft Do Q";
+      expect(source.match(/\\/ImSoft Do/g)).toHaveLength(2);
+      expect(source).toContain(originalPaint);
+      // Exercise the same page-object replacement API as the D14 writer.
+      const replacement = pdf.addStream(source.replace(originalPaint, updatedPaint));
+      pageObject.put("Contents", replacement);
+      const saved = pdf.saveToBuffer("garbage=4,compress=yes,encrypt=keep");
+      try {
+        const reopened = mupdf.Document.openDocument(saved, "application/pdf") as mupdf.PDFDocument;
+        try {
+          const updatedPage = reopened.loadPage(0);
+          try {
+            const imageBounds: number[][] = [];
+            const structured = updatedPage.toStructuredText("preserve-images");
+            try {
+              structured.walk({ onImageBlock(bbox: number[]) { imageBounds.push(Array.from(bbox)); } });
+            } finally { structured.destroy(); }
+            expect(imageBounds).toHaveLength(4);
+            expect(imageBounds.some((bbox) => Math.abs(bbox[0] - 402) < 2)).toBe(true);
+            // The second instance of the same /SMask resource is untouched.
+            expect(imageBounds.some((bbox) => Math.abs(bbox[0] - 478) < 2)).toBe(true);
+            expect(imageBounds.filter((bbox) => bbox[0] > 350 && bbox[0] < 470)).toHaveLength(2);
+          } finally { updatedPage.destroy(); }
+        } finally { reopened.destroy(); }
+      } finally { saved.destroy(); }
+      // Copy-on-write preserves the old indirect stream for undo/debug
+      // rather than mutating unrelated references in the original PDF graph.
+      const preserved = originalContents.readStream();
+      try { expect(preserved.asString()).toContain(originalPaint); }
+      finally { preserved.destroy(); }
+    } finally { page.destroy(); pdf.destroy(); sourceBytes.destroy(); }
+  });
+
   it("keeps plain and shared image instances editable without mutating shared resource semantics", () => {
     const plain = classifyImageFidelity({ invocationCount: 1 });
     const shared = classifyImageFidelity({ invocationCount: 3 });
