@@ -1,0 +1,65 @@
+name: F12 read-only original evidence custody and denied release
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f12/**'
+      - 'docs/f12/**'
+      - '.github/workflows/f12-release-evidence-preparation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  f12-source-bound-human-denial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Fail-closed adversarial evidence and acceptance tests
+        run: |
+          python -m unittest discover -s scripts/f12 -p 'test_*.py' -v
+          python -m py_compile scripts/f12/reconcile_acceptance.py scripts/f12/verify_github_evidence.py
+      - name: Verify real F11 source provenance and original GitHub artifact bytes
+        env:
+          F12_GITHUB_TOKEN: ${{ github.token }}
+          F12_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f12/verify_github_evidence.py \
+            --source-sha ab21d2d6e09033737d76867606454ba8f672c79f \
+            --implementation-sha "$F12_HEAD_SHA" \
+            --output-dir artifacts/f12-original-evidence
+      - name: Produce custody-bound DENIED human release packet
+        run: |
+          python scripts/f12/reconcile_acceptance.py \
+            --candidate-sha ab21d2d6e09033737d76867606454ba8f672c79f \
+            --runs-json artifacts/f12-original-evidence/runs.json \
+            --artifact-dir artifacts/f12-original-evidence/custody \
+            --packet artifacts/f12-acceptance/packet.json \
+            --report artifacts/f12-acceptance/denied-report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          packet = json.loads(Path("artifacts/f12-acceptance/packet.json").read_text())
+          report = json.loads(Path("artifacts/f12-acceptance/denied-report.json").read_text())
+          assert report["packetIntegrityPassed"] is True and report["releaseDecision"] == "DENIED"
+          assert report["authorizedToDeploy"] is False and packet["releaseEnabled"] is False
+          assert len(report["uncollectedHumanRequirements"]) == 9
+          assert all(x["status"] == "OPEN" and x["attestation"] is None for x in packet["humanRequirements"])
+          assert len(packet["artifactEvidence"]) == 5
+          print("F12: original artifact custody verified; 9 human approvals OPEN; RELEASE DENIED")
+          PY
+      - name: Preserve review packet and byte-authenticated external source evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f12-source-bound-denied-human-acceptance
+          path: |
+            artifacts/f12-original-evidence
+            artifacts/f12-acceptance
+          if-no-files-found: ignore
