@@ -68,7 +68,14 @@ class IndependentlyRootedIdentityCases(unittest.TestCase):
                 "identityProofSha256": hashlib.sha256(content).hexdigest(),
                 "status": "ACTIVE"
             })
-        self.manifest_sha = "d" * 64
+        self.manifest_path = "original-manifest.json"
+        manifest_bytes = b"synthetic review manifest; not real physical evidence"
+        (self.evidence / self.manifest_path).write_bytes(manifest_bytes)
+        self.manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+        self.postrelease_path = "synthetic-deployment-receipt.json"
+        receipt_bytes = b"synthetic closure source: no real deployment performed"
+        (self.evidence / self.postrelease_path).write_bytes(receipt_bytes)
+        self.postrelease_sha = hashlib.sha256(receipt_bytes).hexdigest()
 
     def registry(self, records=None, predecessor="0"*64, sequence=1):
         unsigned = {
@@ -100,14 +107,16 @@ class IndependentlyRootedIdentityCases(unittest.TestCase):
             "expiresAt": "2026-10-11T10:00:00Z",
             "nonce": format(index, "02x") * 16,
             "counter": 1, "reviewDisposition": "REVIEWED_NOT_AUTHORIZED",
-            "postreleaseReceiptSha256": "e" * 64 if phase == "POST_RELEASE" else None
+            "postreleaseReceiptSha256": self.postrelease_sha if phase == "POST_RELEASE" else None
         }
         payload.update(edits)
         return {"signerId": key_id, "payload": payload, "signature": sign(self.keys[key_id], payload)}
 
     def inspect(self, records):
         return f17.verify_review_requests(self.trust, self.verify_registry(),
-                                          records, HEAD, self.manifest_sha, NOW)
+                                          records, HEAD, self.manifest_sha, NOW,
+                                          self.evidence, self.manifest_path,
+                                          self.postrelease_path, self.postrelease_sha)
 
     def test_unsigned_missing_human_evidence_yields_nine_open_and_no_go(self):
         out = f17.adjudicate({}, {}, [], [], {}, HEAD, NOW)
@@ -179,7 +188,8 @@ class IndependentlyRootedIdentityCases(unittest.TestCase):
         prior = {"f16ImplementationSha": f17.F16_SHA, "releaseDecision": "NO_GO",
                  "authorizedToDeploy": False, "originalHumanPhysicalAcceptance": False}
         final = f17.adjudicate(self.trust, self.verify_registry(), reviews, [],
-                                prior, HEAD, NOW, self.manifest_sha, self.evidence)
+                                prior, HEAD, NOW, self.manifest_sha, self.evidence,
+                                self.manifest_path, self.postrelease_path, self.postrelease_sha)
         self.assertEqual(len(final["humanRequirementsOpen"]), 9)
         self.assertFalse(final["realHumanIdentityAdjudicated"])
         self.assertFalse(final["actualPhysicalTestsConfirmed"])
@@ -203,6 +213,19 @@ class IndependentlyRootedIdentityCases(unittest.TestCase):
         second = self.review("ownerPrecutoverReview")
         self.assertTrue(self.inspect([first, second])["issues"])
 
+    def test_source_manifest_requires_actual_independently_pinned_bytes(self):
+        (self.evidence / self.manifest_path).write_bytes(b"altered manifest")
+        self.assertRaises(ValueError, self.inspect, [self.review("ownerPrecutoverReview")])
+
+    def test_postrelease_receipt_must_match_original_bytes_and_separate_pin(self):
+        claim = self.review("independentPostreleaseReview")
+        (self.evidence / self.postrelease_path).write_bytes(b"changed original closure receipt")
+        self.assertTrue(self.inspect([claim])["issues"])
+        no_external_pin = f17.verify_review_requests(
+            self.trust, self.verify_registry(), [claim], HEAD, self.manifest_sha,
+            NOW, self.evidence, self.manifest_path, self.postrelease_path, None)
+        self.assertTrue(no_external_pin["issues"])
+
     def test_tampered_review_signature_denied(self):
         fake = self.review("ownerPrecutoverReview")
         fake["signature"] = self.review("independentSecurityReview")["signature"]
@@ -219,7 +242,8 @@ class IndependentlyRootedIdentityCases(unittest.TestCase):
                  "authorizedToDeploy": False, "originalHumanPhysicalAcceptance": False}
         counterfeit = {"reviewer": {"payload": {"requirement": "ios-safari-physical-device"}}}
         out = f17.adjudicate(self.trust, self.verify_registry(), [], [counterfeit],
-                              prior, HEAD, NOW, self.manifest_sha, self.evidence)
+                              prior, HEAD, NOW, self.manifest_sha, self.evidence,
+                              self.manifest_path, self.postrelease_path, self.postrelease_sha)
         self.assertEqual(len(out["humanRequirementsOpen"]), 9)
         self.assertTrue(out["issues"])
         self.assertEqual(out["technicallyVerifiedWitnessClaims"], [])
