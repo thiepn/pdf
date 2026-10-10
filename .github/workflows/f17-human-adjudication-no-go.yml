@@ -1,0 +1,79 @@
+name: F17 independent human evidence adjudication and original NO_GO
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f17/**'
+      - 'docs/f17/**'
+      - '.github/workflows/f17-human-adjudication-no-go.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  f17-original-operator-adjudication-no-go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install pinned cryptographic verifier only
+        run: python -m pip install cryptography==50.0.0
+      - name: Run adversarial rooted human trust and source provenance tests
+        run: |
+          python -m unittest discover -s scripts/f17 -p 'test_*.py' -v
+          python -m py_compile scripts/f17/*.py
+      - name: Independently authenticate actual original F16 and nested F15-F11 ZIP bytes
+        env:
+          F17_GITHUB_TOKEN: ${{ github.token }}
+          F17_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f17/verify_f16_original.py \
+            --current-head "$F17_HEAD" \
+            --report artifacts/f17-original-source/verified-f16-source.json
+      - name: Generate zero-operator, nine-OPEN default NO_GO adjudication
+        env:
+          F17_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f17/adjudicate_human_acceptance.py \
+            --f17-head "$F17_HEAD" \
+            --evidence-root artifacts/f17-original-source \
+            --report artifacts/f17-independent-adjudication/no-go.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          parent = json.loads(Path("artifacts/f17-original-source/verified-f16-source.json").read_text())
+          review = json.loads(Path("artifacts/f17-independent-adjudication/no-go.json").read_text())
+          assert parent["sourceChainIndependentlyAuthenticated"] is True
+          assert parent["f16OriginalSha"] == "cf2eca998ddb5807a9829d415092bdfe0cb5bb18"
+          assert parent["f17ImplementationSha"] == review["f17ImplementationSha"]
+          assert parent["externalHumanApprovals"] == 0
+          assert len(parent["humanRequirementsOpen"]) == 9
+          assert parent["releaseDecision"] == "NO_GO"
+          assert review["identityTrust"] == "NOT_CONFIGURED"
+          assert review["technicallyVerifiedReviewClaims"] == []
+          assert review["technicallyVerifiedWitnessClaims"] == []
+          assert review["originalHumanWitnessCount"] == 0
+          assert len(review["humanRequirementsOpen"]) == 9
+          assert review["realHumanIdentityAdjudicated"] is False
+          assert review["actualPhysicalTestsConfirmed"] is False
+          assert review["ownerGOAuthorized"] is False
+          assert review["postreleaseClosureAccepted"] is False
+          assert review["releaseDecision"] == "NO_GO"
+          assert not review["authorizedToMerge"] and not review["authorizedToDeploy"]
+          assert review["issues"] == []
+          print("F17 ORIGINAL F16 source verified; zero verified human approvals; nine OPEN; NO_GO")
+          PY
+      - name: Retain only source-bound NO_GO reports, never private human evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f17-original-source-independent-human-no-go
+          path: |
+            artifacts/f17-original-source
+            artifacts/f17-independent-adjudication
+          if-no-files-found: ignore
