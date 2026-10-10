@@ -1,0 +1,80 @@
+name: F11 cross-browser PDF and independent-reader certification
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f11/**'
+      - 'tests/e2e/f11-crossbrowser-export.spec.mjs'
+      - 'tests/e2e/f10-export-corpus.spec.mjs'
+      - '.github/workflows/f11-crossbrowser-qualification.yml'
+      - 'src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  f11-independent-compatibility:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-noble
+    timeout-minutes: 60
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install strict independent PDF readers
+        run: |
+          apt-get -o Acquire::Retries=3 update
+          apt-get -o Acquire::Retries=3 install -y --no-install-recommends qpdf poppler-utils fonts-noto-core
+          python -m pip install --requirement requirements-phase11.txt
+      - name: Install locked JS dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate original PDF corpora for real browser inputs
+        run: |
+          python scripts/phase11/generate_corpus.py
+          python scripts/phase11/validate_corpus.py
+          python scripts/p8/generate_compatibility_corpus.py
+          python scripts/p8/validate_compatibility_corpus.py
+          python scripts/f10/generate_export_corpus.py
+      - name: Validate F11 fail-closed evidence contract
+        run: |
+          python -m unittest discover -s scripts/f11 -p 'test_*.py' -v
+          npm run typecheck
+      - name: Build verified local application
+        run: npm run build:verified
+        env:
+          VITE_BASE_PATH: /pdf/
+      - name: Real cross-browser exports and protected-document recovery
+        run: |
+          npx playwright test tests/e2e/f10-export-corpus.spec.mjs tests/e2e/f11-crossbrowser-export.spec.mjs \
+            --project=chromium --project=firefox --project=webkit --workers=2 --retries=0
+        env:
+          PLAYWRIGHT_SKIP_BUILD: '1'
+          PLAYWRIGHT_BASE_PATH: /pdf/
+      - name: Independently inspect every actual export and compare reader rendering
+        run: |
+          python scripts/f11/validate_crossbrowser_exports.py \
+            --f10-dir artifacts/f10-exports \
+            --f11-dir artifacts/f11-exports \
+            --raster-dir artifacts/f11-render-proofs \
+            --report artifacts/f11-crossbrowser-report.json
+      - name: Upload immutable review evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f11-crossbrowser-actual-export-evidence
+          path: |
+            artifacts/f10-exports
+            artifacts/f11-exports
+            artifacts/f11-render-proofs
+            artifacts/f11-crossbrowser-report.json
+            playwright-report
+          if-no-files-found: ignore
