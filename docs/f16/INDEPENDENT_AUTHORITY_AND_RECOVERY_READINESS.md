@@ -57,7 +57,10 @@ close a release. F16 preserves that separation.
 ## Independent prior-stable restore and encrypted backup
 
 Nine original material evidence objects must exist, each with safe file
-paths and SHA256. The source of authority for previous-stable bytes and
+paths and SHA256. Each category requires its own original custody file path;
+one file cannot serve as independent evidence for two distinct categories.
+Restore and rollback transcripts must have distinct original bytes as well
+as distinct custody paths. The source of authority for previous-stable bytes and
 encrypted-backup ciphertext is **two independent external digest pins**,
 never the manifest being examined. Prior-stable and restored bytes
 must match each other and the previous-stable external pin. Encrypted
