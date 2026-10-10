@@ -39,6 +39,15 @@ class FailClosedTests(unittest.TestCase):
         self.assertEqual(verifier.compare_browser_geometry(good), [])
         self.assertTrue(verifier.compare_browser_geometry(bad))
 
+    def test_inset_and_rotated_source_uses_same_visible_crop_in_both_readers(self):
+        original = verifier.ROOT / "tests" / "corpus" / "p8" / "rotated-crop.pdf"
+        self.assertTrue(original.is_file(), "Real P8 crop fixture must exist")
+        with tempfile.TemporaryDirectory() as directory:
+            proof = verifier.render_profile(original, Path(directory) / "cropped")
+        self.assertEqual(proof["poppler"]["width"], proof["mupdf"]["width"])
+        self.assertEqual(proof["poppler"]["height"], proof["mupdf"]["height"])
+        self.assertLessEqual(abs(proof["poppler"]["inkFraction"] - proof["mupdf"]["inkFraction"]), 0.08)
+
     def test_unknown_browser_cannot_replace_real_project(self):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "Unsupported browser"):
