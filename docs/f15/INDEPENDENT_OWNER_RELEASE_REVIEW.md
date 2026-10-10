@@ -41,8 +41,12 @@ SHA256, include prior-stable release bytes, separately restored stable
 bytes, encrypted backup, observed restore and rollback transcripts,
 accessibility and physical mobile sessions, third-party reader/print
 witness, and source/rights/privacy provenance. Previous-stable and
-restored bytes must be **identical** and a backup ciphertext cannot be
-substituted for stable release bytes. Byte equality and signatures
+restored bytes must be **identical**, and both prior-stable bytes and encrypted
+backup ciphertext must match **two independently supplied SHA-256 pins**
+provided by an authorized off-CI operator. A backup ciphertext cannot be
+substituted for stable release bytes. These pins cannot be inferred from the
+same submitted evidence manifest. Without the external pins, signed review
+claims fail closed. Byte equality and signatures
 do **not** prove a real restore or witnessed drill; those real-world
 facts require independent human custody and are marked unconfirmed.
 
