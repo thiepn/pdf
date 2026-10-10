@@ -27,7 +27,7 @@ def render_profile(document: Path, output_base: Path) -> dict[str, Any]:
     """Check real output raster with independent Poppler and MuPDF, without golden updates."""
     output_base.parent.mkdir(parents=True, exist_ok=True)
     poppler_base = output_base.with_name(output_base.name + "-poppler")
-    f9.run("pdftoppm", "-f", "1", "-l", "1", "-singlefile", "-scale-to", "640",
+    f9.run("pdftoppm", "-cropbox", "-f", "1", "-l", "1", "-singlefile", "-scale-to", "640",
            "-png", str(document), str(poppler_base))
     poppler_png = poppler_base.with_suffix(".png")
     if not poppler_png.exists():
