@@ -1,0 +1,78 @@
+name: F16 independent owner authority and recovery NO_GO qualification
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f16/**'
+      - 'docs/f16/**'
+      - '.github/workflows/f16-operator-recovery-no-go.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  f16-independent-recovery-no-go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install pinned cryptographic verification implementation
+        run: python -m pip install cryptography==50.0.0
+      - name: Adversarial independent source, signer and recovery regression tests
+        run: |
+          python -m unittest discover -s scripts/f16 -p 'test_*.py' -v
+          python -m py_compile scripts/f16/*.py
+      - name: Read-only independent GitHub authentication of the original F15-F11 source chain
+        env:
+          F16_GITHUB_TOKEN: ${{ github.token }}
+          F16_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f16/verify_f15_original.py \
+            --f16-head "$F16_HEAD" \
+            --report artifacts/f16-source/verified-f15-chain.json
+      - name: Materialize operator-free, physical-evidence-free NO_GO decision
+        env:
+          F16_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f16/independent_release_readiness.py \
+            --f16-head "$F16_HEAD" \
+            --evidence-root artifacts/f16-source \
+            --report artifacts/f16-operator/no-go.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          source=json.loads(Path("artifacts/f16-source/verified-f15-chain.json").read_text())
+          report=json.loads(Path("artifacts/f16-operator/no-go.json").read_text())
+          assert source["originalSourceChainVerified"] is True
+          assert source["originalF15Sha"] == "6952cb6d0c210c0a910bfc06accefc778f68f44d"
+          assert len(source["uncollectedHumanRequirements"]) == 9
+          assert source["originalHumanApprovals"] == 0
+          assert source["releaseDecision"] == "NO_GO"
+          assert not source["authorizedToMerge"] and not source["authorizedToDeploy"]
+          assert report["operatorTrust"] == "NOT_CONFIGURED"
+          assert len(report["humanRequirementsOpen"]) == 9
+          assert report["signatureClaimsChecked"] == 0
+          assert report["independentRecoveryCeremonies"] == 0
+          assert report["originalRecoveryBytesVerified"] is False
+          assert report["originalHumanPhysicalAcceptance"] is False
+          assert report["ownerReleaseAuthorized"] is False
+          assert report["separatePostreleaseClosureAccepted"] is False
+          assert report["releaseDecision"] == "NO_GO"
+          assert not report["authorizedToMerge"] and not report["authorizedToDeploy"]
+          assert report["issues"] == []
+          print("F16 original GitHub source PASS; all 9 human gates OPEN; NO_GO; postrelease closure OPEN")
+          PY
+      - name: Preserve only source identity and absence-of-human-approval reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f16-original-source-independent-human-recovery-no-go
+          path: |
+            artifacts/f16-source
+            artifacts/f16-operator
+          if-no-files-found: ignore
