@@ -112,6 +112,19 @@ class IndependentRestoreContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "differ"):
             self.examine([])
 
+    def test_one_file_cannot_masquerade_as_two_original_evidence_categories(self):
+        self.manifest["mobileWitness"]["path"] = self.manifest["accessibilityWitness"]["path"]
+        self.manifest["mobileWitness"]["sha256"] = self.manifest["accessibilityWitness"]["sha256"]
+        with self.assertRaisesRegex(ValueError, "independently named"):
+            self.examine([])
+
+    def test_restore_and_rollback_transcripts_cannot_be_identical(self):
+        original = (self.data / "restoreTranscript.bin").read_bytes()
+        (self.data / "rollbackTranscript.bin").write_bytes(original)
+        self.manifest["rollbackTranscript"]["sha256"] = hashlib.sha256(original).hexdigest()
+        with self.assertRaisesRegex(ValueError, "distinct original transcript"):
+            self.examine([])
+
     def test_missing_or_tampered_restore_transcript_rejected(self):
         (self.data / "restoreTranscript.bin").unlink()
         with self.assertRaises((ValueError, FileNotFoundError)):
