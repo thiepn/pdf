@@ -84,6 +84,18 @@ def review_packet(trust: dict[str, dict[str, Any]], envelope: dict[str, Any],
     """Inspect evidence without granting GO, merger, deploy or postrelease closure."""
     if not isinstance(f15_sha, str) or not trust_code.HEX40.fullmatch(f15_sha):
         raise ValueError("Exact current head required")
+    if trust == {} and envelope == {} and witness_records == []:
+        return {"schemaVersion": 1, "f14SourceSha": F14_SHA,
+                "f15ImplementationSha": f15_sha, "releaseDecision": DECISION,
+                "authorizedToMerge": False, "authorizedToDeploy": False,
+                "postreleaseClosureAccepted": False,
+                "genuinePhysicalAcceptanceRecorded": False,
+                "operatorReviewStagesCryptographicallyVerified": [],
+                "evidenceObjectsStructurallyVerified": [],
+                "evidenceManifestSha256": None,
+                "humanRequirementsOpen": list(trust_code.ROLE_REQUIREMENTS),
+                "issues": [], "independentOperatorReviewEligible": False,
+                "note": "No real operator trust, witnessed evidence or human decisions supplied; NO_GO."}
     issues: list[str] = []
     examined = []
     verified_roles: list[str] = []
@@ -134,7 +146,7 @@ def review_packet(trust: dict[str, dict[str, Any]], envelope: dict[str, Any],
     except (ValueError, OSError, KeyError, TypeError, OverflowError) as exc:
         issues.append(str(exc))
     try:
-        original_human = witness_code.check_receipts(trust, witness_records, evidence_dir, f15_sha, now)
+        original_human = witness_code.check_receipts(trust, witness_records, evidence_dir, F14_SHA, now)
         if original_human["issues"]:
             issues.extend(original_human["issues"])
     except (ValueError, OSError, KeyError, TypeError) as exc:
