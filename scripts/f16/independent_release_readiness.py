@@ -47,6 +47,16 @@ def assess_recovery_ceremonies(
     if (not isinstance(pinned_stable, str) or not f13.HEX64.fullmatch(pinned_stable) or
             not isinstance(pinned_backup, str) or not f13.HEX64.fullmatch(pinned_backup)):
         raise ValueError("External stable and encrypted-backup source SHA256 pins required")
+    # A single artifact cannot impersonate multiple independent evidence categories.
+    # Prior-stable and restored-stable may have identical bytes, but must be
+    # separate original files to demonstrate both source and restored custody.
+    if not isinstance(manifest, dict) or set(manifest) != f15.FILES:
+        raise ValueError("Complete separately held evidence manifest required")
+    paths = [item.get("path") for item in manifest.values() if isinstance(item, dict)]
+    if len(paths) != len(f15.FILES) or any(not isinstance(path, str) for path in paths) or len(set(paths)) != len(paths):
+        raise ValueError("Different evidence categories must use independently named original files")
+    if manifest["restoreTranscript"].get("sha256") == manifest["rollbackTranscript"].get("sha256"):
+        raise ValueError("Restore and rollback require distinct original transcript bytes")
     # Actual original file bytes must be present and match original externally pinned hashes.
     source = f15.examine_manifest(evidence_root, manifest, pinned_stable, pinned_backup)
     verified_kinds: set[str] = set()
