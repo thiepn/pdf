@@ -112,13 +112,20 @@ def verify_review_requests(trust: dict[str, dict[str, Any]],
                            registry: dict[str, str],
                            envelopes: list[dict[str, Any]],
                            f17_head: str, source_manifest_sha256: str,
-                           now: datetime) -> dict[str, Any]:
+                           now: datetime, evidence_root: Path | None = None,
+                           manifest_path: str | None = None,
+                           postrelease_path: str | None = None,
+                           pinned_postrelease_sha256: str | None = None) -> dict[str, Any]:
     if not isinstance(f17_head, str) or not keys.HEX40.fullmatch(f17_head):
         raise ValueError("Exact current F17 SHA required")
     if not isinstance(source_manifest_sha256, str) or not keys.HEX64.fullmatch(source_manifest_sha256):
         raise ValueError("Independently authenticated manifest digest required")
     if not isinstance(envelopes, list) or len(envelopes) > len(STAGES):
         raise ValueError("Unexpected operator review count")
+    if envelopes:
+        if evidence_root is None or manifest_path is None:
+            raise ValueError("Signed review requires original evidence manifest bytes")
+        keys.verify_evidence_file(evidence_root, manifest_path, source_manifest_sha256)
     verified: set[str] = set()
     actors: set[str] = set()
     persons: set[str] = set()
@@ -154,8 +161,15 @@ def verify_review_requests(trust: dict[str, dict[str, Any]],
             receipt = payload["postreleaseReceiptSha256"]
             if phase == "PRE_RELEASE" and receipt is not None:
                 raise ValueError("Pre-release receipt cannot masquerade as postrelease observation")
-            if phase == "POST_RELEASE" and (not isinstance(receipt, str) or not keys.HEX64.fullmatch(receipt)):
-                raise ValueError("Postrelease review requires external original deployment receipt digest")
+            if phase == "POST_RELEASE":
+                if (not isinstance(receipt, str) or not keys.HEX64.fullmatch(receipt) or
+                        evidence_root is None or postrelease_path is None or
+                        not isinstance(pinned_postrelease_sha256, str) or
+                        not keys.HEX64.fullmatch(pinned_postrelease_sha256) or
+                        receipt != pinned_postrelease_sha256):
+                    raise ValueError("Postrelease requires a separately pinned original receipt digest")
+                keys.verify_evidence_file(evidence_root, postrelease_path,
+                                          pinned_postrelease_sha256)
             issued, expires = keys.time_value(payload["issuedAt"]), keys.time_value(payload["expiresAt"])
             if (issued < signer["grantedAt"] or issued > now + timedelta(minutes=5)
                     or expires <= now or expires > issued + timedelta(days=30)):
@@ -183,7 +197,10 @@ def adjudicate(trust: dict[str, dict[str, Any]],
                original_recovery: dict[str, Any],
                f17_head: str, now: datetime,
                source_manifest_sha256: str | None = None,
-               evidence_root: Path | None = None) -> dict[str, Any]:
+               evidence_root: Path | None = None,
+               manifest_path: str | None = None,
+               postrelease_path: str | None = None,
+               pinned_postrelease_sha256: str | None = None) -> dict[str, Any]:
     """Evidence receipt technical review; deliberately incapable of issuing GO."""
     if not isinstance(f17_head, str) or not keys.HEX40.fullmatch(f17_head):
         raise ValueError("Exact F17 implementation HEAD required")
@@ -202,7 +219,9 @@ def adjudicate(trust: dict[str, dict[str, Any]],
         raise ValueError("Missing source-verified qualified F16 recovery evidence identity")
     if original_recovery.get("authorizedToDeploy") is not False or original_recovery.get("releaseDecision") != "NO_GO":
         raise ValueError("Prior source tried to authorize deployment")
-    checks = verify_review_requests(trust, identity_registry, reviews, f17_head, source_manifest_sha256, now)
+    checks = verify_review_requests(
+        trust, identity_registry, reviews, f17_head, source_manifest_sha256, now,
+        evidence_root, manifest_path, postrelease_path, pinned_postrelease_sha256)
     # The original F14 witnesses are verified with their original F14 SHA
     # and with the original reviewer signatures and actual evidence bytes.
     # Cryptographic validity is never equal to real-world human signoff.
@@ -251,13 +270,16 @@ def main() -> int:
     parser.add_argument("--original-f16-recovery", type=Path)
     parser.add_argument("--original-witness-packet", type=Path)
     parser.add_argument("--manifest-sha256")
+    parser.add_argument("--manifest-relative-path")
+    parser.add_argument("--postrelease-relative-path")
+    parser.add_argument("--pinned-postrelease-sha256")
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     external = [args.trust_bundle, args.trust_bundle_sha256, args.trust_root_key,
                 args.trust_predecessor_sha256, args.identity_registry,
                 args.identity_registry_sha256, args.identity_predecessor_sha256,
                 args.review_packet, args.original_f16_recovery, args.original_witness_packet,
-                args.manifest_sha256]
+                args.manifest_sha256, args.manifest_relative_path]
     if any(value is not None for value in external) and not all(value is not None for value in external):
         raise SystemExit("No partial trust or source evidence: supply all original operator records")
     now = datetime.now(timezone.utc)
@@ -282,7 +304,9 @@ def main() -> int:
         reviews = review_doc["reviews"]; witnesses = witness_doc["receipts"]
         previous = keys.read_json(args.original_f16_recovery)
     report = adjudicate(trust, identities, reviews, witnesses, previous, args.f17_head, now,
-                        args.manifest_sha256, args.evidence_root)
+                        args.manifest_sha256, args.evidence_root,
+                        args.manifest_relative_path, args.postrelease_relative_path,
+                        args.pinned_postrelease_sha256)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
