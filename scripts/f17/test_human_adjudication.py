@@ -169,7 +169,9 @@ class IndependentlyRootedIdentityCases(unittest.TestCase):
         self.assertNotIn("reviewer-1", valid)
         report = f17.verify_review_requests(self.trust, valid,
                                              [self.review("ownerPrecutoverReview")],
-                                             HEAD, self.manifest_sha, NOW)
+                                             HEAD, self.manifest_sha, NOW,
+                                             self.evidence, self.manifest_path,
+                                             self.postrelease_path, self.postrelease_sha)
         self.assertTrue(report["issues"])
 
     def test_root_signed_duplicate_person_identity_denied(self):
