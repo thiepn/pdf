@@ -1,0 +1,69 @@
+name: F13 independent operator custody and default NO-GO
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f13/**'
+      - 'docs/f13/**'
+      - '.github/workflows/f13-operator-no-go.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  f13-independent-operator-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install locked Ed25519 verification dependency only
+        run: python -m pip install cryptography==50.0.0
+      - name: Adversarial signer and recovery evidence tests
+        run: |
+          python -m unittest discover -s scripts/f13 -p 'test_*.py' -v
+          python -m py_compile scripts/f13/*.py
+      - name: Authenticate exact original F12 source and artifact chain read-only
+        env:
+          F13_GITHUB_TOKEN: ${{ github.token }}
+          F13_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f13/verify_f12_original.py \
+            --current-head "$F13_HEAD_SHA" \
+            --report artifacts/f13-original-source/f12-custody.json
+      - name: Verify controlled NO-GO when no operator keys or human evidence exist
+        env:
+          F13_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f13/operator_release_evidence.py \
+            --f13-sha "$F13_HEAD_SHA" \
+            --evidence-dir artifacts/f13-original-source \
+            --report artifacts/f13-operator-decision/no-go.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          chain = json.loads(Path("artifacts/f13-original-source/f12-custody.json").read_text())
+          report = json.loads(Path("artifacts/f13-operator-decision/no-go.json").read_text())
+          assert chain["verifiedSourceCustody"] is True and chain["f12Integrity"] is True
+          assert chain["humanRequirementsOpen"] == 9 and chain["releaseDecision"] == "NO_GO"
+          assert chain["authorizedToDeploy"] is False
+          assert report["releaseDecision"] == "NO_GO" and report["authorizedToDeploy"] is False
+          assert report["authorizedToMerge"] is False and report["humanPhysicalAcceptance"] == "OPEN"
+          assert report["operatorTrust"] == "NOT_CONFIGURED"
+          assert len(report["uncollectedRequirements"]) == 9
+          assert report["eligibleForIndependentHumanReview"] is False
+          print("F13: original source authenticated; all 9 human requirements OPEN; operator keys absent; RELEASE NO_GO")
+          PY
+      - name: Preserve independent evidence and DENIED operator decision
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f13-original-source-and-independent-operator-no-go
+          path: |
+            artifacts/f13-original-source
+            artifacts/f13-operator-decision
+          if-no-files-found: ignore
