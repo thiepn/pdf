@@ -1,0 +1,75 @@
+name: F15 independent owner/closure and original-restore NO_GO
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f15/**'
+      - 'docs/f15/**'
+      - '.github/workflows/f15-release-no-go.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  f15-independent-owner-no-go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install pinned signature verification dependency
+        run: python -m pip install cryptography==50.0.0
+      - name: Adversarial owner and original-source reconciliation qualification
+        run: |
+          python -m unittest discover -s scripts/f15 -p 'test_*.py' -v
+          python -m py_compile scripts/f15/*.py
+      - name: Read-only GitHub authentication of F14 original archive, F13/F12/F11 ancestry
+        env:
+          F15_GITHUB_TOKEN: ${{ github.token }}
+          F15_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f15/verify_f14_original.py \
+            --current-head "$F15_HEAD" \
+            --report artifacts/f15-source-provenance/authenticated-f14-original.json
+      - name: Default denied owner, operator and postrelease evidence packet
+        env:
+          F15_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f15/reconcile_owner_release.py \
+            --f15-head "$F15_HEAD" \
+            --evidence-root artifacts/f15-source-provenance \
+            --report artifacts/f15-independent-owner/no-go.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          source = json.loads(Path("artifacts/f15-source-provenance/authenticated-f14-original.json").read_text())
+          result = json.loads(Path("artifacts/f15-independent-owner/no-go.json").read_text())
+          assert source["authenticatedIndependentSourceChain"] is True
+          assert source["originalF14Sha"] == "6aec03f2add1e613602ee6a3f13aaf0460ffd793"
+          assert source["recordedHumanAcceptances"] == 0
+          assert len(source["humanRequirementsOpen"]) == 9
+          assert source["authorizedToMerge"] is False and source["authorizedToDeploy"] is False
+          assert result["operatorTrustStatus"] == "NOT_CONFIGURED"
+          assert result["operatorReviewStagesCryptographicallyVerified"] == []
+          assert result["evidenceObjectsStructurallyVerified"] == []
+          assert result["issues"] == []
+          assert len(result["humanRequirementsOpen"]) == 9
+          assert result["releaseDecision"] == "NO_GO"
+          assert result["genuinePhysicalAcceptanceRecorded"] is False
+          assert result["postreleaseClosureAccepted"] is False
+          assert result["authorizedToMerge"] is False and result["authorizedToDeploy"] is False
+          print("F15 original GitHub source custody PASS; release NO_GO, postrelease OPEN, nine human gates OPEN")
+          PY
+      - name: Preserve source-bound independent denial evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f15-source-bound-independent-owner-release-no-go
+          path: |
+            artifacts/f15-source-provenance
+            artifacts/f15-independent-owner
+          if-no-files-found: ignore
