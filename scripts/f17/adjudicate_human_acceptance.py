@@ -182,14 +182,16 @@ def adjudicate(trust: dict[str, dict[str, Any]],
                f16_witness_records: list[dict[str, Any]],
                original_recovery: dict[str, Any],
                f17_head: str, now: datetime,
-               source_manifest_sha256: str | None = None) -> dict[str, Any]:
+               source_manifest_sha256: str | None = None,
+               evidence_root: Path | None = None) -> dict[str, Any]:
     """Evidence receipt technical review; deliberately incapable of issuing GO."""
     if not isinstance(f17_head, str) or not keys.HEX40.fullmatch(f17_head):
         raise ValueError("Exact F17 implementation HEAD required")
     if not trust and not identity_registry and not reviews and not f16_witness_records and not original_recovery:
         return {"schemaVersion": 1, "f16OriginalSha": F16_SHA, "f17ImplementationSha": f17_head,
                 "identityTrust": "NOT_CONFIGURED", "technicallyVerifiedReviewClaims": [],
-                "humanRequirementsOpen": list(keys.ROLE_REQUIREMENTS), "originalRecoveryClaimStatus": "NOT_PROVIDED",
+                "humanRequirementsOpen": list(keys.ROLE_REQUIREMENTS), "technicallyVerifiedWitnessClaims": [],
+                "originalRecoveryClaimStatus": "NOT_PROVIDED",
                 "originalHumanWitnessCount": 0, "actualPhysicalTestsConfirmed": False,
                 "realHumanIdentityAdjudicated": False, "ownerGOAuthorized": False,
                 "postreleaseClosureAccepted": False, "releaseDecision": "NO_GO",
@@ -201,21 +203,32 @@ def adjudicate(trust: dict[str, dict[str, Any]],
     if original_recovery.get("authorizedToDeploy") is not False or original_recovery.get("releaseDecision") != "NO_GO":
         raise ValueError("Prior source tried to authorize deployment")
     checks = verify_review_requests(trust, identity_registry, reviews, f17_head, source_manifest_sha256, now)
-    # Original F14 reviewer and independent witness receipts bind original F14
-    # and F13 SHAs; they must not be silently rewritten as F17 claims.
-    observed_ids = {r["reviewer"]["payload"]["requirement"] for r in f16_witness_records
-                    if isinstance(r, dict) and isinstance(r.get("reviewer"), dict) and
-                    isinstance(r["reviewer"].get("payload"), dict) and
-                    r["reviewer"]["payload"].get("requirement") in keys.ROLE_REQUIREMENTS}
-    # The count is solely "claimed review categories", never real-world approvals.
-    missing = [req for req in keys.ROLE_REQUIREMENTS if req not in observed_ids]
-    issues = checks["issues"]
+    # The original F14 witnesses are verified with their original F14 SHA
+    # and with the original reviewer signatures and actual evidence bytes.
+    # Cryptographic validity is never equal to real-world human signoff.
+    issues = list(checks["issues"])
+    verified_witnesses: list[str] = []
+    if f16_witness_records:
+        if evidence_root is None:
+            issues.append("Original witness evidence directory not provided")
+        else:
+            try:
+                report = human.check_receipts(trust, f16_witness_records, evidence_root,
+                                              "6aec03f2add1e613602ee6a3f13aaf0460ffd793", now)
+                issues.extend(report["issues"])
+                verified_witnesses = [x["requirement"] for x in report["cryptographicClaims"]]
+            except (ValueError, OSError, TypeError, KeyError) as error:
+                issues.append("Original F14 signed witness review failed: " + str(error))
+    # All nine original human acceptance boundaries remain OPEN regardless
+    # of technically verified signatures, archived evidence, or CI successes.
+    missing = list(keys.ROLE_REQUIREMENTS)
     if original_recovery.get("originalHumanPhysicalAcceptance") is not False:
         issues.append("Physical acceptance may not be self-certified by source report")
     return {"schemaVersion": 1, "f16OriginalSha": F16_SHA, "f17ImplementationSha": f17_head,
             "identityTrust": "EXTERNALLY_PINNED_SIGNATURE_CLAIMS_ONLY",
             "technicallyVerifiedReviewClaims": checks["technicallyVerifiedReviewClaims"],
             "humanRequirementsOpen": missing,
+            "technicallyVerifiedWitnessClaims": verified_witnesses,
             "originalRecoveryClaimStatus": "CRYPTOGRAPHIC_CUSTODY_ONLY",
             "originalHumanWitnessCount": 0, "actualPhysicalTestsConfirmed": False,
             "realHumanIdentityAdjudicated": False, "ownerGOAuthorized": False,
@@ -269,7 +282,7 @@ def main() -> int:
         reviews = review_doc["reviews"]; witnesses = witness_doc["receipts"]
         previous = keys.read_json(args.original_f16_recovery)
     report = adjudicate(trust, identities, reviews, witnesses, previous, args.f17_head, now,
-                        args.manifest_sha256)
+                        args.manifest_sha256, args.evidence_root)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
