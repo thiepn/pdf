@@ -87,7 +87,9 @@ class IndependentOperatorReviewTests(unittest.TestCase):
 
     def evaluate(self, packet=None):
         return f15.review_packet(self.trust, packet if packet is not None else self.packet(),
-                                 [], self.evidence, HEAD, NOW)
+                                 [], self.evidence, HEAD, NOW,
+                                 self.manifest["priorStable"]["sha256"],
+                                 self.manifest["encryptedBackup"]["sha256"])
 
     def test_three_valid_synthetic_signatures_never_grant_go(self):
         state = self.evaluate()
@@ -106,6 +108,18 @@ class IndependentOperatorReviewTests(unittest.TestCase):
         self.assertFalse(state["authorizedToDeploy"])
         self.assertEqual(state["releaseDecision"], "NO_GO")
         self.assertEqual(len(state["humanRequirementsOpen"]), 9)
+
+    def test_external_previous_stable_digest_pin_cannot_be_forged(self):
+        report = f15.review_packet(self.trust, self.packet(), [], self.evidence, HEAD, NOW,
+                                   "f" * 64, self.manifest["encryptedBackup"]["sha256"])
+        self.assertTrue(report["issues"])
+        self.assertEqual(report["releaseDecision"], "NO_GO")
+
+    def test_external_encrypted_backup_digest_pin_required(self):
+        report = f15.review_packet(self.trust, self.packet(), [], self.evidence, HEAD, NOW,
+                                   self.manifest["priorStable"]["sha256"], None)
+        self.assertTrue(report["issues"])
+        self.assertFalse(report["authorizedToDeploy"])
 
     def test_missing_rollback_transcript_denied(self):
         packet = self.packet()
