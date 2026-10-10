@@ -1,0 +1,72 @@
+name: F14 independent witnessed intake and recovery NO_GO
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/f14/**'
+      - 'docs/f14/**'
+      - '.github/workflows/f14-independent-human-intake.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  f14-independent-witness-no-go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install pinned cryptography verification dependency
+        run: python -m pip install cryptography==50.0.0
+      - name: Run negative and synthetic signed-witness security tests
+        run: |
+          python -m unittest discover -s scripts/f14 -p 'test_*.py' -v
+          python -m py_compile scripts/f14/*.py
+      - name: Independently authenticate original F13 and F12/F11 custody through GitHub read-only API
+        env:
+          F14_GITHUB_TOKEN: ${{ github.token }}
+          F14_CURRENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f14/verify_f13_original.py \
+            --current-head "$F14_CURRENT_HEAD" \
+            --report artifacts/f14-source-custody/verified-original-source.json
+      - name: Generate immutable default NO_GO ceremony and witnessed intake packet
+        env:
+          F14_CURRENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python scripts/f14/witness_intake.py \
+            --current-head "$F14_CURRENT_HEAD" \
+            --evidence-dir artifacts/f14-source-custody \
+            --report artifacts/f14-intake/witnessed-no-go.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          chain = json.loads(Path("artifacts/f14-source-custody/verified-original-source.json").read_text())
+          packet = json.loads(Path("artifacts/f14-intake/witnessed-no-go.json").read_text())
+          assert chain["sourceChainIntegrity"] is True
+          assert chain["originalF13Sha"] == "6953bb082044bc96d88b530e1db0ff743b9b6d88"
+          assert chain["humanRequirementsOpen"] == 9 and chain["operatorSignersProvided"] == 0
+          assert chain["authorizedToMerge"] is False and chain["authorizedToDeploy"] is False
+          assert packet["trustStatus"] == "NOT_CONFIGURED"
+          assert len(packet["missingHumanRequirements"]) == 9
+          assert packet["actualWitnessedPhysicalApprovalsConfirmed"] is False
+          assert packet["trustedHumanApprovalCount"] == 0
+          assert packet["releaseDecision"] == "NO_GO"
+          assert packet["authorizedToMerge"] is False and packet["authorizedToDeploy"] is False
+          assert packet["issues"] == []
+          print("F14 verified authenticated F13/F12/F11 chain; zero human witnesses; nine OPEN; NO_GO")
+          PY
+      - name: Retain source-bound NO_GO evidence without uploading private physical approvals
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f14-original-provenance-and-witness-no-go
+          path: |
+            artifacts/f14-source-custody
+            artifacts/f14-intake
+          if-no-files-found: ignore
