@@ -58,7 +58,14 @@ def signed_claim(claim: dict[str, Any], signer: dict[str, Any],
     trust_code.verify_sig(signer["publicKey"], trust_code.canonical(claim), signature)
 
 
-def examine_manifest(evidence_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+def examine_manifest(evidence_dir: Path, manifest: dict[str, Any],
+                     externally_pinned_stable_sha256: str | None,
+                     externally_pinned_backup_sha256: str | None) -> dict[str, Any]:
+    if (not isinstance(externally_pinned_stable_sha256, str) or
+            not trust_code.HEX64.fullmatch(externally_pinned_stable_sha256) or
+            not isinstance(externally_pinned_backup_sha256, str) or
+            not trust_code.HEX64.fullmatch(externally_pinned_backup_sha256)):
+        raise ValueError("Independently pinned prior-stable and encrypted backup SHA256 are mandatory")
     if not isinstance(manifest, dict) or set(manifest) != FILES:
         raise ValueError("Missing mandatory prior-stable, backup, privacy or device/reader evidence objects")
     hashes = {}
@@ -67,6 +74,10 @@ def examine_manifest(evidence_dir: Path, manifest: dict[str, Any]) -> dict[str, 
             raise ValueError("Unbound or malformed evidence object " + name)
         trust_code.verify_evidence_file(evidence_dir, record["path"], record["sha256"])
         hashes[name] = record["sha256"]
+    if hashes["priorStable"] != externally_pinned_stable_sha256:
+        raise ValueError("Prior-stable bytes differ from independent external digest pin")
+    if hashes["encryptedBackup"] != externally_pinned_backup_sha256:
+        raise ValueError("Encrypted backup bytes differ from independent external digest pin")
     if hashes["priorStable"] != hashes["restoredStable"]:
         raise ValueError("Prior-stable and restored-object bytes differ")
     if hashes["encryptedBackup"] == hashes["restoredStable"]:
@@ -80,7 +91,9 @@ def examine_manifest(evidence_dir: Path, manifest: dict[str, Any]) -> dict[str, 
 
 def review_packet(trust: dict[str, dict[str, Any]], envelope: dict[str, Any],
                   witness_records: list[dict[str, Any]], evidence_dir: Path,
-                  f15_sha: str, now: datetime) -> dict[str, Any]:
+                  f15_sha: str, now: datetime,
+                  pinned_stable_sha256: str | None = None,
+                  pinned_backup_sha256: str | None = None) -> dict[str, Any]:
     """Inspect evidence without granting GO, merger, deploy or postrelease closure."""
     if not isinstance(f15_sha, str) or not trust_code.HEX40.fullmatch(f15_sha):
         raise ValueError("Exact current head required")
@@ -108,7 +121,8 @@ def review_packet(trust: dict[str, dict[str, Any]], envelope: dict[str, Any],
             raise ValueError("Malformed release review envelope")
         if envelope["schemaVersion"] != 1:
             raise ValueError("Unsupported packet schema")
-        manifest_info = examine_manifest(evidence_dir, envelope["manifest"])
+        manifest_info = examine_manifest(evidence_dir, envelope["manifest"],
+                                         pinned_stable_sha256, pinned_backup_sha256)
         manifest_sha = manifest_info["digest"]
         examined = sorted(FILES)
         signed = envelope["decisions"]
@@ -174,12 +188,15 @@ def main() -> int:
     parser.add_argument("--trust-sha256")
     parser.add_argument("--root-public-key")
     parser.add_argument("--previous-sha256")
+    parser.add_argument("--pinned-prior-stable-sha256")
+    parser.add_argument("--pinned-encrypted-backup-sha256")
     parser.add_argument("--release-records", type=Path)
     parser.add_argument("--witness-records", type=Path)
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     all_inputs = (args.trust_bundle, args.trust_sha256, args.root_public_key,
-                  args.previous_sha256, args.release_records, args.witness_records)
+                  args.previous_sha256, args.release_records, args.witness_records,
+                  args.pinned_prior_stable_sha256, args.pinned_encrypted_backup_sha256)
     if any(x is not None for x in all_inputs) and not all(x is not None for x in all_inputs):
         raise SystemExit("Partial external operator trust or records are invalid")
     trust: dict[str, dict[str, Any]] = {}
@@ -195,7 +212,9 @@ def main() -> int:
             raise SystemExit("Invalid independent witnessed human packet")
         witness_records = witness_source["receipts"]
     report = review_packet(trust, release_packet, witness_records, args.evidence_root,
-                           args.f15_head, datetime.now(timezone.utc))
+                           args.f15_head, datetime.now(timezone.utc),
+                           args.pinned_prior_stable_sha256,
+                           args.pinned_encrypted_backup_sha256)
     report["operatorTrustStatus"] = ("EXTERNALLY_PINNED_EVIDENCE_CLAIMS_ONLY"
                                       if all(x is not None for x in all_inputs) else "NOT_CONFIGURED")
     args.report.parent.mkdir(parents=True, exist_ok=True)
