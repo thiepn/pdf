@@ -53,7 +53,11 @@ phase, timestamps, nonce and counter; and the ONLY permitted disposition
 \`REVIEWED_NOT_AUTHORIZED\`.
 
 The postrelease review cannot masquerade as a precutover decision.
-It requires a separate original external deployment-receipt digest.
+It requires the actual original deployment-receipt bytes and a separately
+externally pinned SHA256. A digest copied from the signed review is not
+sufficient. Likewise each signed review's original evidence-manifest bytes
+must be independently inspected against an off-CI SHA256 pin; a signed
+hash without the corresponding actual source file is rejected.
 An externally signed claim is only **cryptographic custody** and can
 never automatically authorize GO, migration, deployment, rollback or
 closure. Postrelease closure remains OPEN until independent operator
