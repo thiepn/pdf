@@ -1,10 +1,11 @@
 import * as mupdf from "mupdf";
 import { addFingerprint, aggregateCategoryFingerprints, comparePreservationGraphs, createObjectMap, hashBytes, hashText } from "../preservation/fingerprint";
 import { preservationPolicy } from "../preservation/policies";
+import { SMART_MODES, assertSmartOptimizationSafe, selectSmartCandidate, type SmartOptimizationSettings, type SmartCandidate } from "../optimization/smartOptimizer";
 import type { GraphCounts, ImageOptimizationSettings, ImpositionSettings, OcrOverlayPage, PreservationGraph } from "../types/preservation";
 
 type Request =
-  | { type: "INSPECT" | "OCR_OVERLAY" | "OPTIMIZE" | "IMPOSE"; requestId: string; bytes: ArrayBuffer; password?: string; pages?: OcrOverlayPage[]; settings?: ImageOptimizationSettings | ImpositionSettings }
+  | { type: "INSPECT" | "OCR_OVERLAY" | "OPTIMIZE" | "IMPOSE" | "SMART_OPTIMIZE"; requestId: string; bytes: ArrayBuffer; password?: string; pages?: OcrOverlayPage[]; settings?: ImageOptimizationSettings | ImpositionSettings | SmartOptimizationSettings }
   | { type: "CANCEL"; requestId: string };
 
 const cancelled = new Set<string>();
@@ -312,6 +313,75 @@ function save(pdf: any): Uint8Array {
   try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
 }
 
+function hasToken(bytes: Uint8Array, token: string): boolean {
+  const needle = new TextEncoder().encode(token);
+  outer: for (let i = 0; i <= bytes.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) if (bytes[i + j] !== needle[j]) continue outer;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * F4 never modifies the source's logical PDF graph. Each candidate is saved,
+ * independently reopened, and compared against all 15 preservation categories.
+ * A failed candidate or a larger result is discarded. No trial can escape to
+ * the user without a successful semantic comparison.
+ */
+function smartOptimize(pdf: any, request: Extract<Request, { type: "INSPECT" | "OCR_OVERLAY" | "OPTIMIZE" | "IMPOSE" | "SMART_OPTIMIZE" }>, source: PreservationGraph, startedAt: number): void {
+  const inputBytes = new Uint8Array(request.bytes);
+  const settings = request.settings as SmartOptimizationSettings | undefined;
+  if (!settings || !Object.prototype.hasOwnProperty.call(SMART_MODES, settings.mode)) throw new Error("Unknown smart optimization profile.");
+  const root = pdf.getTrailer?.()?.get?.("Root");
+  const perms = root?.get?.("Perms");
+  const certified = Boolean(perms && !perms.isNull?.());
+  const repaired = Boolean(pdf.wasRepaired?.());
+  const versionCount = Number(pdf.countVersions?.() ?? 1);
+  assertSmartOptimizationSafe(source, {
+    signed: hasToken(inputBytes, "/ByteRange") || source.counts.signatures > 0,
+    certified,
+    repaired,
+    incrementalRevisions: versionCount > 1
+  });
+  const candidates: SmartCandidate[] = [];
+  let bestBytes: Uint8Array | null = null;
+  let bestGraph: PreservationGraph | null = null;
+  const mode = SMART_MODES[settings.mode];
+  for (const [index, options] of mode.saveOptions.entries()) {
+    active(request.requestId);
+    const variant = index === 0 ? "stream-compression" : "deduplicated-cleanup";
+    let reopened: any;
+    try {
+      const buffer = pdf.saveToBuffer(options);
+      let bytes: Uint8Array;
+      try { bytes = Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
+      if (bytes.byteLength >= inputBytes.byteLength) {
+        candidates.push({ variant, bytes: bytes.byteLength, passed: true, failures: [] });
+        continue; // No output candidate needs further graph inspection if it is larger.
+      }
+      active(request.requestId);
+      reopened = new (mupdf as any).PDFDocument(bytes);
+      if (reopened.wasRepaired?.()) throw new Error("Candidate required PDF repair when reopened.");
+      const outputGraph = graph(reopened, request.requestId);
+      const comparison = comparePreservationGraphs("smart-optimize", preservationPolicy("smart-optimize"), source, outputGraph, performance.now() - startedAt);
+      candidates.push({ variant, bytes: bytes.byteLength, passed: comparison.passed, failures: comparison.failures });
+      if (comparison.passed && (!bestBytes || bytes.byteLength < bestBytes.byteLength)) { bestBytes = bytes; bestGraph = outputGraph; }
+    } catch (reason) {
+      if (cancelled.has(request.requestId)) throw reason;
+      candidates.push({ variant, bytes: 0, passed: false, failures: [reason instanceof Error ? reason.message : String(reason)] });
+    } finally { reopened?.destroy?.(); }
+  }
+  const decision = selectSmartCandidate(inputBytes.byteLength, candidates);
+  const output = decision.candidate && bestBytes ? bestBytes : Uint8Array.from(inputBytes);
+  const graphToCompare = decision.candidate && bestGraph ? bestGraph : source;
+  const report = comparePreservationGraphs("smart-optimize", preservationPolicy("smart-optimize"), source, graphToCompare, performance.now() - startedAt);
+  if (!report.passed) throw new Error("Smart optimization failed the final preservation contract.");
+  report.warnings.push(decision.reason);
+  for (const failed of decision.rejected) report.warnings.push(`Candidate ${failed.variant} rejected: ${failed.failures.slice(0, 3).join("; ")}`);
+  const transferable = output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength);
+  self.postMessage({ type: "PRESERVATION_RESULT", requestId: request.requestId, output: transferable, report }, [transferable]);
+}
+
 function pageSize(settings: ImpositionSettings): [number, number] {
   return settings.pageSize === "letter" ? [612, 792] : [595.276, 841.89];
 }
@@ -368,6 +438,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
         self.postMessage({ type: "PRESERVATION_INSPECTION", requestId: request.requestId, graph: source });
         return;
       }
+      if (request.type === "SMART_OPTIMIZE") { smartOptimize(pdf, request, source, start); return; }
 
       let outputPdf = pdf;
       let operation = "";

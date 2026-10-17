@@ -1,4 +1,5 @@
 import type { ImageOptimizationSettings, ImpositionSettings, OcrOverlayPage, PreservationGraph, PreservationResult } from "../types/preservation";
+import type { SmartOptimizationSettings } from "../optimization/smartOptimizer";
 
 type Result =
   | { type: "PRESERVATION_INSPECTION"; requestId: string; graph: PreservationGraph }
@@ -62,4 +63,9 @@ export function optimizePreservedPdf(bytes: Uint8Array, settings: ImageOptimizat
 
 export function imposeVectorPages(bytes: Uint8Array, settings: ImpositionSettings, password?: string, signal?: AbortSignal) {
   return call<PreservationResult>({ type: "IMPOSE", settings }, bytes, password, signal);
+}
+
+/** F4 — strict all-category structural optimization; does not use rasterization. */
+export function smartOptimizePreservedPdf(bytes: Uint8Array, settings: SmartOptimizationSettings, password?: string, signal?: AbortSignal) {
+  return call<PreservationResult>({ type: "SMART_OPTIMIZE", settings }, bytes, password, signal);
 }

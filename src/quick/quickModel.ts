@@ -77,7 +77,8 @@ export interface QuickOptions {
   paper: "original" | "a4" | "letter";
   orientation: "auto" | "portrait" | "landscape";
   margin: number;
-  compression: "lossless" | "balanced" | "small";
+  compression: "smart" | "lossless" | "balanced" | "small";
+  smartStrength: "careful" | "compact";
   acceptRaster: boolean;
   outputPassword: string;
   confirmPassword: string;
@@ -92,7 +93,7 @@ export interface QuickOptions {
   crop: { top: number; right: number; bottom: number; left: number };
 }
 export function defaultQuickOptions(): QuickOptions {
-  return { pagePlan: null, cropPages: "all", selection: "all", splitMode: "each", every: 2, ranges: "", rotation: 90, dpi: 150, paper: "a4", orientation: "auto", margin: 10, compression: "lossless", acceptRaster: false, outputPassword: "", confirmPassword: "", watermark: "", startNumber: 1, numberPosition: "bottom-center", decorationFontSize: 11, flattenForms: true, flattenAnnotations: true, removeAttachments: false, removeMetadata: false, crop: { top: 0, right: 0, bottom: 0, left: 0 } };
+  return { pagePlan: null, cropPages: "all", selection: "all", splitMode: "each", every: 2, ranges: "", rotation: 90, dpi: 150, paper: "a4", orientation: "auto", margin: 10, compression: "lossless", smartStrength: "careful", acceptRaster: false, outputPassword: "", confirmPassword: "", watermark: "", startNumber: 1, numberPosition: "bottom-center", decorationFontSize: 11, flattenForms: true, flattenAnnotations: true, removeAttachments: false, removeMetadata: false, crop: { top: 0, right: 0, bottom: 0, left: 0 } };
 }
 
 // One-use, in-memory hand-off. Never persisted to storage or sent over a network.
