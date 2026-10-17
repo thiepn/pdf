@@ -404,6 +404,8 @@ function defaultViewportSize(tool: EditorTool): { width: number; height: number 
   if (tool === "note") return { width: 32, height: 32 };
   if (["highlight", "underline", "strikeout", "squiggly"].includes(tool)) return { width: 160, height: 24 };
   if (tool === "link") return { width: 180, height: 32 };
+  if (tool === "measure-distance") return { width: 180, height: 110 };
+  if (tool === "measure-area") return { width: 160, height: 110 };
   if (tool === "stamp") return { width: 150, height: 48 };
   if (tool === "line" || tool === "arrow") return { width: 130, height: 40 };
   return { width: 180, height: 90 };

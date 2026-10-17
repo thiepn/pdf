@@ -21,7 +21,9 @@ export type EditorTool =
   | "link"
   | "stamp"
   | "signature"
-  | "redaction";
+  | "redaction"
+  | "measure-distance"
+  | "measure-area";
 
 export type EditorObjectType =
   | "text"
@@ -33,7 +35,8 @@ export type EditorObjectType =
   | "link"
   | "stamp"
   | "signature"
-  | "redaction";
+  | "redaction"
+  | "measurement";
 
 export interface BaseEditorObject {
   id: string;
@@ -106,6 +109,8 @@ export interface HighlightEditorObject extends BaseEditorObject {
   color: string;
 }
 
+export interface ReviewReply { id: string; author: string; contents: string; createdAt: number; }
+
 export interface NoteEditorObject extends BaseEditorObject {
   type: "note";
   author: string;
@@ -113,6 +118,8 @@ export interface NoteEditorObject extends BaseEditorObject {
   contents: string;
   color: string;
   resolved: boolean;
+  reviewStatus?: "open" | "in-progress" | "resolved";
+  replies?: ReviewReply[];
 }
 
 export interface LinkEditorObject extends BaseEditorObject {
@@ -149,6 +156,15 @@ export interface RedactionEditorObject extends BaseEditorObject {
   applied: false;
 }
 
+export interface MeasurementEditorObject extends BaseEditorObject {
+  type: "measurement";
+  kind: "distance" | "area";
+  unit: "mm" | "cm" | "m";
+  mmPerPoint: number;
+  strokeColor: string;
+  lineWidth: number;
+}
+
 export type EditorObject =
   | TextEditorObject
   | ImageEditorObject
@@ -159,7 +175,8 @@ export type EditorObject =
   | LinkEditorObject
   | StampEditorObject
   | SignatureEditorObject
-  | RedactionEditorObject;
+  | RedactionEditorObject
+  | MeasurementEditorObject;
 
 export interface EditorDocumentState {
   schemaVersion: number;
