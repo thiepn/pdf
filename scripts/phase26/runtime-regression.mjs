@@ -13,6 +13,8 @@ const comparePage=await readFile(new URL("../../src/views/ComparePage.tsx",impor
 const creatorWorker=await readFile(new URL("../../src/workers/creator.worker.ts",import.meta.url),"utf8");
 const batchPage=await readFile(new URL("../../src/views/BatchPage.tsx",import.meta.url),"utf8");
 const batchPipeline=await readFile(new URL("../../src/processing/batchPipeline.ts",import.meta.url),"utf8");
+const headlessActions=await readFile(new URL("../../src/actions/actionCatalog.ts",import.meta.url),"utf8");
+const actionRunner=await readFile(new URL("../../src/actions/actionRunner.ts",import.meta.url),"utf8");
 
 check("visual identity",()=>assert.equal(visualFingerprintSimilarity(visual("0".repeat(64)),visual("0".repeat(64))),1));
 check("visual difference",()=>assert.ok(visualFingerprintSimilarity(visual("0".repeat(64)),visual("1".repeat(64)))<.3));
@@ -25,5 +27,5 @@ check("Batch 3 schema round trip",()=>{const parsed=parseBatchRecipeJson(seriali
 check("Batch terminal step validation",()=>assert.throws(()=>parseBatchRecipeJson(JSON.stringify({schemaVersion:3,name:"Bad",steps:[{id:"a",type:"split-fixed",pagesPerFile:5},{id:"b",type:"optimize"}],outputSuffix:"x"})),/final workflow step/));
 check("Compare hybrid UI",()=>{assert.match(comparePage,/alignPageFingerprints/);assert.match(comparePage,/visualFingerprintFromRgba/);assert.match(comparePage,/extractAllFingerprints/);});
 check("searchable link annotations",()=>assert.match(creatorWorker,/page\.createLink/));
-check("Batch multi-output UI",()=>{assert.match(batchPage,/Split into PDF parts/);assert.match(batchPage,/Export page images/);assert.match(batchPipeline,/split-zip/);assert.match(batchPipeline,/images-zip/);});
+check("Batch multi-output UI",()=>{assert.match(batchPage,/Split into PDF parts/);assert.match(batchPage,/Export page images/);assert.match(batchPipeline,/runHeadlessSequence/);assert.match(headlessActions,/"pdf.split.fixed"/);assert.match(headlessActions,/"pdf.pages.images"/);assert.match(headlessActions,/"split-zip"/);assert.match(headlessActions,/"images-zip"/);assert.match(actionRunner,/exportPdfSplitZip/);assert.match(actionRunner,/exportPdfImagesZip/);});
 console.log(`Phase 26 runtime regression: ${passed}/12 passed.`);
