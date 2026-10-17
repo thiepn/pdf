@@ -180,9 +180,11 @@ export async function validatePdfFidelity(
   outputBytes: Uint8Array,
   affectedPages: Iterable<number>,
   password?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  expectedAddedFields = 0,
+  addedFieldPages: readonly number[] = []
 ): Promise<PdfFidelityReport> {
   const source = await inspectPdfFidelityProfile(sourceBytes, affectedPages, password, signal);
   const output = await inspectPdfFidelityProfile(outputBytes, source.affectedPages, password, signal, source.sampledPages);
-  return comparePdfFidelityProfiles(source, output);
+  return comparePdfFidelityProfiles(source, output, expectedAddedFields, addedFieldPages);
 }

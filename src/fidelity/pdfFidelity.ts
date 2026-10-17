@@ -175,7 +175,7 @@ function compareCoreMetadata(source: Record<string, string>, output: Record<stri
   }
 }
 
-export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: PdfFidelityProfile): PdfFidelityReport {
+export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: PdfFidelityProfile, expectedAddedFields = 0, addedFieldPages: readonly number[] = []): PdfFidelityReport {
   const failures: string[] = [];
   const warnings: string[] = [];
   const affected = new Set(source.affectedPages);
@@ -188,7 +188,7 @@ export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: P
   if (source.container.encrypted !== output.container.encrypted) failures.push("PDF encryption state changed unexpectedly.");
   if (source.outlineEntries !== output.outlineEntries) failures.push(`Outline entry count changed from ${source.outlineEntries} to ${output.outlineEntries}.`);
   if (source.attachmentCount !== output.attachmentCount) failures.push(`Attachment count changed from ${source.attachmentCount} to ${output.attachmentCount}.`);
-  if (source.formFieldCount !== output.formFieldCount) failures.push(`Form field count changed from ${source.formFieldCount} to ${output.formFieldCount}.`);
+  if (!Number.isInteger(expectedAddedFields) || expectedAddedFields < 0 || source.formFieldCount + expectedAddedFields !== output.formFieldCount) failures.push(`Form field count changed from ${source.formFieldCount} to ${output.formFieldCount}; expected ${source.formFieldCount + expectedAddedFields}.`);
   if (source.hasJavaScript !== output.hasJavaScript) failures.push("Document JavaScript presence changed unexpectedly.");
   if (source.pageLabelsDigest !== output.pageLabelsDigest) failures.push("Page labels changed unexpectedly.");
   compareCoreMetadata(source.coreMetadata, output.coreMetadata, failures);
@@ -210,7 +210,8 @@ export function comparePdfFidelityProfiles(source: PdfFidelityProfile, output: P
     }
 
     if (affected.has(pageNumber)) {
-      if (before.widgetCount !== after.widgetCount) failures.push(`Page ${pageNumber} widget count changed unexpectedly.`);
+      const expectedWidgetCount = before.widgetCount + addedFieldPages.filter((page) => page === pageNumber).length;
+      if (expectedWidgetCount !== after.widgetCount) failures.push(`Page ${pageNumber} widget count changed unexpectedly (expected ${expectedWidgetCount}, got ${after.widgetCount}).`);
       continue;
     }
 
