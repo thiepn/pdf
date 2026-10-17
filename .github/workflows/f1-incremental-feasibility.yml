@@ -1,0 +1,50 @@
+name: F1 incremental-save probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/f1/**"
+      - "docs/f1/**"
+      - ".github/workflows/f1-incremental-feasibility.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.16.0"
+      - name: Test fail-closed qualification contract
+        run: node --test scripts/f1/incremental-save-contract.test.mjs
+      - name: Install lockfile-pinned dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run bounded experimental WASM probes (not a release gate)
+        id: experiment
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --experimental-strip-types scripts/f1/incremental-save-probe.mjs | tee f1-node-wasm-evidence.json
+      - name: Publish experimental evidence
+        if: always()
+        shell: bash
+        run: |
+          echo "### F1 experimental result: ${{ steps.experiment.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Node/WASM-only feasibility; browser-worker and signature/security qualification **remain pending**." >> "$GITHUB_STEP_SUMMARY"
+          if [ -f f1-node-wasm-evidence.json ]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat f1-node-wasm-evidence.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: f1-node-wasm-evidence
+          path: f1-node-wasm-evidence.json
+          if-no-files-found: ignore
