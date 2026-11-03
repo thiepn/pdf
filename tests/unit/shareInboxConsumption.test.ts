@@ -197,4 +197,29 @@ describe("share inbox consumption reliability", () => {
     expect(await listSharedInboxFiles()).toEqual([]);
     expect(entries.size).toBe(0);
   });
+
+  it("does not expose an acknowledged legacy file when localStorage writes and Cache.delete both refuse", async () => {
+    const id = new URL("./__share_inbox__/legacy-consumed-but-stuck", document.baseURI).toString();
+    const entries = new Map([[id, new Response("already imported")]] as [string, Response][]);
+    const cache = {
+      keys: vi.fn(async () => [...entries.keys()].map(key => new Request(key))),
+      match: vi.fn(async (request: Request) => entries.get(request.url)),
+      put: vi.fn(async (key: string, value: Response) => { entries.set(key, value); }),
+      delete: vi.fn(async (request: Request | string) => {
+        const key = request instanceof Request ? request.url : request;
+        return key === id ? false : entries.delete(key);
+      })
+    };
+    installCache(cache);
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Synthetic localStorage denial", "QuotaExceededError");
+    });
+    try {
+      const { acknowledgeSharedInboxFiles, listSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+      await acknowledgeSharedInboxFiles([id]);
+      expect(localStorage.length).toBe(0);
+      await expect(listSharedInboxFiles()).resolves.toEqual([]);
+      expect(cache.match).not.toHaveBeenCalledWith(new Request(id));
+    } finally { blocked.mockRestore(); }
+  });
 });
