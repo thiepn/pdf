@@ -75,6 +75,12 @@ export async function createProjectFromBytes(
     return Number.isSafeInteger(project.schemaVersion) && project.schemaVersion >= 1 && project.schemaVersion <= PROJECT_SCHEMA_VERSION;
   }) : undefined;
   if (existing) {
+    // A matching checksum proves byte identity, not password correctness.
+    // Reimports of protected PDFs must validate the supplied credential before
+    // modifying the existing project or replacing its session-only password.
+    // Otherwise a mistyped password can silently lock an otherwise valid
+    // project out of its current editor session.
+    if (password) await inspectPdfBytes(bytes, password);
     try {
       const compatibleExisting = migrateProjectManifestForSchema(existing, PROJECT_SCHEMA_VERSION, createId);
       const existingBytes = await loadProjectBytes(compatibleExisting);
