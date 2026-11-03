@@ -252,7 +252,7 @@ test("interrupted WorkspaceSession cleanup must not strand tabs referring to a d
   expect(original?.id).toBeTruthy();
   await page.goto("./#/projects");
 
-  const sessionState = async () => page.evaluate(async () => {
+  const sessionState = async () => page.evaluate(async (id) => {
     const opening = indexedDB.open("local-pdf-studio");
     const db = await new Promise((resolve, reject) => {
       opening.onsuccess = () => resolve(opening.result);
@@ -265,11 +265,11 @@ test("interrupted WorkspaceSession cleanup must not strand tabs referring to a d
         request.onerror = () => reject(request.error);
       });
       const [session, manifest] = await Promise.all([
-        get("workspaceSessions", "primary"), get("projects", original.id)
+        get("workspaceSessions", "primary"), get("projects", id)
       ]);
       return { session, projectExists: Boolean(manifest) };
     } finally { db.close(); }
-  });
+  }, original.id);
   const before = await sessionState();
   expect(before.projectExists).toBe(true);
   expect(before.session?.tabs?.some(tab => tab.projectId === original.id)).toBe(true);
