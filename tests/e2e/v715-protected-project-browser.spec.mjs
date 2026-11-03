@@ -25,7 +25,10 @@ function protectedPdf() {
   }
 }
 
-const input = () => ({ name: "protected-reimport.pdf", mimeType: "application/pdf", buffer: protectedPdf() });
+// Encryption uses random salts. Reimport must reuse the exact ciphertext bytes,
+// otherwise a different checksum correctly creates a different local project.
+const PROTECTED_BYTES = protectedPdf();
+const input = () => ({ name: "protected-reimport.pdf", mimeType: "application/pdf", buffer: PROTECTED_BYTES });
 
 async function storedState(page) {
   return page.evaluate(async () => {
