@@ -10,6 +10,21 @@ const CONSUMED_KEY = `${SHARE_INBOX_CACHE}-consumed-v1`;
 // after every file has been stored. Missing markers quarantine incomplete
 // batches even when localStorage and physical Cache deletion both fail.
 const activeLaunchBatches = new Set<string>();
+
+// A small same-cache receipt is a fallback when the browser refuses writes to
+// localStorage. It cannot be confused with a PDF, and avoids rewriting any
+// original file bytes just to acknowledge a completed import.
+function acknowledgementMarkerUrl(id: string): string {
+  return new URL(`./__share_inbox__/ack-v1-${encodeURIComponent(id)}`, document.baseURI).toString();
+}
+function acknowledgedIdFromMarkerUrl(url: string): string | undefined {
+  const parsed = new URL(url);
+  if (!parsed.pathname.includes("/__share_inbox__/")) return undefined;
+  const segment = parsed.pathname.split("/").at(-1) ?? "";
+  if (!segment.startsWith("ack-v1-")) return undefined;
+  try { return decodeURIComponent(segment.slice("ack-v1-".length)); }
+  catch { return undefined; }
+}
 function committedBatchUrl(stamp: string): string {
   return new URL(`./__share_inbox__/${stamp}--committed`, document.baseURI).toString();
 }
@@ -30,16 +45,17 @@ function readConsumedIds(): Set<string> {
   } catch { return new Set(); }
 }
 
-function writeConsumedIds(ids: Iterable<string>): void {
+function writeConsumedIds(ids: Iterable<string>): boolean {
   try {
     const values = [...new Set(ids)];
     if (values.length) localStorage.setItem(CONSUMED_KEY, JSON.stringify(values));
     else localStorage.removeItem(CONSUMED_KEY);
-  } catch { /* Cache deletion below is still attempted. */ }
+    return true;
+  } catch { return false; }
 }
 
-function rememberConsumedIds(ids: Iterable<string>): void {
-  writeConsumedIds([...readConsumedIds(), ...ids]);
+function rememberConsumedIds(ids: Iterable<string>): boolean {
+  return writeConsumedIds([...readConsumedIds(), ...ids]);
 }
 
 function forgetConsumedIds(ids: Iterable<string>): void {
@@ -112,6 +128,11 @@ export async function listSharedInboxFiles(): Promise<SharedInboxFile[]> {
   if (!("caches" in window)) return [];
   const cache = await caches.open(SHARE_INBOX_CACHE);
   const requests = await cache.keys();
+  const receiptMarkers = requests.flatMap((request) => {
+    const target = acknowledgedIdFromMarkerUrl(request.url);
+    return target ? [{ target, request }] : [];
+  });
+  const consumedReceipts = new Set(receiptMarkers.map(({ target }) => target));
   const markers = requests.flatMap((request) => {
     const stamp = committedStampFromUrl(request.url);
     return stamp ? [{ stamp, request }] : [];
@@ -122,6 +143,7 @@ export async function listSharedInboxFiles(): Promise<SharedInboxFile[]> {
   const physicallyRemoved: string[] = [];
   const output: SharedInboxFile[] = [];
   for (const request of requests) {
+    if (acknowledgedIdFromMarkerUrl(request.url)) continue; // Receipt metadata, not a PDF.
     if (committedStampFromUrl(request.url)) continue; // Metadata is not a shared file.
     const stamp = launchBatchFromFileUrl(request.url);
     if (stamp && !committed.has(stamp)) {
@@ -133,7 +155,7 @@ export async function listSharedInboxFiles(): Promise<SharedInboxFile[]> {
       }
       continue;
     }
-    if (consumed.has(request.url)) {
+    if (consumed.has(request.url) || consumedReceipts.has(request.url)) {
       // A prior import committed successfully but Cache Storage cleanup failed.
       // Keep its tombstone for as long as the cached bytes remain, regardless of
       // how many later documents are consumed, and retry physical deletion.
@@ -149,8 +171,13 @@ export async function listSharedInboxFiles(): Promise<SharedInboxFile[]> {
     output.push({ id: request.url, file: new File([blob], name, { type, lastModified: Date.now() }) });
   }
   if (physicallyRemoved.length) forgetConsumedIds(physicallyRemoved);
-  if (markers.length) {
+  if (markers.length || receiptMarkers.length) {
     const remaining = await cache.keys();
+    const remainingIds = new Set(remaining.map((request) => request.url));
+    for (const { target, request } of receiptMarkers) {
+      if (remainingIds.has(target)) continue; // Keep receipt while source still exists.
+      try { await cache.delete(request); } catch { /* Retry marker cleanup later. */ }
+    }
     const liveBatches = new Set(remaining.map((request) => launchBatchFromFileUrl(request.url)).filter(Boolean));
     for (const { stamp, request } of markers) {
       if (activeLaunchBatches.has(stamp) || liveBatches.has(stamp)) continue;
@@ -171,12 +198,37 @@ export async function removeSharedInboxFiles(ids: string[]): Promise<void> {
  * import or repeated unsupported-file handling after reload. */
 export async function acknowledgeSharedInboxFiles(ids: string[]): Promise<void> {
   if (!ids.length) return;
-  rememberConsumedIds(ids);
-  if (!("caches" in window)) return;
+  const tombstonePersisted = rememberConsumedIds(ids);
+  if (!("caches" in window)) {
+    if (!tombstonePersisted) throw new Error("Shared-file acknowledgement could not be stored. The imported project was kept.");
+    return;
+  }
   const cache = await caches.open(SHARE_INBOX_CACHE);
+  const durableReceipts = new Set<string>();
+  if (!tombstonePersisted) {
+    // Keep a small durable acknowledgement next to the already cached original
+    // BEFORE attempting deletion. This is only needed when localStorage fails.
+    for (const id of ids) {
+      try {
+        await cache.put(acknowledgementMarkerUrl(id), new Response("acknowledged"));
+        durableReceipts.add(id);
+      } catch { /* Physical deletion may still succeed; assess below. */ }
+    }
+  }
   const physicallyRemoved: string[] = [];
   for (const id of ids) {
-    try { if (await cache.delete(id)) physicallyRemoved.push(id); } catch { /* Tombstone keeps the item logically consumed. */ }
+    try { if (await cache.delete(id)) physicallyRemoved.push(id); }
+    catch { /* A durable tombstone or receipt keeps the item logically consumed. */ }
   }
   if (physicallyRemoved.length) forgetConsumedIds(physicallyRemoved);
+  for (const id of physicallyRemoved) {
+    if (!durableReceipts.has(id)) continue;
+    try { await cache.delete(acknowledgementMarkerUrl(id)); }
+    catch { /* Orphan receipts are retired during a subsequent inbox scan. */ }
+  }
+  if (!tombstonePersisted && ids.some((id) => !durableReceipts.has(id) && !physicallyRemoved.includes(id))) {
+    // Never claim that a completed import was durably acknowledged when every
+    // available persistent acknowledgement and physical cleanup also failed.
+    throw new Error("Shared-file acknowledgement could not be saved or cleaned up. The imported project remains available.");
+  }
 }
