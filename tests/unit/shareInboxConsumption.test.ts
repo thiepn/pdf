@@ -222,4 +222,48 @@ describe("share inbox consumption reliability", () => {
       expect(cache.match).not.toHaveBeenCalledWith(new Request(id));
     } finally { blocked.mockRestore(); }
   });
+
+  it("reports a real acknowledgement failure when localStorage, receipt staging and physical cleanup all fail", async () => {
+    const id = new URL("./__share_inbox__/legacy-all-stores-blocked", document.baseURI).toString();
+    const entries = new Map([[id, new Response("committed original")]] as [string, Response][]);
+    const cache = {
+      keys: vi.fn(async () => [...entries.keys()].map(key => new Request(key))),
+      match: vi.fn(async (request: Request) => entries.get(request.url)),
+      put: vi.fn(async () => { throw new DOMException("Cache quota", "QuotaExceededError"); }),
+      delete: vi.fn(async () => false)
+    };
+    installCache(cache);
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("Denied", "QuotaExceededError"); });
+    try {
+      const { acknowledgeSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+      await expect(acknowledgeSharedInboxFiles([id])).rejects.toThrow("acknowledgement could not be saved");
+      expect(entries.has(id)).toBe(true); // Never destroy or rewrite cached source bytes.
+    } finally { blocked.mockRestore(); }
+  });
+
+  it("retires an acknowledged cache receipt after physical source cleanup recovers", async () => {
+    const id = new URL("./__share_inbox__/legacy-receipt-recovery", document.baseURI).toString();
+    const entries = new Map([[id, new Response("committed original")]] as [string, Response][]);
+    let canDeleteSource = false;
+    const cache = {
+      keys: vi.fn(async () => [...entries.keys()].map(key => new Request(key))),
+      match: vi.fn(async (request: Request) => entries.get(request.url)),
+      put: vi.fn(async (url: string, value: Response) => { entries.set(url, value); }),
+      delete: vi.fn(async (request: Request | string) => {
+        const key = request instanceof Request ? request.url : request;
+        return key === id && !canDeleteSource ? false : entries.delete(key);
+      })
+    };
+    installCache(cache);
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("Denied", "QuotaExceededError"); });
+    try {
+      const { acknowledgeSharedInboxFiles, listSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+      await acknowledgeSharedInboxFiles([id]);
+      expect(entries.size).toBe(2); // Original and a small, durable receipt.
+      await expect(listSharedInboxFiles()).resolves.toEqual([]);
+      canDeleteSource = true;
+      await expect(listSharedInboxFiles()).resolves.toEqual([]);
+      expect(entries.size).toBe(0);
+    } finally { blocked.mockRestore(); }
+  });
 });
