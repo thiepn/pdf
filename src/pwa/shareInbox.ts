@@ -6,6 +6,22 @@ export interface SharedInboxFile {
 }
 
 const CONSUMED_KEY = `${SHARE_INBOX_CACHE}-consumed-v1`;
+// Launch-v2 entries have a durable Cache Storage commit marker written only
+// after every file has been stored. Missing markers quarantine incomplete
+// batches even when localStorage and physical Cache deletion both fail.
+const activeLaunchBatches = new Set<string>();
+function committedBatchUrl(stamp: string): string {
+  return new URL(`./__share_inbox__/${stamp}--committed`, document.baseURI).toString();
+}
+function launchBatchFromFileUrl(url: string): string | undefined {
+  const name = new URL(url).pathname.split("/").at(-1) ?? "";
+  return /^(launch-v2-[A-Za-z0-9-]+)-\d+$/.exec(name)?.[1];
+}
+function committedStampFromUrl(url: string): string | undefined {
+  const name = new URL(url).pathname.split("/").at(-1) ?? "";
+  return /^(launch-v2-[A-Za-z0-9-]+)--committed$/.exec(name)?.[1];
+}
+
 
 function readConsumedIds(): Set<string> {
   try {
@@ -57,7 +73,8 @@ export async function storeSharedInboxFiles(files: File[]): Promise<string[]> {
   if (!("caches" in window)) throw new Error("Local shared-file inbox storage is unavailable in this browser.");
   if (!files.length) return [];
   const cache = await caches.open(SHARE_INBOX_CACHE);
-  const stamp = `launch-${Date.now()}-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+  const stamp = `launch-v2-${Date.now()}-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+  activeLaunchBatches.add(stamp);
   const inserted: string[] = [];
   try {
     for (let index = 0; index < files.length; index += 1) {
@@ -73,6 +90,8 @@ export async function storeSharedInboxFiles(files: File[]): Promise<string[]> {
         }
       }));
     }
+    // A committed marker is written only when the entire file batch is complete.
+    await cache.put(committedBatchUrl(stamp), new Response("committed"));
     return inserted;
   } catch (reason) {
     // Mark the whole uncommitted batch consumed *before* asynchronous cleanup.
@@ -84,6 +103,8 @@ export async function storeSharedInboxFiles(files: File[]): Promise<string[]> {
     }));
     forgetConsumedIds(removed.filter((key): key is string => Boolean(key)));
     throw reason;
+  } finally {
+    activeLaunchBatches.delete(stamp);
   }
 }
 
@@ -91,11 +112,27 @@ export async function listSharedInboxFiles(): Promise<SharedInboxFile[]> {
   if (!("caches" in window)) return [];
   const cache = await caches.open(SHARE_INBOX_CACHE);
   const requests = await cache.keys();
+  const markers = requests.flatMap((request) => {
+    const stamp = committedStampFromUrl(request.url);
+    return stamp ? [{ stamp, request }] : [];
+  });
+  const committed = new Set(markers.map(({ stamp }) => stamp));
   const activeIds = new Set(requests.map((request) => request.url));
   const consumed = retainActiveConsumedIds(readConsumedIds(), activeIds);
   const physicallyRemoved: string[] = [];
   const output: SharedInboxFile[] = [];
   for (const request of requests) {
+    if (committedStampFromUrl(request.url)) continue; // Metadata is not a shared file.
+    const stamp = launchBatchFromFileUrl(request.url);
+    if (stamp && !committed.has(stamp)) {
+      // A failed or interrupted launch without a commit is not importable.
+      // Do not interfere with a write still active in this tab.
+      if (!activeLaunchBatches.has(stamp)) {
+        try { if (await cache.delete(request)) physicallyRemoved.push(request.url); }
+        catch { /* Missing commit marker keeps the residual entry hidden. */ }
+      }
+      continue;
+    }
     if (consumed.has(request.url)) {
       // A prior import committed successfully but Cache Storage cleanup failed.
       // Keep its tombstone for as long as the cached bytes remain, regardless of
@@ -112,6 +149,14 @@ export async function listSharedInboxFiles(): Promise<SharedInboxFile[]> {
     output.push({ id: request.url, file: new File([blob], name, { type, lastModified: Date.now() }) });
   }
   if (physicallyRemoved.length) forgetConsumedIds(physicallyRemoved);
+  if (markers.length) {
+    const remaining = await cache.keys();
+    const liveBatches = new Set(remaining.map((request) => launchBatchFromFileUrl(request.url)).filter(Boolean));
+    for (const { stamp, request } of markers) {
+      if (activeLaunchBatches.has(stamp) || liveBatches.has(stamp)) continue;
+      try { await cache.delete(request); } catch { /* Retry small marker cleanup later. */ }
+    }
+  }
   return output;
 }
 
