@@ -270,7 +270,13 @@ if (/test:runtime:v6\.0\.1/.test(deployWorkflowSource) && /test:runtime:v6\.0\.5
 if (/hasFutureSettingsSchema/.test(settingsStoreSource) && /newer PDF Studio version/.test(settingsStoreSource)) pass("v6.0.6 settings downgrade protection", "Future settings are preserved and cannot be overwritten by an older maintenance build"); else fail("v6.0.6 settings downgrade protection", "Future settings can still be silently down-converted");
 if (/schemaVersion > CURRENT_BATCH_SCHEMA_VERSION/.test(batchModelSource)) pass("v6.0.6 Batch downgrade protection", "Future Batch recipes fail closed instead of entering legacy migration"); else fail("v6.0.6 Batch downgrade protection", "Future Batch recipes can still be down-converted");
 if (/assertReadableOcrJob/.test(ocrRepositorySource) && /jobs\.map\(assertReadableOcrJob\)/.test(ocrRepositorySource)) pass("v6.0.6 OCR downgrade protection", "Future local OCR jobs are refused before use or rewrite"); else fail("v6.0.6 OCR downgrade protection", "Future OCR state can still be rewritten by an older build");
-if (/CONSUMED_KEY/.test(shareInboxSource) && /acknowledgeSharedInboxFiles/.test(shareInboxSource) && /acknowledgeSharedInboxFiles\(\[inboxId\]\)/.test(homePageSource)) pass("v6.0.6 durable Share Inbox acknowledgement", "Committed shared imports remain logically consumed even when physical cache cleanup fails"); else fail("v6.0.6 durable Share Inbox acknowledgement", "A successful shared import can be repeated after cleanup failure");
+const legacyAcknowledgementFallback = /acknowledgementMarkerUrl/.test(shareInboxSource)
+  && /acknowledgedIdFromMarkerUrl/.test(shareInboxSource)
+  && /consumedReceipts\.has\(request\.url\)/.test(shareInboxSource)
+  && /!tombstonePersisted/.test(shareInboxSource)
+  && /durableReceipts\.add\(id\)/.test(shareInboxSource)
+  && /acknowledgement could not be saved or cleaned up/.test(shareInboxSource);
+if (/CONSUMED_KEY/.test(shareInboxSource) && /acknowledgeSharedInboxFiles\(\[inboxId\]\)/.test(homePageSource) && legacyAcknowledgementFallback) pass("v6.0.6 durable Share Inbox acknowledgement", "Committed imports use localStorage tombstones or same-cache durable receipts, with explicit failure if neither can persist and deletion also fails"); else fail("v6.0.6 durable Share Inbox acknowledgement", "A completed shared import can be repeated after a combined acknowledgement and cleanup failure");
 // OPFS/IndexedDB cannot share a transaction. Verify staging occurs before
 // OPFS removal, and an interrupted IndexedDB commit retains a verified backup.
 const crossStoreDeleteStaged = /idbPut<SourceFileRecord>\("sourceFiles", \{ projectId, bytes: toOwnedArrayBuffer\(bytes\) \}\)/.test(projectRepositorySource)
