@@ -140,4 +140,35 @@ describe("share inbox consumption reliability", () => {
     expect(key).not.toBeNull();
     expect(JSON.parse(localStorage.getItem(key!) ?? "[]")).toHaveLength(2);
   });
+
+  it("never re-exposes failed launch files when localStorage tombstones and Cache.delete both fail", async () => {
+    // @ts-ignore -- Native Node File supplies a stream() for Response in Vitest.
+    const { File: NativeFile } = await import("node:buffer");
+    vi.stubGlobal("File", NativeFile);
+    const entries = new Map<string, Response>();
+    let writes = 0;
+    const cache = {
+      keys: vi.fn(async () => [...entries.keys()].map((key) => new Request(key))),
+      match: vi.fn(async (request: Request) => entries.get(request.url)),
+      put: vi.fn(async (url: string, response: Response) => {
+        entries.set(url, response);
+        if (++writes === 2) throw new Error("Synthetic quota after partial write");
+      }),
+      delete: vi.fn(async () => false)
+    };
+    installCache(cache);
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage unavailable", "QuotaExceededError");
+    });
+    try {
+      const { storeSharedInboxFiles, listSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+      await expect(storeSharedInboxFiles([
+        new File(["first"], "first.pdf", { type: "application/pdf" }),
+        new File(["second"], "second.pdf", { type: "application/pdf" })
+      ])).rejects.toThrow("Synthetic quota after partial write");
+      expect(entries.size).toBe(2);
+      await expect(listSharedInboxFiles()).resolves.toEqual([]);
+      expect(cache.match).not.toHaveBeenCalled();
+    } finally { blocked.mockRestore(); }
+  });
 });
