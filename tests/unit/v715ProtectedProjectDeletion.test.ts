@@ -38,6 +38,7 @@ describe("v7.1.5 project deletion and session credentials", () => {
     const { forgetProjectSessionPassword } = await import("../../src/security/sessionPasswords");
     forgetProjectSessionPassword(ID);
     forgetProjectSessionPassword(OTHER_ID);
+    vi.unstubAllGlobals();
   });
 
   it("releases only the successfully deleted project's in-memory credential", async () => {
@@ -66,5 +67,22 @@ describe("v7.1.5 project deletion and session credentials", () => {
 
     expect(db.del).not.toHaveBeenCalledWith("projects", ID);
     expect(readProjectSessionPassword(ID)).toBe("still-needed-secret");
+  });
+
+  it("preserves an OPFS project's manifest and password when directory removal fails", async () => {
+    vi.stubGlobal("navigator", { storage: { getDirectory: vi.fn() } });
+    db.get.mockImplementation(async (store: string) =>
+      store === "projects" ? { ...manifest, storageKind: "opfs" } : undefined
+    );
+    files.remove.mockRejectedValueOnce(new Error("OPFS directory locked"));
+    const { rememberProjectSessionPassword, readProjectSessionPassword } = await import("../../src/security/sessionPasswords");
+    const { deleteProject } = await import("../../src/projects/projectRepository");
+    rememberProjectSessionPassword(ID, "recoverable-secret");
+
+    await expect(deleteProject(ID)).rejects.toThrow("OPFS directory locked");
+
+    expect(db.del).not.toHaveBeenCalledWith("projects", ID);
+    expect(db.del).not.toHaveBeenCalledWith("sourceFiles", ID);
+    expect(readProjectSessionPassword(ID)).toBe("recoverable-secret");
   });
 });
