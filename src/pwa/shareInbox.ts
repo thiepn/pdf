@@ -49,8 +49,9 @@ function inboxRequestUrl(stamp: string, index: number): string {
 
 /**
  * Stores browser-launched files in the same durable local inbox used by the
- * Web Share Target. The batch is atomic: if one Cache Storage write fails,
- * every entry inserted by this call is rolled back.
+ * Web Share Target. Failed batches are never exposed to consumers: if a write
+ * fails and physical rollback is blocked, consumed tombstones hide any
+ * residual Cache Storage entries until a subsequent cleanup can delete them.
  */
 export async function storeSharedInboxFiles(files: File[]): Promise<string[]> {
   if (!("caches" in window)) throw new Error("Local shared-file inbox storage is unavailable in this browser.");
@@ -62,17 +63,26 @@ export async function storeSharedInboxFiles(files: File[]): Promise<string[]> {
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       const key = inboxRequestUrl(stamp, index);
+      // Cache.put can reject after partially storing an entry. Track attempted
+      // keys before the call so all possible residual bytes are quarantined.
+      inserted.push(key);
       await cache.put(key, new Response(file, {
         headers: {
           "Content-Type": file.type || "application/octet-stream",
           "X-Local-Pdf-Studio-Filename": encodeURIComponent(file.name || `opened-${index + 1}.pdf`)
         }
       }));
-      inserted.push(key);
     }
     return inserted;
   } catch (reason) {
-    await Promise.allSettled(inserted.map((key) => cache.delete(key)));
+    // Mark the whole uncommitted batch consumed *before* asynchronous cleanup.
+    // A false/throw from Cache.delete must not expose partial failed imports.
+    rememberConsumedIds(inserted);
+    const removed = await Promise.all(inserted.map(async (key) => {
+      try { return await cache.delete(key) ? key : undefined; }
+      catch { return undefined; }
+    }));
+    forgetConsumedIds(removed.filter((key): key is string => Boolean(key)));
     throw reason;
   }
 }
