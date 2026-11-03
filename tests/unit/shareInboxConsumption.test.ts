@@ -107,6 +107,7 @@ describe("share inbox consumption reliability", () => {
   it("never exposes an incomplete batch when a later put fails and rollback deletion returns false", async () => {
     // Node's native Response requires a streamed File body; jsdom's File
     // has no stream() and otherwise fails before Cache.put is exercised.
+    // @ts-ignore -- Vitest runs in Node, but the production TS config excludes Node types.
     const { File: NativeFile } = await import("node:buffer");
     vi.stubGlobal("File", NativeFile);
     const entries = new Map<string, Response>();
