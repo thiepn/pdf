@@ -19,6 +19,8 @@ vi.mock("../../src/storage/projectFiles", async original => ({
   deleteProjectFiles: sim.opfsDelete
 }));
 
+vi.mock("../../src/core/checksum", () => ({ sha256: vi.fn(async () => "preserved-source-checksum") }));
+
 const id = "crash-window-existing-opfs";
 const original = Uint8Array.from([37, 80, 68, 70, 45, 49, 46, 55, 10, 79, 80, 70, 83]);
 const manifest = {
@@ -58,4 +60,25 @@ describe("OPFS/IndexedDB deletion interruption recovery", () => {
     // A visible surviving manifest must never reference missing PDF bytes.
     await expect(loadProjectBytes(surviving)).resolves.toEqual(original);
   });
+
+  it("fails without removing OPFS if durable staging exceeds the storage quota", async () => {
+    sim.put.mockRejectedValueOnce(new Error("Synthetic staging QuotaExceededError"));
+    const { deleteProject, loadProjectBytes } = await import("../../src/projects/projectRepository");
+
+    await expect(deleteProject(id)).rejects.toThrow("Synthetic staging QuotaExceededError");
+    expect(sim.opfsDelete).not.toHaveBeenCalled();
+    expect(sim.commit).not.toHaveBeenCalled();
+    const stored = await sim.get("projects", id) as ProjectManifest;
+    await expect(loadProjectBytes(stored)).resolves.toEqual(original);
+  });
+
+  it("does not finalize deletion when the original source fails integrity validation", async () => {
+    sim.opfsRead.mockResolvedValueOnce(Uint8Array.from([1, 2]));
+    const { deleteProject } = await import("../../src/projects/projectRepository");
+    await expect(deleteProject(id)).rejects.toThrow("integrity");
+    expect(sim.put).not.toHaveBeenCalled();
+    expect(sim.opfsDelete).not.toHaveBeenCalled();
+    expect(sim.commit).not.toHaveBeenCalled();
+  });
+
 });
