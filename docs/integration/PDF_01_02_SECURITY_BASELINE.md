@@ -39,7 +39,7 @@ No project-package, IDB, or native-editor schema version changes.
 - Genuine Chromium privacy test and stored-document → Quick task → downloaded PDF → independent MuPDF reopen.
 - Failure screenshots/traces are retained; no write permissions, production secrets, deploy jobs, or publication steps.
 
-This is **additional cheap coverage**, not a replacement for `.github/workflows/ci.yml`, cross-browser qualification, field tests, or human acceptance. The workflow checks a PR merge candidate; exact head and base must be reverified before any later merge decision. No test outcome is pre-claimed.
+This is **additional cheap coverage**, not a replacement for `.github/workflows/ci.yml`, cross-browser qualification, field tests, or human acceptance. The workflow checks out and asserts the exact PR branch head SHA. A future merge candidate and its base must be independently reverified before any later merge decision. No test outcome is pre-claimed.
 
 ## PDF-03: known failures retained without edits
 

@@ -28,8 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout exact PR merge candidate
+      - name: Checkout exact PR head SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact source SHA
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: Use locked Node toolchain
         uses: actions/setup-node@v4
         with:
@@ -62,8 +66,12 @@ jobs:
       VITE_BASE_PATH: /pdf/
       PLAYWRIGHT_BASE_PATH: /pdf/
     steps:
-      - name: Checkout exact PR merge candidate
+      - name: Checkout exact PR head SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact source SHA
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: Use locked Node toolchain
         uses: actions/setup-node@v4
         with:
