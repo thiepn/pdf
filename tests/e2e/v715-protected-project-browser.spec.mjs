@@ -171,3 +171,73 @@ test("real protected project deletion removes local storage identity and require
   expect(replacement.projects[0].id).not.toBe(deletedId);
   persistedPrivacy(replacement);
 });
+
+
+test("failed security-sidecar deletion must not commit removal of a still-recoverable project", async ({ page }) => {
+  test.setTimeout(100_000);
+  await openThroughTool(page, "read-pdf");
+  await enterPassword(page, PASSWORD);
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
+  const source = (await storedState(page)).projects[0];
+  expect(source?.id).toBeTruthy();
+
+  await page.goto("./#/projects");
+  await page.evaluate(async id => {
+    const opening = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(["securityStates", "editorAssets"], "readwrite");
+        tx.objectStore("securityStates").put({ projectId: id, schemaVersion: 1, testSentinel: "must-not-orphan-sensitive-state" });
+        tx.objectStore("editorAssets").put({ id: "sidecar-" + id, projectId: id, testSentinel: "asset-owned-by-project" });
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+    const original = IDBObjectStore.prototype.delete;
+    window.__restoreSidecarDelete = () => { IDBObjectStore.prototype.delete = original; };
+    IDBObjectStore.prototype.delete = function(key) {
+      if (this.name === "securityStates" && !window.__sidecarDeleteInjected) {
+        window.__sidecarDeleteInjected = true;
+        throw new DOMException("Synthetic sidecar deletion failure", "AbortError");
+      }
+      return original.call(this, key);
+    };
+  }, source.id);
+  page.on("dialog", dialog => dialog.accept());
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__sidecarDeleteInjected))).toBe(true);
+  await page.evaluate(() => window.__restoreSidecarDelete());
+
+  // Failure of any project-owned record must not remove the authoritative
+  // manifest, original source, or recovery data. A subsequent retry may remove
+  // everything atomically once the browser storage fault has cleared.
+  const interrupted = await storedState(page);
+  expect(interrupted.projects.map(project => project.id)).toContain(source.id);
+  expect(interrupted.securityStates.some(item => item.projectId === source.id)).toBe(true);
+  await page.reload();
+  await expect(page.locator(".project-card")).toHaveCount(1);
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(0, { timeout: 30000 });
+  const finalState = await storedState(page);
+  expect(finalState.projects).toHaveLength(0);
+  expect(finalState.securityStates).toHaveLength(0);
+  const orphanAssets = await page.evaluate(async id => {
+    const opening = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction("editorAssets", "readonly").objectStore("editorAssets").index("projectId").getAll(id);
+        request.onsuccess = () => resolve(request.result.length);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  }, source.id);
+  expect(orphanAssets).toBe(0);
+});
