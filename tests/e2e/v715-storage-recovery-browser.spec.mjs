@@ -342,3 +342,56 @@ test("localStorage denies tombstones during failed launch: uncommitted files rem
   })).toBe(0);
   expect(await projectCount(page)).toBe(0);
 });
+
+
+test("legacy shared PDF is imported once when localStorage acknowledgement and Cache deletion are denied", async ({ page }) => {
+  test.setTimeout(100_000);
+  await page.addInitScript(() => {
+    const originalSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (String(key).endsWith("-consumed-v1")) throw new DOMException("Synthetic tombstone refusal", "QuotaExceededError");
+      return originalSet.call(this, key, value);
+    };
+    const originalDelete = Cache.prototype.delete;
+    Cache.prototype.delete = async function(request, ...opts) {
+      const url = request instanceof Request ? request.url : String(request);
+      if (url.includes("/__share_inbox__/legacy-ack-double")) return false;
+      return originalDelete.call(this, request, ...opts);
+    };
+  });
+  await page.goto("./#/projects");
+  const id = await page.evaluate(async bytes => {
+    const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v1";
+    const url = new URL("./__share_inbox__/legacy-ack-double", document.baseURI).toString();
+    await (await caches.open(cacheName)).put(url, new Response(Uint8Array.from(bytes), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "X-Local-Pdf-Studio-Filename": encodeURIComponent("already-acknowledged-legacy.pdf")
+      }
+    }));
+    return { url, cacheName };
+  }, Array.from(documentPdf()));
+  await page.goto("./#/home");
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/editor(?:\/.*)?$/, { timeout: 30000 });
+  await expect.poll(() => projectCount(page)).toBe(1);
+  const persisted = await page.evaluate(async ({ url, cacheName }) => {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    return {
+      cachedOriginal: Boolean(await cache.match(url)),
+      receiptCount: keys.filter(key => key.url.includes("/__share_inbox__/ack-v1-")).length,
+      tombstone: localStorage.getItem(cacheName + "-consumed-v1")
+    };
+  }, id);
+  expect(persisted).toEqual({ cachedOriginal: true, receiptCount: 1, tombstone: null });
+
+  // The receipt survives a full page reload: no unexpected navigation back
+  // into the already-imported project even though the legacy entry is cached.
+  await page.goto("./#/home");
+  await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect.poll(() => projectCount(page)).toBe(1);
+  await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
+});
