@@ -79,7 +79,14 @@ test("real browser share inbox retains consumed tombstones across failed Cache S
 
 test("real Cache Storage OCR migration preserves recorded pack bytes before legacy retirement", async ({ page }) => {
   test.setTimeout(100_000);
-  await page.goto("./#/home");
+  // Ensure the app, not this test, creates the versioned IndexedDB schema.
+  // Opening the DB before its first app upgrade can produce an empty v1 DB
+  // in slower WebKit workers; that is a harness race, not an OCR defect.
+  await page.goto("./#/tools/ocr-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles({ name: "ocr-migration.pdf", mimeType: "application/pdf", buffer: documentPdf() });
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/ocr(?:\/.*)?$/, { timeout: 30_000 });
+  const ocrRoute = page.url();
+  await page.goto("./#/projects");
   const seed = await page.evaluate(async () => {
     const legacy = "local-pdf-studio-ocr-languages-v1";
     const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
@@ -106,12 +113,10 @@ test("real Cache Storage OCR migration preserves recorded pack bytes before lega
     }
     return { legacy, current, englishUrl: new URL("ocr-languages/eng.traineddata.gz", document.baseURI).toString(), germanUrl: new URL("ocr-languages/deu.traineddata.gz", document.baseURI).toString() };
   });
-  // Trigger the app's own language manager via the public OCR workspace:
-  // clicking Remove German first migrates all recorded packs and then removes
-  // only German. English must survive migration byte-for-byte in the new cache.
-  await page.goto("./#/tools/ocr-pdf");
-  await page.getByLabel("PDF file", { exact: true }).setInputFiles({ name: "ocr-migration.pdf", mimeType: "application/pdf", buffer: documentPdf() });
-  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/ocr(?:\/.*)?$/, { timeout: 30_000 });
+  // Trigger the app's manager from a remounted public OCR workspace:
+  // Remove German migrates both recorded packs first and then removes German.
+  // English must survive migration byte-for-byte in the namespaced cache.
+  await page.goto(ocrRoute);
   const panel = page.locator(".ocr-language-panel");
   await expect(panel.getByText("2 installed")).toBeVisible({ timeout: 30_000 });
   await panel.locator(".ocr-language-card").filter({ hasText: "German" }).getByRole("button", { name: "Remove" }).click();
