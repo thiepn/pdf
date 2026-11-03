@@ -94,36 +94,36 @@ test("real encrypted PDF: wrong password, correct import, safe reimport, in-memo
   const originalId = first.projects[0].id;
   persistedPrivacy(first);
 
-  // A same-checksum, wrong-password attempt must neither change the existing
-  // manifest nor replace the credential that opened the original PDF.
+  // Same ciphertext means the existing project is reused without an
+  // additional password prompt while this tab already holds valid credentials.
   await openThroughTool(page, "read-pdf");
-  const beforeWrong = await storedState(page);
-  await enterPassword(page, WRONG);
-  await expect(page.locator(".error-banner")).toContainText("That password did not open the PDF");
-  const afterWrong = await storedState(page);
-  expect(afterWrong.projects).toEqual(beforeWrong.projects);
-  persistedPrivacy(afterWrong);
-
-  // Leaving the failed import should still allow the previously opened
-  // protected project to open without a new password in the same tab.
-  await page.goto(firstUrl);
-  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
-  await expect(page.getByRole("dialog", { name: "Password required" })).toHaveCount(0);
-
-  await openThroughTool(page, "read-pdf");
-  await enterPassword(page, PASSWORD);
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer(?:\/.*)?$/, { timeout: 30000 });
   await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
   expect(page.url()).toBe(firstUrl);
   const reimported = await storedState(page);
   expect(reimported.projects.map(project => project.id)).toEqual([originalId]);
   persistedPrivacy(reimported);
+  await expect(page.getByRole("dialog", { name: "Password required" })).toHaveCount(0);
 
-  // Credentials must not survive a full page reload; the original bytes and
-  // project must, and manual password entry should restore access.
+  // Project navigation continues to use the existing tab's valid credential.
+  await page.goto("./#/projects");
+  await page.goto(firstUrl);
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole("dialog", { name: "Password required" })).toHaveCount(0);
+
+  // A real page reload drops session memory but not the encrypted PDF/project.
+  // Wrong password entry in the existing viewer must fail without changing
+  // saved metadata; correct entry then restores access.
   await page.reload();
   const dialog = page.getByRole("dialog", { name: "Password required" });
   await expect(dialog).toBeVisible({ timeout: 30000 });
+  const beforeWrong = await storedState(page);
+  await dialog.getByPlaceholder("PDF password").fill(WRONG);
+  await dialog.getByRole("button", { name: "Open locally" }).click();
+  await expect(dialog).toBeVisible({ timeout: 30000 });
+  const afterWrong = await storedState(page);
+  expect(afterWrong.projects).toEqual(beforeWrong.projects);
+  persistedPrivacy(afterWrong);
   await dialog.getByPlaceholder("PDF password").fill(PASSWORD);
   await dialog.getByRole("button", { name: "Open locally" }).click();
   await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
