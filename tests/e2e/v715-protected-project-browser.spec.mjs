@@ -241,3 +241,67 @@ test("failed security-sidecar deletion must not commit removal of a still-recove
   }, source.id);
   expect(orphanAssets).toBe(0);
 });
+
+
+test("interrupted WorkspaceSession cleanup must not strand tabs referring to a deleted project", async ({ page }) => {
+  test.setTimeout(100_000);
+  await openThroughTool(page, "read-pdf");
+  await enterPassword(page, PASSWORD);
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
+  const original = (await storedState(page)).projects[0];
+  expect(original?.id).toBeTruthy();
+  await page.goto("./#/projects");
+
+  const sessionState = async () => page.evaluate(async () => {
+    const opening = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    try {
+      const get = (store, id) => new Promise((resolve, reject) => {
+        const request = db.transaction(store, "readonly").objectStore(store).get(id);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const [session, manifest] = await Promise.all([
+        get("workspaceSessions", "primary"), get("projects", original.id)
+      ]);
+      return { session, projectExists: Boolean(manifest) };
+    } finally { db.close(); }
+  });
+  const before = await sessionState();
+  expect(before.projectExists).toBe(true);
+  expect(before.session?.tabs?.some(tab => tab.projectId === original.id)).toBe(true);
+
+  await page.evaluate(() => {
+    const originalPut = IDBObjectStore.prototype.put;
+    window.__restoreWorkspaceSessionPut = () => { IDBObjectStore.prototype.put = originalPut; };
+    IDBObjectStore.prototype.put = function(value, ...args) {
+      if (this.name === "workspaceSessions") {
+        window.__workspaceSessionCommitDenied = true;
+        throw new DOMException("Synthetic session transaction interruption", "AbortError");
+      }
+      return originalPut.call(this, value, ...args);
+    };
+  });
+  page.on("dialog", dialog => dialog.accept());
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__workspaceSessionCommitDenied === true)).toBe(true);
+  await page.evaluate(() => window.__restoreWorkspaceSessionPut());
+  const interrupted = await sessionState();
+  // A session write failure must abort the same authoritative deletion: either
+  // both the project and its session reference survive, or both are removed.
+  expect(interrupted.projectExists).toBe(true);
+  expect(interrupted.session.tabs.some(tab => tab.projectId === original.id)).toBe(true);
+
+  await page.reload();
+  await expect(page.locator(".project-card")).toHaveCount(1);
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(0, { timeout: 30_000 });
+  const final = await sessionState();
+  expect(final.projectExists).toBe(false);
+  expect(final.session?.tabs?.some(tab => tab.projectId === original.id)).toBe(false);
+  expect(final.session?.recentlyClosed?.some(tab => tab.projectId === original.id)).toBe(false);
+  expect(final.session?.activeProjectId).not.toBe(original.id);
+});
