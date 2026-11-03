@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fileHandoffSource from "../../src/product/fileHandoff.ts?raw";
 import { discardTaskFiles, handOffTaskFiles, inspectIncomingFiles, takeTaskFiles, takeTaskTransfer } from "../../src/product/fileHandoff";
 const pdf = (name = "report.pdf") => new File(["%PDF-test"], name, { type: "application/pdf" });
 afterEach(() => { discardTaskFiles(); vi.useRealTimers(); });
@@ -26,6 +27,11 @@ describe("one-use file handoff", () => {
   it("expires abandoned handoffs", () => {
     vi.useFakeTimers(); handOffTaskFiles("extract-pages", [pdf()]); vi.advanceTimersByTime(10 * 60 * 1000 + 1);
     expect(takeTaskFiles("extract-pages")).toBeNull();
+  });
+  it("actively releases abandoned transfer references when the TTL elapses", () => {
+    expect(fileHandoffSource).toContain("pendingExpiry = setTimeout");
+    expect(fileHandoffSource).toContain("if (pending !== transfer) return");
+    expect(fileHandoffSource).toContain("clearTimeout(pendingExpiry)");
   });
   it("copies the caller's array so later mutations do not change the batch", () => {
     const first = pdf(); const files = [first]; handOffTaskFiles("merge-pdfs", files); files.push(pdf("later.pdf"));

@@ -1,0 +1,84 @@
+name: PDF Studio integration smoke
+
+# Lightweight PR-level checks are additive. The existing complete PDF Studio
+# CI, independent export/corpus qualification, and release gates remain intact.
+# In particular, success here never grants merge, deployment, or release approval.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/integration-pr-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-integration-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-security-and-unit:
+    name: Typecheck, all unit tests and privacy/source audits
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR merge candidate
+        uses: actions/checkout@v4
+      - name: Use locked Node toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - name: Require lockfile
+        run: test -f package-lock.json
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit regressions (including v7.1.5 security and recovery)
+        run: npm run test:unit
+      - name: Source audit
+        run: npm run audit:source
+      - name: Phase 30 security/privacy audit
+        run: npm run audit:phase30:security
+      - name: Phase 30 migration safety audit
+        run: npm run audit:phase30:migrations
+
+  browser-recovery-smoke:
+    name: Chromium privacy and saved-project-to-task PDF export
+    needs: source-security-and-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-noble
+    env:
+      HOME: /root
+      VITE_BASE_PATH: /pdf/
+      PLAYWRIGHT_BASE_PATH: /pdf/
+    steps:
+      - name: Checkout exact PR merge candidate
+        uses: actions/checkout@v4
+      - name: Use locked Node toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Real browser smoke with independently reopened downloaded PDF
+        run: npx playwright test tests/e2e/privacy.spec.ts tests/e2e/task-first-project-handoff.spec.mjs --project=chromium --workers=2
+      - name: Retain genuine failure traces and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-integration-playwright-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
