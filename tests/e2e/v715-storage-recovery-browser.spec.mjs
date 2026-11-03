@@ -272,3 +272,73 @@ test("real OCR quota failure keeps legacy pack bytes and permits a later migrati
   }, names);
   expect(outcome).toEqual({ legacyDeleted: true, englishIntact: true });
 });
+
+
+test("localStorage denies tombstones during failed launch: uncommitted files remain hidden across reload", async ({ page }) => {
+  test.setTimeout(100_000);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "launchQueue", {
+      configurable: true,
+      value: { setConsumer(callback) { window.__testLocalStorageLaunch = callback; } }
+    });
+  });
+  await page.goto("./#/projects");
+  await page.waitForFunction(() => typeof window.__testLocalStorageLaunch === "function");
+  const snapshot = await page.evaluate(async bytes => {
+    const originalPut = Cache.prototype.put;
+    const originalDelete = Cache.prototype.delete;
+    const originalSet = Storage.prototype.setItem;
+    let writes = 0;
+    Cache.prototype.put = async function(request, response) {
+      const url = request instanceof Request ? request.url : String(request);
+      if (url.includes("/__share_inbox__/") && !url.endsWith("--committed")) {
+        await originalPut.call(this, request, response);
+        if (++writes === 2) throw new Error("Synthetic partial launch quota error");
+        return;
+      }
+      return originalPut.call(this, request, response);
+    };
+    Cache.prototype.delete = async function(request, ...args) {
+      const url = request instanceof Request ? request.url : String(request);
+      if (url.includes("/__share_inbox__/")) return false;
+      return originalDelete.call(this, request, ...args);
+    };
+    Storage.prototype.setItem = function(key, value) {
+      if (String(key).endsWith("-consumed-v1")) throw new DOMException("Synthetic tombstone storage refusal", "QuotaExceededError");
+      return originalSet.call(this, key, value);
+    };
+    try {
+      await window.__testLocalStorageLaunch({
+        files: ["first.pdf", "second.pdf"].map(name => ({
+          getFile: async () => new File([Uint8Array.from(bytes)], name, { type: "application/pdf" })
+        }))
+      });
+    } finally {
+      Cache.prototype.put = originalPut;
+      Cache.prototype.delete = originalDelete;
+      Storage.prototype.setItem = originalSet;
+    }
+    const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v1";
+    const keys = await (await caches.open(cacheName)).keys();
+    return {
+      partialFiles: keys.filter(key => !key.url.endsWith("--committed")).length,
+      committed: keys.filter(key => key.url.endsWith("--committed")).length,
+      tombstone: localStorage.getItem(cacheName + "-consumed-v1")
+    };
+  }, Array.from(documentPdf()));
+  expect(snapshot).toEqual({ partialFiles: 2, committed: 0, tombstone: null });
+
+  // A new tab lifecycle has no pending JS launch handles, only Cache Storage.
+  // Without the commit marker these bytes must never become valid imports.
+  await page.reload();
+  await page.goto("./#/home");
+  await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
+  expect(await projectCount(page)).toBe(0);
+  await expect.poll(() => page.evaluate(async () => {
+    const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v1";
+    return (await (await caches.open(cacheName)).keys()).length;
+  })).toBe(0);
+  expect(await projectCount(page)).toBe(0);
+});
