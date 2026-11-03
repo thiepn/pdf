@@ -70,6 +70,8 @@ test("actual OPFS original stays recoverable through quota refusal, failed Index
   const originalUrl = page.url();
   const projectId = originalUrl.match(/#\/workspace\/([^/]+)\//)?.[1];
   expect(projectId).toBeTruthy();
+  const hasOpfs = await page.evaluate(() => typeof navigator.storage?.getDirectory === "function");
+  test.skip(!hasOpfs, "This browser does not expose OPFS; IndexedDB-only projects use the atomic source/manifest path.");
   const initial = await state(page, projectId);
   test.skip(initial.storageKind !== "opfs", "This engine stores originals in IndexedDB, so OPFS crash staging does not apply.");
   expect(initial.opfsExists).toBe(true);
