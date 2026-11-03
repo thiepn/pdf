@@ -258,7 +258,10 @@ if (/storeSharedInboxFiles\(files\)/.test(launchFilesSource) && /peekPendingPwaL
 const failedShareBatchQuarantined = /inserted\.push\(key\);\s*await cache\.put/.test(shareInboxSource)
   && /rememberConsumedIds\(inserted\)/.test(shareInboxSource)
   && /cache\.delete\(key\)/.test(shareInboxSource)
-  && /forgetConsumedIds\(removed\.filter/.test(shareInboxSource);
+  && /forgetConsumedIds\(removed\.filter/.test(shareInboxSource)
+  && /await cache\.put\(committedBatchUrl\(stamp\)/.test(shareInboxSource)
+  && /stamp && !committed\.has\(stamp\)/.test(shareInboxSource)
+  && /activeLaunchBatches\.has\(stamp\)/.test(shareInboxSource);
 if (failedShareBatchQuarantined && /refreshActiveReleaseCache/.test(maintenanceSource) && /pending shared files/.test(maintenanceSource)) pass("v6.0.5 maintenance document preservation", "Pending shared files survive maintenance; failed batch writes are quarantined until physical cleanup succeeds"); else fail("v6.0.5 maintenance document preservation", "Maintenance or failed share-ingress rollback can expose incomplete document batches");
 if (/refreshCurrentReleaseCache/.test(serviceWorkerSource) && /existing offline shell was preserved/.test(serviceWorkerSource) && /120_000/.test(serviceWorkerManagerSource)) pass("v6.0.5 offline-shell repair", "Offline-shell maintenance preserves the previous cache on fetch failure and allows a long-running repair response"); else fail("v6.0.5 offline-shell repair", "Offline-shell maintenance can still destroy a working cache or timeout prematurely");
 if (/assertReadableProjectManifestSchema\(header\.manifest\.schemaVersion, PROJECT_SCHEMA_VERSION\)/.test(phase28PackageSource)) pass("v6.0.5 package manifest downgrade protection", "Supported package formats still reject project manifests created by a newer schema"); else fail("v6.0.5 package manifest downgrade protection", "A supported package can silently down-convert a future project manifest");
