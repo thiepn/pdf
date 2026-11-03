@@ -103,4 +103,36 @@ describe("share inbox consumption reliability", () => {
     expect(cache.delete).toHaveBeenCalledTimes(2);
     expect(cache.match).not.toHaveBeenCalled();
   });
+
+  it("never exposes an incomplete batch when a later put fails and rollback deletion returns false", async () => {
+    const entries = new Map<string, Response>();
+    let written = 0;
+    const cache = {
+      keys: vi.fn(async () => [...entries.keys()].map((id) => new Request(id))),
+      match: vi.fn(async (request: Request) => entries.get(request.url)),
+      put: vi.fn(async (url: string, response: Response) => {
+        entries.set(url, response);
+        written++;
+        // The second attempted write may leave a partial Cache Storage entry.
+        if (written === 2) throw new Error("QuotaExceededError");
+      }),
+      delete: vi.fn(async () => false)
+    };
+    installCache(cache);
+
+    const { storeSharedInboxFiles, listSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+    await expect(storeSharedInboxFiles([
+      new File(["first"], "first.pdf", { type: "application/pdf" }),
+      new File(["second"], "second.pdf", { type: "application/pdf" })
+    ])).rejects.toThrow("QuotaExceededError");
+
+    expect(entries.size).toBe(2);
+    // Neither committed file belongs to an accepted batch; stale bytes should
+    // be logically consumed even while physical Cache Storage removal fails.
+    await expect(listSharedInboxFiles()).resolves.toEqual([]);
+    expect(cache.match).not.toHaveBeenCalled();
+    const key = consumedStorageKey();
+    expect(key).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem(key!) ?? "[]")).toHaveLength(2);
+  });
 });
