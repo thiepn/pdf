@@ -4,31 +4,41 @@ import type { ProjectManifest } from "../../src/types/project";
 const db = vi.hoisted(() => ({
   get: vi.fn(),
   del: vi.fn(),
+  commit: vi.fn(),
+  put: vi.fn(),
   delByIndex: vi.fn()
 }));
-const files = vi.hoisted(() => ({ remove: vi.fn() }));
+const files = vi.hoisted(() => ({ remove: vi.fn(), read: vi.fn() }));
 vi.mock("../../src/storage/database", async (original) => ({
   ...await original<typeof import("../../src/storage/database")>(),
   idbGet: db.get,
   idbDelete: db.del,
+  idbPut: db.put,
+  idbDeleteProjectAndSource: db.commit,
   idbDeleteAllByIndex: db.delByIndex
 }));
 vi.mock("../../src/storage/projectFiles", async (original) => ({
   ...await original<typeof import("../../src/storage/projectFiles")>(),
-  deleteProjectFiles: files.remove
+  deleteProjectFiles: files.remove,
+  readProjectSource: files.read
 }));
+
+vi.mock("../../src/core/checksum", () => ({ sha256: vi.fn(async () => "unit-source-checksum") }));
 
 const ID = "v715-protected-delete";
 const OTHER_ID = "v715-other-project";
-const manifest = { id: ID, storageKind: "indexeddb" } as ProjectManifest;
+const manifest = { id: ID, storageKind: "indexeddb", checksum: "unit-source-checksum", byteLength: 3 } as ProjectManifest;
 
 describe("v7.1.5 project deletion and session credentials", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     db.get.mockImplementation(async (store: string) => store === "projects" ? manifest : undefined);
     db.del.mockResolvedValue(undefined);
+    db.commit.mockResolvedValue(undefined);
+    db.put.mockResolvedValue(undefined);
     db.delByIndex.mockResolvedValue(undefined);
     files.remove.mockResolvedValue(undefined);
+    files.read.mockResolvedValue(Uint8Array.from([1, 2, 3]));
     const { forgetProjectSessionPassword } = await import("../../src/security/sessionPasswords");
     forgetProjectSessionPassword(ID);
     forgetProjectSessionPassword(OTHER_ID);
@@ -49,23 +59,20 @@ describe("v7.1.5 project deletion and session credentials", () => {
 
     await expect(deleteProject(ID)).resolves.toBeUndefined();
 
-    expect(db.del).toHaveBeenCalledWith("sourceFiles", ID);
-    expect(db.del).toHaveBeenCalledWith("projects", ID);
+    expect(db.commit).toHaveBeenCalledWith(ID);
     expect(readProjectSessionPassword(ID)).toBeUndefined();
     expect(readProjectSessionPassword(OTHER_ID)).toBe("unrelated-secret");
   });
 
-  it("preserves the project and session credential when source deletion fails", async () => {
+  it("preserves the project and session credential when atomic IndexedDB deletion fails", async () => {
     const { readProjectSessionPassword, rememberProjectSessionPassword } = await import("../../src/security/sessionPasswords");
     const { deleteProject } = await import("../../src/projects/projectRepository");
     rememberProjectSessionPassword(ID, "still-needed-secret");
-    db.del.mockImplementation(async (store: string) => {
-      if (store === "sourceFiles") throw new Error("IndexedDB source deletion blocked");
-    });
+    db.commit.mockRejectedValueOnce(new Error("IndexedDB source deletion blocked"));
 
     await expect(deleteProject(ID)).rejects.toThrow("IndexedDB source deletion blocked");
 
-    expect(db.del).not.toHaveBeenCalledWith("projects", ID);
+    expect(db.commit).toHaveBeenCalledWith(ID);
     expect(readProjectSessionPassword(ID)).toBe("still-needed-secret");
   });
 
@@ -82,7 +89,7 @@ describe("v7.1.5 project deletion and session credentials", () => {
     await expect(deleteProject(ID)).rejects.toThrow("OPFS directory locked");
 
     expect(db.del).not.toHaveBeenCalledWith("projects", ID);
-    expect(db.del).not.toHaveBeenCalledWith("sourceFiles", ID);
+    expect(db.commit).not.toHaveBeenCalled();
     expect(readProjectSessionPassword(ID)).toBe("recoverable-secret");
   });
 });

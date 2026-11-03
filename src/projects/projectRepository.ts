@@ -2,7 +2,7 @@ import { sha256 } from "../core/checksum";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
-import { idbDelete, idbDeleteAllByIndex, idbGet, idbGetAll, idbPut } from "../storage/database";
+import { idbDelete, idbDeleteAllByIndex, idbDeleteProjectAndSource, idbGet, idbGetAll, idbPut } from "../storage/database";
 import { deleteProjectFiles, readProjectSource, writeProjectSource } from "../storage/projectFiles";
 import { PROJECT_SCHEMA_VERSION, type ProjectManifest, type ViewerPreferences } from "../types/project";
 import { decodeProjectPackage, encodeProjectPackage, verifyProjectPackageIntegrity } from "./projectPackage";
@@ -209,7 +209,22 @@ export async function loadProjectBytes(project: ProjectManifest): Promise<Uint8A
   }
   if (cached) sourceSessions.delete(project.id);
   recordRuntimeMetric("storage", "projectBytes.session.miss", 0, undefined, { byteLength: project.byteLength, storageKind: project.storageKind });
-  if (project.storageKind === "opfs") return rememberSource(project, await readProjectSource(project.id));
+  if (project.storageKind === "opfs") {
+    try {
+      return rememberSource(project, await readProjectSource(project.id));
+    } catch (opfsError) {
+      // If the browser crashed after removing OPFS but before the atomic IDB
+      // delete, a verified sourceFiles staging copy keeps the visible project
+      // readable. Do not trust unverified or mismatched backup content.
+      const staged = await idbGet<SourceFileRecord>("sourceFiles", project.id);
+      if (!staged) throw opfsError;
+      const bytes = new Uint8Array(staged.bytes.slice(0));
+      if (bytes.byteLength !== project.byteLength || await sha256(bytes) !== project.checksum) {
+        throw new Error("The staged PDF recovery source failed integrity checks. The project was preserved.");
+      }
+      return rememberSource(project, bytes);
+    }
+  }
   const record = await idbGet<SourceFileRecord>("sourceFiles", project.id);
   if (!record) throw new Error("The local source file is missing. Restore the project from a backup or reopen the PDF.");
   return rememberSource(project, new Uint8Array(record.bytes.slice(0)));
@@ -219,20 +234,34 @@ export async function deleteProject(projectId: string): Promise<void> {
   sourceSessions.delete(projectId);
   const stored = await idbGet<ProjectManifest>("projects", projectId);
   if (stored) {
-    // Delete the authoritative PDF source first. If that fails, keep the manifest
-    // so the user still has a visible reference and can retry deletion later.
     if (stored.storageKind === "opfs") {
-      if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) throw new Error("The browser cannot access this project's local PDF storage right now. The project was kept so deletion can be retried safely.");
+      if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) {
+        throw new Error("The browser cannot access this project's local PDF storage right now. The project was kept so deletion can be retried safely.");
+      }
+      // Neither OPFS nor IndexedDB can transactionally commit across the other.
+      // Stage and verify an independent source copy *before* removing the
+      // authoritative OPFS bytes. If quota prevents staging, abort deletion
+      // without touching OPFS or the project manifest.
+      const bytes = await loadProjectBytes(stored);
+      if (bytes.byteLength !== stored.byteLength || await sha256(bytes) !== stored.checksum) {
+        throw new Error("The original PDF source failed integrity checks. The project was kept.");
+      }
+      await idbPut<SourceFileRecord>("sourceFiles", { projectId, bytes: toOwnedArrayBuffer(bytes) });
       await deleteProjectFiles(projectId);
-      await idbDelete("sourceFiles", projectId).catch(() => undefined);
     } else {
-      await idbDelete("sourceFiles", projectId);
+      // Prior partially written OPFS files are best-effort cleanup only; the
+      // IndexedDB source remains authoritative until the atomic transaction.
       await deleteProjectFiles(projectId).catch(() => undefined);
     }
+    // This single transaction cannot leave a surviving manifest pointing to
+    // a deleted sourceFiles record. Aborts preserve the verified staging copy.
+    await idbDeleteProjectAndSource(projectId);
   } else {
-    // Cleanup path for a partially-created project that never received a manifest.
+    // Cleanup path for a partially-created project without a manifest.
     await Promise.allSettled([deleteProjectFiles(projectId), idbDelete("sourceFiles", projectId)]);
   }
+  // Sidecar/recovery records remain untouched until authoritative deletion
+  // commits. A failed commit must leave backups and recovery state available.
   await Promise.allSettled([
     idbDelete("viewerStates", projectId),
     deleteEditorState(projectId),
@@ -244,7 +273,6 @@ export async function deleteProject(projectId: string): Promise<void> {
     idbDeleteAllByIndex("ocrPages", "projectId", projectId),
     idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
   ]);
-  await idbDelete("projects", projectId);
   forgetProjectSessionPassword(projectId);
 }
 

@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectManifest } from "../../src/types/project";
 
 const sim = vi.hoisted(() => ({
-  get: vi.fn(), put: vi.fn(), del: vi.fn(), delByIndex: vi.fn(),
+  get: vi.fn(), put: vi.fn(), del: vi.fn(), commit: vi.fn(), delByIndex: vi.fn(),
   opfsRead: vi.fn(), opfsDelete: vi.fn()
 }));
 vi.mock("../../src/storage/database", async original => ({
   ...await original<typeof import("../../src/storage/database")>(),
   idbGet: sim.get,
   idbPut: sim.put,
+  idbDeleteProjectAndSource: sim.commit,
   idbDelete: sim.del,
   idbDeleteAllByIndex: sim.delByIndex
 }));
@@ -39,10 +40,8 @@ describe("OPFS/IndexedDB deletion interruption recovery", () => {
     sim.put.mockImplementation(async (store: string, value: { id?: string; projectId?: string }) => {
       records.set(store + ":" + (value.id ?? value.projectId), value);
     });
-    sim.del.mockImplementation(async (store: string, key: string) => {
-      if (store === "projects") throw new Error("Synthetic IndexedDB project deletion rejected");
-      records.delete(store + ":" + key);
-    });
+    sim.del.mockImplementation(async (store: string, key: string) => { records.delete(store + ":" + key); });
+    sim.commit.mockRejectedValue(new Error("Synthetic IndexedDB project deletion rejected"));
     sim.delByIndex.mockResolvedValue(undefined);
     sim.opfsRead.mockImplementation(async () => {
       if (!opfsExists) throw new DOMException("Original PDF no longer exists", "NotFoundError");

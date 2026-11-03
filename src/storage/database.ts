@@ -119,6 +119,29 @@ export async function idbDelete(storeName: StoreName, key: IDBValidKey): Promise
   }, { store: storeName });
 }
 
+/**
+ * Commit project-manifest and IndexedDB source deletion in one transaction.
+ * A failed or interrupted transaction retains both records; callers must
+ * finish any OPFS recovery staging before invoking this irreversible commit.
+ */
+export async function idbDeleteProjectAndSource(projectId: string): Promise<void> {
+  return measureRuntimeAsync("storage", "indexeddb.deleteProjectAndSource", async () => {
+    const database = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(["projects", "sourceFiles"], "readwrite");
+        transaction.objectStore("sourceFiles").delete(projectId);
+        transaction.objectStore("projects").delete(projectId);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error ?? new Error("Project deletion transaction failed."));
+        transaction.onabort = () => reject(transaction.error ?? new Error("Project deletion transaction was aborted."));
+      });
+    } finally {
+      database.close();
+    }
+  }, { projectId });
+}
+
 export async function idbGetAll<T>(storeName: StoreName): Promise<T[]> {
   return measureRuntimeAsync("storage", "indexeddb.getAll", async () => {
     const database = await openDatabase();
