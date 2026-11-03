@@ -34,7 +34,7 @@ describe("OPFS/IndexedDB deletion interruption recovery", () => {
     vi.resetAllMocks();
     vi.stubGlobal("navigator", { storage: { getDirectory: vi.fn() } });
     let opfsExists = true;
-    const records = new Map([["projects:" + id, manifest]]);
+    const records = new Map<string, unknown>([["projects:" + id, manifest]]);
     sim.get.mockImplementation(async (store: string, key: string) => records.get(store + ":" + key));
     sim.put.mockImplementation(async (store: string, value: { id?: string; projectId?: string }) => {
       records.set(store + ":" + (value.id ?? value.projectId), value);
