@@ -171,4 +171,30 @@ describe("share inbox consumption reliability", () => {
       expect(cache.match).not.toHaveBeenCalled();
     } finally { blocked.mockRestore(); }
   });
+
+  it("only exposes a committed launch and filters and retires its Cache Storage marker", async () => {
+    // @ts-ignore -- Native Node File has stream(), needed by Response in Vitest.
+    const { File: NativeFile } = await import("node:buffer");
+    vi.stubGlobal("File", NativeFile);
+    const entries = new Map<string, Response>();
+    const cache = {
+      keys: vi.fn(async () => [...entries.keys()].map(url => new Request(url))),
+      match: vi.fn(async (request: Request) => entries.get(request.url)),
+      put: vi.fn(async (url: string, response: Response) => { entries.set(url, response); }),
+      delete: vi.fn(async (request: Request | string) => entries.delete(request instanceof Request ? request.url : request))
+    };
+    installCache(cache);
+    const { storeSharedInboxFiles, listSharedInboxFiles, acknowledgeSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+    const ids = await storeSharedInboxFiles([
+      new File(["first"], "first.pdf", { type: "application/pdf" }),
+      new File(["second"], "second.pdf", { type: "application/pdf" })
+    ]);
+    expect(ids).toHaveLength(2);
+    expect(entries.size).toBe(3); // 2 originals and 1 durable commit marker
+    const visible = await listSharedInboxFiles();
+    expect(visible.map(item => item.file.name).sort()).toEqual(["first.pdf", "second.pdf"]);
+    await acknowledgeSharedInboxFiles(ids);
+    expect(await listSharedInboxFiles()).toEqual([]);
+    expect(entries.size).toBe(0);
+  });
 });
