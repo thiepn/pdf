@@ -124,17 +124,56 @@ export async function idbDelete(storeName: StoreName, key: IDBValidKey): Promise
  * A failed or interrupted transaction retains both records; callers must
  * finish any OPFS recovery staging before invoking this irreversible commit.
  */
+/**
+ * Atomically removes the project manifest, staged source and project-owned
+ * IndexedDB sidecars. A failed transaction retains *all* records, including
+ * the verified OPFS fallback source staged before this call.
+ * WorkspaceSession tab selection is normalized separately by the UI.
+ */
 export async function idbDeleteProjectAndSource(projectId: string): Promise<void> {
   return measureRuntimeAsync("storage", "indexeddb.deleteProjectAndSource", async () => {
     const database = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const transaction = database.transaction(["projects", "sourceFiles"], "readwrite");
-        transaction.objectStore("sourceFiles").delete(projectId);
-        transaction.objectStore("projects").delete(projectId);
+        const direct: StoreName[] = [
+          "projects", "sourceFiles", "viewerStates", "editorStates",
+          "securityStates", "nativeStates", "complianceStates"
+        ];
+        const indexed: Array<[StoreName, string]> = [
+          ["editorAssets", "projectId"],
+          ["ocrJobs", "projectId"],
+          ["ocrPages", "projectId"],
+          ["documentRevisions", "projectId"],
+          ["documentTransactions", "projectId"],
+          ["workspaceEvents", "projectId"],
+          ["workspaceCheckpoints", "projectId"]
+        ];
+        const stores = [...direct, ...indexed.map(([name]) => name)];
+        const transaction = database.transaction(stores, "readwrite");
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error ?? new Error("Project deletion transaction failed."));
         transaction.onabort = () => reject(transaction.error ?? new Error("Project deletion transaction was aborted."));
+
+        const failClosed = (reason: unknown) => {
+          try { transaction.abort(); } catch { /* Already aborted by IndexedDB. */ }
+          reject(reason);
+        };
+        try {
+          for (const name of direct) transaction.objectStore(name).delete(projectId);
+          for (const [name, indexName] of indexed) {
+            const store = transaction.objectStore(name);
+            const request = store.index(indexName).openKeyCursor(IDBKeyRange.only(projectId));
+            request.onsuccess = () => {
+              try {
+                const cursor = request.result;
+                if (!cursor) return;
+                store.delete(cursor.primaryKey);
+                cursor.continue();
+              } catch (reason) { failClosed(reason); }
+            };
+            request.onerror = () => failClosed(request.error ?? new Error("Project sidecar deletion failed."));
+          }
+        } catch (reason) { failClosed(reason); }
       });
     } finally {
       database.close();

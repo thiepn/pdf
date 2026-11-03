@@ -257,22 +257,23 @@ export async function deleteProject(projectId: string): Promise<void> {
     // a deleted sourceFiles record. Aborts preserve the verified staging copy.
     await idbDeleteProjectAndSource(projectId);
   } else {
-    // Cleanup path for a partially-created project without a manifest.
+    // Explicit cleanup of a never-manifested or already-deleted project ID.
+    // Do not infer ownership of unrelated records or scan all project storage.
     await Promise.allSettled([deleteProjectFiles(projectId), idbDelete("sourceFiles", projectId)]);
+    await Promise.allSettled([
+      idbDelete("viewerStates", projectId),
+      deleteEditorState(projectId),
+      deleteSecurityState(projectId),
+      deleteNativeState(projectId),
+      deleteComplianceState(projectId),
+      idbDeleteAllByIndex("documentRevisions", "projectId", projectId),
+      idbDeleteAllByIndex("documentTransactions", "projectId", projectId),
+      idbDeleteAllByIndex("ocrPages", "projectId", projectId),
+      idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
+    ]);
   }
-  // Sidecar/recovery records remain untouched until authoritative deletion
-  // commits. A failed commit must leave backups and recovery state available.
-  await Promise.allSettled([
-    idbDelete("viewerStates", projectId),
-    deleteEditorState(projectId),
-    deleteSecurityState(projectId),
-    deleteNativeState(projectId),
-    deleteComplianceState(projectId),
-    idbDeleteAllByIndex("documentRevisions", "projectId", projectId),
-    idbDeleteAllByIndex("documentTransactions", "projectId", projectId),
-    idbDeleteAllByIndex("ocrPages", "projectId", projectId),
-    idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
-  ]);
+  // Successful manifest deletion commits all project-owned IndexedDB sidecars
+  // together. Only then can the in-memory session credential be forgotten.
   forgetProjectSessionPassword(projectId);
 }
 

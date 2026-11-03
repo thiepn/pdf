@@ -286,6 +286,14 @@ const crossStoreDeleteStaged = /idbPut<SourceFileRecord>\("sourceFiles", \{ proj
   && /sha256\(bytes\) !== project\.checksum/.test(projectRepositorySource)
   && /project was kept so deletion can be retried safely/.test(projectRepositorySource);
 if (crossStoreDeleteStaged) pass("v6.0.6 source-safe deletion", "Verified OPFS source bytes are staged before removal, and paired IndexedDB deletion preserves a recoverable source on failed commit"); else fail("v6.0.6 source-safe deletion", "Cross-store deletion can leave a project with an unreadable original PDF");
+
+const atomicProjectSidecars = (databaseSource.split("export async function idbDeleteProjectAndSource")[1] ?? "").split("export async function idbGetAll")[0];
+const sidecarDeleteIsAtomic = /database\.transaction\(stores, "readwrite"\)/.test(atomicProjectSidecars)
+  && /transaction\.abort\(\)/.test(atomicProjectSidecars)
+  && ["securityStates", "editorStates", "editorAssets", "nativeStates", "complianceStates",
+      "documentRevisions", "documentTransactions", "ocrJobs", "ocrPages",
+      "workspaceEvents", "workspaceCheckpoints"].every(name => atomicProjectSidecars.includes('"' + name + '"'));
+if (sidecarDeleteIsAtomic) pass("Atomic project-sidecar cleanup", "A failed sidecar deletion aborts the project/source transaction rather than leaving orphaned private records"); else fail("Atomic project-sidecar cleanup", "Project-owned sidecars are deleted outside the project/source transaction");
 if (/const waiting = registration\.waiting/.test(serviceWorkerManagerSource) && /waiting\.postMessage/.test(serviceWorkerManagerSource)) pass("v6.0.6 update activation race", "Waiting service worker is captured before activation can clear registration.waiting"); else fail("v6.0.6 update activation race", "Update activation can report failure after successfully starting");
 if (/v6\.0\.6 Bug Fix Audit 4 maintenance regression/.test(maintenance606Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.0.6")) pass("v6.0.6 maintenance gate", "Bug Fix Audit 4 is included in release qualification"); else fail("v6.0.6 maintenance gate", "v6.0.6 regression is missing from release qualification");
 if (/v6\.1\.0 intuitiveness and discoverability regression/.test(intuitiveness610Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.1.0")) pass("v6.1.0 intuitiveness gate", "Intuitiveness and discoverability regressions are part of release qualification"); else fail("v6.1.0 intuitiveness gate", "v6.1.0 intuitiveness regression is missing from release qualification");
