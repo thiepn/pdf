@@ -145,3 +145,29 @@ test("real protected PDF: correct editor import uses the current tab credential 
   expect(saved.projects[0].summary.encrypted).toBe(true);
   persistedPrivacy(saved);
 });
+
+test("real protected project deletion removes local storage identity and requires fresh password on reimport", async ({ page }) => {
+  test.setTimeout(90_000);
+  await openThroughTool(page, "read-pdf");
+  await enterPassword(page, PASSWORD);
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer(?:\/.*)?$/, { timeout: 30000 });
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
+  const original = await storedState(page);
+  expect(original.projects).toHaveLength(1);
+  const deletedId = original.projects[0].id;
+
+  await page.goto("./#/projects");
+  page.on("dialog", dialog => dialog.accept());
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(0, { timeout: 30000 });
+  expect((await storedState(page)).projects).toHaveLength(0);
+
+  await openThroughTool(page, "read-pdf");
+  await expect(page.locator(".product-password")).toBeVisible({ timeout: 30000 });
+  await enterPassword(page, PASSWORD);
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30000 });
+  const replacement = await storedState(page);
+  expect(replacement.projects).toHaveLength(1);
+  expect(replacement.projects[0].id).not.toBe(deletedId);
+  persistedPrivacy(replacement);
+});
