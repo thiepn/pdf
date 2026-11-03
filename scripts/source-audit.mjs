@@ -294,6 +294,14 @@ const sidecarDeleteIsAtomic = /database\.transaction\(stores, "readwrite"\)/.tes
       "documentRevisions", "documentTransactions", "ocrJobs", "ocrPages",
       "workspaceEvents", "workspaceCheckpoints"].every(name => atomicProjectSidecars.includes('"' + name + '"'));
 if (sidecarDeleteIsAtomic) pass("Atomic project-sidecar cleanup", "A failed sidecar deletion aborts the project/source transaction rather than leaving orphaned private records"); else fail("Atomic project-sidecar cleanup", "Project-owned sidecars are deleted outside the project/source transaction");
+
+const workspaceSessionDeleteAtomic = /"workspaceSessions"/.test(atomicProjectSidecars)
+  && /sessionStore\.get\("primary"\)/.test(atomicProjectSidecars)
+  && /sessionStore\.put\(/.test(atomicProjectSidecars)
+  && /assertReadableStateSchema\(session\.schemaVersion, WORKSPACE_SCHEMA_VERSION/.test(atomicProjectSidecars)
+  && /session\.tabs\.filter\(\(tab\) => tab\.projectId !== projectId\)/.test(atomicProjectSidecars)
+  && /session\.recentlyClosed\.filter\(\(tab\) => tab\.projectId !== projectId\)/.test(atomicProjectSidecars);
+if (workspaceSessionDeleteAtomic) pass("Atomic workspace-session deletion", "Project deletion atomically cleans workspace tab references while preserving future schemas and aborting on storage failures"); else fail("Atomic workspace-session deletion", "The project can disappear while an interrupted workspace session still refers to it");
 if (/const waiting = registration\.waiting/.test(serviceWorkerManagerSource) && /waiting\.postMessage/.test(serviceWorkerManagerSource)) pass("v6.0.6 update activation race", "Waiting service worker is captured before activation can clear registration.waiting"); else fail("v6.0.6 update activation race", "Update activation can report failure after successfully starting");
 if (/v6\.0\.6 Bug Fix Audit 4 maintenance regression/.test(maintenance606Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.0.6")) pass("v6.0.6 maintenance gate", "Bug Fix Audit 4 is included in release qualification"); else fail("v6.0.6 maintenance gate", "v6.0.6 regression is missing from release qualification");
 if (/v6\.1\.0 intuitiveness and discoverability regression/.test(intuitiveness610Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.1.0")) pass("v6.1.0 intuitiveness gate", "Intuitiveness and discoverability regressions are part of release qualification"); else fail("v6.1.0 intuitiveness gate", "v6.1.0 intuitiveness regression is missing from release qualification");

@@ -4,7 +4,6 @@ import { downloadBlob } from "../projects/download";
 import { deleteProject, exportProjectPackage, listProjects, renameProject } from "../projects/projectRepository";
 import type { ProjectManifest } from "../types/project";
 import { readSettings } from "../settings/settingsStore";
-import { deleteWorkspaceProjectData } from "../workspace/workspaceRepository";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectManifest[]>([]);
@@ -19,7 +18,6 @@ export function ProjectsPage() {
     setError(null);
     try {
       await deleteProject(project.id);
-      await deleteWorkspaceProjectData(project.id);
       await refresh();
     } catch (reason) {
       setError({ title: "Delete failed", message: reason instanceof Error ? reason.message : String(reason) });

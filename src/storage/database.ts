@@ -1,5 +1,7 @@
 import { measureRuntimeAsync } from "../performance/runtimeMetrics";
 import type { ProjectManifest, ViewerPreferences } from "../types/project";
+import { WORKSPACE_SCHEMA_VERSION, type WorkspaceSession } from "../types/workspace";
+import { assertReadableStateSchema } from "../projects/stateSchemaGuard";
 
 const DB_NAME = "local-pdf-studio";
 const DB_VERSION = 13;
@@ -128,7 +130,7 @@ export async function idbDelete(storeName: StoreName, key: IDBValidKey): Promise
  * Atomically removes the project manifest, staged source and project-owned
  * IndexedDB sidecars. A failed transaction retains *all* records, including
  * the verified OPFS fallback source staged before this call.
- * WorkspaceSession tab selection is normalized separately by the UI.
+ * WorkspaceSession tab references are removed in this same transaction.
  */
 export async function idbDeleteProjectAndSource(projectId: string): Promise<void> {
   return measureRuntimeAsync("storage", "indexeddb.deleteProjectAndSource", async () => {
@@ -148,7 +150,7 @@ export async function idbDeleteProjectAndSource(projectId: string): Promise<void
           ["workspaceEvents", "projectId"],
           ["workspaceCheckpoints", "projectId"]
         ];
-        const stores = [...direct, ...indexed.map(([name]) => name)];
+        const stores = [...direct, ...indexed.map(([name]) => name), "workspaceSessions"] as StoreName[];
         const transaction = database.transaction(stores, "readwrite");
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error ?? new Error("Project deletion transaction failed."));
@@ -173,6 +175,33 @@ export async function idbDeleteProjectAndSource(projectId: string): Promise<void
             };
             request.onerror = () => failClosed(request.error ?? new Error("Project sidecar deletion failed."));
           }
+          // Commit workspace tab cleanup with the same project/source deletion.
+          // If the browser interrupts the session write, the entire transaction
+          // aborts; no deleted project can remain in the saved tab list.
+          const sessionStore = transaction.objectStore("workspaceSessions");
+          const sessionRequest = sessionStore.get("primary");
+          sessionRequest.onsuccess = () => {
+            try {
+              const session = sessionRequest.result as WorkspaceSession | undefined;
+              if (!session) return;
+              assertReadableStateSchema(session.schemaVersion, WORKSPACE_SCHEMA_VERSION, "Workspace session");
+              if (!Array.isArray(session.tabs) || !Array.isArray(session.recentlyClosed)) {
+                throw new Error("The workspace tab state is invalid. Project deletion was not committed.");
+              }
+              const tabs = session.tabs.filter((tab) => tab.projectId !== projectId);
+              const recentlyClosed = session.recentlyClosed.filter((tab) => tab.projectId !== projectId);
+              if (tabs.length !== session.tabs.length || recentlyClosed.length !== session.recentlyClosed.length || session.activeProjectId === projectId) {
+                sessionStore.put({
+                  ...session,
+                  tabs,
+                  recentlyClosed,
+                  activeProjectId: session.activeProjectId === projectId ? undefined : session.activeProjectId,
+                  updatedAt: Date.now()
+                } satisfies WorkspaceSession);
+              }
+            } catch (reason) { failClosed(reason); }
+          };
+          sessionRequest.onerror = () => failClosed(sessionRequest.error ?? new Error("Workspace session deletion update failed."));
         } catch (reason) { failClosed(reason); }
       });
     } finally {
