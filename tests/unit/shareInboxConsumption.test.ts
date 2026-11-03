@@ -78,4 +78,29 @@ describe("share inbox consumption reliability", () => {
     expect(homeSource).not.toContain("removeSharedInboxFiles");
     expect(homeSource).toContain("else await acknowledgeSharedInboxFiles([shared.id]);");
   });
+
+  it("retires a consumed tombstone only after a later physical cleanup succeeds", async () => {
+    const id = new URL("./__share_inbox__/retry-cleanup", document.baseURI).toString();
+    let active = true;
+    let attempts = 0;
+    const cache: FakeCache = {
+      keys: vi.fn(async () => active ? [new Request(id)] : []),
+      delete: vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) return false;
+        active = false;
+        return true;
+      }),
+      match: vi.fn(async () => new Response("must not be imported"))
+    };
+    installCache(cache);
+
+    const { acknowledgeSharedInboxFiles, listSharedInboxFiles } = await import("../../src/pwa/shareInbox");
+    await acknowledgeSharedInboxFiles([id]);
+    expect(consumedStorageKey()).not.toBeNull();
+    await expect(listSharedInboxFiles()).resolves.toEqual([]);
+    expect(consumedStorageKey()).toBeNull();
+    expect(cache.delete).toHaveBeenCalledTimes(2);
+    expect(cache.match).not.toHaveBeenCalled();
+  });
 });

@@ -103,4 +103,18 @@ describe("OCR language cache migration", () => {
     expect(storage.has).toHaveBeenCalledTimes(2);
     expect(storage.delete).toHaveBeenCalledWith(LEGACY_CACHE_NAME);
   });
+
+  it("does not create or retire a nonexistent legacy cache", async () => {
+    const current: FakeCache = { match: vi.fn(async () => undefined), put: vi.fn() };
+    const legacy: FakeCache = { match: vi.fn(), put: vi.fn() };
+    const storage = cacheStorage(current, legacy, false);
+    vi.stubGlobal("caches", storage);
+
+    const { isLanguageInstalled } = await import("../../src/ocr/languagePackManager");
+    await expect(isLanguageInstalled("eng")).resolves.toBe(false);
+
+    expect(storage.has).toHaveBeenCalledWith(LEGACY_CACHE_NAME);
+    expect(storage.open).toHaveBeenCalledOnce();
+    expect(storage.delete).not.toHaveBeenCalled();
+  });
 });

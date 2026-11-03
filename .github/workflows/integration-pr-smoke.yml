@@ -55,10 +55,10 @@ jobs:
         run: npm run audit:phase30:migrations
 
   browser-recovery-smoke:
-    name: Chromium privacy and saved-project-to-task PDF export
+    name: Chromium, Firefox and WebKit privacy plus saved-project PDF export
     needs: source-security-and-unit
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     container:
       image: mcr.microsoft.com/playwright:v1.62.0-noble
     env:
@@ -80,7 +80,7 @@ jobs:
       - name: Install exact dependencies
         run: npm ci --no-audit --no-fund
       - name: Real browser smoke with independently reopened downloaded PDF
-        run: npx playwright test tests/e2e/privacy.spec.ts tests/e2e/task-first-project-handoff.spec.mjs --project=chromium --workers=2
+        run: npx playwright test tests/e2e/privacy.spec.ts tests/e2e/task-first-project-handoff.spec.mjs --project=chromium --project=firefox --project=webkit --workers=3
       - name: Retain genuine failure traces and screenshots
         if: always()
         uses: actions/upload-artifact@v4

@@ -35,8 +35,8 @@ No project-package, IDB, or native-editor schema version changes.
 ## Integration smoke workflow
 
 `.github/workflows/integration-pr-smoke.yml` runs on relevant pull requests to `main`:
-- TypeScript, all unit tests, source audit, security/privacy and migration audits.
-- Genuine Chromium privacy test and stored-document → Quick task → downloaded PDF → independent MuPDF reopen.
+- TypeScript, all unit tests (including behavior-driven v7.1.5 regression checks), source audit, security/privacy and migration audits.
+- Genuine Chromium, Firefox, and WebKit privacy tests plus stored-document → Quick task → downloaded PDF → independent MuPDF reopen, in each browser.
 - Failure screenshots/traces are retained; no write permissions, production secrets, deploy jobs, or publication steps.
 
 This is **additional cheap coverage**, not a replacement for `.github/workflows/ci.yml`, cross-browser qualification, field tests, or human acceptance. The workflow checks out and asserts the exact PR branch head SHA. A future merge candidate and its base must be independently reverified before any later merge decision. No test outcome is pre-claimed.

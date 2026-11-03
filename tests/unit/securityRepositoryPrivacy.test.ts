@@ -58,4 +58,16 @@ describe("security state password scrubbing", () => {
     expect(persisted.encryption.userPassword).toBe("");
     expect(persisted.encryption.ownerPassword).toBe("");
   });
+
+  it("refuses an unreadable future security schema without rewriting persistent data", async () => {
+    const { createSecurityState } = await import("../../src/security/securityModel");
+    const stored = createSecurityState("future-project");
+    stored.schemaVersion += 1;
+    stored.encryption.userPassword = "must-stay-untouched";
+    database.idbGet.mockResolvedValue(stored);
+
+    const { readSecurityState } = await import("../../src/security/securityRepository");
+    await expect(readSecurityState("future-project")).rejects.toThrow("newer PDF Studio version");
+    expect(database.idbPut).not.toHaveBeenCalled();
+  });
 });
