@@ -305,3 +305,82 @@ test("interrupted WorkspaceSession cleanup must not strand tabs referring to a d
   expect(final.session?.recentlyClosed?.some(tab => tab.projectId === original.id)).toBe(false);
   expect(final.session?.activeProjectId).not.toBe(original.id);
 });
+
+
+test("deleting one verified project preserves unrelated historical orphan recovery bytes and security metadata", async ({ page }) => {
+  test.setTimeout(120_000);
+  await openThroughTool(page, "read-pdf");
+  await enterPassword(page, PASSWORD);
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30_000 });
+  const ownedId = (await storedState(page)).projects[0].id;
+  const orphanId = "historical-recovery-without-manifest";
+  const checkpointId = "historical-orphan-checkpoint";
+  const assetId = "historical-orphan-editor-asset";
+  await page.goto("./#/projects");
+  await page.evaluate(async ({ orphanId, checkpointId, assetId }) => {
+    const opened = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      opened.onsuccess = () => resolve(opened.result);
+      opened.onerror = () => reject(opened.error);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(["securityStates", "workspaceCheckpoints", "editorAssets"], "readwrite");
+        tx.objectStore("securityStates").put({
+          projectId: orphanId, schemaVersion: 1,
+          testPrivateMetadata: "preserve-unknown-ownership"
+        });
+        tx.objectStore("workspaceCheckpoints").put({
+          id: checkpointId, projectId: orphanId, projectName: "Historical recovery",
+          label: "Preserve, not garbage collect", createdAt: 1,
+          packageBytes: Uint8Array.from([0, 17, 34, 51, 68, 85]).buffer,
+          byteLength: 6
+        });
+        tx.objectStore("editorAssets").put({
+          id: assetId, projectId: orphanId, bytes: Uint8Array.from([5, 4, 3, 2, 1]).buffer
+        });
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, { orphanId, checkpointId, assetId });
+
+  page.on("dialog", dialog => dialog.accept());
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(0, { timeout: 30_000 });
+  await page.reload();
+
+  const remaining = await page.evaluate(async ({ ownedId, orphanId, checkpointId, assetId }) => {
+    const opened = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      opened.onsuccess = () => resolve(opened.result);
+      opened.onerror = () => reject(opened.error);
+    });
+    const get = (store, key) => new Promise((resolve, reject) => {
+      const request = db.transaction(store, "readonly").objectStore(store).get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      const [owned, orphanManifest, security, checkpoint, asset] = await Promise.all([
+        get("projects", ownedId), get("projects", orphanId),
+        get("securityStates", orphanId), get("workspaceCheckpoints", checkpointId),
+        get("editorAssets", assetId)
+      ]);
+      return {
+        deletedOwnProject: owned === undefined,
+        missingOrphanManifest: orphanManifest === undefined,
+        privateMetadata: security?.testPrivateMetadata,
+        checkpointBytes: checkpoint?.packageBytes ? Array.from(new Uint8Array(checkpoint.packageBytes)) : null,
+        assetBytes: asset?.bytes ? Array.from(new Uint8Array(asset.bytes)) : null
+      };
+    } finally { db.close(); }
+  }, { ownedId, orphanId, checkpointId, assetId });
+  expect(remaining).toEqual({
+    deletedOwnProject: true,
+    missingOrphanManifest: true,
+    privateMetadata: "preserve-unknown-ownership",
+    checkpointBytes: [0, 17, 34, 51, 68, 85],
+    assetBytes: [5, 4, 3, 2, 1]
+  });
+});
