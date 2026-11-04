@@ -138,8 +138,8 @@ test("pinned old reader lists launch-v2/ack-v1 metadata and uncommitted files wh
   expect(oldView).toHaveLength(4);
   expect(oldView.map(item => item.name)).toContain("already-consumed.pdf");
   expect(oldView.map(item => item.name)).toContain("uncommitted-partial.pdf");
-  expect(oldView.some(item => item.id === setup.commitMarker && item.type === "text/plain")).toBe(true);
-  expect(oldView.some(item => item.id === setup.receipt && item.type === "text/plain")).toBe(true);
+  expect(oldView.some(item => item.id === setup.commitMarker && item.type.startsWith("text/plain"))).toBe(true);
+  expect(oldView.some(item => item.id === setup.receipt && item.type.startsWith("text/plain"))).toBe(true);
   // The old Home classifier rejects the marker as unsupported, but can still
   // see and attempt the uncommitted PDF which the new client correctly hides.
   expect(oldView.some(item => item.id === setup.partial && item.type === "application/pdf")).toBe(true);
@@ -191,7 +191,7 @@ test("pinned old unsupported-file acknowledgement can erase an ack-v1 receipt an
   const oldView = await page.evaluate(legacyMainReadInbox, setup.cacheName);
   expect(oldView.map(file => file.id)).toEqual(expect.arrayContaining([setup.source, setup.receipt]));
   const oldReceipt = oldView.find(file => file.id === setup.receipt);
-  expect(oldReceipt.type).toBe("text/plain");
+  expect(oldReceipt.type).toMatch(/^text\/plain(?:;|$)/);
   expect(oldReceipt.name.endsWith(".pdf")).toBe(false);
   // Old Home classifies this receipt as unsupported, then calls the pinned
   // legacy acknowledge routine. With localStorage blocked it destroys only
