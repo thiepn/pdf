@@ -281,6 +281,16 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     form.append("files", new File([Uint8Array.from(pdf)], "real-shared.pdf", { type: "application/pdf" }));
     const registration = await navigator.serviceWorker.getRegistration();
     const requestUrl = new URL("share-target", registration.scope).toString();
+    const before = {
+      currentUrl: location.href,
+      controlled: Boolean(navigator.serviceWorker.controller),
+      controllerUrl: navigator.serviceWorker.controller?.scriptURL,
+      controllerState: navigator.serviceWorker.controller?.state,
+      activeUrl: registration?.active?.scriptURL,
+      activeState: registration?.active?.state,
+      hasTargetHandlerInServedScript: (await (await fetch(new URL("sw.js", registration.scope), { cache: "no-store" })).text()).includes('url.pathname === SHARE_TARGET_PATH'),
+      computedTargetPath: new URL("./share-target", registration.scope).pathname
+    };
     const response = await fetch(requestUrl, {
       method: "POST", body: form, redirect: "manual"
     });
@@ -289,7 +299,7 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     const keys = (await current.keys()).map(req => req.url);
     const fileUrl = keys.find(url => /\/share-v2-[A-Za-z0-9-]+-0$/.test(url));
     const payload = fileUrl ? new Uint8Array(await (await current.match(fileUrl)).arrayBuffer()) : null;
-    return { status: response.status, responseType: response.type, requestUrl, scope: registration.scope, baseUri: document.baseURI, workerUrl: navigator.serviceWorker.controller?.scriptURL, cacheNames: await caches.keys(), oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
+    return { status: response.status, responseType: response.type, before, requestUrl, scope: registration.scope, baseUri: document.baseURI, workerUrl: navigator.serviceWorker.controller?.scriptURL, controllerAfter: Boolean(navigator.serviceWorker.controller), cacheNames: await caches.keys(), oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
   }, Array.from(documentPdf()));
   expect(captured.oldKeys).toEqual([]);
   expect(captured.keys, JSON.stringify(captured)).toHaveLength(2);
