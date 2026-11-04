@@ -142,3 +142,71 @@ test("actual OPFS original stays recoverable through quota refusal, failed Index
     manifestId: null, stagedChecksum: null, opfsExists: false
   });
 });
+
+
+test("future WorkspaceSession schema refuses deletion without removing the authoritative OPFS original", async ({ page }) => {
+  test.setTimeout(110_000);
+  await page.goto("./#/tools/read-pdf");
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles({
+    name: "future-schema-refusal.pdf", mimeType: "application/pdf", buffer: recoveryPdf()
+  });
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/viewer(?:\/.*)?$/, { timeout: 30_000 });
+  await expect(page.getByText(MARKER, { exact: true })).toBeVisible({ timeout: 30_000 });
+  const projectId = page.url().match(/#\/workspace\/([^/]+)\//)?.[1];
+  expect(projectId).toBeTruthy();
+  const hasOpfs = await page.evaluate(() => typeof navigator.storage?.getDirectory === "function");
+  test.skip(!hasOpfs, "This browser lacks OPFS; the IndexedDB transaction still protects its source.");
+  const initial = await state(page, projectId);
+  test.skip(initial.storageKind !== "opfs", "Source is not OPFS backed on this engine.");
+  expect(initial.opfsExists).toBe(true);
+
+  await page.goto("./#/projects");
+  await page.evaluate(async id => {
+    const opening = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("workspaceSessions", "readwrite");
+        const request = tx.objectStore("workspaceSessions").get("primary");
+        request.onsuccess = () => {
+          tx.objectStore("workspaceSessions").put({
+            ...request.result, id: "primary", schemaVersion: 999,
+            tabs: [...(request.result?.tabs || [])], recentlyClosed: [],
+            activeProjectId: id, futurePrivateMetadata: { neverDelete: true }
+          });
+        };
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, projectId);
+  page.on("dialog", dialog => dialog.accept());
+  await page.locator(".project-card").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".error-banner")).toContainText("newer PDF Studio version", { timeout: 20_000 });
+
+  const blocked = await state(page, projectId);
+  expect(blocked).toMatchObject({
+    manifestId: projectId, storageKind: "opfs",
+    opfsExists: true, stagedChecksum: null
+  });
+  const future = await page.evaluate(async () => {
+    const open = indexedDB.open("local-pdf-studio");
+    const db = await new Promise((resolve, reject) => {
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction("workspaceSessions", "readonly").objectStore("workspaceSessions").get("primary");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  });
+  expect(future.schemaVersion).toBe(999);
+  expect(future.futurePrivateMetadata).toEqual({ neverDelete: true });
+  expect(future.activeProjectId).toBe(projectId);
+});
