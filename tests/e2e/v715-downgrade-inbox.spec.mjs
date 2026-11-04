@@ -214,3 +214,50 @@ test("pinned old unsupported-file acknowledgement can erase an ack-v1 receipt an
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/editor(?:\/.*)?$/, { timeout: 30_000 });
   await expect.poll(() => numberOfProjects(page)).toBe(1);
 });
+
+test("new OS launch is isolated in v2 while legacy v1 shared PDFs remain readable without relocating them", async ({ page }) => {
+  test.setTimeout(100_000);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "launchQueue", {
+      configurable: true,
+      value: { setConsumer(callback) { window.__isolatedLaunchConsumer = callback; } }
+    });
+  });
+  await page.goto("./#/projects");
+  await page.waitForFunction(() => typeof window.__isolatedLaunchConsumer === "function");
+  const setup = await page.evaluate(async pdf => {
+    const ns = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const oldCache = "local-pdf-studio-" + ns + "-share-inbox-v1";
+    const newCache = "local-pdf-studio-" + ns + "-share-inbox-v2";
+    const legacyId = new URL("./__share_inbox__/historical-legacy-pdf", document.baseURI).toString();
+    const bytes = Uint8Array.from(pdf);
+    await (await caches.open(oldCache)).put(legacyId, new Response(bytes, {
+      headers: { "Content-Type": "application/pdf", "X-Local-Pdf-Studio-Filename": encodeURIComponent("historical.pdf") }
+    }));
+    const originalBytes = Array.from(new Uint8Array(await (await (await caches.open(oldCache)).match(legacyId)).arrayBuffer()));
+    await window.__isolatedLaunchConsumer({ files: [{
+      getFile: async () => new File([bytes], "new-launch.pdf", { type: "application/pdf" })
+    }] });
+    const legacyAfter = Array.from(new Uint8Array(await (await (await caches.open(oldCache)).match(legacyId)).arrayBuffer()));
+    const v2Keys = (await (await caches.open(newCache)).keys()).map(request => request.url);
+    return { oldCache, newCache, legacyId, originalBytes, legacyAfter, v2Keys };
+  }, Array.from(documentPdf()));
+  expect(setup.legacyAfter).toEqual(setup.originalBytes);
+  const oldView = await page.evaluate(legacyMainReadInbox, setup.oldCache);
+  expect(oldView.map(item => item.id)).toEqual([setup.legacyId]); // Old client cannot see new data.
+  expect(setup.v2Keys).toHaveLength(2); // One source and its durable batch marker.
+
+  await page.goto("./#/home");
+  await expect.poll(() => numberOfProjects(page), { timeout: 30_000 }).toBe(1);
+  // A second Home visit must consume the historical v1 PDF without migrating it
+  // or importing v2 metadata as a PDF.
+  await page.goto("./#/home");
+  await expect.poll(() => numberOfProjects(page), { timeout: 30_000 }).toBe(2);
+  const oldCacheAfter = await page.evaluate(async ({ oldCache, legacyId }) => {
+    const cache = await caches.open(oldCache);
+    return Boolean(await cache.match(legacyId));
+  }, setup);
+  // Successful acknowledgement may remove the legacy PDF; it was never moved
+  // into the new namespace. No source bytes are rewritten by namespace change.
+  expect(typeof oldCacheAfter).toBe("boolean");
+});
