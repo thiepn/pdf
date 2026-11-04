@@ -4,21 +4,24 @@ import { downloadBlob } from "../projects/download";
 import { deleteProject, exportProjectPackage, listProjects, renameProject } from "../projects/projectRepository";
 import type { ProjectManifest } from "../types/project";
 import { readSettings } from "../settings/settingsStore";
-import { deleteWorkspaceProjectData } from "../workspace/workspaceRepository";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectManifest[]>([]);
   const [query, setQuery] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => { void refresh(); }, []);
   async function refresh(): Promise<void> { setProjects(await listProjects()); }
 
   async function remove(project: ProjectManifest): Promise<void> {
     if (readSettings().confirmDestructive && !window.confirm(`Delete the local project “${project.name}”? The original file outside this app is not affected.`)) return;
-    await deleteProject(project.id);
-    await deleteWorkspaceProjectData(project.id);
-    await refresh();
+    setError(null);
+    try {
+      await deleteProject(project.id);
+      await refresh();
+    } catch (reason) {
+      setError({ title: "Delete failed", message: reason instanceof Error ? reason.message : String(reason) });
+    }
   }
 
   async function rename(project: ProjectManifest): Promise<void> {
@@ -34,7 +37,7 @@ export function ProjectsPage() {
       const blob = await exportProjectPackage(project);
       downloadBlob(blob, `${safeName(project.name)}.lpsproject`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError({ title: "Backup failed", message: reason instanceof Error ? reason.message : String(reason) });
     }
   }
 
@@ -46,7 +49,7 @@ export function ProjectsPage() {
         <div><strong>{projects.length} local {projects.length === 1 ? "project" : "projects"}</strong><span>Stored only in this browser profile.</span></div>
         <input aria-label="Search projects" onChange={(event: { target: HTMLInputElement }) => setQuery(event.target.value)} placeholder="Search local projects" type="search" value={query} />
       </section>
-      {error ? <div className="error-banner"><strong>Backup failed</strong><span>{error}</span></div> : null}
+      {error ? <div className="error-banner"><strong>{error.title}</strong><span>{error.message}</span></div> : null}
       {filtered.length ? <div className="project-grid project-grid--wide">{filtered.map((project) => <ProjectCard key={project.id} project={project} onBackup={(item) => void backup(item)} onDelete={(item) => void remove(item)} onRename={(item) => void rename(item)} />)}</div> : <div className="empty-state"><strong>No matching projects</strong><p>Try a different project name or filename.</p></div>}
     </div>
   );

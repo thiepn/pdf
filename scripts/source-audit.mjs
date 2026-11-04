@@ -253,7 +253,28 @@ if (/fetch-depth:\s*0/.test(releaseWorkflowSource) && /merge-base --is-ancestor/
 if (/v6\.0\.4 maintenance regression/.test(maintenance604Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.0.4")) pass("v6.0.4 maintenance gate", "Bug Fix Audit 2 regressions are part of the release gate"); else fail("v6.0.4 maintenance gate", "v6.0.4 maintenance regression is not release-gated");
 const serviceWorkerManagerSource = await readFile(join(root, "src/release/serviceWorkerManager.ts"), "utf8");
 if (/storeSharedInboxFiles\(files\)/.test(launchFilesSource) && /peekPendingPwaLaunchFiles/.test(homePageSource) && !/takePendingPwaLaunchFiles/.test(homePageSource)) pass("v6.0.5 file-launch durability", "OS-launched files are durably staged or retained until import succeeds instead of being destructively dequeued"); else fail("v6.0.5 file-launch durability", "OS file handling can still discard a launch before successful import");
-if (/Promise\.allSettled\(inserted\.map/.test(shareInboxSource) && /refreshActiveReleaseCache/.test(maintenanceSource) && /pending shared files/.test(maintenanceSource)) pass("v6.0.5 maintenance document preservation", "Cache maintenance cannot delete pending shared document bytes and launch-inbox writes roll back atomically"); else fail("v6.0.5 maintenance document preservation", "Maintenance/share ingress can still lose pending document bytes");
+// A failed share-ingress batch must remain invisible even when Cache.delete
+// returns false or throws. Promise.allSettled on its own hid rollback failures.
+
+const futureInboxIsolated = /SHARE_INBOX_V2_CACHE/.test(shareInboxSource)
+  && /launch-v3-/.test(shareInboxSource)
+  && /listInboxCache\(SHARE_INBOX_CACHE\)/.test(shareInboxSource)
+  && /listInboxCache\(SHARE_INBOX_V2_CACHE\)/.test(shareInboxSource)
+  && /inboxCacheForId/.test(shareInboxSource)
+  && /SHARE_INBOX_V2_CACHE/.test(serviceWorkerSource)
+  && /share-v2-/.test(serviceWorkerSource)
+  && /--committed/.test(serviceWorkerSource)
+  && /inserted\.push\(key\);\s*await cache\.put/.test(serviceWorkerSource);
+if (futureInboxIsolated) pass("Backward-isolated Share Inbox v2", "OS launch and Web Share Target write v2 with a commit marker; legacy v1 is still read without relocation"); else fail("Backward-isolated Share Inbox v2", "New writes can leak into old-client v1 storage or historical files are abandoned");
+
+const failedShareBatchQuarantined = /inserted\.push\(key\);\s*await cache\.put/.test(shareInboxSource)
+  && /rememberConsumedIds\(inserted\)/.test(shareInboxSource)
+  && /cache\.delete\(key\)/.test(shareInboxSource)
+  && /forgetConsumedIds\(removed\.filter/.test(shareInboxSource)
+  && /await cache\.put\(committedBatchUrl\(stamp\)/.test(shareInboxSource)
+  && /stamp && !committed\.has\(stamp\)/.test(shareInboxSource)
+  && /activeLaunchBatches\.has\(stamp\)/.test(shareInboxSource);
+if (failedShareBatchQuarantined && /refreshActiveReleaseCache/.test(maintenanceSource) && /pending shared files/.test(maintenanceSource)) pass("v6.0.5 maintenance document preservation", "Pending shared files survive maintenance; failed batch writes are quarantined until physical cleanup succeeds"); else fail("v6.0.5 maintenance document preservation", "Maintenance or failed share-ingress rollback can expose incomplete document batches");
 if (/refreshCurrentReleaseCache/.test(serviceWorkerSource) && /existing offline shell was preserved/.test(serviceWorkerSource) && /120_000/.test(serviceWorkerManagerSource)) pass("v6.0.5 offline-shell repair", "Offline-shell maintenance preserves the previous cache on fetch failure and allows a long-running repair response"); else fail("v6.0.5 offline-shell repair", "Offline-shell maintenance can still destroy a working cache or timeout prematurely");
 if (/assertReadableProjectManifestSchema\(header\.manifest\.schemaVersion, PROJECT_SCHEMA_VERSION\)/.test(phase28PackageSource)) pass("v6.0.5 package manifest downgrade protection", "Supported package formats still reject project manifests created by a newer schema"); else fail("v6.0.5 package manifest downgrade protection", "A supported package can silently down-convert a future project manifest");
 if (/assertReadableStateSchema\(value\.schemaVersion, WORKSPACE_SCHEMA_VERSION, "Workspace session"\)/.test(workspaceRepositorySource)) pass("v6.0.5 workspace downgrade protection", "Future workspace-session schemas remain untouched by older builds"); else fail("v6.0.5 workspace downgrade protection", "Workspace session state can still be silently down-converted");
@@ -261,8 +282,50 @@ if (/test:runtime:v6\.0\.1/.test(deployWorkflowSource) && /test:runtime:v6\.0\.5
 if (/hasFutureSettingsSchema/.test(settingsStoreSource) && /newer PDF Studio version/.test(settingsStoreSource)) pass("v6.0.6 settings downgrade protection", "Future settings are preserved and cannot be overwritten by an older maintenance build"); else fail("v6.0.6 settings downgrade protection", "Future settings can still be silently down-converted");
 if (/schemaVersion > CURRENT_BATCH_SCHEMA_VERSION/.test(batchModelSource)) pass("v6.0.6 Batch downgrade protection", "Future Batch recipes fail closed instead of entering legacy migration"); else fail("v6.0.6 Batch downgrade protection", "Future Batch recipes can still be down-converted");
 if (/assertReadableOcrJob/.test(ocrRepositorySource) && /jobs\.map\(assertReadableOcrJob\)/.test(ocrRepositorySource)) pass("v6.0.6 OCR downgrade protection", "Future local OCR jobs are refused before use or rewrite"); else fail("v6.0.6 OCR downgrade protection", "Future OCR state can still be rewritten by an older build");
-if (/CONSUMED_KEY/.test(shareInboxSource) && /acknowledgeSharedInboxFiles/.test(shareInboxSource) && /acknowledgeSharedInboxFiles\(\[inboxId\]\)/.test(homePageSource)) pass("v6.0.6 durable Share Inbox acknowledgement", "Committed shared imports remain logically consumed even when physical cache cleanup fails"); else fail("v6.0.6 durable Share Inbox acknowledgement", "A successful shared import can be repeated after cleanup failure");
-if (/authoritative PDF source first/.test(projectRepositorySource) && /project was kept so deletion can be retried safely/.test(projectRepositorySource)) pass("v6.0.6 source-safe deletion", "Project metadata is retained when authoritative source deletion cannot be guaranteed"); else fail("v6.0.6 source-safe deletion", "Project deletion can orphan private PDF bytes without a manifest");
+const legacyAcknowledgementFallback = /acknowledgementMarkerUrl/.test(shareInboxSource)
+  && /acknowledgedIdFromMarkerUrl/.test(shareInboxSource)
+  && /consumedReceipts\.has\(request\.url\)/.test(shareInboxSource)
+  && /!tombstonePersisted/.test(shareInboxSource)
+  && /durableReceipts\.add\(id\)/.test(shareInboxSource)
+  && /acknowledgement could not be saved or cleaned up/.test(shareInboxSource);
+if (/CONSUMED_KEY/.test(shareInboxSource) && /acknowledgeSharedInboxFiles\(\[inboxId\]\)/.test(homePageSource) && legacyAcknowledgementFallback) pass("v6.0.6 durable Share Inbox acknowledgement", "Committed imports use localStorage tombstones or same-cache durable receipts, with explicit failure if neither can persist and deletion also fails"); else fail("v6.0.6 durable Share Inbox acknowledgement", "A completed shared import can be repeated after a combined acknowledgement and cleanup failure");
+// OPFS/IndexedDB cannot share a transaction. Verify staging occurs before
+// OPFS removal, and an interrupted IndexedDB commit retains a verified backup.
+const crossStoreDeleteStaged = /idbPut<SourceFileRecord>\("sourceFiles", \{ projectId, bytes: toOwnedArrayBuffer\(bytes\) \}\)/.test(projectRepositorySource)
+  && /await deleteProjectFiles\(projectId\)/.test(projectRepositorySource)
+  && /await idbDeleteProjectAndSource\(projectId\)/.test(projectRepositorySource)
+  && /staged\.bytes\.slice\(0\)/.test(projectRepositorySource)
+  && /sha256\(bytes\) !== project\.checksum/.test(projectRepositorySource)
+  && /project was kept so deletion can be retried safely/.test(projectRepositorySource);
+if (crossStoreDeleteStaged) pass("v6.0.6 source-safe deletion", "Verified OPFS source bytes are staged before removal, and paired IndexedDB deletion preserves a recoverable source on failed commit"); else fail("v6.0.6 source-safe deletion", "Cross-store deletion can leave a project with an unreadable original PDF");
+
+const atomicProjectSidecars = (databaseSource.split("export async function idbDeleteProjectAndSource")[1] ?? "").split("export async function idbGetAll")[0];
+const sidecarDeleteIsAtomic = /database\.transaction\(stores, "readwrite"\)/.test(atomicProjectSidecars)
+  && /transaction\.abort\(\)/.test(atomicProjectSidecars)
+  && ["securityStates", "editorStates", "editorAssets", "nativeStates", "complianceStates",
+      "documentRevisions", "documentTransactions", "ocrJobs", "ocrPages",
+      "workspaceEvents", "workspaceCheckpoints"].every(name => atomicProjectSidecars.includes('"' + name + '"'));
+if (sidecarDeleteIsAtomic) pass("Atomic project-sidecar cleanup", "A failed sidecar deletion aborts the project/source transaction rather than leaving orphaned private records"); else fail("Atomic project-sidecar cleanup", "Project-owned sidecars are deleted outside the project/source transaction");
+
+const workspaceSessionDeleteAtomic = /"workspaceSessions"/.test(atomicProjectSidecars)
+  && /sessionStore\.get\("primary"\)/.test(atomicProjectSidecars)
+  && /sessionStore\.put\(/.test(atomicProjectSidecars)
+  && /assertReadableStateSchema\(session\.schemaVersion, WORKSPACE_SCHEMA_VERSION/.test(atomicProjectSidecars)
+  && /session\.tabs\.filter\(\(tab\) => tab\.projectId !== projectId\)/.test(atomicProjectSidecars)
+  && /session\.recentlyClosed\.filter\(\(tab\) => tab\.projectId !== projectId\)/.test(atomicProjectSidecars);
+if (workspaceSessionDeleteAtomic) pass("Atomic workspace-session deletion", "Project deletion atomically cleans workspace tab references while preserving future schemas and aborting on storage failures"); else fail("Atomic workspace-session deletion", "The project can disappear while an interrupted workspace session still refers to it");
+
+const deleteProjectSource = projectRepositorySource.split("export async function deleteProject(projectId: string)")[1]?.split("export async function readViewerPreferences")[0] ?? "";
+const futureSessionPreflight = deleteProjectSource.includes('idbGet<WorkspaceSession>("workspaceSessions", "primary")')
+  && deleteProjectSource.includes('assertReadableStateSchema(session.schemaVersion, WORKSPACE_SCHEMA_VERSION, "Workspace session")')
+  && deleteProjectSource.indexOf('assertReadableStateSchema(session.schemaVersion') < deleteProjectSource.indexOf('idbPut<SourceFileRecord>("sourceFiles"')
+  && deleteProjectSource.indexOf('assertReadableStateSchema(session.schemaVersion') < deleteProjectSource.indexOf('await deleteProjectFiles(projectId)');
+if (futureSessionPreflight) pass("Future-schema source-preserving deletion", "Incompatible workspace state is rejected before OPFS source staging/removal"); else fail("Future-schema source-preserving deletion", "Deletion may remove authoritative source bytes before rejecting a future WorkspaceSession schema");
+
+const missingManifestFailClosed = /if \(!stored\) throw new Error\("Cannot delete without a verified project manifest/.test(deleteProjectSource)
+  && deleteProjectSource.indexOf("if (!stored) throw") < deleteProjectSource.indexOf("await deleteProjectFiles(projectId)")
+  && !/if \(!stored\)[\s\S]*idbDelete\("sourceFiles", projectId\)/.test(deleteProjectSource);
+if (missingManifestFailClosed) pass("Unowned historical recovery preservation", "A missing project manifest is not authority to delete orphan OPFS, source, sidecar, or recovery data"); else fail("Unowned historical recovery preservation", "Deletion may destroy historical records whose project identity has no verified manifest");
 if (/const waiting = registration\.waiting/.test(serviceWorkerManagerSource) && /waiting\.postMessage/.test(serviceWorkerManagerSource)) pass("v6.0.6 update activation race", "Waiting service worker is captured before activation can clear registration.waiting"); else fail("v6.0.6 update activation race", "Update activation can report failure after successfully starting");
 if (/v6\.0\.6 Bug Fix Audit 4 maintenance regression/.test(maintenance606Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.0.6")) pass("v6.0.6 maintenance gate", "Bug Fix Audit 4 is included in release qualification"); else fail("v6.0.6 maintenance gate", "v6.0.6 regression is missing from release qualification");
 if (/v6\.1\.0 intuitiveness and discoverability regression/.test(intuitiveness610Source) && packageJson.scripts?.["release:web"]?.includes("test:runtime:v6.1.0")) pass("v6.1.0 intuitiveness gate", "Intuitiveness and discoverability regressions are part of release qualification"); else fail("v6.1.0 intuitiveness gate", "v6.1.0 intuitiveness regression is missing from release qualification");

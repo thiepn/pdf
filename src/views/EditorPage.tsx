@@ -43,6 +43,7 @@ import { discardNativeObjectEdits, hiddenNativeObjectIds, mergeNativeEdits } fro
 import { readNativeState, writeNativeState } from "../native/nativeRepository";
 import { downloadBlob } from "../projects/download";
 import { createDerivedProjectFromBytes, getProject, loadProjectBytes, updateProject } from "../projects/projectRepository";
+import { readProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { runProjectOperation } from "../operations/projectOperationCoordinator";
 import { scheduleDeferredHydration, type DeferredHydrationHandle } from "../performance/deferredHydration";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
@@ -227,7 +228,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         setCleanHistoryContentId(storedState.dirty ? null : hydratedHistory.present.contentId);
         setEditorState({ ...storedState, currentPage: hydratedPage });
         setHistory(hydratedHistory);
-        await openDocument(manifest, bytes);
+        await openDocument(manifest, bytes, readProjectSessionPassword(manifest.id));
       } catch (reason) { if (!cancelled) { setError(reason instanceof Error ? reason.message : String(reason)); setStatus("Failed"); } }
     })();
     return () => {
@@ -381,6 +382,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       documentRef.current = null;
       if (previous) await previous.loadingTask.destroy();
       const pdf = await openPdfWithPdfJs(bytes, suppliedPassword);
+      // Successful password entry remains scoped to this in-memory tab session.
+      // Reopening Read/Edit must not demand the same credential twice.
+      if (suppliedPassword) rememberProjectSessionPassword(manifest.id, suppliedPassword);
       documentRef.current = pdf;
       setDocument(pdf);
       passwordRef.current = suppliedPassword;

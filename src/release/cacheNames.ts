@@ -6,7 +6,8 @@ export const APP_CACHE_PREFIX = `local-pdf-studio-${namespace}-`;
 export const RELEASE_CACHE_PREFIX = `${APP_CACHE_PREFIX}release-`;
 export const RELEASE_CACHE_NAME = `${RELEASE_CACHE_PREFIX}${APP_VERSION}`;
 export const OCR_LANGUAGE_CACHE = `${APP_CACHE_PREFIX}ocr-languages-v1`;
-export const SHARE_INBOX_CACHE = `${APP_CACHE_PREFIX}share-inbox-v1`;
+export const SHARE_INBOX_CACHE = `${APP_CACHE_PREFIX}share-inbox-v1`; // Legacy: never relocate automatically.
+export const SHARE_INBOX_V2_CACHE = `${APP_CACHE_PREFIX}share-inbox-v2`; // Invisible to old clients.
 
 export function isLocalPdfStudioCache(name: string): boolean {
   return name.startsWith(APP_CACHE_PREFIX);

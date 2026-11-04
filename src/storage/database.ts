@@ -1,5 +1,7 @@
 import { measureRuntimeAsync } from "../performance/runtimeMetrics";
 import type { ProjectManifest, ViewerPreferences } from "../types/project";
+import { WORKSPACE_SCHEMA_VERSION, type WorkspaceSession } from "../types/workspace";
+import { assertReadableStateSchema } from "../projects/stateSchemaGuard";
 
 const DB_NAME = "local-pdf-studio";
 const DB_VERSION = 13;
@@ -117,6 +119,95 @@ export async function idbDelete(storeName: StoreName, key: IDBValidKey): Promise
       database.close();
     }
   }, { store: storeName });
+}
+
+/**
+ * Commit project-manifest and IndexedDB source deletion in one transaction.
+ * A failed or interrupted transaction retains both records; callers must
+ * finish any OPFS recovery staging before invoking this irreversible commit.
+ */
+/**
+ * Atomically removes the project manifest, staged source and project-owned
+ * IndexedDB sidecars. A failed transaction retains *all* records, including
+ * the verified OPFS fallback source staged before this call.
+ * WorkspaceSession tab references are removed in this same transaction.
+ */
+export async function idbDeleteProjectAndSource(projectId: string): Promise<void> {
+  return measureRuntimeAsync("storage", "indexeddb.deleteProjectAndSource", async () => {
+    const database = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const direct: StoreName[] = [
+          "projects", "sourceFiles", "viewerStates", "editorStates",
+          "securityStates", "nativeStates", "complianceStates"
+        ];
+        const indexed: Array<[StoreName, string]> = [
+          ["editorAssets", "projectId"],
+          ["ocrJobs", "projectId"],
+          ["ocrPages", "projectId"],
+          ["documentRevisions", "projectId"],
+          ["documentTransactions", "projectId"],
+          ["workspaceEvents", "projectId"],
+          ["workspaceCheckpoints", "projectId"]
+        ];
+        const stores = [...direct, ...indexed.map(([name]) => name), "workspaceSessions"] as StoreName[];
+        const transaction = database.transaction(stores, "readwrite");
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error ?? new Error("Project deletion transaction failed."));
+        transaction.onabort = () => reject(transaction.error ?? new Error("Project deletion transaction was aborted."));
+
+        const failClosed = (reason: unknown) => {
+          try { transaction.abort(); } catch { /* Already aborted by IndexedDB. */ }
+          reject(reason);
+        };
+        try {
+          for (const name of direct) transaction.objectStore(name).delete(projectId);
+          for (const [name, indexName] of indexed) {
+            const store = transaction.objectStore(name);
+            const request = store.index(indexName).openKeyCursor(IDBKeyRange.only(projectId));
+            request.onsuccess = () => {
+              try {
+                const cursor = request.result;
+                if (!cursor) return;
+                store.delete(cursor.primaryKey);
+                cursor.continue();
+              } catch (reason) { failClosed(reason); }
+            };
+            request.onerror = () => failClosed(request.error ?? new Error("Project sidecar deletion failed."));
+          }
+          // Commit workspace tab cleanup with the same project/source deletion.
+          // If the browser interrupts the session write, the entire transaction
+          // aborts; no deleted project can remain in the saved tab list.
+          const sessionStore = transaction.objectStore("workspaceSessions");
+          const sessionRequest = sessionStore.get("primary");
+          sessionRequest.onsuccess = () => {
+            try {
+              const session = sessionRequest.result as WorkspaceSession | undefined;
+              if (!session) return;
+              assertReadableStateSchema(session.schemaVersion, WORKSPACE_SCHEMA_VERSION, "Workspace session");
+              if (!Array.isArray(session.tabs) || !Array.isArray(session.recentlyClosed)) {
+                throw new Error("The workspace tab state is invalid. Project deletion was not committed.");
+              }
+              const tabs = session.tabs.filter((tab) => tab.projectId !== projectId);
+              const recentlyClosed = session.recentlyClosed.filter((tab) => tab.projectId !== projectId);
+              if (tabs.length !== session.tabs.length || recentlyClosed.length !== session.recentlyClosed.length || session.activeProjectId === projectId) {
+                sessionStore.put({
+                  ...session,
+                  tabs,
+                  recentlyClosed,
+                  activeProjectId: session.activeProjectId === projectId ? undefined : session.activeProjectId,
+                  updatedAt: Date.now()
+                } satisfies WorkspaceSession);
+              }
+            } catch (reason) { failClosed(reason); }
+          };
+          sessionRequest.onerror = () => failClosed(sessionRequest.error ?? new Error("Workspace session deletion update failed."));
+        } catch (reason) { failClosed(reason); }
+      });
+    } finally {
+      database.close();
+    }
+  }, { projectId });
 }
 
 export async function idbGetAll<T>(storeName: StoreName): Promise<T[]> {

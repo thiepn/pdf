@@ -2,20 +2,23 @@ import { sha256 } from "../core/checksum";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
-import { idbDelete, idbDeleteAllByIndex, idbGet, idbGetAll, idbPut } from "../storage/database";
+import { idbDelete, idbDeleteProjectAndSource, idbGet, idbGetAll, idbPut } from "../storage/database";
 import { deleteProjectFiles, readProjectSource, writeProjectSource } from "../storage/projectFiles";
 import { PROJECT_SCHEMA_VERSION, type ProjectManifest, type ViewerPreferences } from "../types/project";
 import { decodeProjectPackage, encodeProjectPackage, verifyProjectPackageIntegrity } from "./projectPackage";
-import { deleteEditorState, listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
-import { deleteSecurityState, readSecurityState, writeSecurityState } from "../security/securityRepository";
+import { listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
+import { readSecurityState, writeSecurityState } from "../security/securityRepository";
+import { forgetProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { listOcrJobs, listOcrPages, writeOcrJob, writeOcrPage } from "../ocr/ocrRepository";
-import { deleteNativeState, readNativeState, writeNativeState } from "../native/nativeRepository";
-import { deleteComplianceState, readComplianceState, writeComplianceState } from "../compliance/complianceRepository";
+import { readNativeState, writeNativeState } from "../native/nativeRepository";
+import { readComplianceState, writeComplianceState } from "../compliance/complianceRepository";
 import { recordProjectRevision, writeDocumentTransaction } from "../revisions/revisionRepository";
 import type { DocumentTransaction } from "../types/revision";
 import { isolateImportedEditorData } from "./importIsolation";
 import { assertStorageBudget } from "../storage/budget";
 import { migrateProjectManifestForSchema } from "./projectManifestMigration";
+import { WORKSPACE_SCHEMA_VERSION, type WorkspaceSession } from "../types/workspace";
+import { assertReadableStateSchema } from "./stateSchemaGuard";
 
 interface SourceFileRecord {
   projectId: string;
@@ -74,6 +77,12 @@ export async function createProjectFromBytes(
     return Number.isSafeInteger(project.schemaVersion) && project.schemaVersion >= 1 && project.schemaVersion <= PROJECT_SCHEMA_VERSION;
   }) : undefined;
   if (existing) {
+    // A matching checksum proves byte identity, not password correctness.
+    // Reimports of protected PDFs must validate the supplied credential before
+    // modifying the existing project or replacing its session-only password.
+    // Otherwise a mistyped password can silently lock an otherwise valid
+    // project out of its current editor session.
+    if (password) await inspectPdfBytes(bytes, password);
     try {
       const compatibleExisting = migrateProjectManifestForSchema(existing, PROJECT_SCHEMA_VERSION, createId);
       const existingBytes = await loadProjectBytes(compatibleExisting);
@@ -82,6 +91,7 @@ export async function createProjectFromBytes(
         const updated = { ...compatibleExisting, lastOpenedAt: Date.now(), updatedAt: Date.now() };
         await idbPut("projects", updated);
         try { localStorage.setItem("local-pdf-studio-last-project", existing.id); } catch { /* Storage may be blocked. */ }
+        if (password) rememberProjectSessionPassword(updated.id, password);
         return updated;
       }
       // Preserve the suspect project for recovery instead of deleting it automatically.
@@ -142,6 +152,7 @@ export async function createProjectFromBytes(
     await idbPut("projects", project);
     await recordProjectRevision(project);
     rememberSource(project, bytes);
+    if (password) rememberProjectSessionPassword(project.id, password);
     return project;
   } catch (reason) {
     await deleteProject(id);
@@ -200,42 +211,71 @@ export async function loadProjectBytes(project: ProjectManifest): Promise<Uint8A
   }
   if (cached) sourceSessions.delete(project.id);
   recordRuntimeMetric("storage", "projectBytes.session.miss", 0, undefined, { byteLength: project.byteLength, storageKind: project.storageKind });
-  if (project.storageKind === "opfs") return rememberSource(project, await readProjectSource(project.id));
+  if (project.storageKind === "opfs") {
+    try {
+      return rememberSource(project, await readProjectSource(project.id));
+    } catch (opfsError) {
+      // If the browser crashed after removing OPFS but before the atomic IDB
+      // delete, a verified sourceFiles staging copy keeps the visible project
+      // readable. Do not trust unverified or mismatched backup content.
+      const staged = await idbGet<SourceFileRecord>("sourceFiles", project.id);
+      if (!staged) throw opfsError;
+      const bytes = new Uint8Array(staged.bytes.slice(0));
+      if (bytes.byteLength !== project.byteLength || await sha256(bytes) !== project.checksum) {
+        throw new Error("The staged PDF recovery source failed integrity checks. The project was preserved.");
+      }
+      return rememberSource(project, bytes);
+    }
+  }
   const record = await idbGet<SourceFileRecord>("sourceFiles", project.id);
   if (!record) throw new Error("The local source file is missing. Restore the project from a backup or reopen the PDF.");
   return rememberSource(project, new Uint8Array(record.bytes.slice(0)));
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  sourceSessions.delete(projectId);
   const stored = await idbGet<ProjectManifest>("projects", projectId);
-  if (stored) {
-    // Delete the authoritative PDF source first. If that fails, keep the manifest
-    // so the user still has a visible reference and can retry deletion later.
+  if (!stored) throw new Error("Cannot delete without a verified project manifest. Historical source and recovery data were left untouched.");
+  // Invalidate the in-tab copy before reading the authoritative source.
+  // An earlier cached PDF must not hide missing or corrupt OPFS bytes.
+  sourceSessions.delete(projectId);
+  {
+    // Validate the existing workspace schema *before* copying or removing an
+    // OPFS source. The atomic transaction checks again to reject a concurrent
+    // upgrade, but rejecting an already-future session must not touch the
+    // authoritative original PDF or allocate a quota-consuming backup.
+    const session = await idbGet<WorkspaceSession>("workspaceSessions", "primary");
+    if (session) {
+      assertReadableStateSchema(session.schemaVersion, WORKSPACE_SCHEMA_VERSION, "Workspace session");
+      if (!Array.isArray(session.tabs) || !Array.isArray(session.recentlyClosed)) {
+        throw new Error("The workspace tab state is invalid. Project deletion was not committed.");
+      }
+    }
     if (stored.storageKind === "opfs") {
-      if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) throw new Error("The browser cannot access this project's local PDF storage right now. The project was kept so deletion can be retried safely.");
+      if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) {
+        throw new Error("The browser cannot access this project's local PDF storage right now. The project was kept so deletion can be retried safely.");
+      }
+      // Neither OPFS nor IndexedDB can transactionally commit across the other.
+      // Stage and verify an independent source copy *before* removing the
+      // authoritative OPFS bytes. If quota prevents staging, abort deletion
+      // without touching OPFS or the project manifest.
+      const bytes = await loadProjectBytes(stored);
+      if (bytes.byteLength !== stored.byteLength || await sha256(bytes) !== stored.checksum) {
+        throw new Error("The original PDF source failed integrity checks. The project was kept.");
+      }
+      await idbPut<SourceFileRecord>("sourceFiles", { projectId, bytes: toOwnedArrayBuffer(bytes) });
       await deleteProjectFiles(projectId);
-      await idbDelete("sourceFiles", projectId).catch(() => undefined);
     } else {
-      await idbDelete("sourceFiles", projectId);
+      // Prior partially written OPFS files are best-effort cleanup only; the
+      // IndexedDB source remains authoritative until the atomic transaction.
       await deleteProjectFiles(projectId).catch(() => undefined);
     }
-  } else {
-    // Cleanup path for a partially-created project that never received a manifest.
-    await Promise.allSettled([deleteProjectFiles(projectId), idbDelete("sourceFiles", projectId)]);
+    // This single transaction cannot leave a surviving manifest pointing to
+    // a deleted sourceFiles record. Aborts preserve the verified staging copy.
+    await idbDeleteProjectAndSource(projectId);
   }
-  await Promise.allSettled([
-    idbDelete("viewerStates", projectId),
-    deleteEditorState(projectId),
-    deleteSecurityState(projectId),
-    deleteNativeState(projectId),
-    deleteComplianceState(projectId),
-    idbDeleteAllByIndex("documentRevisions", "projectId", projectId),
-    idbDeleteAllByIndex("documentTransactions", "projectId", projectId),
-    idbDeleteAllByIndex("ocrPages", "projectId", projectId),
-    idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
-  ]);
-  await idbDelete("projects", projectId);
+  // Successful manifest deletion commits all project-owned IndexedDB sidecars
+  // together. Only then forget the in-memory credential for this project.
+  forgetProjectSessionPassword(projectId);
 }
 
 export async function readViewerPreferences(projectId: string): Promise<ViewerPreferences | undefined> {

@@ -7,3 +7,7 @@ export function rememberProjectSessionPassword(projectId: string, password: stri
 export function readProjectSessionPassword(projectId: string): string | undefined {
   return projectPasswords.get(projectId);
 }
+
+export function forgetProjectSessionPassword(projectId: string): void {
+  projectPasswords.delete(projectId);
+}

@@ -3,18 +3,31 @@ import { SECURITY_SCHEMA_VERSION, type SecurityProjectState } from "../types/sec
 import { createSecurityState } from "./securityModel";
 import { assertReadableStateSchema } from "../projects/stateSchemaGuard";
 
+function stripTransientPasswords(state: SecurityProjectState): SecurityProjectState {
+  return {
+    ...state,
+    encryption: {
+      ...state.encryption,
+      userPassword: "",
+      ownerPassword: ""
+    }
+  };
+}
+
 export async function readSecurityState(projectId: string): Promise<SecurityProjectState> {
   const stored = await idbGet<SecurityProjectState>("securityStates", projectId);
   if (!stored) return createSecurityState(projectId);
   const schemaVersion = assertReadableStateSchema(stored.schemaVersion, SECURITY_SCHEMA_VERSION, "Security state");
-  if (schemaVersion < SECURITY_SCHEMA_VERSION) return migrateSecurityState(stored);
-  return stored;
+  const state = schemaVersion < SECURITY_SCHEMA_VERSION ? migrateSecurityState(stored) : stripTransientPasswords(stored);
+  const hadTransientPasswords = Boolean(stored.encryption?.userPassword || stored.encryption?.ownerPassword);
+  if (schemaVersion < SECURITY_SCHEMA_VERSION || hadTransientPasswords) await writeSecurityState(state);
+  return state;
 }
 
 export async function writeSecurityState(state: SecurityProjectState): Promise<void> {
+  const sanitized = stripTransientPasswords(state);
   await idbPut("securityStates", {
-    ...state,
-    encryption: { ...state.encryption, userPassword: "", ownerPassword: "" },
+    ...sanitized,
     schemaVersion: SECURITY_SCHEMA_VERSION,
     updatedAt: Date.now()
   });
@@ -26,7 +39,7 @@ export async function deleteSecurityState(projectId: string): Promise<void> {
 
 function migrateSecurityState(state: SecurityProjectState): SecurityProjectState {
   const base = createSecurityState(state.projectId);
-  return {
+  return stripTransientPasswords({
     ...base,
     ...state,
     redaction: { ...base.redaction, ...(state.redaction ?? {}) },
@@ -38,5 +51,5 @@ function migrateSecurityState(state: SecurityProjectState): SecurityProjectState
     },
     schemaVersion: SECURITY_SCHEMA_VERSION,
     updatedAt: Date.now()
-  };
+  });
 }

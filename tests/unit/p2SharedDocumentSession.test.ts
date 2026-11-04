@@ -13,6 +13,13 @@ describe("Recovery P2 shared document session architecture", () => {
     expect(pdfJsSource).toContain("geometryCache");
   });
 
+  it("uses session-private credential identities for protected PDF.js reuse", () => {
+    expect(pdfJsSource).toContain("securityInspectionCredentialIdentity(password)");
+    expect(pdfJsSource).toContain("credential.cacheable ? sessions.get(key) : undefined");
+    expect(pdfJsSource).toContain("if (credential.cacheable) sessions.set(key, entry)");
+    expect(pdfJsSource).not.toContain("protected:${password}");
+  });
+
   it("shares immutable project source bytes across OPFS and IndexedDB modes", () => {
     expect(projectRepositorySource).toContain("sourceSessions");
     expect(projectRepositorySource).toContain("projectBytes.session.hit");
