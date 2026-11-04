@@ -21,7 +21,7 @@ function installCache(cache: FakeCache) {
   // stubs would expose the same source/Response body in both v1 and v2.
   const view = (v2: boolean) => ({
     ...cache,
-    keys: vi.fn(async () => (await cache.keys()).filter((request: Request) => isV2FixtureRequest(request.url) === v2))
+    keys: vi.fn(async () => (await (cache.keys as unknown as () => Promise<Request[]>)()).filter((request: Request) => isV2FixtureRequest(request.url) === v2))
   });
   const legacy = view(false);
   const current = view(true);
