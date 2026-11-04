@@ -279,7 +279,9 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     const newName = "local-pdf-studio-" + ns + "-share-inbox-v2";
     const form = new FormData();
     form.append("files", new File([Uint8Array.from(pdf)], "real-shared.pdf", { type: "application/pdf" }));
-    const response = await fetch(new URL("./share-target", document.baseURI), {
+    const registration = await navigator.serviceWorker.getRegistration();
+    const requestUrl = new URL("share-target", registration.scope).toString();
+    const response = await fetch(requestUrl, {
       method: "POST", body: form, redirect: "manual"
     });
     const oldKeys = (await (await caches.open(oldName)).keys()).map(req => req.url);
@@ -287,7 +289,7 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     const keys = (await current.keys()).map(req => req.url);
     const fileUrl = keys.find(url => /\/share-v2-[A-Za-z0-9-]+-0$/.test(url));
     const payload = fileUrl ? new Uint8Array(await (await current.match(fileUrl)).arrayBuffer()) : null;
-    return { status: response.status, responseType: response.type, workerUrl: navigator.serviceWorker.controller?.scriptURL, cacheNames: await caches.keys(), oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
+    return { status: response.status, responseType: response.type, requestUrl, scope: registration.scope, baseUri: document.baseURI, workerUrl: navigator.serviceWorker.controller?.scriptURL, cacheNames: await caches.keys(), oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
   }, Array.from(documentPdf()));
   expect(captured.oldKeys).toEqual([]);
   expect(captured.keys, JSON.stringify(captured)).toHaveLength(2);
