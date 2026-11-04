@@ -114,4 +114,17 @@ describe("v7.1.5 project deletion and session credentials", () => {
     expect(readProjectSessionPassword(ID)).toBe("future-state-safe-secret");
   });
 
+
+  it("does not destroy unowned historical records when the project manifest is absent", async () => {
+    db.get.mockResolvedValue(undefined);
+    const { deleteProject } = await import("../../src/projects/projectRepository");
+
+    await expect(deleteProject(ID)).rejects.toThrow("verified project manifest");
+    // A stale caller or repeated delete is not evidence that an orphan source,
+    // historical checkpoint, security state or OPFS directory is disposable.
+    expect(files.remove).not.toHaveBeenCalled();
+    expect(db.del).not.toHaveBeenCalled();
+    expect(db.delByIndex).not.toHaveBeenCalled();
+    expect(db.commit).not.toHaveBeenCalled();
+  });
 });
