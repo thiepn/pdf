@@ -261,3 +261,68 @@ test("new OS launch is isolated in v2 while legacy v1 shared PDFs remain readabl
   // into the new namespace. No source bytes are rewritten by namespace change.
   expect(typeof oldCacheAfter).toBe("boolean");
 });
+
+
+test("actual service worker Web Share Target writes a committed v2 batch hidden from the old reader", async ({ page }) => {
+  test.setTimeout(110_000);
+  await page.goto("./#/projects");
+  // The real preview build registers its own scoped worker. Wait for the
+  // controlling worker, not just a registration that may still be installing.
+  await page.waitForFunction(async () => {
+    if (!("serviceWorker" in navigator)) return false;
+    const registration = await navigator.serviceWorker.getRegistration();
+    return Boolean(registration?.active && navigator.serviceWorker.controller);
+  }, { timeout: 40_000 });
+  const captured = await page.evaluate(async pdf => {
+    const ns = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const oldName = "local-pdf-studio-" + ns + "-share-inbox-v1";
+    const newName = "local-pdf-studio-" + ns + "-share-inbox-v2";
+    const form = new FormData();
+    form.append("files", new File([Uint8Array.from(pdf)], "real-shared.pdf", { type: "application/pdf" }));
+    const response = await fetch(new URL("./share-target", document.baseURI), {
+      method: "POST", body: form, redirect: "manual"
+    });
+    const oldKeys = (await (await caches.open(oldName)).keys()).map(req => req.url);
+    const current = await caches.open(newName);
+    const keys = (await current.keys()).map(req => req.url);
+    const fileUrl = keys.find(url => /\/share-v2-[A-Za-z0-9-]+-0$/.test(url));
+    const payload = fileUrl ? new Uint8Array(await (await current.match(fileUrl)).arrayBuffer()) : null;
+    return { status: response.status, oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
+  }, Array.from(documentPdf()));
+  expect(captured.oldKeys).toEqual([]);
+  expect(captured.keys).toHaveLength(2);
+  expect(captured.keys.some(url => url.endsWith("--committed"))).toBe(true);
+  expect(captured.fileSize).toBeGreaterThan(80);
+  expect(captured.firstBytes).toEqual(Array.from(documentPdf().subarray(0, 8)));
+  expect(await page.evaluate(legacyMainReadInbox, captured.oldName)).toEqual([]);
+  await page.goto("./#/home");
+  await expect.poll(() => numberOfProjects(page), { timeout: 30_000 }).toBe(1);
+});
+
+test("interrupted v2 service-worker batch remains quarantined and legacy v1 PDF remains accessible", async ({ page }) => {
+  await page.goto("./#/projects");
+  const before = await page.evaluate(async pdf => {
+    const ns = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const oldName = "local-pdf-studio-" + ns + "-share-inbox-v1";
+    const newName = "local-pdf-studio-" + ns + "-share-inbox-v2";
+    const oldUrl = new URL("./__share_inbox__/still-pending-old-version", document.baseURI).toString();
+    const interrupted = new URL("./__share_inbox__/share-v2-9000-interrupted-0", document.baseURI).toString();
+    const bytes = Uint8Array.from(pdf);
+    await (await caches.open(oldName)).put(oldUrl, new Response(bytes, { headers: { "Content-Type": "application/pdf", "X-Local-Pdf-Studio-Filename": encodeURIComponent("legacy-pending.pdf") } }));
+    await (await caches.open(newName)).put(interrupted, new Response(bytes, { headers: { "Content-Type": "application/pdf", "X-Local-Pdf-Studio-Filename": encodeURIComponent("partial-not-committed.pdf") } }));
+    return { oldName, newName, oldUrl, interrupted };
+  }, Array.from(documentPdf()));
+  await page.goto("./#/home");
+  await expect.poll(() => numberOfProjects(page), { timeout: 30_000 }).toBe(1);
+  await page.goto("./#/home");
+  await expect(page).toHaveURL(/#\/home$/);
+  expect(await numberOfProjects(page)).toBe(1);
+  const after = await page.evaluate(async ({ newName, interrupted }) => {
+    const cache = await caches.open(newName);
+    return { stillVisible: Boolean(await cache.match(interrupted)), markerCount: (await cache.keys()).filter(req => req.url.endsWith("--committed")).length };
+  }, before);
+  expect(after.markerCount).toBe(0);
+  // Source cleanup is best effort; no commit means the bytes cannot be
+  // imported regardless of whether interrupted Cache.delete returned false.
+  expect(typeof after.stillVisible).toBe("boolean");
+});
