@@ -77,10 +77,10 @@ async function legacyMainAcknowledge({ cacheName, ids }) {
   }
 }
 
-function documentPdf() {
+function documentPdf(shade = 0.7) {
   const pdf = new mupdf.PDFDocument();
   try {
-    pdf.insertPage(-1, pdf.addPage([0, 0, 300, 400], 0, {}, "0.7 g 30 160 90 60 re f"));
+    pdf.insertPage(-1, pdf.addPage([0, 0, 300, 400], 0, {}, `${shade} g 30 160 90 60 re f`));
     const bytes = pdf.saveToBuffer({});
     try { return Buffer.from(bytes.asUint8Array()); }
     finally { bytes.destroy(); }
@@ -225,23 +225,23 @@ test("new OS launch is isolated in v2 while legacy v1 shared PDFs remain readabl
   });
   await page.goto("./#/projects");
   await page.waitForFunction(() => typeof window.__isolatedLaunchConsumer === "function");
-  const setup = await page.evaluate(async pdf => {
+  const setup = await page.evaluate(async ({ legacyPdf, launchedPdf }) => {
     const ns = location.pathname.split("/").filter(Boolean).join("-") || "root";
     const oldCache = "local-pdf-studio-" + ns + "-share-inbox-v1";
     const newCache = "local-pdf-studio-" + ns + "-share-inbox-v2";
     const legacyId = new URL("./__share_inbox__/historical-legacy-pdf", document.baseURI).toString();
-    const bytes = Uint8Array.from(pdf);
+    const bytes = Uint8Array.from(legacyPdf);
     await (await caches.open(oldCache)).put(legacyId, new Response(bytes, {
       headers: { "Content-Type": "application/pdf", "X-Local-Pdf-Studio-Filename": encodeURIComponent("historical.pdf") }
     }));
     const originalBytes = Array.from(new Uint8Array(await (await (await caches.open(oldCache)).match(legacyId)).arrayBuffer()));
     await window.__isolatedLaunchConsumer({ files: [{
-      getFile: async () => new File([bytes], "new-launch.pdf", { type: "application/pdf" })
+      getFile: async () => new File([Uint8Array.from(launchedPdf)], "new-launch.pdf", { type: "application/pdf" })
     }] });
     const legacyAfter = Array.from(new Uint8Array(await (await (await caches.open(oldCache)).match(legacyId)).arrayBuffer()));
     const v2Keys = (await (await caches.open(newCache)).keys()).map(request => request.url);
     return { oldCache, newCache, legacyId, originalBytes, legacyAfter, v2Keys };
-  }, Array.from(documentPdf()));
+  }, { legacyPdf: Array.from(documentPdf(0.35)), launchedPdf: Array.from(documentPdf()) });
   expect(setup.legacyAfter).toEqual(setup.originalBytes);
   const oldView = await page.evaluate(legacyMainReadInbox, setup.oldCache);
   expect(oldView.map(item => item.id)).toEqual([setup.legacyId]); // Old client cannot see new data.
@@ -287,10 +287,10 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     const keys = (await current.keys()).map(req => req.url);
     const fileUrl = keys.find(url => /\/share-v2-[A-Za-z0-9-]+-0$/.test(url));
     const payload = fileUrl ? new Uint8Array(await (await current.match(fileUrl)).arrayBuffer()) : null;
-    return { status: response.status, oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
+    return { status: response.status, responseType: response.type, workerUrl: navigator.serviceWorker.controller?.scriptURL, cacheNames: await caches.keys(), oldName, newName, oldKeys, keys, fileSize: payload?.byteLength, firstBytes: payload ? Array.from(payload.slice(0, 8)) : [] };
   }, Array.from(documentPdf()));
   expect(captured.oldKeys).toEqual([]);
-  expect(captured.keys).toHaveLength(2);
+  expect(captured.keys, JSON.stringify(captured)).toHaveLength(2);
   expect(captured.keys.some(url => url.endsWith("--committed"))).toBe(true);
   expect(captured.fileSize).toBeGreaterThan(80);
   expect(captured.firstBytes).toEqual(Array.from(documentPdf().subarray(0, 8)));
