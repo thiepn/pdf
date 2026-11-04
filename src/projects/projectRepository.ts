@@ -235,6 +235,9 @@ export async function loadProjectBytes(project: ProjectManifest): Promise<Uint8A
 export async function deleteProject(projectId: string): Promise<void> {
   const stored = await idbGet<ProjectManifest>("projects", projectId);
   if (!stored) throw new Error("Cannot delete without a verified project manifest. Historical source and recovery data were left untouched.");
+  // Invalidate the in-tab copy before reading the authoritative source.
+  // An earlier cached PDF must not hide missing or corrupt OPFS bytes.
+  sourceSessions.delete(projectId);
   {
     // Validate the existing workspace schema *before* copying or removing an
     // OPFS source. The atomic transaction checks again to reject a concurrent
@@ -271,8 +274,7 @@ export async function deleteProject(projectId: string): Promise<void> {
     await idbDeleteProjectAndSource(projectId);
   }
   // Successful manifest deletion commits all project-owned IndexedDB sidecars
-  // together. Only then clear in-memory source and credential for this project.
-  sourceSessions.delete(projectId);
+  // together. Only then forget the in-memory credential for this project.
   forgetProjectSessionPassword(projectId);
 }
 
