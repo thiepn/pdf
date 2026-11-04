@@ -17,6 +17,8 @@ import type { DocumentTransaction } from "../types/revision";
 import { isolateImportedEditorData } from "./importIsolation";
 import { assertStorageBudget } from "../storage/budget";
 import { migrateProjectManifestForSchema } from "./projectManifestMigration";
+import { WORKSPACE_SCHEMA_VERSION, type WorkspaceSession } from "../types/workspace";
+import { assertReadableStateSchema } from "./stateSchemaGuard";
 
 interface SourceFileRecord {
   projectId: string;
@@ -234,6 +236,17 @@ export async function deleteProject(projectId: string): Promise<void> {
   sourceSessions.delete(projectId);
   const stored = await idbGet<ProjectManifest>("projects", projectId);
   if (stored) {
+    // Validate the existing workspace schema *before* copying or removing an
+    // OPFS source. The atomic transaction checks again to reject a concurrent
+    // upgrade, but rejecting an already-future session must not touch the
+    // authoritative original PDF or allocate a quota-consuming backup.
+    const session = await idbGet<WorkspaceSession>("workspaceSessions", "primary");
+    if (session) {
+      assertReadableStateSchema(session.schemaVersion, WORKSPACE_SCHEMA_VERSION, "Workspace session");
+      if (!Array.isArray(session.tabs) || !Array.isArray(session.recentlyClosed)) {
+        throw new Error("The workspace tab state is invalid. Project deletion was not committed.");
+      }
+    }
     if (stored.storageKind === "opfs") {
       if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) {
         throw new Error("The browser cannot access this project's local PDF storage right now. The project was kept so deletion can be retried safely.");

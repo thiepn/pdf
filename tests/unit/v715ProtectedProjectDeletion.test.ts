@@ -92,4 +92,26 @@ describe("v7.1.5 project deletion and session credentials", () => {
     expect(db.commit).not.toHaveBeenCalled();
     expect(readProjectSessionPassword(ID)).toBe("recoverable-secret");
   });
+  
+  it("refuses a future WorkspaceSession schema before touching OPFS source or staging any bytes", async () => {
+    vi.stubGlobal("navigator", { storage: { getDirectory: vi.fn() } });
+    db.get.mockImplementation(async (store: string) =>
+      store === "projects" ? { ...manifest, storageKind: "opfs" } :
+      store === "workspaceSessions" ? {
+        id: "primary", schemaVersion: 999, tabs: [], recentlyClosed: [],
+        futurePrivateMetadata: { preserve: true }
+      } : undefined
+    );
+    const { readProjectSessionPassword, rememberProjectSessionPassword } = await import("../../src/security/sessionPasswords");
+    const { deleteProject } = await import("../../src/projects/projectRepository");
+    rememberProjectSessionPassword(ID, "future-state-safe-secret");
+
+    await expect(deleteProject(ID)).rejects.toThrow("newer PDF Studio version");
+    expect(files.read).not.toHaveBeenCalled();
+    expect(db.put).not.toHaveBeenCalled();
+    expect(files.remove).not.toHaveBeenCalled();
+    expect(db.commit).not.toHaveBeenCalled();
+    expect(readProjectSessionPassword(ID)).toBe("future-state-safe-secret");
+  });
+
 });
