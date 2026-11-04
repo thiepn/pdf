@@ -2,16 +2,16 @@ import { sha256 } from "../core/checksum";
 import { toOwnedArrayBuffer } from "../core/arrayBuffer";
 import { inspectPdfBytes } from "../engines/pdfjs";
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
-import { idbDelete, idbDeleteAllByIndex, idbDeleteProjectAndSource, idbGet, idbGetAll, idbPut } from "../storage/database";
+import { idbDelete, idbDeleteProjectAndSource, idbGet, idbGetAll, idbPut } from "../storage/database";
 import { deleteProjectFiles, readProjectSource, writeProjectSource } from "../storage/projectFiles";
 import { PROJECT_SCHEMA_VERSION, type ProjectManifest, type ViewerPreferences } from "../types/project";
 import { decodeProjectPackage, encodeProjectPackage, verifyProjectPackageIntegrity } from "./projectPackage";
-import { deleteEditorState, listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
-import { deleteSecurityState, readSecurityState, writeSecurityState } from "../security/securityRepository";
+import { listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
+import { readSecurityState, writeSecurityState } from "../security/securityRepository";
 import { forgetProjectSessionPassword, rememberProjectSessionPassword } from "../security/sessionPasswords";
 import { listOcrJobs, listOcrPages, writeOcrJob, writeOcrPage } from "../ocr/ocrRepository";
-import { deleteNativeState, readNativeState, writeNativeState } from "../native/nativeRepository";
-import { deleteComplianceState, readComplianceState, writeComplianceState } from "../compliance/complianceRepository";
+import { readNativeState, writeNativeState } from "../native/nativeRepository";
+import { readComplianceState, writeComplianceState } from "../compliance/complianceRepository";
 import { recordProjectRevision, writeDocumentTransaction } from "../revisions/revisionRepository";
 import type { DocumentTransaction } from "../types/revision";
 import { isolateImportedEditorData } from "./importIsolation";
@@ -233,9 +233,9 @@ export async function loadProjectBytes(project: ProjectManifest): Promise<Uint8A
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  sourceSessions.delete(projectId);
   const stored = await idbGet<ProjectManifest>("projects", projectId);
-  if (stored) {
+  if (!stored) throw new Error("Cannot delete without a verified project manifest. Historical source and recovery data were left untouched.");
+  {
     // Validate the existing workspace schema *before* copying or removing an
     // OPFS source. The atomic transaction checks again to reject a concurrent
     // upgrade, but rejecting an already-future session must not touch the
@@ -269,24 +269,10 @@ export async function deleteProject(projectId: string): Promise<void> {
     // This single transaction cannot leave a surviving manifest pointing to
     // a deleted sourceFiles record. Aborts preserve the verified staging copy.
     await idbDeleteProjectAndSource(projectId);
-  } else {
-    // Explicit cleanup of a never-manifested or already-deleted project ID.
-    // Do not infer ownership of unrelated records or scan all project storage.
-    await Promise.allSettled([deleteProjectFiles(projectId), idbDelete("sourceFiles", projectId)]);
-    await Promise.allSettled([
-      idbDelete("viewerStates", projectId),
-      deleteEditorState(projectId),
-      deleteSecurityState(projectId),
-      deleteNativeState(projectId),
-      deleteComplianceState(projectId),
-      idbDeleteAllByIndex("documentRevisions", "projectId", projectId),
-      idbDeleteAllByIndex("documentTransactions", "projectId", projectId),
-      idbDeleteAllByIndex("ocrPages", "projectId", projectId),
-      idbDeleteAllByIndex("ocrJobs", "projectId", projectId)
-    ]);
   }
   // Successful manifest deletion commits all project-owned IndexedDB sidecars
-  // together. Only then can the in-memory session credential be forgotten.
+  // together. Only then clear in-memory source and credential for this project.
+  sourceSessions.delete(projectId);
   forgetProjectSessionPassword(projectId);
 }
 
