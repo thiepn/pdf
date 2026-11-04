@@ -273,6 +273,13 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     const registration = await navigator.serviceWorker.getRegistration();
     return Boolean(registration?.active && navigator.serviceWorker.controller);
   }, { timeout: 40_000 });
+  // The first app document may be served before the newly installed worker
+  // claims it. The Web Share Target is an OS-driven navigation, so exercise it
+  // from a genuine subsequent controlled page rather than racing initial SW
+  // install/claim and accidentally hitting Vite preview's POST 404 handler.
+  await page.reload();
+  await page.waitForFunction(() =>
+    navigator.serviceWorker.controller?.state === "activated", { timeout: 40_000 });
   const captured = await page.evaluate(async pdf => {
     const ns = location.pathname.split("/").filter(Boolean).join("-") || "root";
     const oldName = "local-pdf-studio-" + ns + "-share-inbox-v1";
@@ -281,6 +288,9 @@ test("actual service worker Web Share Target writes a committed v2 batch hidden 
     form.append("files", new File([Uint8Array.from(pdf)], "real-shared.pdf", { type: "application/pdf" }));
     const registration = await navigator.serviceWorker.getRegistration();
     const requestUrl = new URL("share-target", registration.scope).toString();
+    if (navigator.serviceWorker.controller?.state !== "activated") {
+      throw new Error("Real Share Target POST refused: this document is not controlled by an activated worker.");
+    }
     const before = {
       currentUrl: location.href,
       controlled: Boolean(navigator.serviceWorker.controller),
