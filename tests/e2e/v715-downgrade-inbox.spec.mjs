@@ -326,3 +326,65 @@ test("interrupted v2 service-worker batch remains quarantined and legacy v1 PDF 
   // imported regardless of whether interrupted Cache.delete returned false.
   expect(typeof after.stillVisible).toBe("boolean");
 });
+
+
+test("v2 acknowledgement receipt survives denied localStorage and Cache.delete without old-reader exposure or replay", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "launchQueue", {
+      configurable: true,
+      value: { setConsumer(callback) { window.__receiptLaunch = callback; } }
+    });
+    const originalSet = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (String(key).endsWith("-share-inbox-v2-consumed-v1")) {
+        throw new DOMException("Synthetic v2 tombstone refusal", "QuotaExceededError");
+      }
+      return originalSet.call(this, key, value);
+    };
+    const originalDelete = Cache.prototype.delete;
+    Cache.prototype.delete = async function(target, ...opts) {
+      const url = target instanceof Request ? target.url : String(target);
+      if (/\/launch-v3-[A-Za-z0-9-]+-0$/.test(url)) return false;
+      return originalDelete.call(this, target, ...opts);
+    };
+  });
+  await page.goto("./#/projects");
+  await page.waitForFunction(() => typeof window.__receiptLaunch === "function");
+  const names = await page.evaluate(async pdf => {
+    const ns = location.pathname.split("/").filter(Boolean).join("-") || "root";
+    const oldName = "local-pdf-studio-" + ns + "-share-inbox-v1";
+    const newName = "local-pdf-studio-" + ns + "-share-inbox-v2";
+    await window.__receiptLaunch({ files: [{
+      getFile: async () => new File([Uint8Array.from(pdf)], "acknowledge-once.pdf", { type: "application/pdf" })
+    }] });
+    const cache = await caches.open(newName);
+    const source = (await cache.keys()).find(request => /\/launch-v3-[A-Za-z0-9-]+-0$/.test(request.url));
+    if (!source) throw new Error("Missing v2 source before import");
+    const bytes = new Uint8Array(await (await cache.match(source)).arrayBuffer());
+    return { oldName, newName, source: source.url, sourceBytes: Array.from(bytes) };
+  }, Array.from(documentPdf()));
+  expect(await page.evaluate(legacyMainReadInbox, names.oldName)).toEqual([]);
+  await page.goto("./#/home");
+  await expect.poll(() => numberOfProjects(page), { timeout: 30_000 }).toBe(1);
+
+  const persisted = await page.evaluate(async ({ newName, source }) => {
+    const cache = await caches.open(newName);
+    return {
+      source: Boolean(await cache.match(source)),
+      receipt: (await cache.keys()).some(request => request.url.includes("/__share_inbox__/ack-v1-")),
+      tombstone: localStorage.getItem(newName + "-consumed-v1")
+    };
+  }, names);
+  expect(persisted).toEqual({ source: true, receipt: true, tombstone: null });
+  expect(await page.evaluate(legacyMainReadInbox, names.oldName)).toEqual([]);
+  await page.goto("./#/home");
+  await expect(page).toHaveURL(/#\/home$/);
+  await page.reload();
+  expect(await numberOfProjects(page)).toBe(1);
+  const after = await page.evaluate(async ({ newName, source }) => {
+    const response = await (await caches.open(newName)).match(source);
+    return response ? Array.from(new Uint8Array(await response.arrayBuffer())) : null;
+  }, names);
+  expect(after).toEqual(names.sourceBytes);
+});
