@@ -7,8 +7,25 @@ interface FakeCache {
   match: ReturnType<typeof vi.fn>;
 }
 
+function isV2FixtureRequest(url: string): boolean {
+  const name = new URL(url).pathname.split("/").at(-1) ?? "";
+  if (name.startsWith("ack-v1-")) {
+    try { return isV2FixtureRequest(decodeURIComponent(name.slice("ack-v1-".length))); }
+    catch { return false; }
+  }
+  return /^(?:launch-v3|share-v2)-/.test(name);
+}
+
 function installCache(cache: FakeCache) {
-  const storage = { open: vi.fn(async () => cache) };
+  // Model independent browser Cache Storage namespaces. Previous single-cache
+  // stubs would expose the same source/Response body in both v1 and v2.
+  const view = (v2: boolean) => ({
+    ...cache,
+    keys: vi.fn(async () => (await cache.keys()).filter((request: Request) => isV2FixtureRequest(request.url) === v2))
+  });
+  const legacy = view(false);
+  const current = view(true);
+  const storage = { open: vi.fn(async (name: string) => name.endsWith("share-inbox-v2") ? current : legacy) };
   vi.stubGlobal("caches", storage);
   return storage;
 }
