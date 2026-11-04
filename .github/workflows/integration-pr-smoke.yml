@@ -80,7 +80,7 @@ jobs:
       - name: Install exact dependencies
         run: npm ci --no-audit --no-fund
       - name: Real browser storage recovery, protected PDF and independent PDF reopen
-        run: npx playwright test tests/e2e/privacy.spec.ts tests/e2e/task-first-project-handoff.spec.mjs tests/e2e/v715-protected-project-browser.spec.mjs tests/e2e/v715-storage-recovery-browser.spec.mjs tests/e2e/v715-cross-store-recovery.spec.mjs --project=chromium --project=firefox --project=webkit --workers=3
+        run: npx playwright test tests/e2e/privacy.spec.ts tests/e2e/task-first-project-handoff.spec.mjs tests/e2e/v715-protected-project-browser.spec.mjs tests/e2e/v715-storage-recovery-browser.spec.mjs tests/e2e/v715-cross-store-recovery.spec.mjs tests/e2e/v715-downgrade-inbox.spec.mjs --project=chromium --project=firefox --project=webkit --workers=3
       - name: Retain genuine failure traces and screenshots
         if: always()
         uses: actions/upload-artifact@v4
