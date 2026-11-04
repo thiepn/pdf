@@ -255,6 +255,18 @@ const serviceWorkerManagerSource = await readFile(join(root, "src/release/servic
 if (/storeSharedInboxFiles\(files\)/.test(launchFilesSource) && /peekPendingPwaLaunchFiles/.test(homePageSource) && !/takePendingPwaLaunchFiles/.test(homePageSource)) pass("v6.0.5 file-launch durability", "OS-launched files are durably staged or retained until import succeeds instead of being destructively dequeued"); else fail("v6.0.5 file-launch durability", "OS file handling can still discard a launch before successful import");
 // A failed share-ingress batch must remain invisible even when Cache.delete
 // returns false or throws. Promise.allSettled on its own hid rollback failures.
+
+const futureInboxIsolated = /SHARE_INBOX_V2_CACHE/.test(shareInboxSource)
+  && /launch-v3-/.test(shareInboxSource)
+  && /listInboxCache\(SHARE_INBOX_CACHE\)/.test(shareInboxSource)
+  && /listInboxCache\(SHARE_INBOX_V2_CACHE\)/.test(shareInboxSource)
+  && /inboxCacheForId/.test(shareInboxSource)
+  && /SHARE_INBOX_V2_CACHE/.test(serviceWorkerSource)
+  && /share-v2-/.test(serviceWorkerSource)
+  && /--committed/.test(serviceWorkerSource)
+  && /inserted\.push\(key\);\s*await cache\.put/.test(serviceWorkerSource);
+if (futureInboxIsolated) pass("Backward-isolated Share Inbox v2", "OS launch and Web Share Target write v2 with a commit marker; legacy v1 is still read without relocation"); else fail("Backward-isolated Share Inbox v2", "New writes can leak into old-client v1 storage or historical files are abandoned");
+
 const failedShareBatchQuarantined = /inserted\.push\(key\);\s*await cache\.put/.test(shareInboxSource)
   && /rememberConsumedIds\(inserted\)/.test(shareInboxSource)
   && /cache\.delete\(key\)/.test(shareInboxSource)

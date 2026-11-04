@@ -185,7 +185,7 @@ test("failed OS-launched batch stays quarantined after partial Cache.put and fai
       Cache.prototype.delete = originalDelete;
     }
     const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
-    const name = `local-pdf-studio-${namespace}-share-inbox-v1`;
+    const name = `local-pdf-studio-${namespace}-share-inbox-v2`;
     const entries = await (await caches.open(name)).keys();
     const consumed = JSON.parse(localStorage.getItem(`${name}-consumed-v1`) || "[]");
     return { cached: entries.length, quarantined: entries.every(item => consumed.includes(item.url)) };
@@ -199,7 +199,7 @@ test("failed OS-launched batch stays quarantined after partial Cache.put and fai
   await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
   await expect.poll(() => page.evaluate(async () => {
     const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
-    const name = `local-pdf-studio-${namespace}-share-inbox-v1`;
+    const name = `local-pdf-studio-${namespace}-share-inbox-v2`;
     return { remaining: (await (await caches.open(name)).keys()).length, tombstone: localStorage.getItem(`${name}-consumed-v1`) };
   })).toEqual({ remaining: 0, tombstone: null });
   expect(await projectCount(page)).toBe(0);
@@ -319,7 +319,7 @@ test("localStorage denies tombstones during failed launch: uncommitted files rem
       Storage.prototype.setItem = originalSet;
     }
     const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
-    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v1";
+    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v2";
     const keys = await (await caches.open(cacheName)).keys();
     return {
       partialFiles: keys.filter(key => !key.url.endsWith("--committed")).length,
@@ -337,7 +337,7 @@ test("localStorage denies tombstones during failed launch: uncommitted files rem
   expect(await projectCount(page)).toBe(0);
   await expect.poll(() => page.evaluate(async () => {
     const namespace = location.pathname.split("/").filter(Boolean).join("-") || "root";
-    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v1";
+    const cacheName = "local-pdf-studio-" + namespace + "-share-inbox-v2";
     return (await (await caches.open(cacheName)).keys()).length;
   })).toBe(0);
   expect(await projectCount(page)).toBe(0);

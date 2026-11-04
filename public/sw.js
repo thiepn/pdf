@@ -7,7 +7,8 @@ const APP_CACHE_PREFIX = `local-pdf-studio-${SCOPE_TOKEN}-`;
 const RELEASE_CACHE_PREFIX = `${APP_CACHE_PREFIX}release-`;
 const CACHE_VERSION = `${RELEASE_CACHE_PREFIX}${RELEASE_VERSION}-${RELEASE_CHANNEL}-${RELEASE_BUILD_EPOCH}`;
 const OCR_LANGUAGE_CACHE = `${APP_CACHE_PREFIX}ocr-languages-v1`;
-const SHARE_INBOX_CACHE = `${APP_CACHE_PREFIX}share-inbox-v1`;
+const SHARE_INBOX_CACHE = `${APP_CACHE_PREFIX}share-inbox-v1`; // Retain legacy for new-reader fallback.
+const SHARE_INBOX_V2_CACHE = `${APP_CACHE_PREFIX}share-inbox-v2`;
 const OFFLINE_MANIFEST = "./offline-assets.json";
 const CORE = ["./", "./manifest.webmanifest", "./icons/icon.svg", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./color/srgb-artifex.icc"];
 const SHARE_TARGET_PATH = new URL("./share-target", self.registration.scope).pathname;
@@ -216,21 +217,23 @@ async function receiveShareTarget(request) {
   const form = await request.formData();
   const candidates = form.getAll("files").filter((entry) => typeof entry !== "string" && supportedSharedFile(entry)).slice(0, 10);
   if (!candidates.length) return Response.redirect(absoluteAsset("./#/home"), 303);
-  const cache = await caches.open(SHARE_INBOX_CACHE);
-  const stamp = `${Date.now()}-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+  const cache = await caches.open(SHARE_INBOX_V2_CACHE);
+  const stamp = `share-v2-${Date.now()}-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
   const inserted = [];
   try {
     for (let index = 0; index < candidates.length; index += 1) {
       const file = candidates[index];
       const key = new URL(`./__share_inbox__/${stamp}-${index}`, self.registration.scope).toString();
+      inserted.push(key);
       await cache.put(key, new Response(file, {
         headers: {
           "Content-Type": file.type || "application/octet-stream",
           "X-Local-Pdf-Studio-Filename": encodeURIComponent(file.name || `shared-${index + 1}.pdf`)
         }
       }));
-      inserted.push(key);
     }
+    // Never expose a partially written Web Share Target POST after a crash.
+    await cache.put(new URL(`./__share_inbox__/${stamp}--committed`, self.registration.scope), new Response("committed"));
   } catch (reason) {
     await Promise.allSettled(inserted.map((key) => cache.delete(key)));
     throw reason;
