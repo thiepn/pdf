@@ -8,6 +8,7 @@ on:
       - src/workers/native-image.worker.ts
       - tests/unit/d18NativeGeometryRoundTrip.test.ts
       - tests/unit/nativeImageEvidenceD15.test.ts
+      - tests/unit/pdf03NativeWorkerInspection.test.ts
       - tests/e2e/d7-live-keyboard-help.spec.ts
       - tests/e2e/pdf03-device-lifecycle.spec.ts
       - scripts/design/d17_live_pages_probe.py
@@ -41,7 +42,7 @@ jobs:
           python-version: '3.13'
       - run: npm ci --no-audit --no-fund
       - name: Original four rendered images and two source-attached masks
-        run: npx vitest run tests/unit/d18NativeGeometryRoundTrip.test.ts tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts
+        run: npx vitest run tests/unit/d18NativeGeometryRoundTrip.test.ts tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts tests/unit/pdf03NativeWorkerInspection.test.ts
       - name: Verify service worker against live-assignment identity and D8 inventory
         run: |
           python -m unittest discover -s tests -p d17_live_pages_probe_test.py -v
