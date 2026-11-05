@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readOnlyDenseInspection, requiresReadOnlyDenseInspection, shouldSerializeSpecialistInspection } from "../../src/native/nativeClientBase";
+import { readOnlyDenseInspection, readOnlyIncompleteInspection, requiresReadOnlyDenseInspection, shouldSerializeSpecialistInspection } from "../../src/native/nativeClientBase";
 import type { NativeInspection } from "../../src/types/nativeEditor";
 
 function sampleInspection(vectorCounts: number[]): NativeInspection {
@@ -55,5 +55,23 @@ describe("dense source-stream fail-closed inspection", () => {
     expect(safe.pages[0].objects.map((object) => object.type)).toEqual(["text"]);
     expect(safe.pages[0].objects[0]).toMatchObject({ editability: "unsupported", text: "SEARCHABLE", capability: { level: "unsupported" } });
     expect(safe.warnings).toEqual(expect.arrayContaining([expect.stringContaining("Dense PDF safeguard")]));
+  });
+});
+
+describe("partial native-inspection recovery", () => {
+  it("makes text discoverable but never grants edits after a specialist worker fails", () => {
+    const inspection = sampleInspection([0]);
+    inspection.canEdit = true;
+    inspection.pages[0].objects = [
+      { id: "t", type: "text", text: "FINDABLE", pageNumber: 1, editability: "fixed-box",
+        capability: { level: "safe-reconstruction", label: "text", confidence: 1, reason: "source", preserves: [], risks: [] } },
+      { id: "vector", type: "vector", pageNumber: 1 }
+    ] as any;
+    const fallback = readOnlyIncompleteInspection(inspection);
+    expect(fallback.canEdit).toBe(false);
+    expect(fallback.pages[0].objects).toHaveLength(1);
+    expect(fallback.pages[0].objects[0]).toMatchObject({ type: "text", text: "FINDABLE", editability: "unsupported", capability: { level: "unsupported" } });
+    expect(fallback.warnings).toEqual(expect.arrayContaining([expect.stringContaining("Incomplete PDF inspection:")]));
+    expect(inspection.canEdit).toBe(true);
   });
 });

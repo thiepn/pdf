@@ -77,8 +77,7 @@ export function requiresReadOnlyDenseInspection(inspection: NativeInspection): b
   );
 }
 
-export function readOnlyDenseInspection(inspection: NativeInspection): NativeInspection {
-  const reason = "Dense PDF safeguard: source content remains visible, but direct PDF-object editing is unavailable for this document. Add annotations or text instead; the original PDF is unchanged.";
+function readOnlySourceInspection(inspection: NativeInspection, reason: string): NativeInspection {
   const pages = inspection.pages.map((page) => ({
     ...page,
     objects: page.objects.filter((object) => object.type === "text").map((object) => ({
@@ -96,6 +95,16 @@ export function readOnlyDenseInspection(inspection: NativeInspection): NativeIns
     warnings: [...inspection.warnings, reason]
   });
 }
+export function readOnlyDenseInspection(inspection: NativeInspection): NativeInspection {
+  return readOnlySourceInspection(inspection, "Dense PDF safeguard: source content remains visible, but direct PDF-object editing is unavailable for this document. Add annotations or text instead; the original PDF is unchanged.");
+}
+
+/** Preserve search and source review after a specialist scanner fails; no
+ * direct modification is authorized without the full native fidelity model. */
+export function readOnlyIncompleteInspection(inspection: NativeInspection): NativeInspection {
+  return readOnlySourceInspection(inspection, "Incomplete PDF inspection: detected source text is available for finding and review, but direct source-object editing is disabled because one of the fidelity inspectors failed. The original PDF is unchanged; added annotations remain available.");
+}
+
 export function shouldSerializeSpecialistInspection(base: NativeInspection): boolean {
   return base.pages.some((page) => {
     let vectors = 0;
@@ -303,6 +312,9 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
     const activeSignal = controller.signal;
     const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
     if (requiresReadOnlyDenseInspection(base)) return readOnlyDenseInspection(base);
+    // The base source-text inspector succeeded. If a specialist fails,
+    // retain the qualified source search data but fail closed on mutation.
+    try {
     const inspectImages = () => invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal);
     const inspectVectors = () => invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal);
     const inspectTables = () => invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal);
@@ -325,6 +337,10 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
     const established = mergeTableInspection(mergeVectorInspection(mergeImageInspection(base, image), vector), boundedRecoveredTable);
     const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, activeSignal);
     return mergeComplexInspection(established, complex);
+    } catch (reason) {
+      if (activeSignal.aborted) throw reason;
+      return readOnlyIncompleteInspection(base);
+    }
   } catch (reason) {
     if (timedOut) throw new Error(`Existing-content inspection exceeded the ${Math.round(NATIVE_INSPECTION_TIMEOUT_MS / 1000)}-second responsiveness budget and was stopped. Overlay editing remains available.`);
     throw reason;

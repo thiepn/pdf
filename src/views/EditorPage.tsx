@@ -430,7 +430,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         if (inspectionResult.status === "fulfilled") {
           const inspection = inspectionResult.value;
           setNativeInspection(inspection);
-          const denseNotice = inspection.warnings.find((warning) => warning.startsWith("Dense PDF safeguard:"));
+          const denseNotice = inspection.warnings.find((warning) => warning.startsWith("Dense PDF safeguard:") || warning.startsWith("Incomplete PDF inspection:"));
           if (denseNotice) setWarnings((current) => [...new Set([...current, denseNotice])]);
           setStatus("Ready");
           onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms} PDF items found`);
