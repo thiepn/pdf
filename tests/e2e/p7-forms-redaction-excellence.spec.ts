@@ -36,8 +36,19 @@ test("P7 authors interactive text and checkbox fields and verifies them after se
 
 test("P7 finds text for redaction, requires review, then proves permanent removal", async ({ page }) => {
   await openCorpus(page, "tests/corpus/generated/redaction-source.pdf");
+  const project = page.url().match(/\\/workspace\\/([^/]+)\\/viewer/);
+  expect(project).not.toBeNull();
   await chooseDocumentTask(page, "Find & apply permanent redactions");
-  await expect(page.locator(".security-app")).toBeVisible();
+  // Applying unmarked redactions must remain fail-closed. Discovery itself is
+  // available from the separate Document safety overview, where candidates
+  // are reviewable and never removed until marked and explicitly exported.
+  await expect(page.locator(".task-capability-blocker")).toContainText("No saved editor redaction marks");
+  await expect(page.getByText("This task did not start. Your PDF is unchanged.", { exact: true })).toBeVisible();
+  await page.goto(`./#/workspace/${project![1]}/secure`);
+  await expect(page.locator(".security-app")).toBeVisible({ timeout: 20_000 });
+  await page.getByText("Related document settings", { exact: true }).click();
+  await page.getByLabel("Settings to show").selectOption("redaction");
+  await expect(page.getByRole("heading", { name: "Permanent redaction" })).toBeVisible();
 
   await page.getByLabel("Text", { exact: true }).fill("SECRET_ALPHA_491");
   await page.getByRole("button", { name: "Scan", exact: true }).click();
