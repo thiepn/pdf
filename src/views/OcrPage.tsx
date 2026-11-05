@@ -126,7 +126,20 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
   const outputIsCurrent = Boolean(output && recipeIsCurrent && outputFingerprint === currentResultsFingerprint);
   const reviewResult = useMemo(() => results.find((item) => item.pageNumber === reviewPageNumber && item.status === "complete") ?? null, [results, reviewPageNumber]);
   const selectedReviewWord = reviewResult && selectedWord !== null ? reviewResult.words[selectedWord] : undefined;
-  const lowConfidenceCount = reviewResult?.words.filter((word) => !word.ignored && ocrConfidenceBand(word.confidence) === "low").length ?? 0;
+  const lowConfidenceWordIndices = useMemo(
+    () => reviewResult?.words.flatMap((word, index) => !word.ignored && ocrConfidenceBand(word.confidence) === "low" ? [index] : []) ?? [],
+    [reviewResult]
+  );
+  const lowConfidenceCount = lowConfidenceWordIndices.length;
+  function selectLowConfidenceWord(direction: -1 | 1): void {
+    if (!reviewResult || !lowConfidenceWordIndices.length) return;
+    const current = lowConfidenceWordIndices.indexOf(selectedWord ?? -1);
+    const next = current < 0 ? (direction === 1 ? 0 : lowConfidenceWordIndices.length - 1)
+      : (current + direction + lowConfidenceWordIndices.length) % lowConfidenceWordIndices.length;
+    const index = lowConfidenceWordIndices[next];
+    setSelectedWord(index);
+    setCorrectionDraft(ocrWordText(reviewResult.words[index]));
+  }
   useEffect(() => {
     if (!running && !outputIsCurrent) return;
     return registerPreparedDocumentSnapshot(projectId, async (signal) => {
@@ -465,6 +478,11 @@ export function OcrPage({ projectId, onTitleChange }: Props) {
               <span><strong>{reviewResult.words.filter((word) => word.corrected).length}</strong> corrected</span>
             </div>
             <p className="muted-copy">Red boxes need the most attention. Yellow boxes are worth reviewing. Corrections change only the searchable text layer; the scanned page image stays untouched.</p>
+            {lowConfidenceCount ? <nav className="ocr-review-confidence-nav" aria-label="Low-confidence OCR word navigation">
+              <button className="button button--secondary button--small" disabled={reviewBusy} onClick={() => selectLowConfidenceWord(-1)} type="button">Previous low-confidence word</button>
+              <span aria-live="polite">{Math.max(0, lowConfidenceWordIndices.indexOf(selectedWord ?? -1) + 1)} of {lowConfidenceCount} selected</span>
+              <button className="button button--secondary button--small" disabled={reviewBusy} onClick={() => selectLowConfidenceWord(1)} type="button">Next low-confidence word</button>
+            </nav> : null}
             <details className="ocr-review-details">
               <summary>Recognition details</summary>
               <dl>

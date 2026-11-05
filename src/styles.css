@@ -2948,11 +2948,16 @@ pre {
  * bounded grid child, OCR word hitboxes can render behind the parent
  * workspace panel, leaving visually present words unclickable. */
 @media (min-width:781px){
-  .ocr-workspace--review .ocr-results{overflow:hidden}
-  .ocr-workspace--review .ocr-review-layout{flex:1 1 0;min-height:0;overflow:hidden}
-  .ocr-workspace--review .ocr-review-stage{min-height:0}
-  .ocr-workspace--review .ocr-review-properties{min-height:0;overflow:auto}
+  /* Keep a real page scrollport even when the task-first workspace grows
+   * naturally in height. A flex-basis of zero clipped offscreen OCR hitboxes. */
+  .ocr-workspace--review .ocr-results{overflow:visible}
+  .ocr-workspace--review .ocr-review-layout{flex:0 0 auto;min-height:0;overflow:visible;align-items:start}
+  .ocr-workspace--review .ocr-review-stage{min-height:360px;max-height:min(70vh,740px);overflow:auto}
+  .ocr-workspace--review .ocr-review-properties{min-height:0;max-height:min(70vh,740px);overflow:auto}
 }
+.ocr-review-confidence-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ocr-review-confidence-nav button{min-height:44px}
+.ocr-review-confidence-nav span{font-size:.82rem;color:var(--text-muted,#626a7a)}
 .ocr-review-page{position:relative;flex:0 0 auto;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.28);touch-action:none;user-select:none}
 .ocr-review-page>canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .ocr-word-layer{position:absolute;inset:0;z-index:2}

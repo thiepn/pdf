@@ -81,6 +81,10 @@ test("P3 reviews saved OCR, corrects confidence evidence, preserves the PDF and 
   await expect(workspace).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Loaded reusable OCR results. Review or rebuild the searchable layer.")).toBeVisible();
 
+  // Review must also be usable without precise page-canvas pointing.
+  await page.getByRole("button", { name: "Next low-confidence word" }).click();
+  await expect(page.getByLabel("Correct recognized word")).toHaveValue("MAY");
+  await expect(page.getByRole("button", { name: "MAY · 52% confidence" })).toHaveClass(/ocr-word-box--selected/);
   const lowConfidence = page.getByRole("button", { name: /MAY · 52% confidence/ });
   await expect(lowConfidence).toBeVisible();
   await lowConfidence.scrollIntoViewIfNeeded();

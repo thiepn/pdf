@@ -21,6 +21,14 @@ export function OcrReviewCanvas({ document, result, selectedWord, region, onSele
   const dragRef = useRef<DragState | null>(null);
   const [size, setSize] = useState({ width: 612, height: 792 });
 
+  // Keyboard/list navigation must reveal the selected OCR word inside the
+  // page scrollport, not move the whole workspace behind the controls.
+  useEffect(() => {
+    if (selectedWord === null) return;
+    hostRef.current?.querySelector<HTMLButtonElement>(".ocr-word-box--selected")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [result.pageNumber, selectedWord]);
+
   useEffect(() => {
     let cancelled = false;
     void document.getPage(result.pageNumber).then(async (page) => {
