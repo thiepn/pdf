@@ -446,7 +446,7 @@ test("existing-PDF search shortcut opens real matches and selects a source text 
   const search = dialog.getByPlaceholder("Text to find");
   await expect(search).toBeFocused();
   await search.fill("MAY - JUL");
-  await expect(dialog.getByText(/\d+ matches found/)).toBeVisible();
+  await expect(dialog.getByText(/\d+ match(?:es)? found/)).toBeVisible();
   await dialog.getByRole("button", { name: /Inspect matching PDF text on page/ }).first().click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".native-unified-properties")).toBeVisible();
