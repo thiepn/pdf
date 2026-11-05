@@ -1,0 +1,40 @@
+name: PDF-04 read-only browser container Python SSL diagnosis
+on:
+  pull_request:
+    paths:
+      - .github/workflows/pdf04-browser-python-diagnostic.yml
+permissions:
+  contents: read
+jobs:
+  ssl-interpreter-comparison:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-noble
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Compare hosted and container system Python TLS/pip (read-only)
+        shell: bash
+        run: |
+          set -uo pipefail
+          printf 'Interpreter locations (no environment secrets):\n'
+          command -v python || true
+          command -v python3 || true
+          printf 'Hosted Python SSL: '
+          python -c 'import ssl; print(ssl.OPENSSL_VERSION)' || echo 'UNAVAILABLE'
+          printf 'Container system Python SSL: '
+          /usr/bin/python3 -c 'import ssl; print(ssl.OPENSSL_VERSION)' || echo 'UNAVAILABLE'
+          printf 'System Python pip: '
+          /usr/bin/python3 -m pip --version || echo 'UNAVAILABLE'
+          printf 'Hosted Python pip: '
+          python -m pip --version || echo 'UNAVAILABLE'
+          printf 'Container distribution: '
+          sed -n -e 's/^PRETTY_NAME=//p' /etc/os-release
+          printf 'Python SSL extension name only: '
+          python -c 'import sysconfig; print(sysconfig.get_config_var("DESTSHARED"))' || true
+          printf 'Preflight reports facts only; no pip install, source changes, or release actions.\n'
