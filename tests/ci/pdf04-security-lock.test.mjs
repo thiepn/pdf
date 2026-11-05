@@ -40,3 +40,20 @@ test("security audit and strict D16/human release refusal remain mandatory", () 
   assert.match(d16, /automatic_deployment_allowed/);
   assert.match(d16, /NOT_QUALIFIED/);
 });
+
+test("Arborist optional-peer workaround is confined to generating the lockfile", () => {
+  const job = readFileSync(".github/workflows/pdf04-security-lock.yml","utf8");
+  const only = job.match(/npm install[^\n]*--package-lock-only[^\n]*--legacy-peer-deps/g) ?? [];
+  assert.equal(only.length,1,"Only one documented peer workaround is permitted");
+  assert.match(job,/npm ci --no-audit --no-fund\s*\n\s*npm ls --all/,"Normal npm ci and full dependency-tree validation remain strict");
+  assert.match(job,/npm audit --audit-level=moderate/,"Real registry vulnerability gate remains mandatory");
+  assert.doesNotMatch(job,/npm ci[^\n]*legacy-peer-deps|npm audit[^\n]*legacy-peer-deps/);
+});
+test("Security changes trigger real Chromium Firefox WebKit masked export and re-open gates", () => {
+  const job = readFileSync(".github/workflows/pdf03-focused-real-browser.yml","utf8");
+  assert.match(job,/^      - package-lock\.json$/m);
+  assert.match(job,/^      - package\.json$/m);
+  assert.match(job,/browser: \[chromium, firefox, webkit\]/);
+  assert.match(job,/tests\/e2e\/d14-native-export\.spec\.mjs/);
+  assert.match(job,/--retries=0/);
+});
