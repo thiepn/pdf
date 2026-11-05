@@ -83,6 +83,15 @@ test("P3 reviews saved OCR, corrects confidence evidence, preserves the PDF and 
 
   const lowConfidence = page.getByRole("button", { name: /MAY · 52% confidence/ });
   await expect(lowConfidence).toBeVisible();
+  await lowConfidence.scrollIntoViewIfNeeded();
+  // Real-pointer hit testing: a visible OCR word must not sit underneath the
+  // parent workspace scrolling panel or another overlay. Do not force click.
+  const wordBox = await lowConfidence.boundingBox();
+  expect(wordBox).not.toBeNull();
+  await expect.poll(async () => page.evaluate(({ x, y, width, height }) => {
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return Boolean(hit?.closest(".ocr-word-box"));
+  }, wordBox!), { timeout: 5_000 }).toBe(true);
   await lowConfidence.click();
 
   const correction = page.getByLabel("Correct recognized word");
