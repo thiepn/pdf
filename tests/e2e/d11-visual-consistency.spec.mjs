@@ -74,7 +74,7 @@ test("D11 Quick Tools and Editor retain real workflows with consistent chrome", 
   await page.locator('input[type="file"]').setInputFiles({
     name: "D11 review.pdf", mimeType: "application/pdf", buffer: pdfFixture()
   });
-  await expect(page).toHaveURL(/#\\/workspace\\/[^/]+\\/editor(?:\\/edit-pdf)?$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/editor(?:\/edit-pdf)?$/, { timeout: 30_000 });
   const editor = page.locator('.editor-app[data-d3-editor="true"][data-d10-status="true"]');
   await expect(editor).toBeVisible({ timeout: 30000 });
   await expect(editor.locator(".editor-stage canvas").first()).toBeVisible({ timeout: 30000 });
