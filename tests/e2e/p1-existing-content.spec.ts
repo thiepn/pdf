@@ -1,4 +1,4 @@
-import { openSample, switchMode } from "./helpers/taskFirst";
+import { openSample, switchMode, downloadEditorCopy } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 test("P1 edits existing PDF text as one fitted replacement and exports a validated PDF", async ({ page }) => {
@@ -22,9 +22,5 @@ test("P1 edits existing PDF text as one fitted replacement and exports a validat
   await properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ }).click();
   await expect(page.locator(".native-queued-count").filter({ hasText: /\d+ PDF edit(?:s)? ready/ })).toHaveCount(1);
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+  await downloadEditorCopy(page);
 });

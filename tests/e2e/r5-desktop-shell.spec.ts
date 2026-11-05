@@ -23,7 +23,7 @@ test.describe("Desktop task-first hierarchy", () => {
     await switchMode(page, "editor");
     const tools = page.getByRole("navigation", { name: "Editing tools" });
     await expect(tools.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeVisible();
+    await expect(page.getByLabel("More save options")).toBeVisible();
     await expect(page.locator(".editor-toolrail")).toHaveCount(0);
     await page.getByRole("button", { name: "More tools", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Editor tools" });
