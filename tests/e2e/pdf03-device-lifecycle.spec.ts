@@ -20,11 +20,13 @@ test("PDF-03 closes the real MuPDF image inspection device without relaxing nati
   });
 
   await page.goto("./#/tools/edit-pdf");
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "pdf03-p17-device-lifecycle.pdf",
-    mimeType: "application/pdf",
-    buffer: Buffer.from(createP17NativeFidelityPdf())
-  });
+  await page.locator('input[type="file"]').evaluate((node, data) => {
+    const input = node as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([Uint8Array.from(data).buffer], "pdf03-p17-device-lifecycle.pdf", { type: "application/pdf" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, Array.from(createP17NativeFidelityPdf()));
   await expect(page.getByLabel("Document status bar")).toBeVisible({ timeout: 45_000 });
 
   const images = page.getByRole("button", { name: /Select existing image:/ });
