@@ -80,7 +80,7 @@ export async function downloadEditorCopy(page: Page): Promise<Download> {
   const output = page.waitForEvent("download", { timeout: 30_000 });
   await menu.getByRole("button", { name: "Download copy", exact: true }).click();
   const downloaded = await output;
-  expect(downloaded.suggestedFilename()).toMatch(/_edited\\.pdf$/);
+  expect(downloaded.suggestedFilename()).toMatch(/_edited\.pdf$/);
   await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 25_000 });
   return downloaded;
 }

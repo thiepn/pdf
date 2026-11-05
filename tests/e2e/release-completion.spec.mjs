@@ -160,5 +160,5 @@ test("cancelled scanning keeps the inputs and publishes no partial result", asyn
 test("malformed route encoding recovers to the homepage instead of crashing", async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("./#/workspace/%E0%A4%A/viewer");
-  await expect(page.getByRole("heading", { name: /Less work.*More done/ })).toBeVisible(); expect(errors).toEqual([]);
+  await expect(page.getByRole("heading", { name: /Start with a file/ })).toBeVisible(); expect(errors).toEqual([]);
 });
