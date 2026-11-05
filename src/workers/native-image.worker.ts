@@ -477,7 +477,11 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       structured.destroy?.();
     }
   } finally {
-    traceDevice?.destroy?.();
+    // MuPDF requires close() before destroy(); the original D19 Firefox trace
+    // logged "warning: dropping unclosed device" at this exact worker.
+    // A close failure must fail closed; destroy still runs to release memory.
+    try { traceDevice?.close?.(); }
+    finally { traceDevice?.destroy?.(); }
   }
 
   const counts = new Map<number, number>();
