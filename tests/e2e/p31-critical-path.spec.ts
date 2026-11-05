@@ -55,6 +55,10 @@ test.describe("P31 interaction critical path", () => {
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).toBeTruthy();
     await page.mouse.click((canvasBox?.x ?? 0) + 180, (canvasBox?.y ?? 0) + 180);
+    // Creation deliberately keeps Rectangle active. Moving the created shape
+    // requires selecting the documented Select tool, as a real user must.
+    await chooseEditorTool(page, "Select");
+    await expect(page.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: "Select", exact: true })).toHaveAttribute("aria-pressed", "true");
 
     const object = page.locator(".editor-object--shape").last();
     await expect(object).toBeVisible();

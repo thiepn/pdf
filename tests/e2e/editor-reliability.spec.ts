@@ -91,7 +91,12 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   const editor = properties.locator("textarea").first();
   const original = await editor.inputValue();
   expect(original).toContain("MAY - JUL");
-  await editor.fill(original.replace("MAY - JUL", "JUN - AUG"));
+  // Keep this visual-fidelity success case within the source text box. The
+  // original longer replacement can require three lines where only two fit;
+  // that must remain a fail-closed writer refusal, not a preview success.
+  const fittedReplacement = original.replace("MAY - JUL", "JUN");
+  expect(fittedReplacement).not.toBe(original);
+  await editor.fill(fittedReplacement);
   const applyTextChange = properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ });
   await expect(applyTextChange).toBeEnabled();
   await applyTextChange.click();
