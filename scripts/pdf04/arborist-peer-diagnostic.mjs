@@ -38,12 +38,20 @@ for(const [name,version,property] of [
   ["@vitest/browser-webdriverio","4.1.11","peerDependencies"],
   ["@vitest/browser-webdriverio","4.1.12","version"],
   ["vite","8.1.6","peerDependencies"],
+  ["vite","8.1.6","peerDependenciesMeta"],
+  ["@vitejs/devtools","0.3.0","peerDependencies"],
+  ["@vitejs/devtools","0.7.1","peerDependencies"],
+  ["@vitest/browser-playwright","5.1.0","peerDependencies"],
 ])meta(name,version,property);
 const cases=[
   {name:"vitest-4.1.12",deps:{vitest:"4.1.12"},flags:[]},
   {name:"vitest-4.1.11-control",deps:{vitest:"4.1.11"},flags:[]},
   {name:"vitest-vite-jsdom",deps:{vitest:"4.1.12",vite:"8.1.6",jsdom:"29.1.1"},flags:[]},
-  {name:"vitest-4.1.12-diagnostic-peer-omit",deps:{vitest:"4.1.12"},flags:["--legacy-peer-deps"]},
+  {name:"pinned-vite-prefer-dedupe",deps:{vitest:"4.1.12",vite:"8.1.6"},flags:["--prefer-dedupe"]},
+  {name:"pinned-vite-omit-optional",deps:{vitest:"4.1.12",vite:"8.1.6"},flags:["--omit=optional"]},
+  {name:"pinned-vite-omit-peer",deps:{vitest:"4.1.12",vite:"8.1.6"},flags:["--omit=peer"]},
+  {name:"pinned-vite-shallow",deps:{vitest:"4.1.12",vite:"8.1.6"},flags:["--install-strategy=shallow"]},
+    {name:"vitest-4.1.12-diagnostic-peer-omit",deps:{vitest:"4.1.12"},flags:["--legacy-peer-deps"]},
 ];
 try{
  for(const c of cases){
