@@ -287,7 +287,7 @@ function directMaskedInvocationBounds(page: PdfPage, paints: ReturnType<typeof d
   const pattern = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/([A-Za-z0-9_.:+-]+)\\s+Do\\s+Q\\b`, "g");
   for (const stream of contentStreams(page)) {
     const data = streamText(stream);
-    if (/[^\\x09\\x0a\\x0d\\x20-\\x7e]/.test(data)) continue;
+    if (/[^\x09\x0a\x0d\x20-\x7e]/.test(data)) continue;
     for (const match of data.matchAll(pattern)) {
       const resourceName = match[7];
       const mask = imageXObjectMaskEvidence(page, resourceName);
