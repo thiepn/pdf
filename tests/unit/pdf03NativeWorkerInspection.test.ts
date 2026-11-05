@@ -21,7 +21,7 @@ describe("PDF-03 actual native-image worker classification (not helper-only geom
           && (message.type === "IMAGE_INSPECTION" || message.type === "NATIVE_ERROR")) resolveResponse(message);
       }
     };
-    const global = globalThis as typeof globalThis & { self?: unknown };
+    const global = globalThis as unknown as { self?: unknown };
     const previous = global.self;
     global.self = scope;
     try {
