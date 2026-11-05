@@ -367,6 +367,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       // still owns focus. Letting the browser perform a native field undo would
       // change the controlled input without moving PDF Studio's history/checkpoint.
       if (command && event.key.toLowerCase() === "s") { event.preventDefault(); void exportPdf(supportsNativeFileSave() ? "save" : "download"); return; }
+      if (command && event.key.toLowerCase() === "f" && nativeInspection && !nativeInspecting) { event.preventDefault(); setFindReplaceOpen(true); return; }
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
@@ -396,7 +397,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing, shortcutHelpOpen]);
+  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing, shortcutHelpOpen, nativeInspection, nativeInspecting]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
     hydrationRef.current?.cancel();
@@ -1201,7 +1202,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         originalPreview={reviewOriginal}
       />
       <D7KeyboardHelp onClose={closeShortcutHelp} open={shortcutHelpOpen} returnFocusRef={compactControls ? mobileToolsTriggerRef : shortcutHelpTriggerRef} />
-      <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
+      <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onNavigateToMatch={(objectId, pageNumber) => { const matched = nativeInspection?.pages.find((page) => page.pageNumber === pageNumber)?.objects.find((object) => object.id === objectId); if (!matched) { setError("The matching PDF text is no longer available. Reopen search and try again."); return; } setFindReplaceOpen(false); setShowNativeContent(true); selectNativeObject(matched); setStatus(`Selected matching PDF text on page ${pageNumber}. Review it in Properties before editing.`); }} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
       {mobileToolsOpen ? <div className="product-modal-backdrop editor-tools-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMobileTools(); }}>
         <div aria-label="Editor tools" aria-modal="true" className="product-modal editor-tools-sheet" ref={mobileToolsRef} role="dialog">
           <div className="editor-tools-sheet__handle" />
