@@ -11,13 +11,17 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.62.0-noble
     timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13']
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: ${{ matrix.python }}
       - name: Compare hosted and container system Python TLS/pip (read-only)
         shell: bash
         run: |
