@@ -79,6 +79,31 @@ describe("PDF-03 actual native-image worker classification (not helper-only geom
       }
       expect(images[2].editability).toBe("fidelity-protected");
       expect(images[3].editability).toBe("fidelity-protected");
+      // The export worker, not just the UI, must refuse a masked transform
+      // whose "contain" sizing would no longer equal the requested bounds.
+      const blockedReply = new Promise<any>(resolve => { resolveResponse = resolve; });
+      const source = images[0];
+      scope.onmessage!({ data: {
+        type: "APPLY_IMAGES",
+        requestId: "pdf03-node-real-worker",
+        bytes: fixture.buffer.slice(fixture.byteOffset, fixture.byteOffset + fixture.byteLength),
+        edits: [{
+          id: "pdf03-unsafe-contain",
+          kind: "image",
+          objectId: source.id,
+          pageNumber: 1,
+          action: "transform",
+          sourceBounds: source.bounds,
+          bounds: { ...source.bounds, x: source.bounds.x + 12 },
+          removeUnderlying: true,
+          fit: "contain",
+          rotation: 0,
+          opacity: 1
+        }]
+      } });
+      const refused = await blockedReply;
+      expect(refused.type).toBe("NATIVE_ERROR");
+      expect(refused.error?.message).toMatch(/require Stretch/);
     } finally {
       if (previous === undefined) delete global.self;
       else global.self = previous;
