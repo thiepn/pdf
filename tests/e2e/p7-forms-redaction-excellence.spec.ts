@@ -36,7 +36,7 @@ test("P7 authors interactive text and checkbox fields and verifies them after se
 
 test("P7 finds text for redaction, requires review, then proves permanent removal", async ({ page }) => {
   await openCorpus(page, "tests/corpus/generated/redaction-source.pdf");
-  const project = page.url().match(/\\/workspace\\/([^/]+)\\/viewer/);
+  const project = page.url().match(new RegExp("/workspace/([^/]+)/viewer"));
   expect(project).not.toBeNull();
   await chooseDocumentTask(page, "Find & apply permanent redactions");
   // Applying unmarked redactions must remain fail-closed. Discovery itself is
