@@ -23,3 +23,11 @@ test("Phase 11 semantic typecheck remains required rather than bypassed", () => 
   assert.match(typecheck, /spawnSync\(executable, args/, "TypeScript must actually be executed");
   assert.match(typecheck, /if \(result\.status !== 0\) process\.exit/, "Compiler failure must remain fatal");
 });
+
+test("CI bootstrap edits retrigger existing exact-head PDF-03 real-browser acceptance", () => {
+  const focused = readFileSync(".github/workflows/pdf03-focused-real-browser.yml", "utf8");
+  assert.match(focused, /^      - \.github\/workflows\/ci\.yml$/m);
+  assert.match(focused, /browser: \[chromium, firefox, webkit\]/);
+  assert.match(focused, /tests\/e2e\/d14-native-export\.spec\.mjs/);
+  assert.match(focused, /--retries=0/, "Native PDF reopen must be tested without hiding retries");
+});

@@ -3,6 +3,7 @@ name: PDF-03 focused real-browser fidelity qualification (non-release)
 on:
   pull_request:
     paths:
+      - .github/workflows/ci.yml
       - .github/workflows/pdf03-focused-real-browser.yml
       - .github/workflows/d19-release-acceptance.yml
       - src/workers/native-image.worker.ts
