@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import * as mupdf from "mupdf";
 import { createP17NativeFidelityPdf } from "../../src/fixtures/p17NativeFidelityPdf";
 import type { NativeImageObject } from "../../src/types/nativeEditor";
 
@@ -24,7 +25,19 @@ describe("PDF-03 actual native-image worker classification (not helper-only geom
     const previous = global.self;
     global.self = scope;
     try {
-      await import("../../src/workers/native-image.worker");
+      const worker = await import("../../src/workers/native-image.worker");
+      const doc = new mupdf.PDFDocument(new Uint8Array(fixture));
+      try {
+        const page = doc.loadPage(0) as mupdf.PDFPage;
+        try {
+          const paints = worker.directImagePaints(page);
+          const invocations = worker.directMaskedInvocationBounds(page, paints);
+          const context = { transform: page.getTransform(), paints, invocations };
+          expect(paints.length, JSON.stringify(context)).toBe(4);
+          expect(paints.filter(x => x.softMask).length, JSON.stringify(context)).toBe(2);
+          expect(invocations.length, JSON.stringify(context)).toBe(2);
+        } finally { page.destroy(); }
+      } finally { doc.destroy(); }
       expect(messages.some((value: any) => value?.type === "READY")).toBe(true);
       expect(scope.onmessage).toBeTypeOf("function");
       scope.onmessage!({ data: { type: "INSPECT_IMAGES", requestId: "pdf03-node-real-worker", bytes: arrayBuffer } });
