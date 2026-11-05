@@ -36,6 +36,21 @@ describe("PDF-03 actual native-image worker classification (not helper-only geom
           expect(paints.length, JSON.stringify(context)).toBe(4);
           expect(paints.filter(x => x.softMask).length, JSON.stringify(context)).toBe(2);
           expect(invocations.length, JSON.stringify(context)).toBe(2);
+          // Regression against accidental relaxation of the original
+          // fail-closed binary-content guard: mutation must not accept a
+          // source stream containing a non-ASCII control byte.
+          const contents = page.getObject().get("Contents");
+          if (!contents?.isStream()) throw new Error("Unexpected fixture content shape");
+          const buffer = contents.readStream();
+          let source: string;
+          try { source = buffer.asString(); }
+          finally { buffer.destroy(); }
+          expect(source).toContain("Left opening");
+          page.getObject().put("Contents", doc.addStream(
+            source.replace("Left opening", "\u0000eft opening"),
+            doc.newDictionary()
+          ));
+          expect(worker.directMaskedInvocationBounds(page, worker.directImagePaints(page))).toHaveLength(0);
         } finally { page.destroy(); }
       } finally { doc.destroy(); }
       expect(messages.some((value: any) => value?.type === "READY")).toBe(true);
