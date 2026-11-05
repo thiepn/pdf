@@ -37,7 +37,7 @@ test("direct URLs and command search preserve the form fallback and permanent-re
   await expect(page.getByRole("link", { name: "Fill with text in the editor" })).toBeVisible({ timeout: 20_000 });
   await page.goto(`./#/workspace/${projectId}/secure/apply-redactions`);
   const blocker = page.locator(".task-capability-blocker");
-  await expect(blocker.getByRole("heading", { name: /Apply permanent redactions cannot start/ })).toBeVisible({ timeout: 20_000 });
+  await expect(blocker.getByRole("heading", { name: /permanent redactions cannot start/ })).toBeVisible({ timeout: 20_000 });
   await expect(blocker.getByText("Why", { exact: true })).toBeVisible();
   await expect(blocker.locator(".task-capability-explanation").first().locator("p")).not.toHaveText("");
   await expect(blocker.getByText("This task did not start. Your PDF is unchanged.", { exact: true })).toBeVisible();

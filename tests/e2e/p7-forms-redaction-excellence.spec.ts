@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import mupdf from "mupdf";
+import { readFile } from "node:fs/promises";
 import { chooseDocumentTask } from "./helpers/taskFirst";
 
 async function openCorpus(page: import("@playwright/test").Page, file: string) {
@@ -63,7 +65,17 @@ test("P7 finds text for redaction, requires review, then proves permanent remova
 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  await download;
+  const saved = await download;
+  const reopened = new mupdf.PDFDocument(new Uint8Array(await readFile(await saved.path())));
+  try {
+    const first = reopened.loadPage(0);
+    try {
+      const extracted = first.toStructuredText();
+      try { expect(extracted.asText()).not.toContain("SECRET_ALPHA_491"); }
+      finally { extracted.destroy(); }
+      expect(first.getAnnotations().some((annotation: any) => ["Redact", "Redaction"].includes(String(annotation.getType())))).toBe(false);
+    } finally { first.destroy(); }
+  } finally { reopened.destroy(); }
   await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
   await page.getByText("Output verified · view checks", { exact: true }).click();
   await page.getByText("Check details", { exact: true }).click();

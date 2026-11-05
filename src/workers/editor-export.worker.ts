@@ -200,7 +200,7 @@ function addSignature(page: any, object: Extract<EditorObject, { type: "signatur
 }
 
 function addRedactionMark(page: any, object: Extract<EditorObject, { type: "redaction" }>, transform: AffineMatrix, warnings: string[]): void {
-  const annotation = page.createAnnotation("Redaction");
+  const annotation = page.createAnnotation("Redact");
   setCommon(annotation, object);
   annotation.setRect(rect(transform, object.bounds));
   annotation.setColor(color(object.fillColor) ?? [0, 0, 0]);
