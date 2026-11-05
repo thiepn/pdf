@@ -287,7 +287,7 @@ function directMaskedInvocationBounds(page: PdfPage, paints: ReturnType<typeof d
   const pattern = new RegExp(`\\bq\\s+${Array(6).fill(number).join("\\s+")}\\s+cm\\s+/([A-Za-z0-9_.:+-]+)\\s+Do\\s+Q\\b`, "g");
   for (const stream of contentStreams(page)) {
     const data = streamText(stream);
-    if (/[^\\x09\\x0a\\x0d\\x20-\\x7e]/.test(data)) continue;
+    if (/[^\x09\x0a\x0d\x20-\x7e]/.test(data)) continue;
     for (const match of data.matchAll(pattern)) {
       const resourceName = match[7];
       const mask = imageXObjectMaskEvidence(page, resourceName);
@@ -477,7 +477,11 @@ function inspectImagePage(page: PdfPage, pageNumber: number): { images: NativeIm
       structured.destroy?.();
     }
   } finally {
-    traceDevice?.destroy?.();
+    // MuPDF requires close() before destroy(); the original D19 Firefox trace
+    // logged "warning: dropping unclosed device" at this exact worker.
+    // A close failure must fail closed; destroy still runs to release memory.
+    try { traceDevice?.close?.(); }
+    finally { traceDevice?.destroy?.(); }
   }
 
   const counts = new Map<number, number>();
@@ -644,6 +648,11 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   const resourceName = image.fidelity?.resourceName;
   if (!resourceName || !image.fidelity?.softMask || image.fidelity.explicitMask || image.fidelity.clipped || image.fidelity.blendMode !== "Normal") {
     throw new Error("The masked image does not have a qualified direct source invocation; its original content was not modified.");
+  }
+  // A contained/covered image no longer occupies edit.bounds. The mask
+  // preservation validator must never treat that geometry change as qualified.
+  if (action === "transform" && edit.fit !== "stretch") {
+    throw new Error("Masked source-image transforms require Stretch to preserve the attached mask and full requested destination bounds.");
   }
   const pageObject = page.getObject();
   const current = pageObject.get("Contents");
@@ -959,5 +968,8 @@ self.onmessage = (event: MessageEvent<Request>) => {
     }
   })();
 };
+
+// Test-accessible pure inspection helpers; exporting does not weaken any native guard.
+export { directImagePaints, directMaskedInvocationBounds };
 
 self.postMessage({ type: "READY" });

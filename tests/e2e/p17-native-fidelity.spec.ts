@@ -65,6 +65,9 @@ test("P17 preserves an attached soft mask during source-image transform and keep
 
   const properties = page.locator(".native-unified-properties");
   await expect(properties.getByText("Attached soft mask preserved", { exact: true })).toBeVisible();
+  await expect(properties.getByLabel("Image fit")).toHaveValue("stretch");
+  await expect(properties.getByLabel("Image fit").locator('option[value="contain"]')).toHaveAttribute("disabled", "");
+  await expect(properties.getByLabel("Image fit").locator('option[value="cover"]')).toHaveAttribute("disabled", "");
   await expect(properties.getByText(/shared across 2 invocations/i)).toBeVisible();
   const replaceOption = properties.getByLabel("Image operation").locator('option[value="replace"]');
   await expect.poll(() => replaceOption.evaluate((element) => (element as HTMLOptionElement).disabled)).toBe(true);
