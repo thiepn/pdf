@@ -29,6 +29,7 @@ test("P7 authors interactive text and checkbox fields and verifies them after se
   expect(saved.suggestedFilename()).toMatch(/secured\.pdf$/i);
   await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
   await page.getByText("Output verified · view checks", { exact: true }).click();
+  await page.getByText("Check details", { exact: true }).click();
   await expect(page.getByText("Created form fields", { exact: true })).toBeVisible();
   await expect(page.getByText("2 requested interactive fields reopened successfully.", { exact: true })).toBeVisible();
 });
@@ -54,5 +55,6 @@ test("P7 finds text for redaction, requires review, then proves permanent remova
   await download;
   await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
   await page.getByText("Output verified · view checks", { exact: true }).click();
+  await page.getByText("Check details", { exact: true }).click();
   await expect(page.getByText("Redacted text extraction", { exact: true })).toBeVisible();
 });

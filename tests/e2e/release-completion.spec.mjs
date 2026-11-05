@@ -61,7 +61,7 @@ test("Word export creates editable OOXML in selected page order without pretendi
   await expect(page.getByText(/not the original layout, images or editable tables/)).toBeVisible();
   await page.getByRole("textbox", { name: "Pages", exact: true }).fill("3,1");
   await page.getByRole("textbox", { name: "Output filename" }).fill("selected.docx");
-  await page.getByRole("button", { name: "Export editable text to Word", exact: true }).click();
+  await page.getByRole("button", { name: "Export editable Word document", exact: true }).click();
   const result = await download(page, "Download Word document"); expect(result.name).toBe("selected.docx");
   const entries = zipEntries(result.bytes); expect(entries.has("[Content_Types].xml")).toBe(true);
   const document = entries.get("word/document.xml").toString("utf8");
