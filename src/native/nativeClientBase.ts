@@ -61,6 +61,19 @@ const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_PAGE = 650;
 const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_DOCUMENT = 4_000;
 const MAX_TABLE_RECOVERY_VECTORS_PER_PAGE = 600;
 const MAX_TABLE_RECOVERY_PAIR_WORK_PER_DOCUMENT = 1_000_000;
+// The native base inspector records at most 50 simple rectangles per page.
+// Hitting that ceiling indicates potentially much denser vector content and
+// avoids starting three additional MuPDF/WASM inspectors simultaneously.
+const NATIVE_BASE_VECTOR_DENSITY_SENTINEL = 50;
+export function shouldSerializeSpecialistInspection(base: NativeInspection): boolean {
+  return base.pages.some((page) => {
+    let vectors = 0;
+    for (const object of page.objects) {
+      if (object.type === "vector" && ++vectors >= NATIVE_BASE_VECTOR_DENSITY_SENTINEL) return true;
+    }
+    return false;
+  });
+}
 export const NATIVE_INSPECTION_TIMEOUT_MS = 30_000;
 
 export function reconstructInspectionWithinResponsivenessBudget(inspection: NativeInspection): NativeInspection {
@@ -258,11 +271,22 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
   try {
     const activeSignal = controller.signal;
     const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
-    const [image, vector, table] = await Promise.all([
-      invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal),
-      invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal),
-      invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal)
-    ]);
+    const inspectImages = () => invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal);
+    const inspectVectors = () => invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal);
+    const inspectTables = () => invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal);
+    let image: ImageInspection;
+    let vector: VectorInspection;
+    let table: TableInspection;
+    if (shouldSerializeSpecialistInspection(base)) {
+      // A dense vector document can allocate multiple large WASM heaps at once.
+      // Serialize specialist inspections for this case, preserving every result
+      // and all original capability/fidelity checks.
+      image = await inspectImages();
+      vector = await inspectVectors();
+      table = await inspectTables();
+    } else {
+      [image, vector, table] = await Promise.all([inspectImages(), inspectVectors(), inspectTables()]);
+    }
     const recoveryInput = prepareVectorInspectionForTableRecovery(vector, table);
     const recoveredTable = recoverStructuredTables(base, recoveryInput.vector, table);
     const boundedRecoveredTable = recoveryInput.skippedPages.length ? { ...recoveredTable, warnings: [...recoveredTable.warnings, `Responsiveness guard skipped fallback table-grid recovery on ${recoveryInput.skippedPages.length} dense page${recoveryInput.skippedPages.length === 1 ? "" : "s"} (${recoveryInput.skippedPages.join(", ")}); specialist table results and all vector objects remain available.`] } : recoveredTable;

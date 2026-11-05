@@ -452,3 +452,20 @@ test("existing-PDF search shortcut opens real matches and selects a source text 
   await expect(page.locator(".native-unified-properties")).toBeVisible();
   await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
 });
+
+test("cross-page search selection survives canvas navigation without editing the PDF", async ({ page }) => {
+  await openMultiPageEditor(page);
+  await expect(page.getByRole("button", { name: "Find and replace existing text" })).toBeEnabled({ timeout: 20_000 });
+  await page.keyboard.press("Control+f");
+  const dialog = page.getByRole("dialog", { name: "Find & replace" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByPlaceholder("Text to find").fill("PLAIN_PAGE_2_MARKER");
+  const match = dialog.getByRole("button", { name: "Inspect matching PDF text on page 2" }).first();
+  await expect(match).toBeVisible();
+  await match.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("2");
+  await expect(page.locator(".native-unified-properties")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Select existing (?:text|paragraph):.*PLAIN_PAGE_2_MARKER/ })).toHaveClass(/active/);
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
+});

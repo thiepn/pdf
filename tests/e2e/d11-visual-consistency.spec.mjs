@@ -71,7 +71,7 @@ test("D11 Quick Tools and Editor retain real workflows with consistent chrome", 
   await expect(quick.locator(".task-dropzone")).toBeVisible();
   await page.screenshot({ path: info.outputPath("d11-quick-upload.png"), animations: "disabled" });
   await page.goto("./#/tools/edit-pdf");
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles({
     name: "D11 review.pdf", mimeType: "application/pdf", buffer: pdfFixture()
   });
   await expect(page).toHaveURL(/#\/workspace\/[^/]+\/editor(?:\/edit-pdf)?$/, { timeout: 30_000 });

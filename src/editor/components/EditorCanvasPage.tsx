@@ -84,7 +84,8 @@ export function EditorCanvasPage(props: Props) {
     setDraftRect(null);
     setGuides([]);
     props.onPreview(null);
-    props.onSelect(null, false);
+    // Parent navigation clears the old selection. Keep selections explicitly
+    // restored by Undo/Redo or by Find → Inspect on another page.
   }, [props.pageNumber]);
 
   useEffect(() => () => cancelPendingDomPreview(), []);
