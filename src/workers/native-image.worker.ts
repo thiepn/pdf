@@ -964,4 +964,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
   })();
 };
 
+// Test-accessible pure inspection helpers; exporting does not weaken any native guard.
+export { directImagePaints, directMaskedInvocationBounds };
+
 self.postMessage({ type: "READY" });
