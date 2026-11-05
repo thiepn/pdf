@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import mupdf from "mupdf";
-import { readFile } from "node:fs/promises";
+
 import { chooseDocumentTask } from "./helpers/taskFirst";
 
 async function openCorpus(page: import("@playwright/test").Page, file: string) {
@@ -66,7 +66,15 @@ test("P7 finds text for redaction, requires review, then proves permanent remova
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
   const saved = await download;
-  const reopened = new mupdf.PDFDocument(new Uint8Array(await readFile(await saved.path())));
+  // Playwright exposes a readable stream without requiring Node filesystem
+  // type declarations in the app TypeScript project.
+  const stream = await saved.createReadStream();
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of stream) chunks.push(Uint8Array.from(chunk));
+  const bytes = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.byteLength, 0));
+  let position = 0;
+  for (const chunk of chunks) { bytes.set(chunk, position); position += chunk.byteLength; }
+  const reopened = new mupdf.PDFDocument(bytes);
   try {
     const first = reopened.loadPage(0);
     try {
