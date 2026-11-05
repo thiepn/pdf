@@ -39,19 +39,23 @@ jobs:
         run: test "$(npm --version)" = "10.9.2"
       - name: Isolate npm 10 Arborist peer graph and sanitize the debug stack
         run: node scripts/pdf04/arborist-peer-diagnostic.mjs
-      - name: Clean authenticated npm-registry resolution after npm 10 Arborist old-lock crash
+      - name: npm 10.9.2 minimal lock regeneration with isolated optional-peer workaround
         run: |
           cp package-lock.json /tmp/pdf04-original-lock.json
-          rm package-lock.json
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          # npm 10 Arborist #loadPeerSet reproducibly crashes on optional
+          # @vitejs/devtools -> browser-provider peer recursion even for
+          # vitest@4.1.11. Do NOT persist this flag in project config.
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
       - name: Reject wide or unintended dependency-graph changes
         run: node scripts/pdf04/verify-minimal-lock-diff.mjs /tmp/pdf04-original-lock.json package-lock.json
       - name: Verify fixed package versions, integrity and strict audit policy
         run: |
           node --test tests/ci/pdf04-security-lock.test.mjs
           npm run audit:lockfile
-      - name: Install exact generated locked dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Strict ordinary npm ci and dependency-tree validation (NO peer workaround)
+        run: |
+          npm ci --no-audit --no-fund
+          npm ls --all
       - name: Mandatory moderate-or-higher security audit
         run: npm audit --audit-level=moderate
       - name: Real semantic typecheck and original 28 PDF-03 unit regressions

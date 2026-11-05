@@ -3,6 +3,9 @@ name: PDF-03 focused real-browser fidelity qualification (non-release)
 on:
   pull_request:
     paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/pdf04-security-lock.yml
       - .github/workflows/ci.yml
       - .github/workflows/pdf03-focused-real-browser.yml
       - .github/workflows/d19-release-acceptance.yml
