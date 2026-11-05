@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldSerializeSpecialistInspection } from "../../src/native/nativeClientBase";
+import { readOnlyDenseInspection, requiresReadOnlyDenseInspection, shouldSerializeSpecialistInspection } from "../../src/native/nativeClientBase";
 import type { NativeInspection } from "../../src/types/nativeEditor";
 
 function sampleInspection(vectorCounts: number[]): NativeInspection {
@@ -27,5 +27,33 @@ describe("native specialist worker concurrency policy", () => {
 
   it("does not mistake many ordinary pages for one unusually dense page", () => {
     expect(shouldSerializeSpecialistInspection(sampleInspection([30, 30]))).toBe(false);
+  });
+});
+
+describe("dense source-stream fail-closed inspection", () => {
+  it("recognizes multi-stream vector density even when the legacy scanner saw no rectangles", () => {
+    const sample = sampleInspection([0]);
+    sample.pages[0].contentStreamCount = 1601;
+    expect(requiresReadOnlyDenseInspection(sample)).toBe(true);
+    sample.pages[0].contentStreamCount = 1;
+    sample.pages[0].sourceRectCount = 601;
+    expect(requiresReadOnlyDenseInspection(sample)).toBe(true);
+    sample.pages[0].sourceRectCount = 50;
+    expect(requiresReadOnlyDenseInspection(sample)).toBe(false);
+  });
+
+  it("keeps recognized text searchable but blocks native source modification", () => {
+    const sample = sampleInspection([0]);
+    sample.canEdit = true;
+    sample.pages[0].objects = [{
+      id: "page-1-text", type: "text", pageNumber: 1, text: "SEARCHABLE",
+      editability: "fixed-box",
+      capability: { level: "safe-reconstruction", reason: "test", label: "text", confidence: 1, preserves: [], risks: [] }
+    }, { id: "image-1", type: "image", pageNumber: 1 }] as any;
+    const safe = readOnlyDenseInspection(sample);
+    expect(safe.canEdit).toBe(false);
+    expect(safe.pages[0].objects.map((object) => object.type)).toEqual(["text"]);
+    expect(safe.pages[0].objects[0]).toMatchObject({ editability: "unsupported", text: "SEARCHABLE", capability: { level: "unsupported" } });
+    expect(safe.warnings).toEqual(expect.arrayContaining([expect.stringContaining("Dense PDF safeguard")]));
   });
 });

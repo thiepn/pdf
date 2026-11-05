@@ -65,6 +65,37 @@ const MAX_TABLE_RECOVERY_PAIR_WORK_PER_DOCUMENT = 1_000_000;
 // Hitting that ceiling indicates potentially much denser vector content and
 // avoids starting three additional MuPDF/WASM inspectors simultaneously.
 const NATIVE_BASE_VECTOR_DENSITY_SENTINEL = 50;
+const MAX_DENSE_SOURCE_STREAMS_PER_PAGE = 600;
+
+/** Real multi-stream PDFs can hide 1,600+ path streams from the legacy
+ * single-stream rectangle heuristic. Degrade to read-only text rather than
+ * spawn many MuPDF WASM heaps and crash the user's document tab. */
+export function requiresReadOnlyDenseInspection(inspection: NativeInspection): boolean {
+  return inspection.pages.some((page) =>
+    (page.contentStreamCount ?? 0) > MAX_DENSE_SOURCE_STREAMS_PER_PAGE
+    || (page.sourceRectCount ?? 0) > MAX_DENSE_SOURCE_STREAMS_PER_PAGE
+  );
+}
+
+export function readOnlyDenseInspection(inspection: NativeInspection): NativeInspection {
+  const reason = "Dense PDF safeguard: source content remains visible, but direct PDF-object editing is unavailable for this document. Add annotations or text instead; the original PDF is unchanged.";
+  const pages = inspection.pages.map((page) => ({
+    ...page,
+    objects: page.objects.filter((object) => object.type === "text").map((object) => ({
+      ...object,
+      editability: "unsupported" as const,
+      capability: { ...object.capability, level: "unsupported" as const, reason }
+    }))
+  }));
+  const text = pages.reduce((sum, page) => sum + page.objects.length, 0);
+  return registerNativeInspectionPages({
+    ...inspection,
+    canEdit: false,
+    pages,
+    totals: { text, images: 0, vectors: 0, tables: 0, forms: 0, complex: 0 },
+    warnings: [...inspection.warnings, reason]
+  });
+}
 export function shouldSerializeSpecialistInspection(base: NativeInspection): boolean {
   return base.pages.some((page) => {
     let vectors = 0;
@@ -271,6 +302,7 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
   try {
     const activeSignal = controller.signal;
     const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
+    if (requiresReadOnlyDenseInspection(base)) return readOnlyDenseInspection(base);
     const inspectImages = () => invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal);
     const inspectVectors = () => invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal);
     const inspectTables = () => invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal);
