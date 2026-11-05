@@ -177,7 +177,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   const [action, setAction] = useState<NonNullable<NativeImageEdit["action"]>>(initialAction);
   const [bytes, setBytes] = useState<Uint8Array | undefined>(queued?.bytes);
   const [mimeType, setMimeType] = useState(queued?.mimeType ?? "image/png");
-  const [fit, setFit] = useState<NativeImageEdit["fit"]>(queued?.fit ?? "contain");
+  const [fit, setFit] = useState<NativeImageEdit["fit"]>(queued?.fit ?? (object.fidelity?.class === "masked" ? "stretch" : "contain"));
   const [removeUnderlying, setRemoveUnderlying] = useState(queued?.removeUnderlying ?? true);
   const [bounds, setBounds] = useState(queued?.bounds ?? object.bounds);
   const [rotation, setRotation] = useState<NonNullable<NativeImageEdit["rotation"]>>(queued?.rotation ?? 0);
@@ -188,7 +188,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     setAction(allowedActions.includes(nextAction) ? nextAction : (allowedActions[0] ?? "transform"));
     setBytes(queued?.bytes);
     setMimeType(queued?.mimeType ?? "image/png");
-    setFit(queued?.fit ?? "contain");
+    setFit(queued?.fit ?? (object.fidelity?.class === "masked" ? "stretch" : "contain"));
     setRemoveUnderlying(queued?.removeUnderlying ?? true);
     setBounds(queued?.bounds ?? object.bounds);
     setRotation(queued?.rotation ?? 0);
@@ -203,7 +203,7 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   }
 
   const protectedImage = object.editability === "fidelity-protected" || allowedActions.length === 0;
-  const actionAllowed = allowedActions.includes(action);
+  // Attached /SMask image transforms are qualified only when the selected\n  // source rectangle is preserved without implicit contain/cover scaling.\n  const maskedSourceTransform = object.fidelity?.class === "masked" && action === "transform";\n  const actionAllowed = allowedActions.includes(action) && (!maskedSourceTransform || fit === "stretch");
   if (protectedImage) return <section className="property-section property-stack">
     <p className="eyebrow">Existing image</p><h3>Fidelity-protected image</h3>
     <div className="warning-banner"><strong>Direct mutation blocked</strong><span>{object.fidelity?.reason ?? object.capability.reason}</span></div>
@@ -242,8 +242,9 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
     {object.fidelity?.class === "masked" ? <div className="result-card"><strong>Attached soft mask preserved</strong><span>Source transform and deletion are qualified; bitmap replacement stays disabled because the source mask cannot be transferred safely to arbitrary replacement pixels.</span></div> : null}
     {action === "replace" ? <label className="button button--secondary">{bytes ? "Choose different image" : "Choose replacement image"}<input accept="image/png,image/jpeg,image/webp" hidden type="file" onChange={(event) => void choose(event.target.files?.[0])} /></label> : null}
     {action !== "delete" ? <>
-      <label className="property-field"><span>Fit</span><select aria-label="Image fit" value={fit} onChange={(event) => setFit(event.target.value as NativeImageEdit["fit"])}><option value="contain">Contain</option><option value="cover">Cover + crop</option><option value="stretch">Stretch</option></select></label>
-      <GeometryEditor bounds={bounds} onChange={setBounds} />
+      <label className="property-field"><span>Fit</span><select aria-label="Image fit" value={fit} onChange={(event) => setFit(event.target.value as NativeImageEdit["fit"])}><option disabled={maskedSourceTransform} value="contain">Contain</option><option disabled={maskedSourceTransform} value="cover">Cover + crop</option><option value="stretch">Stretch</option></select></label>
+      {maskedSourceTransform ? <p className="property-note">Masked source transforms use Stretch to preserve the original image rectangle and attached soft-mask geometry. Contain and Cover remain unavailable for this source operation.</p> : null}
+       <GeometryEditor bounds={bounds} onChange={setBounds} />
       <div className="property-grid-two"><label className="property-field"><span>Rotation</span><select aria-label="Image rotation" value={rotation} onChange={(event) => setRotation(Number(event.target.value) as NonNullable<NativeImageEdit["rotation"]>)}><option value={0}>0°</option><option value={90}>90°</option><option value={180}>180°</option><option value={270}>270°</option></select></label><NumberInput label="Opacity" value={opacity} min={0} max={1} step={0.05} onChange={setOpacity} /></div>
       {action === "replace" ? <label className="property-toggle"><input checked={removeUnderlying} type="checkbox" onChange={(event) => setRemoveUnderlying(event.target.checked)} />Remove the original image before drawing the replacement</label> : <p className="property-note">No replacement upload is required. PDF Studio reuses the selected source image locally, removes only its original image region, then redraws it with the requested transform.</p>}
     </> : <div className="warning-banner"><strong>Permanent image deletion</strong><span>Only image content intersecting the selected source image region is removed. Overlapping text and line art are preserved.</span></div>}
