@@ -37,10 +37,13 @@ jobs:
           cache: npm
       - name: Require pinned npm 10.9.2
         run: test "$(npm --version)" = "10.9.2"
-      - name: Resolve authentic npm-registry metadata and generate lockfile, no script execution
+      - name: Clean authenticated npm-registry resolution after npm 10 Arborist old-lock crash
         run: |
+          cp package-lock.json /tmp/pdf04-original-lock.json
+          rm package-lock.json
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          npm update undici --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Reject wide or unintended dependency-graph changes
+        run: node scripts/pdf04/verify-minimal-lock-diff.mjs /tmp/pdf04-original-lock.json package-lock.json
       - name: Verify fixed package versions, integrity and strict audit policy
         run: |
           node --test tests/ci/pdf04-security-lock.test.mjs
