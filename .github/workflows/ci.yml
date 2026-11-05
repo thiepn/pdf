@@ -31,7 +31,13 @@ jobs:
         run: sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install --yes --no-install-recommends fonts-noto-core
       - name: Install external-reader validation tools
         run: python -m pip install --requirement requirements-phase11.txt
-      - name: Run dependency-independent stability gate
+      - name: Check mandatory Phase 11 compiler bootstrap contract
+        run: node --test tests/ci/phase11-bootstrap.test.mjs
+      - name: Require committed dependency lock
+        run: test -f package-lock.json
+      - name: Install exact locked dependencies for required semantic checks
+        run: npm ci --no-audit --no-fund
+      - name: Run Phase 11 stability gate using pinned TypeScript
         run: npm run gate:phase11
       - name: Upload corpus validation evidence
         uses: actions/upload-artifact@v7
