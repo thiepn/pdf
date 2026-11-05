@@ -17,6 +17,6 @@ export function OutputTrustPanel({ report, compact = false }: { report: OutputTr
     </header>
     <dl className="output-trust__facts">{report.facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd>{fact.detail ? <small>{fact.detail}</small> : null}</div>)}</dl>
     <div className="output-trust__checks">{report.checks.map((check) => <div className={`output-trust__check output-trust__check--${check.outcome}`} key={check.label}><span aria-hidden="true">{check.outcome === "passed" ? "✓" : check.outcome === "warning" ? "!" : check.outcome === "changed" ? "↔" : "—"}</span><div><strong>{check.label}</strong><p>{check.detail}</p></div><small>{outcomeLabel(check.outcome)}</small></div>)}</div>
-    {report.notes.length ? <details className={`output-trust__notes${report.lossy ? " output-trust__notes--lossy" : ""}`} open={report.lossy}><summary>{report.lossy ? "Consequences to review" : "Output notes"} · {report.notes.length}</summary>{report.notes.map((note) => <p key={note}>{note}</p>)}</details> : null}
+    {report.notes.length ? <details className={`output-trust__notes${report.lossy ? " output-trust__notes--lossy" : ""}`} open={report.lossy || report.level === "verified-with-notes"}><summary>{report.lossy ? "Consequences to review" : "Output notes"} · {report.notes.length}</summary>{report.notes.map((note) => <p key={note}>{note}</p>)}</details> : null}
   </section>;
 }
