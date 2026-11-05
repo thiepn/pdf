@@ -2958,7 +2958,7 @@ pre {
 .ocr-review-confidence-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ocr-review-confidence-nav button{min-height:44px}
 .ocr-review-confidence-nav span{font-size:.82rem;color:var(--text-muted,#626a7a)}
-.ocr-review-page{position:relative;flex:0 0 auto;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.28);touch-action:none;user-select:none}
+.ocr-review-page{position:relative;flex:0 1 auto;min-width:0;max-width:100%;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.28);touch-action:none;user-select:none}
 .ocr-review-page>canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .ocr-word-layer{position:absolute;inset:0;z-index:2}
 .ocr-word-box{position:absolute;min-width:2px;min-height:2px;padding:0;border:1px solid color-mix(in srgb,var(--accent,#395bd7) 38%,transparent);background:color-mix(in srgb,var(--accent,#395bd7) 7%,transparent);cursor:pointer;overflow:visible}

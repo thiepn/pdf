@@ -88,6 +88,16 @@ test("P3 reviews saved OCR, corrects confidence evidence, preserves the PDF and 
   const lowConfidence = page.getByRole("button", { name: /MAY · 52% confidence/ });
   await expect(lowConfidence).toBeVisible();
   await lowConfidence.scrollIntoViewIfNeeded();
+  // The full PDF page must fit the available review scrollport. A fixed 860px
+  // centered child previously clipped its left edge behind the workspace.
+  const sizing = await page.locator(".ocr-review-stage").evaluate((element) => {
+    const stage = element.getBoundingClientRect();
+    const pdf = element.querySelector(".ocr-review-page")?.getBoundingClientRect();
+    if (!pdf) throw new Error("OCR review PDF surface is unavailable.");
+    return { stageLeft: stage.left, stageRight: stage.right, pageLeft: pdf.left, pageRight: pdf.right };
+  });
+  expect(sizing.pageLeft).toBeGreaterThanOrEqual(sizing.stageLeft - 2);
+  expect(sizing.pageRight).toBeLessThanOrEqual(sizing.stageRight + 2);
   // Real-pointer hit testing: a visible OCR word must not sit underneath the
   // parent workspace scrolling panel or another overlay. Do not force click.
   const wordBox = await lowConfidence.boundingBox();

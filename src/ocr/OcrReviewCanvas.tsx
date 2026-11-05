@@ -91,7 +91,7 @@ export function OcrReviewCanvas({ document, result, selectedWord, region, onSele
       onPointerUp={endRegion}
       onPointerCancel={endRegion}
       ref={hostRef}
-      style={{ width:size.width, height:size.height }}
+      style={{ width: size.width, maxWidth: "100%", height: "auto", aspectRatio: `${size.width} / ${size.height}` }}
     >
       <canvas ref={canvasRef}/>
       <div className="ocr-word-layer" aria-label={`Recognized text on page ${result.pageNumber}`}>
