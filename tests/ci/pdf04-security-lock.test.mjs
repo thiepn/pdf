@@ -9,7 +9,9 @@ test("minimal exactly pinned security fixes and existing toolchain remain immuta
   assert.equal(manifest.packageManager, "npm@10.9.2");
   assert.equal(manifest.devDependencies.vite, "8.1.6");
   assert.equal(manifest.devDependencies.vitest, "4.1.12");
-  assert.equal(manifest.overrides?.undici, "7.30.1");
+  assert.equal(manifest.dependencies?.undici, undefined, "Undici must remain transitive");
+  assert.equal(manifest.devDependencies?.undici, undefined, "Undici must remain transitive");
+  assert.equal(manifest.overrides?.undici, undefined, "Do not rely on npm 10.9.2 override resolution");
   assert.equal(manifest.devDependencies["@playwright/test"], "1.62.0");
   assert.equal(manifest.dependencies.mupdf, "1.28.0");
 });

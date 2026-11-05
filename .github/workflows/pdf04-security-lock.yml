@@ -38,7 +38,9 @@ jobs:
       - name: Require pinned npm 10.9.2
         run: test "$(npm --version)" = "10.9.2"
       - name: Resolve authentic npm-registry metadata and generate lockfile, no script execution
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm update undici --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Verify fixed package versions, integrity and strict audit policy
         run: |
           node --test tests/ci/pdf04-security-lock.test.mjs
