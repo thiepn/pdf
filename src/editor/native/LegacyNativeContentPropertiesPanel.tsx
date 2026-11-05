@@ -203,7 +203,10 @@ function ImageEditor({ object, queued, onQueue }: { object: NativeImageObject; q
   }
 
   const protectedImage = object.editability === "fidelity-protected" || allowedActions.length === 0;
-  // Attached /SMask image transforms are qualified only when the selected\n  // source rectangle is preserved without implicit contain/cover scaling.\n  const maskedSourceTransform = object.fidelity?.class === "masked" && action === "transform";\n  const actionAllowed = allowedActions.includes(action) && (!maskedSourceTransform || fit === "stretch");
+  // Attached /SMask image transforms are qualified only when the selected
+  // source rectangle is preserved without implicit contain/cover scaling.
+  const maskedSourceTransform = object.fidelity?.class === "masked" && action === "transform";
+  const actionAllowed = allowedActions.includes(action) && (!maskedSourceTransform || fit === "stretch");
   if (protectedImage) return <section className="property-section property-stack">
     <p className="eyebrow">Existing image</p><h3>Fidelity-protected image</h3>
     <div className="warning-banner"><strong>Direct mutation blocked</strong><span>{object.fidelity?.reason ?? object.capability.reason}</span></div>
