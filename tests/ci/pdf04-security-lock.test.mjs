@@ -57,3 +57,20 @@ test("Security changes trigger real Chromium Firefox WebKit masked export and re
   assert.match(job,/tests\/e2e\/d14-native-export\.spec\.mjs/);
   assert.match(job,/--retries=0/);
 });
+
+test("full browser shards use real container TLS and keep external reader corpus mandatory", () => {
+  const ci=readFileSync(".github/workflows/ci.yml","utf8");
+  const start=ci.indexOf("  browser-regression-shard:");
+  const end=ci.indexOf("  browser-regression:",start);
+  assert.ok(start>0&&end>start);
+  const browser=ci.slice(start,end);
+  assert.match(browser,/mcr\.microsoft\.com\/playwright:v1\.62\.0-noble/);
+  assert.match(browser,/apt-get install -y --no-install-recommends python3-venv/);
+  assert.match(browser,/\/usr\/bin\/python3 -m venv \/tmp\/pdf-browser-python/);
+  assert.match(browser,/\/tmp\/pdf-browser-python\/bin\/python -c 'import ssl/);
+  assert.doesNotMatch(browser,/actions\/setup-python/,"Do not reintroduce hosted incompatible Python");
+  assert.match(browser,/python -m pip install --requirement requirements-phase11\.txt/);
+  assert.match(browser,/python scripts\/phase11\/validate_corpus\.py/);
+  assert.match(browser,/npm run test:e2e -- --project=/);
+  assert.match(ci,/test "\$\{\{ needs\.browser-regression-shard\.result \}\}" = "success"/);
+});
