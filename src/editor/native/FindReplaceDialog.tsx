@@ -9,6 +9,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onApply: (edits: NativeEdit[], occurrenceCount: number) => void;
+  onNavigateToMatch: (objectId: string, pageNumber: number) => void;
 }
 
 function previewText(value: string): string {
@@ -16,7 +17,7 @@ function previewText(value: string): string {
   return compact.length > 96 ? `${compact.slice(0, 93)}…` : compact || "Empty text block";
 }
 
-export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onApply }: Props) {
+export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onApply, onNavigateToMatch }: Props) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const queryRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState("");
@@ -68,6 +69,7 @@ export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onAp
         {visibleMatches.map((match) => <article className={match.status === "blocked" ? "find-replace-match is-blocked" : "find-replace-match"} key={match.objectId}>
           <div><strong>Page {match.pageNumber}</strong><span>{match.occurrences} match{match.occurrences === 1 ? "" : "es"}</span></div>
           <p>{previewText(match.sourceText)}</p>
+          <button type="button" onClick={() => onNavigateToMatch(match.objectId, match.pageNumber)} aria-label={`Inspect matching PDF text on page ${match.pageNumber}`}>Inspect in editor</button>
           {match.status === "blocked" ? <small>{match.reason}</small> : <small>Ready for safe fixed-box reconstruction.</small>}
         </article>)}
         {hiddenMatches ? <p className="find-replace-more">+ {hiddenMatches} more matched text block{hiddenMatches === 1 ? "" : "s"}</p> : null}
