@@ -58,13 +58,13 @@
   gap: 6px;
 }
 .product-app [data-d3-editor="true"] .editor-commandbar__actions > .button {
-  min-height: 39px;
+  min-height: 44px;
   border-radius: var(--studio-radius-control);
   font-weight: 700;
 }
 .product-app [data-d3-editor="true"] .editor-save-options > summary {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--d3-edge);
   border-radius: var(--studio-radius-control);
 }
