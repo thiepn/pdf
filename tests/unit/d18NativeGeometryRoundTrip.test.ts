@@ -31,7 +31,10 @@ function tracedImages(page: mupdf.PDFPage): NativeRect[] {
   const device = new (mupdf as any).Device(callbacks);
   try {
     (page as any).runPageContents(device, (mupdf as any).Matrix.identity);
-  } finally { device.destroy(); }
+  } finally {
+    try { device.close(); }
+    finally { device.destroy(); }
+  }
   return images;
 }
 
