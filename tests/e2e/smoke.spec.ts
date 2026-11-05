@@ -44,7 +44,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await chooseDocumentTask(page, "OCR PDF");
   await expect(page).toHaveURL(/\/ocr\/ocr-pdf$/);
   await expect(page.getByRole("combobox", { name: /Recognition quality/i })).toBeVisible();
-  await chooseDocumentTask(page, "Fill PDF forms");
+  await chooseDocumentTask(page, "Fill or create PDF forms");
   await expect(page.getByRole("link", { name: "Fill with text in the editor" })).toBeVisible({ timeout: 20_000 });
   await chooseDocumentTask(page, "Clean up PDF");
   await expect(page).toHaveURL(/\/quick\/sanitize-pdf/);
