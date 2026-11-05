@@ -37,6 +37,8 @@ jobs:
           cache: npm
       - name: Require pinned npm 10.9.2
         run: test "$(npm --version)" = "10.9.2"
+      - name: Isolate npm 10 Arborist peer graph and sanitize the debug stack
+        run: node scripts/pdf04/arborist-peer-diagnostic.mjs
       - name: Clean authenticated npm-registry resolution after npm 10 Arborist old-lock crash
         run: |
           cp package-lock.json /tmp/pdf04-original-lock.json
