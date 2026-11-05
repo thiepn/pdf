@@ -24,6 +24,7 @@ export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onAp
   const [replacement, setReplacement] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
+  const [resultPage, setResultPage] = useState(0);
   useModalFocus(open, dialogRef, onClose, queryRef);
 
   const plan = useMemo(
@@ -32,8 +33,11 @@ export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onAp
   );
   if (!open) return null;
 
-  const visibleMatches = plan.matches.slice(0, 12);
-  const hiddenMatches = Math.max(0, plan.matches.length - visibleMatches.length);
+  const matchesPerPage = 12;
+  const lastPage = Math.max(0, Math.ceil(plan.matches.length / matchesPerPage) - 1);
+  const currentPage = Math.min(resultPage, lastPage);
+  const firstMatch = currentPage * matchesPerPage;
+  const visibleMatches = plan.matches.slice(firstMatch, firstMatch + matchesPerPage);
 
   function apply(): void {
     if (!plan.edits.length) return;
@@ -50,13 +54,13 @@ export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onAp
       <p className="find-replace-description" id="find-replace-description">Search detected text across the document. PDF Studio preflights every match and queues only replacements that fit the qualified existing-text reconstruction path.</p>
 
       <div className="find-replace-fields">
-        <label><span>Find</span><input ref={queryRef} autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder="Text to find" type="search" value={query} /></label>
+        <label><span>Find</span><input ref={queryRef} autoComplete="off" onChange={(event) => { setQuery(event.target.value); setResultPage(0); }} placeholder="Text to find" type="search" value={query} /></label>
         <label><span>Replace with</span><input autoComplete="off" onChange={(event) => setReplacement(event.target.value)} placeholder="Leave empty to remove matching text" type="text" value={replacement} /></label>
       </div>
 
       <div className="find-replace-options">
-        <label><input checked={caseSensitive} onChange={(event) => setCaseSensitive(event.target.checked)} type="checkbox" />Match case</label>
-        <label><input checked={wholeWord} onChange={(event) => setWholeWord(event.target.checked)} type="checkbox" />Whole words only</label>
+        <label><input checked={caseSensitive} onChange={(event) => { setCaseSensitive(event.target.checked); setResultPage(0); }} type="checkbox" />Match case</label>
+        <label><input checked={wholeWord} onChange={(event) => { setWholeWord(event.target.checked); setResultPage(0); }} type="checkbox" />Whole words only</label>
       </div>
 
       {!query ? <div className="find-replace-empty"><strong>Enter text to search this PDF.</strong><span>Matches are found inside detected text blocks. Phrases split between separate PDF objects are not joined automatically.</span></div> :
@@ -69,10 +73,14 @@ export function FindReplaceDialog({ inspection, queuedEdits, open, onClose, onAp
         {visibleMatches.map((match) => <article className={match.status === "blocked" ? "find-replace-match is-blocked" : "find-replace-match"} key={match.objectId}>
           <div><strong>Page {match.pageNumber}</strong><span>{match.occurrences} match{match.occurrences === 1 ? "" : "es"}</span></div>
           <p>{previewText(match.sourceText)}</p>
-          <button type="button" onClick={() => onNavigateToMatch(match.objectId, match.pageNumber)} aria-label={`Inspect matching PDF text on page ${match.pageNumber}`}>Inspect in editor</button>
+          <button className="button button--secondary button--small" type="button" onClick={() => onNavigateToMatch(match.objectId, match.pageNumber)} aria-label={`Inspect matching PDF text on page ${match.pageNumber}`}>Inspect in editor</button>
           {match.status === "blocked" ? <small>{match.reason}</small> : <small>Ready for safe fixed-box reconstruction.</small>}
         </article>)}
-        {hiddenMatches ? <p className="find-replace-more">+ {hiddenMatches} more matched text block{hiddenMatches === 1 ? "" : "s"}</p> : null}
+        {lastPage > 0 ? <nav className="find-replace-actions" aria-label="Search result pages">
+          <button className="button button--secondary button--small" disabled={currentPage === 0} onClick={() => setResultPage(currentPage - 1)} type="button">Previous results</button>
+          <span aria-live="polite">Text blocks {firstMatch + 1}–{firstMatch + visibleMatches.length} of {plan.matches.length}</span>
+          <button className="button button--secondary button--small" disabled={currentPage >= lastPage} onClick={() => setResultPage(currentPage + 1)} type="button">Next results</button>
+        </nav> : null}
       </div> : null}
 
       {plan.blockedOccurrences ? <div className="find-replace-warning"><strong>Some matches need manual review.</strong><span>Blocked matches are never modified. Open those text blocks individually if you want to use layout-aware reflow, choose a different font, or handle unsupported shaping.</span></div> : null}
