@@ -1,0 +1,80 @@
+name: PDF-04 audited npm 10.9.2 lockfile generation (draft-only)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/pdf04-security-lock.yml
+      - tests/ci/pdf04-security-lock.test.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pdf04-lock-${{ github.head_ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate-and-qualify-lock:
+    if: ${{ github.event.pull_request.head.repo.full_name == 'thiepn/pdf' && github.head_ref == 'investigation/pdf04-security-lock-20261105' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Require exact original draft HEAD
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Require pinned npm 10.9.2
+        run: test "$(npm --version)" = "10.9.2"
+      - name: Resolve authentic npm-registry metadata and generate lockfile, no script execution
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify fixed package versions, integrity and strict audit policy
+        run: |
+          node --test tests/ci/pdf04-security-lock.test.mjs
+          npm run audit:lockfile
+      - name: Install exact generated locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Mandatory moderate-or-higher security audit
+        run: npm audit --audit-level=moderate
+      - name: Real semantic typecheck and original 28 PDF-03 unit regressions
+        run: |
+          npm run typecheck
+          npx vitest run tests/unit/pdf03NativeWorkerInspection.test.ts tests/unit/d18NativeGeometryRoundTrip.test.ts tests/unit/nativeImageEvidenceD15.test.ts tests/unit/p17DeepNativeFidelity.test.ts
+      - name: Preserve exact generated lockfile as inspectable artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: pdf04-npm1092-authentic-lock-${{ github.event.pull_request.head.sha }}
+          path: package-lock.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Commit only the qualified npm-generated lock to this isolated draft branch
+        env:
+          SOURCE_HEAD: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test "$(git ls-remote origin refs/heads/investigation/pdf04-security-lock-20261105 | cut -f1)" = "$SOURCE_HEAD"
+          git add -- package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile already identical to registry-qualified npm 10.9.2 output"
+            exit 0
+          fi
+          git diff --cached --name-only | grep -Fxq 'package-lock.json'
+          test "$(git diff --cached --name-only | wc -l)" -eq 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(pdf04): generate npm 10.9.2 audited integrity lockfile"
+          HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.https://github.com/.extraheader=$HEADER" push origin HEAD:refs/heads/investigation/pdf04-security-lock-20261105
