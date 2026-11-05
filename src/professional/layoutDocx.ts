@@ -616,7 +616,9 @@ export async function buildLayoutAwareDocx(
   onProgress?: (message: string) => void
 ): Promise<LayoutAwareDocxResult> {
   signal.throwIfAborted();
-  const selectedPages = [...new Set(selectedPageIndexes.map((index) => index + 1))].sort((a, b) => a - b);
+  // Page selection is an ordered sequence, not a source-order set. Preserve
+  // explicit choices such as 3,1 and reverse ranges; deduplicate without sorting.
+  const selectedPages = [...new Set(selectedPageIndexes.map((index) => index + 1))];
   if (!selectedPages.length) throw new Error("Choose at least one page for Word export.");
 
   onProgress?.("Inspecting paragraphs, tables and images…");
