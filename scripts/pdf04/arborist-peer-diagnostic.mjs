@@ -1,17 +1,18 @@
 // Isolated, token-free npm 10.9.2 diagnostic. DO NOT treat diagnostic flags
 // as release qualifications or use their results for the production lockfile.
-import { mkdtempSync, writeFileSync, readdirSync, readFileSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readdirSync, readFileSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 const root=mkdtempSync(join(tmpdir(),"pdf04-arborist-"));
-const config=join(root,"empty-npmrc");writeFileSync(config,"");
+const userConfig=join(root,"user.npmrc"), globalConfig=join(root,"global.npmrc");
+writeFileSync(userConfig,"");writeFileSync(globalConfig,"");
 const env={
   PATH:process.env.PATH,
   HOME:root,
-  npm_config_userconfig:config,
-  npm_config_globalconfig:config,
+  npm_config_userconfig:userConfig,
+  npm_config_globalconfig:globalConfig,
   npm_config_registry:"https://registry.npmjs.org/",
   npm_config_cache:join(root,"cache"),
   npm_config_audit:"false",
@@ -30,7 +31,7 @@ function meta(name,version,property){
   // Only sanitized structural metadata; do not print registry headers, URLs, or token-bearing logs.
   console.log("REGISTRY_META",JSON.stringify({name,version,property,status:result.status,values:parsed}));
 }
-console.log("TOOLCHAIN",JSON.stringify({node:process.version,npm:npm(root,["--version"]).status}));
+const npmCheck=npm(root,["--version"]);console.log("TOOLCHAIN",JSON.stringify({node:process.version,npmStatus:npmCheck.status}));if(npmCheck.status!==0)throw new Error("isolated npm CLI could not initialize");
 for(const [name,version,property] of [
   ["vitest","4.1.12","peerDependencies"],
   ["vitest","4.1.12","peerDependenciesMeta"],
@@ -50,7 +51,7 @@ try{
   writeFileSync(join(dir,"package.json"),JSON.stringify({name:"pdf04-peer-isolation",private:true,version:"0.0.0",devDependencies:c.deps}));
   const res=npm(dir,["install","--package-lock-only","--ignore-scripts","--no-audit","--no-fund","--loglevel=silly",...c.flags]);
   const logdir=join(root,"cache","_logs");
-  const logs=readdirSync(logdir).filter(n=>n.endsWith("-debug-0.log")).sort();
+  const logs=existsSync(logdir)?readdirSync(logdir).filter(n=>n.endsWith("-debug-0.log")).sort():[];
   const log=logs.length?readFileSync(join(logdir,logs[logs.length-1]),"utf8"):"";
   // Strict whitelist: only stack method names and package identifiers; never raw log lines.
   const stack=log.split(/\r?\n/).filter(line=>/\bverbose stack\b/.test(line))
