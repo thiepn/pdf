@@ -37,7 +37,9 @@ describe("release publication completeness", () => {
     expect(verification).not.toMatch(/contents: write|pages: write|id-token: write|deploy-pages|action-gh-release/);
   });
   it("pins the reviewed security patch and rejects moderate-or-higher dependency findings", () => {
-    expect(pkg.devDependencies.vitest).toBe("4.1.11");
+    expect(pkg.devDependencies.vitest).toBe("4.1.12");
+    expect(pkg.devDependencies.vite).toBe("8.1.6");
+    expect(pkg.overrides?.undici).toBe("7.30.1");
     expect(pkg.scripts["audit:security"]).toBe("npm audit --audit-level=moderate");
   });
 });
