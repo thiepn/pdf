@@ -649,8 +649,7 @@ function rewriteDirectMaskedInvocation(pdf: PdfDocument, page: PdfPage, image: N
   if (!resourceName || !image.fidelity?.softMask || image.fidelity.explicitMask || image.fidelity.clipped || image.fidelity.blendMode !== "Normal") {
     throw new Error("The masked image does not have a qualified direct source invocation; its original content was not modified.");
   }
-  const pageObject = page.getObject();
-  const current = pageObject.get("Contents");
+  // A contained/covered image no longer occupies edit.bounds. The mask\n  // preservation validator must never treat that geometry change as qualified.\n  if (action === "transform" && edit.fit !== "stretch") {\n    throw new Error("Masked source-image transforms require Stretch to preserve the attached mask and full requested destination bounds.");\n  }\n  const pageObject = page.getObject();\n  const current = pageObject.get("Contents");
   if (!current || current.isNull?.() || current.isArray?.()) {
     throw new Error("The masked image uses multiple or missing page-content streams. Editing is blocked to preserve other image instances.");
   }
