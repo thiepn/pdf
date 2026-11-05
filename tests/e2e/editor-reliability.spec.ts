@@ -435,3 +435,20 @@ test("locked added objects stay immutable until explicitly unlocked", async ({ p
   await page.keyboard.press("Delete");
   await expect(page.locator(".editor-object")).toHaveCount(0);
 });
+
+
+test("existing-PDF search shortcut opens real matches and selects a source text block", async ({ page }) => {
+  await openSample(page, "editor");
+  await expect(page.getByRole("button", { name: "Find and replace existing text" })).toBeEnabled({ timeout: 20_000 });
+  await page.keyboard.press("Control+f");
+  const dialog = page.getByRole("dialog", { name: "Find & replace" });
+  await expect(dialog).toBeVisible();
+  const search = dialog.getByPlaceholder("Text to find");
+  await expect(search).toBeFocused();
+  await search.fill("MAY - JUL");
+  await expect(dialog.getByText(/\d+ matches found/)).toBeVisible();
+  await dialog.getByRole("button", { name: /Inspect matching PDF text on page/ }).first().click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".native-unified-properties")).toBeVisible();
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
+});
