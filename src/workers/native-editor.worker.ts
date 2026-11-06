@@ -781,7 +781,7 @@ function textSourceRegions(edit: any): NativeRect[] {
   return validRedactionRect(fallback) ? [fallback] : [];
 }
 
-function redactTextOnly(page: PdfPage, regions: NativeRect[]): void {
+function redactTextOnly(pdf: PdfDocument, page: PdfPage, regions: NativeRect[]): void {
   if (!regions.length) throw new Error("Native text edit has no valid source geometry to remove.");
   for (const bounds of regions) {
     const redaction = page.createAnnotation("Redact");
@@ -791,6 +791,13 @@ function redactTextOnly(page: PdfPage, regions: NativeRect[]): void {
     // or vectors when removing only the previous glyphs.
     if (redaction.hasInteriorColor?.()) redaction.setInteriorColor([]);
     redaction.update?.();
+    // Redact annotations do not consistently advertise Interior Color in
+    // hasInteriorColor(). Write the optional PDF /IC array directly so the
+    // applied text-only redaction leaves the original vector/image backing
+    // unobscured. An empty color array means no replacement fill.
+    const noFill = pdf.newArray();
+    try { redaction.getObject().put("IC", noFill); }
+    finally { noFill.destroy?.(); }
   }
   page.applyRedactions(
     false,
@@ -866,7 +873,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
         const page = pdf.loadPage(edit.pageNumber - 1);
         try {
           changed.add(edit.pageNumber);
-          redactTextOnly(page, textSourceRegions(edit));
+          redactTextOnly(pdf, page, textSourceRegions(edit));
         } finally { page.destroy(); }
       }
 

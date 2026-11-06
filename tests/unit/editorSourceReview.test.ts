@@ -13,7 +13,10 @@ describe("P1 original vs edited verification", () => {
     expect(editorSource).toContain("const renderedDocument = reviewOriginal ? document : nativePreviewDocument ?? document");
     expect(editorSource).toContain("nativeObjects={reviewOriginal ? [] : currentNativeObjects}");
     expect(editorSource).toContain("objects={reviewOriginal ? [] : displayObjects}");
-    expect(editorSource).toContain("showNativeContent={!reviewOriginal && showNativeContent}");
+    expect(editorSource).toContain("showNativeContent={!reviewOriginal && showNativeContent && !nativeInspecting}");
+    // Provisional PDF.js search geometry must not be selectable as editable
+    // MuPDF source content before qualified inspection completes.
+    expect(editorSource).toContain("&& !nativeInspecting}");
   });
 
   it("locks the workspace against accidental edits while reviewing the original", () => {
