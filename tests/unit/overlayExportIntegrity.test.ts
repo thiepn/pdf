@@ -7,7 +7,7 @@ const text = (pageNumber: number, hidden = false) =>
 const image = (hidden = false) =>
   ({ id: "image", type: "image", pageNumber: 1, hidden, assetId: "image-data", name: "diagram.png" }) as EditorObject;
 const asset = (bytes: number[]) =>
-  ({ id: "image-data", mimeType: "image/png", bytes: new Uint8Array(bytes) }) as EditorExportAsset;
+  ({ id: "image-data", mimeType: "image/png", bytes: Uint8Array.from(bytes).buffer }) satisfies EditorExportAsset;
 
 describe("overlay PDF export integrity", () => {
   it("exports supported page placements and images with stored bytes", () => {
@@ -15,7 +15,7 @@ describe("overlay PDF export integrity", () => {
     const assets = [asset([137, 80, 78, 71])];
     expect(() => assertOverlayExportCanPreserveObjects(objects, assets, 2)).not.toThrow();
     expect(objects).toHaveLength(2);
-    expect(assets[0].bytes).toHaveLength(4);
+    expect(assets[0].bytes.byteLength).toBe(4);
   });
 
   it("refuses to silently omit a visible image after asset storage loss", () => {
