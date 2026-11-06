@@ -774,6 +774,10 @@ function redactTextOnly(page: PdfPage, regions: NativeRect[]): void {
   for (const bounds of regions) {
     const redaction = page.createAnnotation("Redact");
     redaction.setRect(pageRect(bounds));
+    // Text reconstruction is not a visual security redaction. Never paint
+    // an opaque default /IC fill over a source PDF's colored cards, images
+    // or vectors when removing only the previous glyphs.
+    if (redaction.hasInteriorColor?.()) redaction.setInteriorColor([]);
     redaction.update?.();
   }
   page.applyRedactions(

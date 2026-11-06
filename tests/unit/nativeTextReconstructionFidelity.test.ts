@@ -8,6 +8,8 @@ describe("P1 native text reconstruction fidelity", () => {
     expect(workerSource).toContain("function redactTextOnly");
     expect(workerSource).toContain("PDFPage.REDACT_IMAGE_NONE");
     expect(workerSource).toContain("PDFPage.REDACT_LINE_ART_NONE");
+    expect(workerSource).toContain("if (redaction.hasInteriorColor?.()) redaction.setInteriorColor([])");
+    expect(workerSource).toContain("PDFPage.REDACT_TEXT_REMOVE");
     expect(workerSource).toContain("function textSourceRegions");
     expect(workerSource).toContain("Array.isArray(edit.sourceRects)");
     expect(workerSource).toContain("redactTextOnly(page, textSourceRegions(edit))");
