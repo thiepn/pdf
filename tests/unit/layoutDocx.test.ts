@@ -108,6 +108,22 @@ describe("P13 layout-aware DOCX", () => {
     const packageText = new TextDecoder().decode(buildLayoutAwareDocxPackage("Reversed", model));
     expect(packageText.indexOf("THIRD_PAGE_VALUE")).toBeGreaterThan(-1);
     expect(packageText.indexOf("THIRD_PAGE_VALUE")).toBeLessThan(packageText.indexOf("Quarterly report"));
+    expect(packageText).toContain('<w:br w:type="page"/>');
+  });
+
+  it("keeps a next-page Word section when selected PDF page geometry differs", () => {
+    const source = inspection();
+    source.pages.push({
+      ...source.pages[0],
+      pageNumber: 2,
+      width: 842,
+      height: 595,
+      objects: [text("landscape-heading", "LANDSCAPE_CONTENT", 54, 48, 504, 24, { pageNumber: 2 })]
+    });
+    const model = createLayoutDocxModel(source, [1, 2]);
+    const packageText = new TextDecoder().decode(buildLayoutAwareDocxPackage("Mixed sizes", model));
+    expect(packageText).toContain('<w:type w:val="nextPage"/>');
+    expect(packageText).toContain('w:orient="landscape"');
   });
 
   it("keeps the ZIP builder binary-safe for embedded media", () => {
