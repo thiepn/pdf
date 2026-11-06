@@ -1,4 +1,5 @@
 import * as mupdf from "mupdf";
+import { assertOverlayExportCanPreserveObjects } from "../editor/overlayExportIntegrity";
 import type { AffineMatrix, Point, Rect } from "../core/coordinates";
 import type { EditorExportAsset, EditorObject } from "../types/editor";
 
@@ -209,8 +210,8 @@ function addRedactionMark(page: any, object: Extract<EditorObject, { type: "reda
   warnings.push("Redaction regions are marked but not applied by ordinary editor export. Use the Secure workspace to remove the underlying content permanently.");
 }
 
-function addImage(pdf: any, page: any, object: Extract<EditorObject, { type: "image" }>, transform: AffineMatrix, asset: EditorExportAsset | undefined, warnings: string[]): boolean {
-  if (!asset) { warnings.push(`Image asset “${object.name}” was missing and was not exported.`); return false; }
+function addImage(pdf: any, page: any, object: Extract<EditorObject, { type: "image" }>, transform: AffineMatrix, asset: EditorExportAsset | undefined): void {
+  if (!asset?.bytes?.byteLength) throw new Error(`Image “${object.name}” is missing its saved data. Restore the image before exporting.`);
   const annotation = page.createAnnotation("Stamp");
   setCommon(annotation, object);
   const fitzRect = rect(transform, object.bounds);
@@ -227,7 +228,6 @@ function addImage(pdf: any, page: any, object: Extract<EditorObject, { type: "im
     annotation.setAppearance("N", null, (mupdf as any).Matrix.identity, [0, 0, width, height], resources, `q ${width} 0 0 ${height} 0 0 cm /Im0 Do Q`);
     annotation.setIntent?.("StampImage");
   } finally { image.destroy?.(); }
-  return true;
 }
 
 self.onmessage = (event: MessageEvent<Request>) => {
@@ -241,6 +241,9 @@ self.onmessage = (event: MessageEvent<Request>) => {
     pdf = new (mupdf as any).PDFDocument(new Uint8Array(request.bytes));
     if (pdf.needsPassword?.() && (!request.password || pdf.authenticatePassword(request.password) === 0)) throw new Error("The PDF password is required or incorrect.");
     pdf.disableJS?.();
+    // Abort before writing anything if a visible overlay would be dropped.
+    // A successful-looking PDF missing user edits is not an acceptable export.
+    assertOverlayExportCanPreserveObjects(request.objects, request.assets, pdf.countPages());
     const assets = new Map(request.assets.map((asset) => [asset.id, asset]));
     let annotationCount = 0;
     let linkCount = 0;
@@ -253,7 +256,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
     }
     for (const [pageNumber, objects] of byPage) {
       assertActive(request.requestId);
-      if (pageNumber < 1 || pageNumber > pdf.countPages()) { warnings.push(`Objects assigned to missing page ${pageNumber} were skipped.`); continue; }
+      if (pageNumber < 1 || pageNumber > pdf.countPages()) throw new Error(`PDF export blocked: page ${pageNumber} does not exist in the source document.`);
       const page = pdf.loadPage(pageNumber - 1);
       try {
         const pdfToFitz = invert(page.getTransform() as AffineMatrix);
@@ -262,7 +265,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
           if (object.rotation !== 0) warnings.push(`Rotation for ${object.type} object ${object.id.slice(0, 8)} is preview-only in this export and was normalized.`);
           switch (object.type) {
             case "text": addText(page, object, pdfToFitz, warnings); annotationCount += 1; break;
-            case "image": if (addImage(pdf, page, object, pdfToFitz, assets.get(object.assetId), warnings)) { annotationCount += 1; imageCount += 1; } break;
+            case "image": addImage(pdf, page, object, pdfToFitz, assets.get(object.assetId)); annotationCount += 1; imageCount += 1; break;
             case "shape": addShape(page, object, pdfToFitz); annotationCount += 1; break;
             case "ink": addInk(page, object, pdfToFitz); annotationCount += 1; break;
             case "highlight": addHighlight(page, object, pdfToFitz); annotationCount += 1; break;
