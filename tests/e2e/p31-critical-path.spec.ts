@@ -74,6 +74,12 @@ test.describe("P31 interaction critical path", () => {
 
     const startX = (objectBox?.x ?? 0) + (objectBox?.width ?? 1) / 2;
     const startY = (objectBox?.y ?? 0) + (objectBox?.height ?? 1) / 2;
+    // Detect native source hitboxes intercepting input above the overlay.
+    // A visually present added shape must itself receive center pointerdown.
+    await expect.poll(() => page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return Boolean(hit?.closest(".editor-object--shape"));
+    }, { x: startX, y: startY })).toBe(true);
     await page.mouse.move(startX, startY);
     await page.mouse.down();
     await page.mouse.move(startX + 140, startY + 70, { steps: 35 });
