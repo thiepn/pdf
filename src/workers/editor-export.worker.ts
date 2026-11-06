@@ -1,5 +1,5 @@
 import * as mupdf from "mupdf";
-import { assertOverlayExportCanPreserveObjects } from "../editor/overlayExportIntegrity";
+import { assertOverlayExportCanPreserveObjects, validatedWebLinkTarget } from "../editor/overlayExportIntegrity";
 import type { AffineMatrix, Point, Rect } from "../core/coordinates";
 import type { EditorExportAsset, EditorObject } from "../types/editor";
 
@@ -163,6 +163,7 @@ function addNote(page: any, object: Extract<EditorObject, { type: "note" }>, tra
 
 function addLink(pdf: any, page: any, object: Extract<EditorObject, { type: "link" }>, transform: AffineMatrix): void {
   let uri = object.target.trim();
+  if (object.targetType === "url") uri = validatedWebLinkTarget(uri);
   if (object.targetType === "email" && !uri.startsWith("mailto:")) uri = `mailto:${uri}`;
   if (object.targetType === "page") {
     const pageIndex = Math.max(0, Math.min(pdf.countPages() - 1, Number(uri || 1) - 1));

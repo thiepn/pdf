@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertOverlayExportCanPreserveObjects } from "../../src/editor/overlayExportIntegrity";
+import { assertOverlayExportCanPreserveObjects, validatedWebLinkTarget } from "../../src/editor/overlayExportIntegrity";
 import type { EditorExportAsset, EditorObject } from "../../src/types/editor";
 
 const text = (pageNumber: number, hidden = false) =>
@@ -8,6 +8,8 @@ const image = (hidden = false) =>
   ({ id: "image", type: "image", pageNumber: 1, hidden, assetId: "image-data", name: "diagram.png" }) as EditorObject;
 const asset = (bytes: number[]) =>
   ({ id: "image-data", mimeType: "image/png", bytes: Uint8Array.from(bytes).buffer }) satisfies EditorExportAsset;
+const link = (target: string, hidden = false) =>
+  ({ id: "web-link", type: "link", targetType: "url", target, pageNumber: 1, hidden }) as EditorObject;
 
 describe("overlay PDF export integrity", () => {
   it("exports supported page placements and images with stored bytes", () => {
@@ -30,5 +32,27 @@ describe("overlay PDF export integrity", () => {
 
   it("does not block export for intentionally hidden placements", () => {
     expect(() => assertOverlayExportCanPreserveObjects([image(true), text(99, true)], [], 1)).not.toThrow();
+  });
+
+  it("exports ordinary HTTP(S) web links with normalized safe targets", () => {
+    expect(validatedWebLinkTarget("https://example.org/report.pdf?q=1")).toBe("https://example.org/report.pdf?q=1");
+    expect(validatedWebLinkTarget("http://example.org")).toBe("http://example.org/");
+    expect(() => assertOverlayExportCanPreserveObjects([link("https://example.org")], [], 1)).not.toThrow();
+  });
+
+  it("refuses unsafe or malformed PDF URI actions without discarding other edits", () => {
+    for (const target of [
+      "javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html,hello",
+      "file:///private/report.pdf", "blob:https://example.org/id", "ftp://example.org",
+      "//example.org/path", "https://", "https://trusted.example\\@attacker.example",
+      "https://example.org\nlogin", "http://[bad"
+    ]) {
+      expect(() => assertOverlayExportCanPreserveObjects([text(1), link(target)], [], 1))
+        .toThrow(/PDF export blocked: web links must use a valid http:\/\/ or https:\/\/ URL/);
+    }
+  });
+
+  it("ignores intentionally hidden unsafe links and preserves unrelated objects", () => {
+    expect(() => assertOverlayExportCanPreserveObjects([text(1), link("javascript:alert(1)", true)], [], 1)).not.toThrow();
   });
 });
