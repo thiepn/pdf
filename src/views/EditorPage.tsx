@@ -110,6 +110,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const previewSequenceRef = useRef(0);
   const hydrationRef = useRef<DeferredHydrationHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const provisionalSearchSelectionRef = useRef<{ pageNumber: number; text: string } | null>(null);
   const internalClipboardRef = useRef<EditorObject[]>([]);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
   const localSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -446,6 +447,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         if (inspectionResult.status === "fulfilled") {
           const inspection = inspectionResult.value;
           setNativeInspection(inspection);
+          // Searching is permitted while native inspection continues, but
+          // provisional PDF.js IDs are never native object IDs. Remap an
+          // explicitly inspected search result once the qualified tree lands.
+          const pending = provisionalSearchSelectionRef.current;
+          provisionalSearchSelectionRef.current = null;
+          if (pending) {
+            const qualified = inspection.pages.find((page) => page.pageNumber === pending.pageNumber)
+              ?.objects.find((object) => object.type === "text" && (object.text.includes(pending.text) || pending.text.includes(object.text)));
+            if (qualified) {
+              setSelectedNativeIds(new Set([qualified.id]));
+              setSelectedNativeId(qualified.id);
+            } else {
+              setSelectedNativeIds(new Set());
+              setSelectedNativeId(undefined);
+              setStatus("The earlier search match was not found by the complete inspector. Search again to review the original PDF.");
+            }
+          }
           const denseNotice = inspection.warnings.find((warning) => warning.startsWith("Dense PDF safeguard:") || warning.startsWith("Incomplete PDF inspection:"));
           if (denseNotice) setWarnings((current) => [...new Set([...current, denseNotice])]);
           setStatus("Ready");
@@ -546,6 +564,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function selectNativeObject(object: NativePageObject, additive = false): void {
+    provisionalSearchSelectionRef.current = null;
     const nextAddedSelection = additive ? selectedIds : new Set<string>();
     if (!additive) setSelectedIds(nextAddedSelection);
     const nextNativeSelection = additive ? new Set(selectedNativeIds) : new Set<string>();
@@ -1223,7 +1242,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
         {sidebarOpen ? <aside className="editor-left-panel"><label className="editor-sidebar-select"><span className="visually-hidden">Sidebar content</span><select value={leftTab} onChange={(event) => setLeftTab(event.target.value as LeftTab)}><option value="pages">Pages</option><option value="layers">Objects & layers</option><option value="comments">Comments</option></select></label><div className="editor-left-body">{leftTab === "pages" ? <div className="thumbnail-list">{Array.from({ length: renderedDocument.numPages }, (_, index) => <Thumbnail document={renderedDocument} key={index + 1} onSelect={(pageNumber) => navigateToPage(pageNumber)} pageNumber={index + 1} selected={editorState.currentPage === index + 1} />)}</div> : null}{leftTab === "layers" ? <LayerList deletedNativeIds={nativeHiddenIds} nativeObjects={reviewOriginal ? [] : currentNativeObjects} nativeQueued={nativeEdits} objects={currentPageObjects} selectedIds={selectedIds} selectedNativeIds={selectedNativeIds} onRestoreNative={removeNativeEdits} onSelect={selectObject} onSelectNative={selectNativeObject} onToggleHidden={(object) => commitObject(object.hidden ? "Show object" : "Hide object", { ...object, hidden: !object.hidden })} onToggleLocked={(object) => commitObject(object.locked ? "Unlock object" : "Lock object", { ...object, locked: !object.locked })} /> : null}{leftTab === "comments" ? <CommentList comments={comments} onSelect={(comment) => { navigateToPage(comment.pageNumber); setEditorState((state) => ({ ...state, activeTool: "select" })); setSelectedIds(new Set([comment.id])); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setPropertiesOpen(true); if (isCompactViewport()) setSidebarOpen(false); }} /> : null}</div></aside> : null}
 
-        <section className={`editor-stage${reviewOriginal ? " editor-stage--source-review" : ""}`} aria-label={reviewOriginal ? "Original PDF source preview" : "PDF page canvas"}>{reviewOriginal ? <div className="editor-source-review-badge" aria-hidden="true">Original PDF · editing paused</div> : null}<EditorCanvasPage activeTool={editorState.activeTool} assetUrls={assetUrls} author={editorState.author} document={renderedDocument} gridSize={editorState.gridSize} nativeEffectiveBounds={nativeEffectiveBounds} nativeHiddenIds={nativeHiddenIds} nativeObjects={currentNativeObjects} nativeOrigin={currentNativePage ? { x: currentNativePage.originX, y: currentNativePage.originY } : undefined} nativeTransformableIds={nativeTransformableIds} objects={reviewOriginal ? [] : displayObjects} onCommit={commitObject} onCreate={addObject} onEditText={(object) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setSelectedIds(new Set([object.id])); if (isCompactViewport()) setSidebarOpen(false); setPropertiesOpen(true); }} onPageGeometry={setPageGeometry} onPreview={setPreviewObject} onSelect={selectObject} onSelectNative={selectNativeObject} onTransformNative={transformNativeObject} pageNumber={editorState.currentPage} selectedIds={selectedIds} selectedNativeId={selectedNativeId} selectedNativeIds={selectedNativeIds} showNativeContent={!reviewOriginal && showNativeContent && !nativeInspecting} snapEnabled={editorState.snapEnabled} zoom={editorState.zoom} /></section>
+        <section className={`editor-stage${reviewOriginal ? " editor-stage--source-review" : ""}`} aria-label={reviewOriginal ? "Original PDF source preview" : "PDF page canvas"}>{reviewOriginal ? <div className="editor-source-review-badge" aria-hidden="true">Original PDF · editing paused</div> : null}<EditorCanvasPage activeTool={editorState.activeTool} assetUrls={assetUrls} author={editorState.author} document={renderedDocument} gridSize={editorState.gridSize} nativeEffectiveBounds={nativeEffectiveBounds} nativeHiddenIds={nativeHiddenIds} nativeObjects={currentNativeObjects} nativeOrigin={currentNativePage ? { x: currentNativePage.originX, y: currentNativePage.originY } : undefined} nativeTransformableIds={nativeTransformableIds} objects={reviewOriginal ? [] : displayObjects} onCommit={commitObject} onCreate={addObject} onEditText={(object) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setSelectedIds(new Set([object.id])); if (isCompactViewport()) setSidebarOpen(false); setPropertiesOpen(true); }} onPageGeometry={setPageGeometry} onPreview={setPreviewObject} onSelect={selectObject} onSelectNative={selectNativeObject} onTransformNative={transformNativeObject} pageNumber={editorState.currentPage} selectedIds={selectedIds} selectedNativeId={selectedNativeId} selectedNativeIds={selectedNativeIds} showNativeContent={!reviewOriginal && showNativeContent && (!nativeInspecting || Boolean(selectedNativeId?.startsWith("pdfjs-readonly:")))} snapEnabled={editorState.snapEnabled} zoom={editorState.zoom} /></section>
 
         {propertiesOpen ? unifiedSelectionCount > 1 ? <UnifiedLayoutPropertiesPanel items={unifiedItems} nativeCount={selectedNativeIds.size} onAlign={alignUnified} onDelete={deleteSelection} onDistribute={distributeUnified} onDuplicateOverlays={duplicateSelection} onGroupOverlays={groupSelection} onMatchSize={matchUnifiedSize} onRotate={rotateUnified} onUngroupOverlays={ungroupSelection} overlayCount={selectedIds.size} primaryKey={primaryUnifiedKey} /> : selectedNativeObject ? <NativeContentPropertiesPanel object={selectedNativeObject} page={selectedNativePage} onQueue={queueNativeEdits} onRemove={removeNativeEdits} queuedEdits={nativeEdits} /> : <EditorPropertiesPanel onBringFront={() => arrange("front")} onChange={commitObject} onDelete={deleteSelection} onDuplicate={duplicateSelection} onSendBack={() => arrange("back")} selected={selectedObjects} /> : null}
       </div>
@@ -1240,7 +1259,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         originalPreview={reviewOriginal}
       />
       <D7KeyboardHelp onClose={closeShortcutHelp} open={shortcutHelpOpen} returnFocusRef={compactControls ? mobileToolsTriggerRef : shortcutHelpTriggerRef} />
-      <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onNavigateToMatch={(objectId, pageNumber) => { const matched = nativeInspection?.pages.find((page) => page.pageNumber === pageNumber)?.objects.find((object) => object.id === objectId); if (!matched) { setError("The matching PDF text is no longer available. Reopen search and try again."); return; } setFindReplaceOpen(false); setShowNativeContent(true); selectNativeObject(matched); setStatus(`Selected matching PDF text on page ${pageNumber}. Review it in Properties before editing.`); }} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
+      <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onNavigateToMatch={(objectId, pageNumber) => { const matched = nativeInspection?.pages.find((page) => page.pageNumber === pageNumber)?.objects.find((object) => object.id === objectId); if (!matched) { setError("The matching PDF text is no longer available. Reopen search and try again."); return; } setFindReplaceOpen(false); setShowNativeContent(true); selectNativeObject(matched);
+        if (matched.type === "text" && matched.id.startsWith("pdfjs-readonly:")) {
+          provisionalSearchSelectionRef.current = { pageNumber, text: matched.text };
+        }
+        setStatus(`Selected matching PDF text on page ${pageNumber}. Review it in Properties before editing.`); }} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
       {mobileToolsOpen ? <div className="product-modal-backdrop editor-tools-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMobileTools(); }}>
         <div aria-label="Editor tools" aria-modal="true" className="product-modal editor-tools-sheet" ref={mobileToolsRef} role="dialog">
           <div className="editor-tools-sheet__handle" />

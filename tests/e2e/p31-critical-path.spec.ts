@@ -62,6 +62,10 @@ test.describe("P31 interaction critical path", () => {
 
     const object = page.locator(".editor-object--shape").last();
     await expect(object).toBeVisible();
+    // The test page extends beneath the fixed footer. A real user first
+    // scrolls the newly created shape into the usable canvas viewport.
+    // Keep the actual elementFromPoint, drag-preview and commit assertions.
+    await object.scrollIntoViewIfNeeded();
     const objectBox = await object.boundingBox();
     expect(objectBox).toBeTruthy();
 

@@ -225,12 +225,12 @@ function addImage(pdf: any, page: any, object: Extract<EditorObject, { type: "im
     resources.put("XObject", xObjects);
     const width = Math.max(1, fitzRect[2] - fitzRect[0]);
     const height = Math.max(1, fitzRect[3] - fitzRect[1]);
-    annotation.setAppearance("N", null, (mupdf as any).Matrix.identity, [0, 0, width, height], resources, `q ${width} 0 0 ${height} 0 0 cm /Im0 Do Q`);
+    // Finalize generic Stamp attributes BEFORE installing the custom image
+    // appearance. Updating afterwards resynthesizes the stock stamp's /AP
+    // and drops its /Resources/XObject, as verified on a reopened PDF.
     annotation.setIntent?.("StampImage");
-    // MuPDF finalizes custom /AP appearance streams on annotation update.
-    // Without this the source-backed image can disappear in PDF readers
-    // despite the exporter reporting an added image successfully.
     annotation.update?.();
+    annotation.setAppearance("N", null, (mupdf as any).Matrix.identity, [0, 0, width, height], resources, `q ${width} 0 0 ${height} 0 0 cm /Im0 Do Q`);
   } finally { image.destroy?.(); }
 }
 
