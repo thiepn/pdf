@@ -24,7 +24,7 @@ describe("read-only PDF.js search recovery", () => {
     expect(result.pageCount).toBe(3);
     expect(result.canEdit).toBe(false);
     expect(result.totals.text).toBe(3);
-    expect(result.pages.map((page) => page.objects[0]?.text)).toEqual(["PAGE_1", "PAGE_2", "PAGE_3"]);
+    expect(result.pages.map((page) => { const object = page.objects[0]; return object?.type === "text" ? object.text : undefined; })).toEqual(["PAGE_1", "PAGE_2", "PAGE_3"]);
     expect(result.pages[1].objects[0]).toMatchObject({
       bounds: { x: 40, y: 84, w: 80, h: 16 }, editability: "unsupported",
       capability: { level: "unsupported" }

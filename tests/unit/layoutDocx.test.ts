@@ -118,7 +118,7 @@ describe("P13 layout-aware DOCX", () => {
       pageNumber: 2,
       width: 842,
       height: 595,
-      objects: [text("landscape-heading", "LANDSCAPE_CONTENT", 54, 48, 504, 24, { pageNumber: 2 })]
+      objects: [text("landscape-heading", "LANDSCAPE_CONTENT", 54, 48, 504, 24, { pageNumber: 2 }) as unknown as NativeInspection["pages"][number]["objects"][number]]
     });
     const model = createLayoutDocxModel(source, [1, 2]);
     const packageText = new TextDecoder().decode(buildLayoutAwareDocxPackage("Mixed sizes", model));
