@@ -50,6 +50,16 @@ async function canvasRelativeBoxFromTarget(target: import("@playwright/test").Lo
   });
 }
 
+// Read the PDF canvas's own pixels. Locator screenshots also capture sibling
+// hitboxes and selection overlays, which Original intentionally hides.
+async function pdfCanvasBitmap(page: import("@playwright/test").Page): Promise<string> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
+    if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
+    return canvas.toDataURL("image/png");
+  });
+}
+
 async function medianCanvasPixelAtBox(page: import("@playwright/test").Page, box: { x: number; y: number; width: number; height: number }): Promise<[number, number, number, number]> {
   return page.evaluate(({ x, y, width, height }) => {
     const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
@@ -95,7 +105,7 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await expect(target).toBeVisible({ timeout: 20_000 });
   const targetBox = await canvasRelativeBoxFromTarget(target);
 
-  const originalCanvas = await page.locator(".editor-page-layers > canvas").screenshot();
+  const originalCanvas = await pdfCanvasBitmap(page);
   const before = await medianCanvasPixelAtBox(page, targetBox);
   // The showcase card is a pale colored vector fill, not white. This assertion
   // makes the test capable of catching the previous opaque-white replacement.
@@ -122,9 +132,9 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   // and the original protected RGB background within the strict tolerance.
   // A blank/white frame, an unchanged source, or a damaged fill cannot pass.
   await expect.poll(async () => {
-    const editedCanvas = await page.locator(".editor-page-layers > canvas").screenshot();
+    const editedCanvas = await pdfCanvasBitmap(page);
     const sampled = await medianCanvasPixelAtBox(page, targetBox);
-    return !editedCanvas.equals(originalCanvas)
+    return editedCanvas !== originalCanvas
       && [0, 1, 2].every((channel) => Math.abs(sampled[channel] - before[channel]) <= 4);
   }, { timeout: 20_000 }).toBe(true);
   const after = await medianCanvasPixelAtBox(page, targetBox);
@@ -139,7 +149,7 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   // Switching the control is not proof that the original PDF canvas was
   // repainted. Verify exact restoration of the whole source canvas, not
   // merely a momentary matching background sample.
-  await expect.poll(async () => (await page.locator(".editor-page-layers > canvas").screenshot()).equals(originalCanvas), { timeout: 20_000 }).toBe(true);
+  await expect.poll(async () => (await pdfCanvasBitmap(page)) === originalCanvas, { timeout: 20_000 }).toBe(true);
   const sourceAgain = await medianCanvasPixelAtBox(page, targetBox);
   expect(sourceAgain).toEqual(before);
 
