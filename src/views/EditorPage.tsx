@@ -42,6 +42,7 @@ import {
   type UnifiedLayoutItem
 } from "../editor/unifiedLayout";
 import { applyNativeEdits, inspectNativePdf } from "../native/nativeClient";
+import { inspectReadOnlyPdfJsText } from "../native/pdfJsSearchFallback";
 import { discardNativeObjectEdits, hiddenNativeObjectIds, mergeNativeEdits } from "../native/nativeEditQueue";
 import { readNativeState, writeNativeState } from "../native/nativeRepository";
 import { downloadBlob } from "../projects/download";
@@ -439,9 +440,23 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         } else {
           const inspectionError = inspectionResult.reason;
           if (!(inspectionError instanceof DOMException && inspectionError.name === "AbortError")) {
-            setWarnings((current) => [...current, "Some existing PDF content could not be prepared for direct editing. You can still add new content."]);
-            setStatus("Ready · you can still add new content");
-            recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: 0 });
+            try {
+              // A failure of the MuPDF base inspector must not erase text
+              // search when PDF.js already displays the source successfully.
+              // Only search/review data is recovered; editing stays forbidden.
+              const recovered = await inspectReadOnlyPdfJsText(pdf, signal);
+              if (signal.aborted || documentRef.current !== pdf) return;
+              setNativeInspection(recovered);
+              setWarnings((current) => [...new Set([...current, ...recovered.warnings])]);
+              setStatus("Ready · source search and annotations available");
+              onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${recovered.totals.text} read-only text blocks found`);
+              recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: recovered.totals.text, degraded: true });
+            } catch (fallbackError) {
+              if (signal.aborted) return;
+              setWarnings((current) => [...new Set([...current, "Existing PDF text inspection is unavailable. Original pages and added overlays remain accessible; source modifications are disabled."])]);
+              setStatus("Ready · overlays only");
+              recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: 0 });
+            }
           }
         }
         setNativeInspecting(false);
@@ -978,6 +993,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       await runProjectOperation(project.id, { label: operationLabel, signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
       update({ detail: "Preparing edited PDF…", progress: 0.05 });
       const visibleObjects = history.present.objects.filter((object) => !object.hidden);
+      if (nativeEdits.length && (!nativeInspection?.canEdit || nativeInspecting)) {
+        throw new Error("Source-edit export is blocked: this PDF has not passed complete native inspection. Your queued edits are saved for retry; original pages and added annotations remain available.");
+      }
       const affectedPages = new Set([...visibleObjects.map((object) => object.pageNumber), ...nativeEdits.map((edit) => edit.pageNumber)]);
       const assetIds = new Set(visibleObjects.filter((object): object is ImageEditorObject => object.type === "image").map((object) => object.assetId));
       const assetRecords = (await listEditorAssets(projectId)).filter((asset) => assetIds.has(asset.id));
