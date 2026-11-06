@@ -10,7 +10,9 @@ describe("native editor worker MuPDF contract", () => {
   it("redacts only exact source text regions before writing expanded destinations", () => {
     expect(workerSource).toContain("function textSourceRegions");
     expect(workerSource).toContain("Array.isArray(edit.sourceRects)");
-    expect(workerSource).toContain("redactTextOnly(page, textSourceRegions(edit))");
+    expect(workerSource).toContain("redactTextOnly(pdf, page, textSourceRegions(edit))");
+    expect(workerSource).toContain('redaction.getObject().put("IC", noFill)');
+    expect(workerSource).toContain('page.applyRedactions(');
     expect(workerSource).toContain("REDACT_IMAGE_NONE");
     expect(workerSource).toContain("REDACT_LINE_ART_NONE");
     expect(workerSource).toContain("REDACT_TEXT_REMOVE");
