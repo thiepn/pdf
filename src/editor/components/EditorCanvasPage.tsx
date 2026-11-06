@@ -194,7 +194,10 @@ export function EditorCanvasPage(props: Props) {
     const viewportPoint = localViewportPoint(event);
     cancelPendingDomPreview();
     dragRef.current = { mode: "move", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // Keep capture on the stable canvas. Capturing the object itself could be
+    // lost when selecting it triggers a React redraw and the pointer leaves
+    // its original bounds before pointer-up.
+    hostRef.current?.setPointerCapture(event.pointerId);
   }
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>, object: EditorObject, handle: ResizeHandle): void {
@@ -203,7 +206,7 @@ export function EditorCanvasPage(props: Props) {
     const viewportPoint = localViewportPoint(event);
     cancelPendingDomPreview();
     dragRef.current = { mode: "resize", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget.parentElement ?? undefined, handle };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    hostRef.current?.setPointerCapture(event.pointerId);
   }
 
   function movePointer(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -309,9 +312,15 @@ export function EditorCanvasPage(props: Props) {
       props.onCreate({ id: crypto.randomUUID(), type: "ink", pageNumber: props.pageNumber, bounds: boundsForPoints(points), rotation: 0, opacity: 1, zIndex: Math.max(0, ...props.objects.map((item) => item.zIndex)) + 1, locked: false, hidden: false, createdAt: now, modifiedAt: now, strokes: [points], color: "#174d91", strokeWidth: 2.2, highlighter: false });
       return;
     }
-    // Move/resize pointer-up is handled by the object wrapper before this event
-    // bubbles to the canvas. If capture was lost, restore the source visual.
-    if (drag.object && drag.element) restoreObjectDomPreview(drag);
+    if (drag.object) {
+      // Canvas capture also delivers pointer-up after the cursor leaves the
+      // object. Commit only when actual movement produced a preview; an
+      // ordinary click selects without creating a false undo transaction.
+      cancelPendingDomPreview();
+      if (drag.element) delete drag.element.dataset.interactionPreview;
+      props.onPreview(null);
+      if (drag.preview) props.onCommit(drag.mode === "move" ? "Move object" : "Resize object", drag.preview);
+    }
   }
 
   function cancelPointer(): void {
@@ -324,20 +333,7 @@ export function EditorCanvasPage(props: Props) {
     props.onPreview(null);
   }
 
-  function objectPointerUp(event: ReactPointerEvent, object: EditorObject): void {
-    const drag = dragRef.current;
-    if (!drag || !drag.object || drag.object.id !== object.id) return;
-    cancelPendingDomPreview();
-    const preview = drag.preview ?? object;
-    dragRef.current = null;
-    setGuidesIfChanged([]);
-    props.onPreview(null);
-    if (drag.element) delete drag.element.dataset.interactionPreview;
-    props.onCommit(drag.mode === "move" ? "Move object" : "Resize object", preview);
-    try { (event.currentTarget as Element).releasePointerCapture(event.pointerId); } catch { /* no capture */ }
-  }
-
-  const draftStyle = draftRect ? { left: draftRect.x0, top: draftRect.y0, width: rectWidth(draftRect), height: rectHeight(draftRect) } : undefined;
+   const draftStyle = draftRect ? { left: draftRect.x0, top: draftRect.y0, width: rectWidth(draftRect), height: rectHeight(draftRect) } : undefined;
   return (
     <section className="editor-page-shell" style={{ width: pageState.width, height: pageState.height }}>
       <div
@@ -371,7 +367,7 @@ export function EditorCanvasPage(props: Props) {
           {pageObjects.map((object) => {
             const viewportBounds = pageState.service?.pdfRectToViewport(object.bounds) ?? object.bounds;
             return (
-              <div key={object.id} onPointerUp={(event) => objectPointerUp(event, object)}>
+              <div key={object.id}>
                 <EditorObjectView
                   assetUrl={object.type === "image" ? props.assetUrls.get(object.assetId) : undefined}
                   object={object}

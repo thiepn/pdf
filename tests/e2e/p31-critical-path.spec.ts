@@ -82,6 +82,9 @@ test.describe("P31 interaction critical path", () => {
     await expect(object).toHaveAttribute("data-interaction-preview", "true");
     await page.mouse.up();
     await expect(object).not.toHaveAttribute("data-interaction-preview", "true");
+    // Release occurs outside the original shape: canvas capture must commit
+    // the new real document geometry, not silently restore the old position.
+    await expect.poll(async () => (await object.boundingBox())?.x ?? 0).toBeGreaterThan((objectBox?.x ?? 0) + 40);
     await page.waitForTimeout(250);
 
     const result = await page.evaluate(() => {
