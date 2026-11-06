@@ -369,7 +369,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       // still owns focus. Letting the browser perform a native field undo would
       // change the controlled input without moving PDF Studio's history/checkpoint.
       if (command && event.key.toLowerCase() === "s") { event.preventDefault(); void exportPdf(supportsNativeFileSave() ? "save" : "download"); return; }
-      if (command && event.key.toLowerCase() === "f" && nativeInspection && !nativeInspecting) { event.preventDefault(); setFindReplaceOpen(true); return; }
+      if (command && event.key.toLowerCase() === "f" && nativeInspection) { event.preventDefault(); setFindReplaceOpen(true); return; }
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
@@ -423,10 +423,24 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       hydrationRef.current = scheduleDeferredHydration(async (signal) => {
         if (signal.aborted || documentRef.current !== pdf) return;
         setNativeInspecting(true);
+        // Make source text searchable on small PDFs without waiting for every
+        // MuPDF specialist inspector. Provisional data is always read-only.
+        // The qualified inspection supersedes it when ready. Avoid parallel
+        // page extraction on very large files where it competes for memory.
+        let nativeSettled = false;
+        const quickSearch = pdf.numPages <= 20 && bytes.byteLength <= 5_000_000
+          ? inspectReadOnlyPdfJsText(pdf, signal).catch(() => null)
+          : Promise.resolve(null);
+        void quickSearch.then((preview) => {
+          if (!preview || nativeSettled || signal.aborted || documentRef.current !== pdf) return;
+          setNativeInspection(preview);
+          setStatus("Ready · text search available · preparing PDF editing…");
+        });
         const [inspectionResult, assetsResult] = await Promise.allSettled([
           inspectNativePdf(bytes, suppliedPassword, signal),
           listEditorAssets(projectId)
         ]);
+        nativeSettled = true;
         if (signal.aborted || documentRef.current !== pdf) return;
         if (assetsResult.status === "fulfilled") createAssetUrls(assetsResult.value);
         if (inspectionResult.status === "fulfilled") {
@@ -444,7 +458,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
               // A failure of the MuPDF base inspector must not erase text
               // search when PDF.js already displays the source successfully.
               // Only search/review data is recovered; editing stays forbidden.
-              const recovered = await inspectReadOnlyPdfJsText(pdf, signal);
+              const recovered = await quickSearch ?? await inspectReadOnlyPdfJsText(pdf, signal);
               if (signal.aborted || documentRef.current !== pdf) return;
               setNativeInspection(recovered);
               setWarnings((current) => [...new Set([...current, ...recovered.warnings])]);
@@ -1157,7 +1171,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <span />
         <details className="editor-guides"><summary>Guides & existing content</summary><div><label className="editor-toggle"><input checked={editorState.snapEnabled} onChange={(event) => setEditorState((state) => ({ ...state, snapEnabled: event.target.checked }))} type="checkbox" />Snap</label>
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
-        <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection || nativeInspecting} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />Select existing PDF content</label></div></details>
+        <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />Select existing PDF content</label></div></details>
         {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} PDF edit{nativeEdits.length === 1 ? "" : "s"} ready</span> : null}
         {nativeEdits.length && nativePreviewState === "ready" ? <div className="native-preview-switch" role="group" aria-label="Compare edited PDF with original source"><button aria-pressed={!reviewOriginal} onClick={() => setReviewOriginal(false)} type="button">Edited preview</button><button aria-pressed={reviewOriginal} onClick={() => setReviewOriginal(true)} type="button">Original</button></div> : null}
         {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button disabled={hasLockedSelection} onClick={groupSelection} type="button">Group added</button><button disabled={hasLockedSelection} onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button disabled={hasLockedSelection} onClick={() => alignUnified("left")} type="button">Align left</button><button disabled={hasLockedSelection} onClick={() => alignUnified("center")} type="button">Center</button><button disabled={hasLockedSelection} onClick={() => alignUnified("right")} type="button">Align right</button><button disabled={hasLockedSelection} onClick={() => alignUnified("top")} type="button">Top</button><button disabled={hasLockedSelection} onClick={() => alignUnified("middle")} type="button">Middle</button><button disabled={hasLockedSelection} onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button disabled={hasLockedSelection} onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button disabled={hasLockedSelection} onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
@@ -1177,7 +1191,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </header> : null}
 
       {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
-        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection?.canEdit || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button><button aria-label="Find and replace existing text" disabled={!nativeInspection || nativeInspecting || processing} onClick={() => setFindReplaceOpen(true)} type="button"><Icon name="inspect" size={20}/><span>Find & replace</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
+        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection?.canEdit || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button><button aria-label="Find and replace existing text" disabled={!nativeInspection || processing} onClick={() => setFindReplaceOpen(true)} type="button"><Icon name="inspect" size={20}/><span>Find & replace</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
         <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button><button aria-haspopup="dialog" aria-label="Keyboard shortcuts" onClick={() => setShortcutHelpOpen(true)} ref={shortcutHelpTriggerRef} type="button"><Icon name="help" size={18} /><span>Shortcuts</span></button>
       </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
         <CompactDocumentHome />
@@ -1241,7 +1255,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
               <button className="icon-button" aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} type="button"><Icon name="redo" /></button>
             </div>
             {contextControls}
-            <button disabled={!nativeInspection?.canEdit || nativeInspecting} onClick={() => { closeMobileTools(); activateTool("select"); setShowNativeContent(true); setSidebarOpen(false); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" />Edit existing text</button><button disabled={!nativeInspection || nativeInspecting || processing} onClick={() => { closeMobileTools(); setFindReplaceOpen(true); }} type="button"><Icon name="inspect" />Find & replace existing text</button>
+            <button disabled={!nativeInspection?.canEdit || nativeInspecting} onClick={() => { closeMobileTools(); activateTool("select"); setShowNativeContent(true); setSidebarOpen(false); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" />Edit existing text</button><button disabled={!nativeInspection || processing} onClick={() => { closeMobileTools(); setFindReplaceOpen(true); }} type="button"><Icon name="inspect" />Find & replace existing text</button>
           </div> : null}
           <div className="editor-tools-sheet__groups">{toolGroups.map((group) => <section key={group.label}><h3>{group.label}</h3><div>{group.tools.map((tool) => <button aria-label={tool.label} aria-keyshortcuts={tool.key} aria-pressed={editorState.activeTool === tool.id} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => chooseMobileTool(tool.id)} type="button"><Icon name={tool.icon} /><span>{tool.label}</span>{tool.key ? <kbd>{tool.key}</kbd> : null}</button>)}</div></section>)}</div>
           <section className="editor-tools-sheet__document"><h3>Document</h3><div className="editor-tools-sheet__zoom"><button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><strong>{Math.round(editorState.zoom * 100)}%</strong><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button></div><button aria-pressed={editorState.snapEnabled} onClick={() => setEditorState((state) => ({ ...state, snapEnabled: !state.snapEnabled }))} type="button">Snap {editorState.snapEnabled ? "on" : "off"}</button><button aria-pressed={showNativeContent} onClick={() => setShowNativeContent(!showNativeContent)} type="button">Original PDF content {showNativeContent ? "on" : "off"}</button></section>
