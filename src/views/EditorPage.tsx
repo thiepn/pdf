@@ -17,6 +17,7 @@ import { createHistory, commitHistory, historyContentIsDirty, redoHistory, sealH
 import { cloneObjects, createEditorState, duplicateObjects, moveRect, updateObjects } from "../editor/editorModel";
 import { listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
 import { exportEditorPdf } from "../editor/editorExportClient";
+import { assertOverlayExportCanPreserveObjects } from "../editor/overlayExportIntegrity";
 import { NativeContentPropertiesPanel } from "../editor/native/NativeContentPropertiesPanel";
 import { FindReplaceDialog } from "../editor/native/FindReplaceDialog";
 import { nativeObjectLabel, type NativeTransformMode } from "../editor/native/NativeContentOverlay";
@@ -981,6 +982,9 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       const assetIds = new Set(visibleObjects.filter((object): object is ImageEditorObject => object.type === "image").map((object) => object.assetId));
       const assetRecords = (await listEditorAssets(projectId)).filter((asset) => assetIds.has(asset.id));
       const assets: EditorExportAsset[] = assetRecords.map((asset) => ({ id: asset.id, mimeType: asset.mimeType, bytes: asset.bytes.slice(0) }));
+      // Reject stale page placements or lost image assets before applying
+      // source edits. A partial PDF export must never look successful.
+      if (visibleObjects.length) assertOverlayExportCanPreserveObjects(visibleObjects, assets, document?.numPages ?? 0);
       const beforeInventory = await inspectPdfAnnotationInventory(sourceBytes, passwordRef.current, affectedPages);
       let workingBytes = sourceBytes;
       let nativeReport: Awaited<ReturnType<typeof applyNativeEdits>>["report"] | undefined;
