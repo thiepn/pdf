@@ -11,7 +11,7 @@ describe("P1 original vs edited verification", () => {
 
   it("renders the untouched PDF and removes edit overlays while source review is active", () => {
     expect(editorSource).toContain("const renderedDocument = reviewOriginal ? document : nativePreviewDocument ?? document");
-    expect(editorSource).toContain("nativeObjects={reviewOriginal ? [] : currentNativeObjects}");
+    expect(editorSource).toContain("nativeObjects={reviewOriginal ? [] : nativeCanvasObjects}");
     expect(editorSource).toContain("objects={reviewOriginal ? [] : displayObjects}");
     expect(editorSource).toContain('showNativeContent={!reviewOriginal && showNativeContent && (!nativeInspecting || Boolean(selectedNativeId?.startsWith("pdfjs-readonly:")))}');
     // A user may inspect a provisional read-only search match without
@@ -20,7 +20,8 @@ describe("P1 original vs edited verification", () => {
     expect(editorSource).toContain("setSelectedNativeId(qualified.id)");
     // Provisional PDF.js search geometry must not be selectable as editable
     // MuPDF source content before qualified inspection completes.
-    expect(editorSource).toContain("&& !nativeInspecting}");
+    expect(editorSource).toContain('object.id === selectedNativeId && object.id.startsWith("pdfjs-readonly:")');
+    expect(editorSource).toContain('nativeTransformableIds={nativeInspecting ? new Set<string>() : nativeTransformableIds}');
   });
 
   it("locks the workspace against accidental edits while reviewing the original", () => {
