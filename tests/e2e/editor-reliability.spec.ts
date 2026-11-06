@@ -95,6 +95,7 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await expect(target).toBeVisible({ timeout: 20_000 });
   const targetBox = await canvasRelativeBoxFromTarget(target);
 
+  const originalCanvas = await page.locator(".editor-page-layers > canvas").screenshot();
   const before = await medianCanvasPixelAtBox(page, targetBox);
   // The showcase card is a pale colored vector fill, not white. This assertion
   // makes the test capable of catching the previous opaque-white replacement.
@@ -116,6 +117,16 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await applyTextChange.click();
 
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+  // The PDF.js document can be ready before its new canvas bitmap finishes
+  // painting (observed in WebKit). Demand both a real changed text bitmap
+  // and the original protected RGB background within the strict tolerance.
+  // A blank/white frame, an unchanged source, or a damaged fill cannot pass.
+  await expect.poll(async () => {
+    const editedCanvas = await page.locator(".editor-page-layers > canvas").screenshot();
+    const sampled = await medianCanvasPixelAtBox(page, targetBox);
+    return !editedCanvas.equals(originalCanvas)
+      && [0, 1, 2].every((channel) => Math.abs(sampled[channel] - before[channel]) <= 4);
+  }, { timeout: 20_000 }).toBe(true);
   const after = await medianCanvasPixelAtBox(page, targetBox);
   for (let channel = 0; channel < 3; channel += 1) expect(Math.abs(after[channel] - before[channel])).toBeLessThanOrEqual(4);
 
@@ -125,6 +136,10 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await originalView.click();
   await expect(page.getByText("Original PDF · editing paused", { exact: true })).toBeVisible();
   await expect(originalView).toHaveAttribute("aria-pressed", "true");
+  // Switching the control is not proof that the original PDF canvas was
+  // repainted. Verify exact restoration of the whole source canvas, not
+  // merely a momentary matching background sample.
+  await expect.poll(async () => (await page.locator(".editor-page-layers > canvas").screenshot()).equals(originalCanvas), { timeout: 20_000 }).toBe(true);
   const sourceAgain = await medianCanvasPixelAtBox(page, targetBox);
   expect(sourceAgain).toEqual(before);
 
