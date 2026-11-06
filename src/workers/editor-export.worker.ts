@@ -227,6 +227,10 @@ function addImage(pdf: any, page: any, object: Extract<EditorObject, { type: "im
     const height = Math.max(1, fitzRect[3] - fitzRect[1]);
     annotation.setAppearance("N", null, (mupdf as any).Matrix.identity, [0, 0, width, height], resources, `q ${width} 0 0 ${height} 0 0 cm /Im0 Do Q`);
     annotation.setIntent?.("StampImage");
+    // MuPDF finalizes custom /AP appearance streams on annotation update.
+    // Without this the source-backed image can disappear in PDF readers
+    // despite the exporter reporting an added image successfully.
+    annotation.update?.();
   } finally { image.destroy?.(); }
 }
 
