@@ -666,6 +666,20 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
       const bounds = page.getBounds();
       const objects: any[] = [];
       const lines: any[] = [];
+      // Check document source structure *before* MuPDF walks every painted
+      // rectangle in structured-text extraction. The P0 stress PDF has one
+      // text stream and 1,600 independent rectangle streams. Extracting it
+      // first defeats the later density guard and can crash the browser tab.
+      const contents = safe(() => page.getObject().get("Contents"), null as any);
+      const contentStreamCount = safe(() => contents?.isArray?.() ? Number(contents.length ?? 0) : contents?.isStream?.() ? 1 : 0, 0);
+      if (contentStreamCount > 600) {
+        // PDF.js still renders the unchanged source page and the editor keeps
+        // normal overlay actions. Do not claim native source editing or
+        // materialize enormous source content in this recovery path.
+        warnings.push(`Page ${index + 1} contains ${contentStreamCount} content streams. Full native inspection was skipped to protect browser responsiveness; read and overlay editing remain available.`);
+        pages.push({ pageNumber: index + 1, originX: bounds[0], originY: bounds[1], width: bounds[2] - bounds[0], height: bounds[3] - bounds[1], objects, contentStreamCount, sourceRectCount: 0 });
+        continue;
+      }
       const structuredText = page.toStructuredText("preserve-images,preserve-spans");
       try {
         const data = JSON.parse(structuredText.asJSON(1));
@@ -709,11 +723,16 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
         }
       } finally { structuredText.destroy?.(); }
 
-      const content = safe(() => {
-        const current = page.getObject().get("Contents");
-        return String(current?.readStream?.() ?? "");
-      }, "");
-      const rectangles = [...content.matchAll(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+re\b/g)].slice(0, 50);
+      const content = safe(() => String(contents?.readStream?.() ?? ""), "");
+      const rectangles: RegExpMatchArray[] = [];
+      let sourceRectCount = 0;
+      // Avoid materializing thousands of matches just to retain 50 lightweight
+      // legacy rectangles. The source-density hint is intentionally capped.
+      for (const match of content.matchAll(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+re\b/g)) {
+        sourceRectCount += 1;
+        if (rectangles.length < 50) rectangles.push(match);
+        if (sourceRectCount > 600) break;
+      }
       rectangles.forEach((match, vectorIndex) => {
         const x = Number(match[1]);
         const y = Number(match[2]);
@@ -734,7 +753,7 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
       widgets.forEach((widget: any, widgetIndex: number) => objects.push(inspectForm(widget, index + 1, widgetIndex)));
       forms += widgets.length;
 
-      pages.push({ pageNumber: index + 1, originX: bounds[0], originY: bounds[1], width: bounds[2] - bounds[0], height: bounds[3] - bounds[1], objects });
+      pages.push({ pageNumber: index + 1, originX: bounds[0], originY: bounds[1], width: bounds[2] - bounds[0], height: bounds[3] - bounds[1], objects, contentStreamCount, sourceRectCount });
     } finally { page.destroy(); }
   }
   return { pageCount: pdf.countPages(), canEdit: safe(() => pdf.hasPermission?.("edit") !== false, true), pages, fonts: [...fonts.values()], totals: { text, images, vectors, tables, forms }, warnings };
@@ -762,12 +781,23 @@ function textSourceRegions(edit: any): NativeRect[] {
   return validRedactionRect(fallback) ? [fallback] : [];
 }
 
-function redactTextOnly(page: PdfPage, regions: NativeRect[]): void {
+function redactTextOnly(pdf: PdfDocument, page: PdfPage, regions: NativeRect[]): void {
   if (!regions.length) throw new Error("Native text edit has no valid source geometry to remove.");
   for (const bounds of regions) {
     const redaction = page.createAnnotation("Redact");
     redaction.setRect(pageRect(bounds));
+    // Text reconstruction is not a visual security redaction. Never paint
+    // an opaque default /IC fill over a source PDF's colored cards, images
+    // or vectors when removing only the previous glyphs.
+    if (redaction.hasInteriorColor?.()) redaction.setInteriorColor([]);
     redaction.update?.();
+    // Redact annotations do not consistently advertise Interior Color in
+    // hasInteriorColor(). Write the optional PDF /IC array directly so the
+    // applied text-only redaction leaves the original vector/image backing
+    // unobscured. An empty color array means no replacement fill.
+    const noFill = pdf.newArray();
+    try { redaction.getObject().put("IC", noFill); }
+    finally { noFill.destroy?.(); }
   }
   page.applyRedactions(
     false,
@@ -843,7 +873,7 @@ self.onmessage = (event: MessageEvent<Request>) => {
         const page = pdf.loadPage(edit.pageNumber - 1);
         try {
           changed.add(edit.pageNumber);
-          redactTextOnly(page, textSourceRegions(edit));
+          redactTextOnly(pdf, page, textSourceRegions(edit));
         } finally { page.destroy(); }
       }
 

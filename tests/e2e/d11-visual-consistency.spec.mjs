@@ -1,17 +1,11 @@
 import { test, expect } from "@playwright/test";
-import mupdf from "mupdf";
+import { createShowcasePdf } from "../../src/fixtures/showcasePdf";
 
 function pdfFixture() {
-  const pdf = new mupdf.PDFDocument();
-  const font = new mupdf.Font("Helvetica");
-  try {
-    const embedded = pdf.addSimpleFont(font);
-    pdf.insertPage(-1, pdf.addPage([0, 0, 420, 594], 0, { Font: { F1: embedded } },
-      "BT /F1 20 Tf 40 500 Td (Visual consistency source) Tj ET"));
-    const buffer = pdf.saveToBuffer({});
-    try { return Buffer.from(buffer.asUint8Array()); }
-    finally { buffer.destroy(); }
-  } finally { pdf.destroy(); font.destroy(); }
+  // The public reader/editor regression already qualifies this importable
+  // showcase PDF. Keep this visual-QA test focused on the direct Edit PDF
+  // upload path and chrome, not a second unqualified ad hoc PDF generator.
+  return Buffer.from(createShowcasePdf());
 }
 
 async function metrics(locator) {
@@ -77,9 +71,10 @@ test("D11 Quick Tools and Editor retain real workflows with consistent chrome", 
   await expect(quick.locator(".task-dropzone")).toBeVisible();
   await page.screenshot({ path: info.outputPath("d11-quick-upload.png"), animations: "disabled" });
   await page.goto("./#/tools/edit-pdf");
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel("PDF file", { exact: true }).setInputFiles({
     name: "D11 review.pdf", mimeType: "application/pdf", buffer: pdfFixture()
   });
+  await expect(page).toHaveURL(/#\/workspace\/[^/]+\/editor(?:\/edit-pdf)?$/, { timeout: 30_000 });
   const editor = page.locator('.editor-app[data-d3-editor="true"][data-d10-status="true"]');
   await expect(editor).toBeVisible({ timeout: 30000 });
   await expect(editor.locator(".editor-stage canvas").first()).toBeVisible({ timeout: 30000 });

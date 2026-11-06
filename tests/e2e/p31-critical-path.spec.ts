@@ -55,9 +55,17 @@ test.describe("P31 interaction critical path", () => {
     const canvasBox = await canvas.boundingBox();
     expect(canvasBox).toBeTruthy();
     await page.mouse.click((canvasBox?.x ?? 0) + 180, (canvasBox?.y ?? 0) + 180);
+    // Creation deliberately keeps Rectangle active. Moving the created shape
+    // requires selecting the documented Select tool, as a real user must.
+    await chooseEditorTool(page, "Select");
+    await expect(page.getByRole("navigation", { name: "Editing tools" }).getByRole("button", { name: "Select", exact: true })).toHaveAttribute("aria-pressed", "true");
 
     const object = page.locator(".editor-object--shape").last();
     await expect(object).toBeVisible();
+    // The test page extends beneath the fixed footer. A real user first
+    // scrolls the newly created shape into the usable canvas viewport.
+    // Keep the actual elementFromPoint, drag-preview and commit assertions.
+    await object.scrollIntoViewIfNeeded();
     const objectBox = await object.boundingBox();
     expect(objectBox).toBeTruthy();
 
@@ -70,6 +78,12 @@ test.describe("P31 interaction critical path", () => {
 
     const startX = (objectBox?.x ?? 0) + (objectBox?.width ?? 1) / 2;
     const startY = (objectBox?.y ?? 0) + (objectBox?.height ?? 1) / 2;
+    // Detect native source hitboxes intercepting input above the overlay.
+    // A visually present added shape must itself receive center pointerdown.
+    await expect.poll(() => page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return Boolean(hit?.closest(".editor-object--shape"));
+    }, { x: startX, y: startY })).toBe(true);
     await page.mouse.move(startX, startY);
     await page.mouse.down();
     await page.mouse.move(startX + 140, startY + 70, { steps: 35 });
@@ -78,6 +92,9 @@ test.describe("P31 interaction critical path", () => {
     await expect(object).toHaveAttribute("data-interaction-preview", "true");
     await page.mouse.up();
     await expect(object).not.toHaveAttribute("data-interaction-preview", "true");
+    // Release occurs outside the original shape: canvas capture must commit
+    // the new real document geometry, not silently restore the old position.
+    await expect.poll(async () => (await object.boundingBox())?.x ?? 0).toBeGreaterThan((objectBox?.x ?? 0) + 40);
     await page.waitForTimeout(250);
 
     const result = await page.evaluate(() => {
@@ -93,4 +110,30 @@ test.describe("P31 interaction critical path", () => {
     expect(result.performance).toBeTruthy();
     expect(result.performance!.longTasks.maxMs).toBeLessThan(500);
   });
+});
+
+test("selected shape resize commits after dragging outside the original bounds", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "Real geometry and pointer-capture regression is pinned to Chromium.");
+  await openEditor(page);
+  await chooseEditorTool(page, "Rectangle");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click((box?.x ?? 0) + 145, (box?.y ?? 0) + 145);
+  await chooseEditorTool(page, "Select");
+  const shape = page.locator(".editor-object--shape").last();
+  await expect(shape).toBeVisible();
+  await shape.click();
+  const previous = await shape.boundingBox();
+  expect(previous).toBeTruthy();
+  const handle = shape.getByRole("button", { name: "Resize se" });
+  const handleBox = await handle.boundingBox();
+  expect(handleBox).toBeTruthy();
+  const x = (handleBox?.x ?? 0) + (handleBox?.width ?? 0) / 2;
+  const y = (handleBox?.y ?? 0) + (handleBox?.height ?? 0) / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 70, y + 40, { steps: 16 });
+  await page.mouse.up();
+  await expect.poll(async () => (await shape.boundingBox())?.width ?? 0).toBeGreaterThan((previous?.width ?? 0) + 25);
 });

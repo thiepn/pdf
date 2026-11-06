@@ -32,19 +32,44 @@ async function searchDocument(page: import("@playwright/test").Page, query: stri
   return (await summary.textContent()) ?? "";
 }
 
+// Bind the sampled region to the original PDF canvas, not viewport pixels. Opening
+// the properties sidebar moves the PDF horizontally without moving its source artwork.
+async function canvasRelativeBoxFromTarget(target: import("@playwright/test").Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  return target.evaluate((element) => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
+    if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
+    const pageRect = canvas.getBoundingClientRect();
+    const targetRect = element.getBoundingClientRect();
+    if (pageRect.width <= 0 || pageRect.height <= 0) throw new Error("Editor PDF canvas has no visible geometry.");
+    return {
+      x: (targetRect.left - pageRect.left) / pageRect.width,
+      y: (targetRect.top - pageRect.top) / pageRect.height,
+      width: targetRect.width / pageRect.width,
+      height: targetRect.height / pageRect.height
+    };
+  });
+}
+
+// Read the PDF canvas's own pixels. Locator screenshots also capture sibling
+// hitboxes and selection overlays, which Original intentionally hides.
+async function pdfCanvasBitmap(page: import("@playwright/test").Page): Promise<string> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
+    if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
+    return canvas.toDataURL("image/png");
+  });
+}
+
 async function medianCanvasPixelAtBox(page: import("@playwright/test").Page, box: { x: number; y: number; width: number; height: number }): Promise<[number, number, number, number]> {
   return page.evaluate(({ x, y, width, height }) => {
     const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
     if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
-    const rect = canvas.getBoundingClientRect();
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Editor PDF canvas context is unavailable.");
     const fractions = [.08, .28, .5, .72, .92];
     const samples = fractions.flatMap((fy) => fractions.map((fx) => {
-      const clientX = x + width * fx;
-      const clientY = y + height * fy;
-      const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round((clientX - rect.left) * canvas.width / rect.width)));
-      const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round((clientY - rect.top) * canvas.height / rect.height)));
+      const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round((x + width * fx) * canvas.width)));
+      const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round((y + height * fy) * canvas.height)));
       return [...context.getImageData(pixelX, pixelY, 1, 1).data] as [number, number, number, number];
     }));
     const median = (channel: number) => {
@@ -78,9 +103,9 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await openSample(page, "editor");
   const target = page.getByRole("button", { name: /Select existing (?:text|paragraph):.*MAY - JUL/i }).first();
   await expect(target).toBeVisible({ timeout: 20_000 });
-  const targetBox = await target.boundingBox();
-  if (!targetBox) throw new Error("Colored sample text target is unavailable.");
+  const targetBox = await canvasRelativeBoxFromTarget(target);
 
+  const originalCanvas = await pdfCanvasBitmap(page);
   const before = await medianCanvasPixelAtBox(page, targetBox);
   // The showcase card is a pale colored vector fill, not white. This assertion
   // makes the test capable of catching the previous opaque-white replacement.
@@ -91,12 +116,27 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   const editor = properties.locator("textarea").first();
   const original = await editor.inputValue();
   expect(original).toContain("MAY - JUL");
-  await editor.fill(original.replace("MAY - JUL", "JUN - AUG"));
+  // Keep this visual-fidelity success case within the source text box. The
+  // original longer replacement can require three lines where only two fit;
+  // that must remain a fail-closed writer refusal, not a preview success.
+  const fittedReplacement = original.replace("MAY - JUL", "JUN");
+  expect(fittedReplacement).not.toBe(original);
+  await editor.fill(fittedReplacement);
   const applyTextChange = properties.getByRole("button", { name: /Apply (?:text|paragraph|layout-aware text) change/ });
   await expect(applyTextChange).toBeEnabled();
   await applyTextChange.click();
 
   await expect(page.locator(".editor-app")).toHaveAttribute("data-native-preview-state", "ready", { timeout: 20_000 });
+  // The PDF.js document can be ready before its new canvas bitmap finishes
+  // painting (observed in WebKit). Demand both a real changed text bitmap
+  // and the original protected RGB background within the strict tolerance.
+  // A blank/white frame, an unchanged source, or a damaged fill cannot pass.
+  await expect.poll(async () => {
+    const editedCanvas = await pdfCanvasBitmap(page);
+    const sampled = await medianCanvasPixelAtBox(page, targetBox);
+    return editedCanvas !== originalCanvas
+      && [0, 1, 2].every((channel) => Math.abs(sampled[channel] - before[channel]) <= 4);
+  }, { timeout: 20_000 }).toBe(true);
   const after = await medianCanvasPixelAtBox(page, targetBox);
   for (let channel = 0; channel < 3; channel += 1) expect(Math.abs(after[channel] - before[channel])).toBeLessThanOrEqual(4);
 
@@ -106,6 +146,10 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await originalView.click();
   await expect(page.getByText("Original PDF · editing paused", { exact: true })).toBeVisible();
   await expect(originalView).toHaveAttribute("aria-pressed", "true");
+  // Switching the control is not proof that the original PDF canvas was
+  // repainted. Verify exact restoration of the whole source canvas, not
+  // merely a momentary matching background sample.
+  await expect.poll(async () => (await pdfCanvasBitmap(page)) === originalCanvas, { timeout: 20_000 }).toBe(true);
   const sourceAgain = await medianCanvasPixelAtBox(page, targetBox);
   expect(sourceAgain).toEqual(before);
 
@@ -281,9 +325,9 @@ test("page-number entry clears stale added-object selection", async ({ page }) =
   await openMultiPageEditor(page);
   await chooseEditorTool(page, "Add text");
   const canvas = page.locator(".editor-page-layers");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Editor canvas is unavailable.");
-  await page.mouse.click(box.x + 120, box.y + 160);
+  // Click a canvas-relative point through Playwright's actionable locator:
+  // raw viewport coordinates can fall below WebKit's 720px viewport on first load.
+  await canvas.click({ position: { x: 120, y: 160 } });
   const object = page.locator(".editor-object").last();
   await expect(object).toBeVisible();
 
@@ -429,4 +473,38 @@ test("locked added objects stay immutable until explicitly unlocked", async ({ p
   await object.click();
   await page.keyboard.press("Delete");
   await expect(page.locator(".editor-object")).toHaveCount(0);
+});
+
+
+test("existing-PDF search shortcut opens real matches and selects a source text block", async ({ page }) => {
+  await openSample(page, "editor");
+  await expect(page.getByRole("button", { name: "Find and replace existing text" })).toBeEnabled({ timeout: 20_000 });
+  await page.keyboard.press("Control+f");
+  const dialog = page.getByRole("dialog", { name: "Find & replace" });
+  await expect(dialog).toBeVisible();
+  const search = dialog.getByPlaceholder("Text to find");
+  await expect(search).toBeFocused();
+  await search.fill("MAY - JUL");
+  await expect(dialog.getByText(/\d+ match(?:es)? found/)).toBeVisible();
+  await dialog.getByRole("button", { name: /Inspect matching PDF text on page/ }).first().click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".native-unified-properties")).toBeVisible();
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
+});
+
+test("cross-page search selection survives canvas navigation without editing the PDF", async ({ page }) => {
+  await openMultiPageEditor(page);
+  await expect(page.getByRole("button", { name: "Find and replace existing text" })).toBeEnabled({ timeout: 20_000 });
+  await page.keyboard.press("Control+f");
+  const dialog = page.getByRole("dialog", { name: "Find & replace" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByPlaceholder("Text to find").fill("PLAIN_PAGE_2_MARKER");
+  const match = dialog.getByRole("button", { name: "Inspect matching PDF text on page 2" }).first();
+  await expect(match).toBeVisible();
+  await match.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("Current page", { exact: true })).toHaveValue("2");
+  await expect(page.locator(".native-unified-properties")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Select existing (?:text|paragraph):.*PLAIN_PAGE_2_MARKER/ })).toHaveClass(/active/);
+  await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
 });

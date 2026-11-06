@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 
 test("release-qualified home, validation, recovery, reconstructed workspace, editor, task workflows, tools, sample project, and diagnostics load", async ({ page }: { page: Page }) => {
   await page.goto("./#/home");
-  await expect(page.getByRole("heading", { name: /Less work.*More done/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Start with a file/i })).toBeVisible();
 
   await page.goto("./#/release");
   await expect(page.getByRole("heading", { name: /PDF Studio 7.1.4/i })).toBeVisible();
@@ -28,7 +28,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await expect(page.locator("body")).toContainText(/Professional|Project not found/i);
 
   await page.goto("./#/tools");
-  await expect(page.getByRole("heading", { name: /Find your next PDF tool/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /All PDF tools/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Merge PDFs/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Scan to PDF/i })).toBeVisible();
   await page.locator(".product-advanced summary").click();
@@ -44,7 +44,7 @@ test("release-qualified home, validation, recovery, reconstructed workspace, edi
   await chooseDocumentTask(page, "OCR PDF");
   await expect(page).toHaveURL(/\/ocr\/ocr-pdf$/);
   await expect(page.getByRole("combobox", { name: /Recognition quality/i })).toBeVisible();
-  await chooseDocumentTask(page, "Fill PDF forms");
+  await chooseDocumentTask(page, "Fill or create PDF forms");
   await expect(page.getByRole("link", { name: "Fill with text in the editor" })).toBeVisible({ timeout: 20_000 });
   await chooseDocumentTask(page, "Clean up PDF");
   await expect(page).toHaveURL(/\/quick\/sanitize-pdf/);

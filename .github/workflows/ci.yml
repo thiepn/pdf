@@ -211,9 +211,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
+      - name: Use container-native Python TLS with isolated pinned-reader dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The setup-python 3.13/3.12 hosted builds link against OpenSSL 3.3,
+          # unavailable in mcr.microsoft.com/playwright:v1.62.0-noble.
+          # Actual image evidence: PDF-04 diagnostic CI #42037144965.
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-venv
+          /usr/bin/python3 -m venv /tmp/pdf-browser-python
+          /tmp/pdf-browser-python/bin/python -c 'import ssl; print("PDF_BROWSER_PYTHON_TLS", ssl.OPENSSL_VERSION)'
+          /tmp/pdf-browser-python/bin/python -m pip --version
+          echo "/tmp/pdf-browser-python/bin" >> "$GITHUB_PATH"
       - name: Pin npm toolchain
         run: npm install --global "npm@${NPM_VERSION}" --no-audit --no-fund
       - name: Install exact dependencies

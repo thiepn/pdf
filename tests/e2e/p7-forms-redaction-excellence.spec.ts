@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import mupdf from "mupdf";
+
 import { chooseDocumentTask } from "./helpers/taskFirst";
 
 async function openCorpus(page: import("@playwright/test").Page, file: string) {
@@ -29,14 +31,26 @@ test("P7 authors interactive text and checkbox fields and verifies them after se
   expect(saved.suggestedFilename()).toMatch(/secured\.pdf$/i);
   await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
   await page.getByText("Output verified · view checks", { exact: true }).click();
+  await page.getByText("Check details", { exact: true }).click();
   await expect(page.getByText("Created form fields", { exact: true })).toBeVisible();
   await expect(page.getByText("2 requested interactive fields reopened successfully.", { exact: true })).toBeVisible();
 });
 
 test("P7 finds text for redaction, requires review, then proves permanent removal", async ({ page }) => {
   await openCorpus(page, "tests/corpus/generated/redaction-source.pdf");
+  const project = page.url().match(new RegExp("/workspace/([^/]+)/viewer"));
+  expect(project).not.toBeNull();
   await chooseDocumentTask(page, "Find & apply permanent redactions");
-  await expect(page.locator(".security-app")).toBeVisible();
+  // Applying unmarked redactions must remain fail-closed. Discovery itself is
+  // available from the separate Document safety overview, where candidates
+  // are reviewable and never removed until marked and explicitly exported.
+  await expect(page.locator(".task-capability-blocker")).toContainText("No saved editor redaction marks");
+  await expect(page.getByText("This task did not start. Your PDF is unchanged.", { exact: true })).toBeVisible();
+  await page.goto(`./#/workspace/${project![1]}/secure`);
+  await expect(page.locator(".security-app")).toBeVisible({ timeout: 20_000 });
+  await page.getByText("Related document settings", { exact: true }).click();
+  await page.getByLabel("Settings to show").selectOption("redaction");
+  await expect(page.getByRole("heading", { name: "Permanent redaction" })).toBeVisible();
 
   await page.getByLabel("Text", { exact: true }).fill("SECRET_ALPHA_491");
   await page.getByRole("button", { name: "Scan", exact: true }).click();
@@ -51,8 +65,27 @@ test("P7 finds text for redaction, requires review, then proves permanent remova
 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  await download;
+  const saved = await download;
+  // Playwright exposes a readable stream without requiring Node filesystem
+  // type declarations in the app TypeScript project.
+  const stream = await saved.createReadStream();
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of stream) chunks.push(Uint8Array.from(chunk));
+  const bytes = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.byteLength, 0));
+  let position = 0;
+  for (const chunk of chunks) { bytes.set(chunk, position); position += chunk.byteLength; }
+  const reopened = new mupdf.PDFDocument(bytes);
+  try {
+    const first = reopened.loadPage(0);
+    try {
+      const extracted = first.toStructuredText();
+      try { expect(extracted.asText()).not.toContain("SECRET_ALPHA_491"); }
+      finally { extracted.destroy(); }
+      expect(first.getAnnotations().some((annotation: any) => ["Redact", "Redaction"].includes(String(annotation.getType())))).toBe(false);
+    } finally { first.destroy(); }
+  } finally { reopened.destroy(); }
   await expect(page.locator(".security-validation-summary.passed")).toBeAttached();
   await page.getByText("Output verified · view checks", { exact: true }).click();
+  await page.getByText("Check details", { exact: true }).click();
   await expect(page.getByText("Redacted text extraction", { exact: true })).toBeVisible();
 });

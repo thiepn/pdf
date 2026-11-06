@@ -61,6 +61,59 @@ const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_PAGE = 650;
 const MAX_TEXT_RECONSTRUCTION_OBJECTS_PER_DOCUMENT = 4_000;
 const MAX_TABLE_RECOVERY_VECTORS_PER_PAGE = 600;
 const MAX_TABLE_RECOVERY_PAIR_WORK_PER_DOCUMENT = 1_000_000;
+// The native base inspector records at most 50 simple rectangles per page.
+// Hitting that ceiling indicates potentially much denser vector content and
+// avoids starting three additional MuPDF/WASM inspectors simultaneously.
+const NATIVE_BASE_VECTOR_DENSITY_SENTINEL = 50;
+const MAX_DENSE_SOURCE_STREAMS_PER_PAGE = 600;
+
+/** Real multi-stream PDFs can hide 1,600+ path streams from the legacy
+ * single-stream rectangle heuristic. Degrade to read-only text rather than
+ * spawn many MuPDF WASM heaps and crash the user's document tab. */
+export function requiresReadOnlyDenseInspection(inspection: NativeInspection): boolean {
+  return inspection.pages.some((page) =>
+    (page.contentStreamCount ?? 0) > MAX_DENSE_SOURCE_STREAMS_PER_PAGE
+    || (page.sourceRectCount ?? 0) > MAX_DENSE_SOURCE_STREAMS_PER_PAGE
+  );
+}
+
+function readOnlySourceInspection(inspection: NativeInspection, reason: string): NativeInspection {
+  const pages = inspection.pages.map((page) => ({
+    ...page,
+    objects: page.objects.filter((object) => object.type === "text").map((object) => ({
+      ...object,
+      editability: "unsupported" as const,
+      capability: { ...object.capability, level: "unsupported" as const, reason }
+    }))
+  }));
+  const text = pages.reduce((sum, page) => sum + page.objects.length, 0);
+  return registerNativeInspectionPages({
+    ...inspection,
+    canEdit: false,
+    pages,
+    totals: { text, images: 0, vectors: 0, tables: 0, forms: 0, complex: 0 },
+    warnings: [...inspection.warnings, reason]
+  });
+}
+export function readOnlyDenseInspection(inspection: NativeInspection): NativeInspection {
+  return readOnlySourceInspection(inspection, "Dense PDF safeguard: source content remains visible, but direct PDF-object editing is unavailable for this document. Add annotations or text instead; the original PDF is unchanged.");
+}
+
+/** Preserve search and source review after a specialist scanner fails; no
+ * direct modification is authorized without the full native fidelity model. */
+export function readOnlyIncompleteInspection(inspection: NativeInspection): NativeInspection {
+  return readOnlySourceInspection(inspection, "Incomplete PDF inspection: detected source text is available for finding and review, but direct source-object editing is disabled because one of the fidelity inspectors failed. The original PDF is unchanged; added annotations remain available.");
+}
+
+export function shouldSerializeSpecialistInspection(base: NativeInspection): boolean {
+  return base.pages.some((page) => {
+    let vectors = 0;
+    for (const object of page.objects) {
+      if (object.type === "vector" && ++vectors >= NATIVE_BASE_VECTOR_DENSITY_SENTINEL) return true;
+    }
+    return false;
+  });
+}
 export const NATIVE_INSPECTION_TIMEOUT_MS = 30_000;
 
 export function reconstructInspectionWithinResponsivenessBudget(inspection: NativeInspection): NativeInspection {
@@ -258,17 +311,36 @@ export async function inspectNativePdf(bytes: Uint8Array, password?: string, sig
   try {
     const activeSignal = controller.signal;
     const base = await invoke<NativeInspection>(nativeWorker(), { type: "INSPECT_NATIVE" }, bytes, password, activeSignal);
-    const [image, vector, table] = await Promise.all([
-      invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal),
-      invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal),
-      invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal)
-    ]);
+    if (requiresReadOnlyDenseInspection(base)) return readOnlyDenseInspection(base);
+    // The base source-text inspector succeeded. If a specialist fails,
+    // retain the qualified source search data but fail closed on mutation.
+    try {
+    const inspectImages = () => invoke<ImageInspection>(imageWorker(), { type: "INSPECT_IMAGES" }, bytes, password, activeSignal);
+    const inspectVectors = () => invoke<VectorInspection>(vectorWorker(), { type: "INSPECT_VECTORS" }, bytes, password, activeSignal);
+    const inspectTables = () => invoke<TableInspection>(tableWorker(), { type: "INSPECT_TABLES" }, bytes, password, activeSignal);
+    let image: ImageInspection;
+    let vector: VectorInspection;
+    let table: TableInspection;
+    if (shouldSerializeSpecialistInspection(base)) {
+      // A dense vector document can allocate multiple large WASM heaps at once.
+      // Serialize specialist inspections for this case, preserving every result
+      // and all original capability/fidelity checks.
+      image = await inspectImages();
+      vector = await inspectVectors();
+      table = await inspectTables();
+    } else {
+      [image, vector, table] = await Promise.all([inspectImages(), inspectVectors(), inspectTables()]);
+    }
     const recoveryInput = prepareVectorInspectionForTableRecovery(vector, table);
     const recoveredTable = recoverStructuredTables(base, recoveryInput.vector, table);
     const boundedRecoveredTable = recoveryInput.skippedPages.length ? { ...recoveredTable, warnings: [...recoveredTable.warnings, `Responsiveness guard skipped fallback table-grid recovery on ${recoveryInput.skippedPages.length} dense page${recoveryInput.skippedPages.length === 1 ? "" : "s"} (${recoveryInput.skippedPages.join(", ")}); specialist table results and all vector objects remain available.`] } : recoveredTable;
     const established = mergeTableInspection(mergeVectorInspection(mergeImageInspection(base, image), vector), boundedRecoveredTable);
     const complex = await invoke<ComplexInspection>(complexWorker(), { type: "INSPECT_COMPLEX" }, bytes, password, activeSignal);
     return mergeComplexInspection(established, complex);
+    } catch (reason) {
+      if (activeSignal.aborted) throw reason;
+      return readOnlyIncompleteInspection(base);
+    }
   } catch (reason) {
     if (timedOut) throw new Error(`Existing-content inspection exceeded the ${Math.round(NATIVE_INSPECTION_TIMEOUT_MS / 1000)}-second responsiveness budget and was stopped. Overlay editing remains available.`);
     throw reason;

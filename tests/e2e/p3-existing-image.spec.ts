@@ -1,4 +1,4 @@
-import { openSample, switchMode } from "./helpers/taskFirst";
+import { openSample, switchMode, downloadEditorCopy } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openImageEditor(page: import("@playwright/test").Page): Promise<import("@playwright/test").Locator> {
@@ -32,11 +32,7 @@ test("P3 moves, resizes, rotates, crops and changes opacity of an existing sourc
   await properties.getByRole("button", { name: "Apply source image transform" }).click();
   await expectQueuedEdit(page);
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+  await downloadEditorCopy(page);
 });
 
 test("P3 deletes only the selected existing image and exports a validated PDF", async ({ page }) => {
@@ -45,8 +41,5 @@ test("P3 deletes only the selected existing image and exports a validated PDF", 
   await properties.getByRole("button", { name: "Delete existing image" }).click();
   await expectQueuedEdit(page);
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  await downloadPromise;
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+  await downloadEditorCopy(page);
 });

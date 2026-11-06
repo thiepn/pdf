@@ -6,7 +6,7 @@ const top20: Array<{ prompt: string; label: string }> = [
   { prompt: "replace an image", label: "Edit PDF" },
   { prompt: "highlight some text", label: "Annotate & comment" },
   { prompt: "sign this document visually", label: "Add visual signature" },
-  { prompt: "permanently hide this account number", label: "Apply permanent redactions" },
+  { prompt: "permanently hide this account number", label: "Find & apply permanent redactions" },
   { prompt: "combine two PDFs", label: "Merge PDFs" },
   { prompt: "split this PDF into parts", label: "Split PDF" },
   { prompt: "extract pages 4 through 7", label: "Extract pages" },
@@ -18,7 +18,7 @@ const top20: Array<{ prompt: string; label: string }> = [
   { prompt: "make this scan searchable", label: "OCR PDF" },
   { prompt: "remove document metadata", label: "Remove metadata" },
   { prompt: "lock this PDF with a password", label: "Password-protect PDF" },
-  { prompt: "fill this form", label: "Fill PDF forms" },
+  { prompt: "fill this form", label: "Fill or create PDF forms" },
   { prompt: "turn photos into a PDF", label: "Images to PDF" },
   { prompt: "export PDF pages as images", label: "PDF to JPG" }
 ];
@@ -37,6 +37,7 @@ test("R8 structural top-20 task discovery ranks natural-language prompts correct
     const firstResult = page.locator('[aria-label="Tool search results"] .product-tool-card').first();
     await expect(firstResult, `Expected '${item.prompt}' to rank '${item.label}' first`).toBeVisible();
     await expect(firstResult).toContainText(item.label);
+    if (item.prompt === "permanently hide this account number") await expect(firstResult).toHaveAttribute("href", "#/tools/apply-redactions");
   }
 });
 
@@ -51,7 +52,8 @@ test("R8 command palette ranks outcome phrases instead of exact menu labels", as
   await search.fill("make this PDF smaller");
   await expect(firstResult).toContainText("Compress PDF");
   await search.fill("permanently hide this account number");
-  await expect(firstResult).toContainText("Apply permanent redactions");
+  await expect(firstResult).toContainText("Find & apply permanent redactions");
+  await expect(firstResult).toHaveAttribute("href", "#/tools/apply-redactions");
 });
 
 test("R8 opens a representative sample from the pinned external corpus", async ({ page }, testInfo) => {

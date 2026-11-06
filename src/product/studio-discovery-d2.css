@@ -123,9 +123,9 @@
   background: color-mix(in srgb,var(--accent) 4%,var(--surface-strong));
 }
 .product-app .product-directory--library .product-tool-card .task-glyph {
-  width: 38px;
+  width: 40px;
   height: 42px;
-  flex: 0 0 38px;
+  flex: 0 0 40px;
   border-radius: var(--studio-radius-control);
 }
 .product-app .product-directory--library .product-tool-card .task-glyph svg {

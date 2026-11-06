@@ -90,6 +90,42 @@ describe("P13 layout-aware DOCX", () => {
     expect(raw).toContain("Layout-aware editable export reconstructed locally from PDF structure.");
   });
 
+  it("keeps reversed selected-page order in editable DOCX output and its report", () => {
+    const first = inspection();
+    const third = {
+      ...first.pages[0],
+      pageNumber: 3,
+      objects: [text("third-heading", "THIRD_PAGE_VALUE", 54, 48, 504, 24, { pageNumber: 3 })]
+    };
+    const source = {
+      ...first,
+      pageCount: 3,
+      pages: [first.pages[0], third]
+    } as NativeInspection;
+    const model = createLayoutDocxModel(source, [3, 1], new Map());
+    expect(model.pages.map((page) => page.pageNumber)).toEqual([3, 1]);
+    expect(model.report.selectedPages).toEqual([3, 1]);
+    const packageText = new TextDecoder().decode(buildLayoutAwareDocxPackage("Reversed", model));
+    expect(packageText.indexOf("THIRD_PAGE_VALUE")).toBeGreaterThan(-1);
+    expect(packageText.indexOf("THIRD_PAGE_VALUE")).toBeLessThan(packageText.indexOf("Quarterly report"));
+    expect(packageText).toContain('<w:br w:type="page"/>');
+  });
+
+  it("keeps a next-page Word section when selected PDF page geometry differs", () => {
+    const source = inspection();
+    source.pages.push({
+      ...source.pages[0],
+      pageNumber: 2,
+      width: 842,
+      height: 595,
+      objects: [text("landscape-heading", "LANDSCAPE_CONTENT", 54, 48, 504, 24, { pageNumber: 2 }) as unknown as NativeInspection["pages"][number]["objects"][number]]
+    });
+    const model = createLayoutDocxModel(source, [1, 2]);
+    const packageText = new TextDecoder().decode(buildLayoutAwareDocxPackage("Mixed sizes", model));
+    expect(packageText).toContain('<w:type w:val="nextPage"/>');
+    expect(packageText).toContain('w:orient="landscape"');
+  });
+
   it("keeps the ZIP builder binary-safe for embedded media", () => {
     const marker = new Uint8Array([0, 1, 2, 255, 0, 9, 8, 7]);
     const bytes = storeBinaryZip([
