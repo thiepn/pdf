@@ -4,6 +4,11 @@ import type { NativeInspection } from "../../src/types/nativeEditor";
 
 function sampleInspection(vectorCounts: number[]): NativeInspection {
   return {
+    pageCount: vectorCounts.length,
+    canEdit: false,
+    fonts: [],
+    warnings: [],
+    totals: { text: 0, images: 0, vectors: 0, tables: 0, forms: 0, complex: 0 },
     pages: vectorCounts.map((count, index) => ({
       pageNumber: index + 1,
       objects: Array.from({ length: count }, (_, objectIndex) => ({
