@@ -94,10 +94,22 @@ test("P3 reviews saved OCR, corrects confidence evidence, preserves the PDF and 
     const stage = element.getBoundingClientRect();
     const pdf = element.querySelector(".ocr-review-page")?.getBoundingClientRect();
     if (!pdf) throw new Error("OCR review PDF surface is unavailable.");
-    return { stageLeft: stage.left, stageRight: stage.right, pageLeft: pdf.left, pageRight: pdf.right };
+    const canvas = element.querySelector(".ocr-review-page > canvas")?.getBoundingClientRect();
+    if (!canvas) throw new Error("OCR source raster is unavailable.");
+    return {
+      stageLeft: stage.left, stageRight: stage.right,
+      pageLeft: pdf.left, pageRight: pdf.right, pageTop: pdf.top, pageBottom: pdf.bottom,
+      canvasLeft: canvas.left, canvasRight: canvas.right, canvasTop: canvas.top, canvasBottom: canvas.bottom
+    };
   });
   expect(sizing.pageLeft).toBeGreaterThanOrEqual(sizing.stageLeft - 2);
   expect(sizing.pageRight).toBeLessThanOrEqual(sizing.stageRight + 2);
+  // The PDF raster and the OCR hitbox layer must use one coordinate surface,
+  // including when the viewport shrinks the page beneath its intrinsic width.
+  expect(Math.abs(sizing.canvasLeft - sizing.pageLeft)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sizing.canvasRight - sizing.pageRight)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sizing.canvasTop - sizing.pageTop)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sizing.canvasBottom - sizing.pageBottom)).toBeLessThanOrEqual(2);
   // Real-pointer hit testing: a visible OCR word must not sit underneath the
   // parent workspace scrolling panel or another overlay. Do not force click.
   const wordBox = await lowConfidence.boundingBox();
