@@ -666,6 +666,20 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
       const bounds = page.getBounds();
       const objects: any[] = [];
       const lines: any[] = [];
+      // Check document source structure *before* MuPDF walks every painted
+      // rectangle in structured-text extraction. The P0 stress PDF has one
+      // text stream and 1,600 independent rectangle streams. Extracting it
+      // first defeats the later density guard and can crash the browser tab.
+      const contents = safe(() => page.getObject().get("Contents"), null as any);
+      const contentStreamCount = safe(() => contents?.isArray?.() ? Number(contents.length ?? 0) : contents?.isStream?.() ? 1 : 0, 0);
+      if (contentStreamCount > 600) {
+        // PDF.js still renders the unchanged source page and the editor keeps
+        // normal overlay actions. Do not claim native source editing or
+        // materialize enormous source content in this recovery path.
+        warnings.push(`Page ${index + 1} contains ${contentStreamCount} content streams. Full native inspection was skipped to protect browser responsiveness; read and overlay editing remain available.`);
+        pages.push({ pageNumber: index + 1, originX: bounds[0], originY: bounds[1], width: bounds[2] - bounds[0], height: bounds[3] - bounds[1], objects, contentStreamCount, sourceRectCount: 0 });
+        continue;
+      }
       const structuredText = page.toStructuredText("preserve-images,preserve-spans");
       try {
         const data = JSON.parse(structuredText.asJSON(1));
@@ -709,8 +723,6 @@ function inspect(pdf: PdfDocument, requestId: string): NativeInspection {
         }
       } finally { structuredText.destroy?.(); }
 
-      const contents = safe(() => page.getObject().get("Contents"), null as any);
-      const contentStreamCount = safe(() => contents?.isArray?.() ? Number(contents.length ?? 0) : contents?.isStream?.() ? 1 : 0, 0);
       const content = safe(() => String(contents?.readStream?.() ?? ""), "");
       const rectangles: RegExpMatchArray[] = [];
       let sourceRectCount = 0;
