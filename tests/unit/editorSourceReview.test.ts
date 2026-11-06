@@ -13,7 +13,11 @@ describe("P1 original vs edited verification", () => {
     expect(editorSource).toContain("const renderedDocument = reviewOriginal ? document : nativePreviewDocument ?? document");
     expect(editorSource).toContain("nativeObjects={reviewOriginal ? [] : currentNativeObjects}");
     expect(editorSource).toContain("objects={reviewOriginal ? [] : displayObjects}");
-    expect(editorSource).toContain("showNativeContent={!reviewOriginal && showNativeContent && !nativeInspecting}");
+    expect(editorSource).toContain('showNativeContent={!reviewOriginal && showNativeContent && (!nativeInspecting || Boolean(selectedNativeId?.startsWith("pdfjs-readonly:")))}');
+    // A user may inspect a provisional read-only search match without
+    // unblocking background native source modification or unrelated hitboxes.
+    expect(editorSource).toContain('provisionalSearchSelectionRef.current = { pageNumber, text: matched.text }');
+    expect(editorSource).toContain("setSelectedNativeId(qualified.id)");
     // Provisional PDF.js search geometry must not be selectable as editable
     // MuPDF source content before qualified inspection completes.
     expect(editorSource).toContain("&& !nativeInspecting}");
