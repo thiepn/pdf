@@ -51,6 +51,7 @@ interface DragState {
   preview?: EditorObject;
   element?: HTMLElement;
   handle?: ResizeHandle;
+  pointerId?: number;
   points?: InkPoint[];
   stage?: HTMLElement;
   startScrollLeft?: number;
@@ -90,6 +91,28 @@ export function EditorCanvasPage(props: Props) {
 
   useEffect(() => () => cancelPendingDomPreview(), []);
 
+  // React can recreate selection overlays during pointer down. Observe the
+  // active pointer before target-level dispatch so a pending drag is not lost
+  // when the original hit target changes or native pointer capture moves.
+  const pointerHandlersRef = useRef<{
+    move: (event: PointerEvent) => void;
+    end: (event: PointerEvent) => void;
+    cancel: (event: PointerEvent) => void;
+  } | null>(null);
+  useEffect(() => {
+    const move = (event: PointerEvent) => pointerHandlersRef.current?.move(event);
+    const end = (event: PointerEvent) => pointerHandlersRef.current?.end(event);
+    const cancel = (event: PointerEvent) => pointerHandlersRef.current?.cancel(event);
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", cancel, true);
+    return () => {
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", end, true);
+      window.removeEventListener("pointercancel", cancel, true);
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void props.document.getPage(props.pageNumber).then(async (page) => {
@@ -118,7 +141,7 @@ export function EditorCanvasPage(props: Props) {
     return () => { cancelled = true; taskRef.current?.cancel(); };
   }, [props.document, props.pageNumber, props.zoom]);
 
-  function localViewportPoint(event: ReactPointerEvent): Point {
+  function localViewportPoint(event: { clientX: number; clientY: number }): Point {
     const rect = hostRef.current?.getBoundingClientRect();
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   }
@@ -193,7 +216,7 @@ export function EditorCanvasPage(props: Props) {
     props.onSelect(object.id, event.ctrlKey || event.metaKey || event.shiftKey);
     const viewportPoint = localViewportPoint(event);
     cancelPendingDomPreview();
-    dragRef.current = { mode: "move", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget };
+    dragRef.current = { mode: "move", pointerId: event.pointerId, startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget };
     // Keep capture on the stable canvas. Capturing the object itself could be
     // lost when selecting it triggers a React redraw and the pointer leaves
     // its original bounds before pointer-up.
@@ -205,11 +228,11 @@ export function EditorCanvasPage(props: Props) {
     if (!pageState.service) return;
     const viewportPoint = localViewportPoint(event);
     cancelPendingDomPreview();
-    dragRef.current = { mode: "resize", startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget.parentElement ?? undefined, handle };
+    dragRef.current = { mode: "resize", pointerId: event.pointerId, startViewport: viewportPoint, startPdf: pageState.service.viewportToPdf(viewportPoint), object: structuredClone(object), element: event.currentTarget.parentElement ?? undefined, handle };
     hostRef.current?.setPointerCapture(event.pointerId);
   }
 
-  function movePointer(event: ReactPointerEvent<HTMLDivElement>): void {
+  function movePointer(event: ReactPointerEvent<HTMLDivElement> | PointerEvent): void {
     const drag = dragRef.current;
     const service = pageState.service;
     if (!drag || !service) return;
@@ -285,11 +308,11 @@ export function EditorCanvasPage(props: Props) {
     else props.onPreview(preview);
   }
 
-  function endPointer(event: ReactPointerEvent<HTMLDivElement>): void {
+  function endPointer(event: ReactPointerEvent<HTMLDivElement> | PointerEvent): void {
     const drag = dragRef.current;
     const service = pageState.service;
     if (!drag || !service) return;
-    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+    try { hostRef.current?.releasePointerCapture(event.pointerId); } catch { /* already released */ }
     dragRef.current = null;
     setGuidesIfChanged([]);
     if (drag.mode === "pan") return;
@@ -333,15 +356,34 @@ export function EditorCanvasPage(props: Props) {
     props.onPreview(null);
   }
 
-   const draftStyle = draftRect ? { left: draftRect.x0, top: draftRect.y0, width: rectWidth(draftRect), height: rectHeight(draftRect) } : undefined;
+  pointerHandlersRef.current = {
+    move: (event) => {
+      const drag = dragRef.current;
+      if (!drag?.object || drag.pointerId !== event.pointerId) return;
+      movePointer(event);
+    },
+    end: (event) => {
+      const drag = dragRef.current;
+      if (!drag?.object || drag.pointerId !== event.pointerId) return;
+      endPointer(event);
+    },
+    cancel: (event) => {
+      const drag = dragRef.current;
+      if (!drag?.object || drag.pointerId !== event.pointerId) return;
+      try { hostRef.current?.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+      cancelPointer();
+    }
+  };
+
+  const draftStyle = draftRect ? { left: draftRect.x0, top: draftRect.y0, width: rectWidth(draftRect), height: rectHeight(draftRect) } : undefined;
   return (
     <section className="editor-page-shell" style={{ width: pageState.width, height: pageState.height }}>
       <div
         className={`editor-page-layers editor-cursor--${props.activeTool}`}
         onPointerDown={beginCanvasPointer}
-        onPointerMove={movePointer}
-        onPointerUp={endPointer}
-        onPointerCancel={cancelPointer}
+        onPointerMove={(event) => { if (!dragRef.current?.object) movePointer(event); }}
+        onPointerUp={(event) => { if (!dragRef.current?.object) endPointer(event); }}
+        onPointerCancel={() => { if (!dragRef.current?.object) cancelPointer(); }}
         ref={hostRef}
         style={{ width: pageState.width, height: pageState.height }}
       >

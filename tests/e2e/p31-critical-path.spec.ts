@@ -101,3 +101,29 @@ test.describe("P31 interaction critical path", () => {
     expect(result.performance!.longTasks.maxMs).toBeLessThan(500);
   });
 });
+
+test("selected shape resize commits after dragging outside the original bounds", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "Real geometry and pointer-capture regression is pinned to Chromium.");
+  await openEditor(page);
+  await chooseEditorTool(page, "Rectangle");
+  const canvas = page.locator(".editor-page-layers");
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click((box?.x ?? 0) + 145, (box?.y ?? 0) + 145);
+  await chooseEditorTool(page, "Select");
+  const shape = page.locator(".editor-object--shape").last();
+  await expect(shape).toBeVisible();
+  await shape.click();
+  const previous = await shape.boundingBox();
+  expect(previous).toBeTruthy();
+  const handle = shape.getByRole("button", { name: "Resize se" });
+  const handleBox = await handle.boundingBox();
+  expect(handleBox).toBeTruthy();
+  const x = (handleBox?.x ?? 0) + (handleBox?.width ?? 0) / 2;
+  const y = (handleBox?.y ?? 0) + (handleBox?.height ?? 0) / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 70, y + 40, { steps: 16 });
+  await page.mouse.up();
+  await expect.poll(async () => (await shape.boundingBox())?.width ?? 0).toBeGreaterThan((previous?.width ?? 0) + 25);
+});
