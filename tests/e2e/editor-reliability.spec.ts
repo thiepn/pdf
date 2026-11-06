@@ -32,19 +32,34 @@ async function searchDocument(page: import("@playwright/test").Page, query: stri
   return (await summary.textContent()) ?? "";
 }
 
+// Bind the sampled region to the original PDF canvas, not viewport pixels. Opening
+// the properties sidebar moves the PDF horizontally without moving its source artwork.
+async function canvasRelativeBoxFromTarget(target: import("@playwright/test").Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  return target.evaluate((element) => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
+    if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
+    const pageRect = canvas.getBoundingClientRect();
+    const targetRect = element.getBoundingClientRect();
+    if (pageRect.width <= 0 || pageRect.height <= 0) throw new Error("Editor PDF canvas has no visible geometry.");
+    return {
+      x: (targetRect.left - pageRect.left) / pageRect.width,
+      y: (targetRect.top - pageRect.top) / pageRect.height,
+      width: targetRect.width / pageRect.width,
+      height: targetRect.height / pageRect.height
+    };
+  });
+}
+
 async function medianCanvasPixelAtBox(page: import("@playwright/test").Page, box: { x: number; y: number; width: number; height: number }): Promise<[number, number, number, number]> {
   return page.evaluate(({ x, y, width, height }) => {
     const canvas = document.querySelector<HTMLCanvasElement>(".editor-page-layers > canvas");
     if (!canvas) throw new Error("Editor PDF canvas is unavailable.");
-    const rect = canvas.getBoundingClientRect();
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Editor PDF canvas context is unavailable.");
     const fractions = [.08, .28, .5, .72, .92];
     const samples = fractions.flatMap((fy) => fractions.map((fx) => {
-      const clientX = x + width * fx;
-      const clientY = y + height * fy;
-      const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round((clientX - rect.left) * canvas.width / rect.width)));
-      const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round((clientY - rect.top) * canvas.height / rect.height)));
+      const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round((x + width * fx) * canvas.width)));
+      const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round((y + height * fy) * canvas.height)));
       return [...context.getImageData(pixelX, pixelY, 1, 1).data] as [number, number, number, number];
     }));
     const median = (channel: number) => {
@@ -78,8 +93,7 @@ test("existing-text reconstruction preserves colored PDF backgrounds and support
   await openSample(page, "editor");
   const target = page.getByRole("button", { name: /Select existing (?:text|paragraph):.*MAY - JUL/i }).first();
   await expect(target).toBeVisible({ timeout: 20_000 });
-  const targetBox = await target.boundingBox();
-  if (!targetBox) throw new Error("Colored sample text target is unavailable.");
+  const targetBox = await canvasRelativeBoxFromTarget(target);
 
   const before = await medianCanvasPixelAtBox(page, targetBox);
   // The showcase card is a pale colored vector fill, not white. This assertion
