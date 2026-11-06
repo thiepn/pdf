@@ -325,9 +325,9 @@ test("page-number entry clears stale added-object selection", async ({ page }) =
   await openMultiPageEditor(page);
   await chooseEditorTool(page, "Add text");
   const canvas = page.locator(".editor-page-layers");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Editor canvas is unavailable.");
-  await page.mouse.click(box.x + 120, box.y + 160);
+  // Click a canvas-relative point through Playwright's actionable locator:
+  // raw viewport coordinates can fall below WebKit's 720px viewport on first load.
+  await canvas.click({ position: { x: 120, y: 160 } });
   const object = page.locator(".editor-object").last();
   await expect(object).toBeVisible();
 
