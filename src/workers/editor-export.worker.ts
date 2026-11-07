@@ -1,5 +1,5 @@
 import * as mupdf from "mupdf";
-import { assertOverlayExportCanPreserveObjects, validatedWebLinkTarget } from "../editor/overlayExportIntegrity";
+import { assertOverlayExportCanPreserveObjects, validatedInternalPageTarget, validatedWebLinkTarget } from "../editor/overlayExportIntegrity";
 import type { AffineMatrix, Point, Rect } from "../core/coordinates";
 import type { EditorExportAsset, EditorObject } from "../types/editor";
 
@@ -166,7 +166,7 @@ function addLink(pdf: any, page: any, object: Extract<EditorObject, { type: "lin
   if (object.targetType === "url") uri = validatedWebLinkTarget(uri);
   if (object.targetType === "email" && !uri.startsWith("mailto:")) uri = `mailto:${uri}`;
   if (object.targetType === "page") {
-    const pageIndex = Math.max(0, Math.min(pdf.countPages() - 1, Number(uri || 1) - 1));
+    const pageIndex = validatedInternalPageTarget(uri, pdf.countPages()) - 1;
     uri = pdf.formatLinkURI({ chapter: 0, page: pageIndex, type: "Fit", x: 0, y: 0, width: 0, height: 0, zoom: 1 });
   }
   page.createLink(rect(transform, object.bounds), uri);

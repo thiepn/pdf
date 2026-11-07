@@ -13,6 +13,16 @@ export function validatedWebLinkTarget(rawTarget: string): string {
   return url.href;
 }
 
+/** A page link must not silently resolve to a different page in the saved PDF. */
+export function validatedInternalPageTarget(rawTarget: string, pageCount: number): number {
+  const target = rawTarget.trim();
+  const page = Number(target);
+  if (!/^\d+$/.test(target) || !Number.isSafeInteger(page) || page < 1 || page > pageCount) {
+    throw new Error(`PDF export blocked: page links require an integer destination from 1 to ${pageCount}. Correct the link before exporting; other edits are retained.`);
+  }
+  return page;
+}
+
 /**
  * Reject incomplete overlay exports before MuPDF writes a single annotation.
  * Hidden objects intentionally do not appear in an output PDF.
@@ -32,6 +42,7 @@ export function assertOverlayExportCanPreserveObjects(
       throw new Error(`PDF export blocked: “${object.type}” is assigned to page ${object.pageNumber}, but the source PDF has ${pageCount} page${pageCount === 1 ? "" : "s"}. Move or remove that placement explicitly before exporting.`);
     }
     if (object.type === "link" && object.targetType === "url") validatedWebLinkTarget(object.target);
+    if (object.type === "link" && object.targetType === "page") validatedInternalPageTarget(object.target, pageCount);
     if (object.type === "image") {
       const asset = availableAssets.get(object.assetId);
       if (!asset?.bytes?.byteLength) {

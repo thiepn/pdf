@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertOverlayExportCanPreserveObjects, validatedWebLinkTarget } from "../../src/editor/overlayExportIntegrity";
+import { assertOverlayExportCanPreserveObjects, validatedInternalPageTarget, validatedWebLinkTarget } from "../../src/editor/overlayExportIntegrity";
 import type { EditorExportAsset, EditorObject } from "../../src/types/editor";
 
 const text = (pageNumber: number, hidden = false) =>
@@ -10,6 +10,8 @@ const asset = (bytes: number[]) =>
   ({ id: "image-data", mimeType: "image/png", bytes: Uint8Array.from(bytes).buffer }) satisfies EditorExportAsset;
 const link = (target: string, hidden = false) =>
   ({ id: "web-link", type: "link", targetType: "url", target, pageNumber: 1, hidden }) as EditorObject;
+const pageLink = (target: string, hidden = false) =>
+  ({ id: "page-link", type: "link", targetType: "page", target, pageNumber: 1, hidden }) as EditorObject;
 
 describe("overlay PDF export integrity", () => {
   it("exports supported page placements and images with stored bytes", () => {
@@ -50,6 +52,27 @@ describe("overlay PDF export integrity", () => {
       expect(() => assertOverlayExportCanPreserveObjects([text(1), link(target)], [], 1))
         .toThrow(/PDF export blocked: web links must use a valid http:\/\/ or https:\/\/ URL/);
     }
+  });
+
+  it("exports only exact, in-range internal page destinations", () => {
+    expect(validatedInternalPageTarget("2", 3)).toBe(2);
+    expect(validatedInternalPageTarget(" 3 ", 3)).toBe(3);
+    expect(() => assertOverlayExportCanPreserveObjects([text(1), pageLink("2")], [], 3)).not.toThrow();
+  });
+
+  it("blocks internal page links that would silently point to the wrong PDF page", () => {
+    for (const target of ["", "0", "999", "not-a-page", "2.5", "-1", "1e0", "Infinity", "NaN"]) {
+      expect(() => assertOverlayExportCanPreserveObjects([text(1), pageLink(target)], [], 3))
+        .toThrow(/page links require an integer destination from 1 to 3/);
+    }
+    expect(() => assertOverlayExportCanPreserveObjects([pageLink("3")], [], 2))
+      .toThrow(/from 1 to 2/);
+  });
+
+  it("does not export hidden invalid page links or mutate their stored targets", () => {
+    const hidden = pageLink("999", true);
+    expect(() => assertOverlayExportCanPreserveObjects([text(1), hidden], [], 3)).not.toThrow();
+    expect(hidden.target).toBe("999");
   });
 
   it("ignores intentionally hidden unsafe links and preserves unrelated objects", () => {
