@@ -11,7 +11,7 @@ const asset = (bytes: number[]) =>
 const link = (target: string, hidden = false) =>
   ({ id: "web-link", type: "link", targetType: "url", target, pageNumber: 1, hidden }) as EditorObject;
 const pageLink = (target: string, hidden = false) =>
-  ({ id: "page-link", type: "link", targetType: "page", target, pageNumber: 1, hidden }) as EditorObject;
+  ({ id: "page-link", type: "link", targetType: "page", target, pageNumber: 1, hidden }) as Extract<EditorObject, { type: "link" }>;
 
 describe("overlay PDF export integrity", () => {
   it("exports supported page placements and images with stored bytes", () => {
