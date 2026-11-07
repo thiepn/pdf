@@ -435,9 +435,9 @@ test("locked added objects stay immutable until explicitly unlocked", async ({ p
   await openSample(page, "editor");
   await chooseEditorTool(page, "Add text");
   const canvas = page.locator(".editor-page-layers");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Editor canvas is unavailable.");
-  await page.mouse.click(box.x + 140, box.y + 180);
+  // Element-relative click scrolls the canvas into the viewport before drawing.
+  // Raw coordinates can miss below WebKit's 720px viewport on first load.
+  await canvas.click({ position: { x: 140, y: 180 } });
 
   const object = page.locator(".editor-object").last();
   const properties = page.locator(".editor-properties");
