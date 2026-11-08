@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseEditorTool, downloadEditorCopy, openSample, switchMode } from "./helpers/taskFirst";
+import { chooseEditorTool, downloadEditorCopy, openDocumentActions, openSample, switchMode } from "./helpers/taskFirst";
 
 async function openEditorFile(page: import("@playwright/test").Page, path: string) {
   await page.goto("./#/tools/read-pdf");
@@ -507,4 +507,148 @@ test("cross-page search selection survives canvas navigation without editing the
   await expect(page.locator(".native-unified-properties")).toBeVisible();
   await expect(page.getByRole("button", { name: /Select existing (?:text|paragraph):.*PLAIN_PAGE_2_MARKER/ })).toHaveClass(/active/);
   await expect(page.locator(".editor-app")).toHaveAttribute("data-editor-dirty", "false");
+});
+
+
+// Diagnostic only: records the actual browser interaction and React event path.
+// This test deliberately does not modify application behavior or hide timeouts.
+test("Firefox Document-actions transition diagnostic records click, handler, handoff and recommendations", async ({ page, browserName }, info) => {
+  test.skip(browserName !== "firefox", "The observed non-navigation originated in Firefox.");
+  test.setTimeout(120_000);
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await openSample(page, "viewer");
+    await openDocumentActions(page);
+    const dialog = page.getByRole("dialog", { name: "Document actions", exact: true });
+    const edit = dialog.getByRole("button", { name: "Edit this PDF", exact: true });
+    await expect(edit).toBeVisible();
+
+    await page.evaluate(() => {
+      type DiagnosticWindow = typeof window & {
+        __pdfDocActionDiag?: { entries: Array<Record<string, unknown>>; stop: () => void };
+      };
+      const w = window as DiagnosticWindow;
+      const entries: Array<Record<string, unknown>> = [];
+      const started = performance.now();
+      const modal = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Document actions"]');
+      const button = Array.from(modal?.querySelectorAll("button") ?? [])
+        .find((element) => element.textContent?.trim() === "Edit this PDF");
+      const snapshot = () => {
+        const rect = button?.getBoundingClientRect();
+        const x = rect ? rect.left + rect.width / 2 : -1;
+        const y = rect ? rect.top + rect.height / 2 : -1;
+        const hit = x >= 0 && y >= 0 ? document.elementFromPoint(x, y) : null;
+        return {
+          hash: window.location.hash,
+          buttonConnected: Boolean(button?.isConnected),
+          buttonDisabled: button?.disabled ?? null,
+          buttonCenter: [Math.round(x), Math.round(y)],
+          centerHit: hit?.closest("button")?.textContent?.trim().slice(0, 64) ?? null,
+          modalOpen: Boolean(modal?.isConnected),
+          recommendations: modal?.querySelectorAll(".document-entry-recommendation").length ?? 0,
+          recommendationsChecking: Boolean(modal?.textContent?.includes("Checking document structure locally")),
+          operation: document.querySelector(".workspace-operation-banner")?.textContent?.trim().slice(0, 160) ?? null,
+          workspaceError: document.querySelector(".error-banner, .workspace-fatal")?.textContent?.trim().slice(0, 160) ?? null
+        };
+      };
+      const record = (kind: string, data: Record<string, unknown> = {}) => {
+        if (entries.length < 400) entries.push({ ms: Math.round(performance.now() - started), kind, ...data, state: snapshot() });
+      };
+      record("armed");
+
+      const cleanups: Array<() => void> = [];
+      for (const eventType of ["pointerdown", "pointerup", "click"]) {
+        for (const capture of [true, false]) {
+          const listener = (event: Event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (!modal?.contains(target)) return;
+            const pointer = event as PointerEvent;
+            record(eventType + (capture ? ":capture" : ":bubble"), {
+              targetText: target?.closest("button")?.textContent?.trim().slice(0, 64) ?? null,
+              targetTag: target?.tagName ?? null,
+              x: Number.isFinite(pointer.clientX) ? pointer.clientX : null,
+              y: Number.isFinite(pointer.clientY) ? pointer.clientY : null,
+              trusted: event.isTrusted,
+              defaultPrevented: event.defaultPrevented
+            });
+          };
+          document.addEventListener(eventType, listener, capture);
+          cleanups.push(() => document.removeEventListener(eventType, listener, capture));
+        }
+      }
+
+      // Test-only interception of the existing DOM-linked React callback.
+      // The original callback is invoked unchanged; its entry establishes
+      // whether the framework delivered this click to the application.
+      const reactKey = button && Object.keys(button).find((key) => key.startsWith("__reactProps$"));
+      const reactProps = reactKey && button
+        ? (button as unknown as Record<string, unknown>)[reactKey] as { onClick?: (...args: unknown[]) => unknown }
+        : undefined;
+      const original = reactProps?.onClick;
+      if (reactProps && typeof original === "function") {
+        reactProps.onClick = (...args: unknown[]) => {
+          record("react-handler:enter");
+          try {
+            const value = original(...args);
+            record("react-handler:returned");
+            return value;
+          } catch (error) {
+            record("react-handler:threw", { message: String(error) });
+            throw error;
+          }
+        };
+        record("react-handler:wrapped");
+      } else {
+        record("react-handler:unavailable");
+      }
+
+      let lastState = JSON.stringify(snapshot());
+      const poll = window.setInterval(() => {
+        const current = JSON.stringify(snapshot());
+        if (current !== lastState) {
+          lastState = current;
+          record("visible-state-change");
+        }
+      }, 40);
+      const onHashChange = () => record("hashchange");
+      window.addEventListener("hashchange", onHashChange);
+      cleanups.push(() => window.removeEventListener("hashchange", onHashChange));
+      w.__pdfDocActionDiag = {
+        entries,
+        stop: () => {
+          window.clearInterval(poll);
+          for (const cleanup of cleanups) cleanup();
+          record("stopped");
+        }
+      };
+    });
+
+    let failure: unknown = null;
+    try {
+      await edit.click();
+      // Keep the same 5 s assertion as the original failing test.
+      await expect(page).toHaveURL(/\/editor(?:\/[^/]+)?$/, { timeout: 5_000 });
+      await expect(page.locator(".editor-app")).toBeVisible({ timeout: 20_000 });
+    } catch (error) {
+      failure = error;
+    }
+    const evidence = await page.evaluate(() => {
+      const w = window as typeof window & {
+        __pdfDocActionDiag?: { entries: Array<Record<string, unknown>>; stop: () => void };
+      };
+      w.__pdfDocActionDiag?.stop();
+      return { finalUrl: window.location.href, events: w.__pdfDocActionDiag?.entries ?? [] };
+    });
+    await info.attach("firefox-document-actions-attempt-" + attempt + ".json", {
+      body: JSON.stringify(evidence, null, 2),
+      contentType: "application/json"
+    });
+    if (failure) {
+      throw new Error("Document-actions transition failed on attempt " + attempt +
+        ". Last diagnostic events: " + JSON.stringify(evidence.events.slice(-24)) +
+        ". Original assertion: " + String(failure));
+    }
+    expect(evidence.events.some((event) => event.kind === "click:capture"))
+      .toBe(true);
+  }
 });
