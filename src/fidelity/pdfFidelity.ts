@@ -25,6 +25,19 @@ export interface PdfPageSemanticFingerprint {
   widgetCount: number;
 }
 
+/** Volatile inspection-only field evidence: values are never persisted or put into error messages. */
+export interface PdfFormWidgetFingerprint {
+  name: string;
+  type: string;
+  pageNumber: number;
+  rect: number[];
+  value: string;
+  defaultValue: string;
+  exportValues: string;
+  editable: boolean;
+  password: boolean;
+}
+
 export interface PdfFidelityProfile {
   pageCount: number;
   sampledPages: number[];
@@ -33,6 +46,7 @@ export interface PdfFidelityProfile {
   outlineEntries: number;
   attachmentCount: number;
   formFieldCount: number;
+  formWidgets?: PdfFormWidgetFingerprint[];
   hasJavaScript: boolean;
   pageLabelsDigest: string;
   coreMetadata: Record<string, string>;
@@ -49,6 +63,11 @@ export interface PdfFidelityExpectations {
   coreMetadataMode?: "preserve" | "cleared";
   widgetDeltaByPage?: Record<number, number>;
   expectNoWidgetsOnAffectedPages?: boolean;
+  /** Only the explicitly requested final values are allowed to differ. */
+  formValueUpdates?: Array<{ name: string; value: string }>;
+  formCreates?: Array<{ name: string; pageNumber: number; type: "text" | "checkbox"; value: string }>;
+  clearFormValues?: boolean;
+  flattenForms?: boolean;
 }
 
 export interface PdfFidelityReport {
@@ -195,6 +214,94 @@ function compareCoreMetadata(
   }
 }
 
+
+function formWidgetIdentity(widget: PdfFormWidgetFingerprint): string {
+  return JSON.stringify([widget.name, widget.type, widget.pageNumber, widget.rect.map((n) => Math.round(n * 100) / 100), widget.exportValues]);
+}
+
+function clearedFormValue(widget: PdfFormWidgetFingerprint): boolean {
+  if (widget.type === "checkbox" || widget.type === "radiobutton") {
+    return widget.value === JSON.stringify("Off") || widget.value === JSON.stringify("");
+  }
+  return [JSON.stringify(""), JSON.stringify(null), JSON.stringify([])].includes(widget.value);
+}
+
+function compareFormWidgets(
+  source: PdfFidelityProfile,
+  output: PdfFidelityProfile,
+  expectations: PdfFidelityExpectations,
+  failures: string[]
+): void {
+  // Hand-built unit profiles predating this evidence may omit the snapshots.
+  // Real PDF.js inspections always populate them (even for form-free PDFs).
+  if (!source.formWidgets || !output.formWidgets) return;
+  const before = source.formWidgets;
+  const after = output.formWidgets;
+  if (expectations.flattenForms) {
+    if (before.some((field) => field.type === "signature")) failures.push("Flattening would remove a signature field.");
+    if (after.length) failures.push("Flattened output still contains interactive form widgets.");
+    return;
+  }
+  const updates = new Map<string, string>();
+  for (const update of expectations.formValueUpdates ?? []) {
+    if (!update.name || (updates.has(update.name) && updates.get(update.name) !== update.value)) {
+      failures.push("Conflicting or invalid authorized form update.");
+      continue;
+    }
+    const eligible = before.filter((field) => field.name === update.name);
+    if (!eligible.length || eligible.some((field) => !field.editable || field.password || field.type === "signature")) {
+      failures.push("A form update targets a protected or missing field.");
+      continue;
+    }
+    updates.set(update.name, JSON.stringify(update.value));
+  }
+  const additions = [...(expectations.formCreates ?? [])];
+  for (const addition of additions) {
+    if (!addition.name || before.some((field) => field.name === addition.name)) {
+      failures.push("A created form field has a missing or already-used name.");
+    }
+  }
+
+  const afterByIdentity = new Map<string, PdfFormWidgetFingerprint[]>();
+  for (const widget of after) {
+    const key = formWidgetIdentity(widget);
+    const matches = afterByIdentity.get(key) ?? [];
+    matches.push(widget);
+    afterByIdentity.set(key, matches);
+  }
+  for (const widget of before) {
+    const key = formWidgetIdentity(widget);
+    const matches = afterByIdentity.get(key);
+    const found = matches?.shift();
+    if (!found) {
+      failures.push("An existing interactive form widget changed identity or disappeared.");
+      continue;
+    }
+    if (widget.defaultValue !== found.defaultValue || widget.editable !== found.editable || widget.password !== found.password) {
+      failures.push("Existing form field attributes changed unexpectedly.");
+    }
+    const explicit = updates.get(widget.name);
+    if (explicit !== undefined) {
+      if (found.value !== explicit) failures.push("An authorized form field update did not produce its exact requested value.");
+    } else if (expectations.clearFormValues && widget.editable && !widget.password && widget.type !== "signature") {
+      if (!clearedFormValue(found)) failures.push("Form clearing left a nonempty editable field.");
+    } else if (widget.value !== found.value) {
+      failures.push("An existing form field value changed without authorization.");
+    }
+  }
+  const remaining = [...afterByIdentity.values()].flat();
+  const used = new Set<number>();
+  for (const widget of remaining) {
+    const index = additions.findIndex((added, at) =>
+      !used.has(at) && added.name === widget.name && added.pageNumber === widget.pageNumber
+      && added.type === widget.type && widget.value === JSON.stringify(added.value)
+    );
+    if (index < 0) failures.push("An unexpected interactive form widget was added.");
+    else used.add(index);
+  }
+  if (used.size !== additions.length) failures.push("An authorized interactive form field was missing or altered.");
+}
+
 export function comparePdfFidelityProfiles(
   source: PdfFidelityProfile,
   output: PdfFidelityProfile,
@@ -216,6 +323,7 @@ export function comparePdfFidelityProfiles(
   if (output.attachmentCount !== expectedAttachments) failures.push(`Attachment count is ${output.attachmentCount}; expected ${expectedAttachments}.`);
   const expectedFormFields = expectations.expectedFormFieldCount ?? source.formFieldCount;
   if (output.formFieldCount !== expectedFormFields) failures.push(`Form field count is ${output.formFieldCount}; expected ${expectedFormFields}.`);
+  compareFormWidgets(source, output, expectations, failures);
   if (expectations.expectedHasJavaScript !== undefined) {
     if (output.hasJavaScript !== expectations.expectedHasJavaScript) {
       failures.push(`Document JavaScript presence did not match the expected output state (${expectations.expectedHasJavaScript ? "present" : "absent"}).`);

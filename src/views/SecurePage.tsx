@@ -214,6 +214,17 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
             expectedHasJavaScript: security.sanitization.removeJavaScript ? false : undefined,
             allowJavaScriptRemoval: security.sanitization.removeOpenActions && !security.sanitization.removeJavaScript,
             coreMetadataMode: security.sanitization.removeMetadata ? "cleared" : "preserve",
+            // P8 may change form states only when the user explicitly requested
+            // these exact updates, creations, clearing, or flattening.
+            formValueUpdates: security.sanitization.clearFormValues ? [] : formUpdates.map((field) => ({
+              name: field.name, value: field.value
+            })),
+            formCreates: formCreates.map((field) => ({
+              name: field.name, pageNumber: field.pageNumber, type: field.type,
+              value: field.type === "checkbox" || security.sanitization.clearFormValues ? (field.type === "checkbox" ? "Off" : "") : field.defaultValue
+            })),
+            clearFormValues: security.sanitization.clearFormValues,
+            flattenForms: security.sanitization.flattenForms,
             ...(security.sanitization.flattenForms
               ? { expectNoWidgetsOnAffectedPages: true }
               : { widgetDeltaByPage })

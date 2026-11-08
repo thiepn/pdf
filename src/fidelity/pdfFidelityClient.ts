@@ -7,6 +7,7 @@ import {
   stableTextDigest,
   type PdfFidelityExpectations,
   type PdfFidelityProfile,
+  type PdfFormWidgetFingerprint,
   type PdfFidelityReport,
   type PdfPageSemanticFingerprint
 } from "./pdfFidelity";
@@ -134,8 +135,33 @@ export async function inspectPdfFidelityProfile(
     const actions = actionsResult.status === "fulfilled" ? actionsResult.value : null;
     const labels = labelsResult.status === "fulfilled" ? labelsResult.value : null;
 
-    let formFieldCount = 0;
-    if (fields) for (const value of Object.values(fields)) formFieldCount += Array.isArray(value) ? value.length : 0;
+
+    // A PDF.js radio group has a synthetic parent with page=-1; it is not
+    // an actual Widget annotation. Count and compare only real page widgets.
+    // Never silently accept missing field inspection as an empty AcroForm.
+    if (fieldsResult.status === "rejected") throw new Error("Form field fidelity inspection failed.");
+    const formWidgets: PdfFormWidgetFingerprint[] = [];
+    if (fields) {
+      for (const [name, entries] of Object.entries(fields)) {
+        if (!Array.isArray(entries)) throw new Error("Form field evidence is malformed.");
+        for (const raw of entries) {
+          const field = raw as any;
+          if (field.page === -1 && Array.isArray(field.kidIds)) continue;
+          if (!Number.isInteger(field.page) || field.page < 0 || !Array.isArray(field.rect) || field.rect.length !== 4) {
+            throw new Error("Form widget geometry cannot be verified.");
+          }
+          const normalized = (value: unknown) => JSON.stringify(value ?? null);
+          formWidgets.push({
+            name, type: String(field.type ?? ""), pageNumber: field.page + 1,
+            rect: field.rect.map(Number),
+            value: normalized(field.value), defaultValue: normalized(field.defaultValue),
+            exportValues: normalized(field.exportValues), editable: field.editable === true,
+            password: field.password === true
+          });
+        }
+      }
+    }
+    const formFieldCount = formWidgets.length;
 
     const geometry: PdfFidelityProfile["geometry"] = [];
     const semantics: PdfFidelityProfile["semantics"] = [];
@@ -165,6 +191,7 @@ export async function inspectPdfFidelityProfile(
       outlineEntries: countOutline(outline),
       attachmentCount: attachments ? Object.keys(attachments).length : 0,
       formFieldCount,
+      formWidgets,
       hasJavaScript: Boolean(actions && Object.keys(actions).length),
       pageLabelsDigest: stableTextDigest(JSON.stringify(labels ?? [])),
       coreMetadata: coreMetadata(info),
