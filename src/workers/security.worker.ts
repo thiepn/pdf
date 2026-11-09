@@ -587,7 +587,9 @@ function removePageContent(pdf: any, options: SecurityExportOptions["sanitizatio
         for (const link of pageLinks) { page.deleteLink(link); links += 1; }
       }
       if (options.removeComments || options.removeAttachments) {
-        for (const annotation of safeCall(() => page.getAnnotations(), [] as any[])) {
+        // MuPDF returns a live annotation collection. Deleting while iterating
+        // it skips subsequent annotations, leaving orphaned comment/popups.
+        for (const annotation of [...safeCall(() => page.getAnnotations(), [] as any[])]) {
           const type = safeString(safeCall(() => annotation.getType(), ""));
           if (options.removeAttachments && type === "FileAttachment") { page.deleteAnnotation(annotation); attachments += 1; continue; }
           if (options.removeComments && type !== "Redaction" && type !== "Redact") { page.deleteAnnotation(annotation); comments += 1; }

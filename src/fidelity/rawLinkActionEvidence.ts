@@ -10,6 +10,9 @@ export interface RawLinkActionPage {
   fingerprints: string[];
   hasJavaScript: boolean;
   hasAdditionalActions: boolean;
+  /** The PDF.js visible annotation list omits /Popup ownership edges. */
+  popupRelationships: string[];
+  popupInvalid: boolean;
 }
 export type RawLinkActionEvidence = Record<number, RawLinkActionPage>;
 export interface RawLinkActionNormalization {
@@ -90,6 +93,63 @@ function rectKey(annotation: any): number[] {
   });
 }
 
+/** Compare popup ownership by visible parent and popup properties, not indirect
+ * object numbers. Rebuilt PDFs can legitimately renumber both objects. */
+function popupOwnership(annotations: any): { relationships: string[]; invalid: boolean } {
+  if (!present(annotations)) return { relationships: [], invalid: false };
+  if (!annotations.isArray?.() || annotations.length > MAX_ITEMS) {
+    throw new Error("The PDF annotation ownership graph exceeds safe inspection limits.");
+  }
+  const entries: any[] = Array.from({ length: annotations.length }, (_, i) => annotations.get(i));
+  const byRef = new Map<number, any>();
+  for (const entry of entries) {
+    if (entry.isIndirect?.()) byRef.set(entry.asIndirect(), entry);
+  }
+  const ref = (value: any): number | null =>
+    present(value) && value.isIndirect?.() ? value.asIndirect() : null;
+  const kind = (value: any): string => value.get("Subtype").asName?.() ?? "";
+  const key = (entry: any): string => {
+    const rect = entry.get("Rect");
+    const coordinates = present(rect) && rect.isArray?.() && rect.length === 4
+      ? Array.from({ length: 4 }, (_, i) => {
+          const coordinate = rect.get(i).asNumber();
+          if (!Number.isFinite(coordinate)) throw new Error("Invalid PDF popup geometry.");
+          return Math.round(coordinate * 100) / 100;
+        })
+      : [];
+    const field = (name: string): unknown => {
+      const value = entry.get(name);
+      const result = present(value) ? value.asJS?.() : null;
+      if (typeof result === "string" && result.length > MAX_STRING_LENGTH) {
+        throw new Error("PDF popup metadata exceeds safe inspection limits.");
+      }
+      return result ?? null;
+    };
+    return JSON.stringify([kind(entry), coordinates, field("Contents"), field("T"),
+      field("NM"), field("F"), field("Open")]);
+  };
+  let invalid = false;
+  const relationships: string[] = [];
+  for (const entry of entries) {
+    const subtype = kind(entry);
+    const parent = entry.get("Parent");
+    const popup = entry.get("Popup");
+    if (subtype === "Popup") {
+      const owner = byRef.get(ref(parent) ?? -1);
+      if (!owner || kind(owner) === "Popup" || kind(owner) === "Widget"
+          || ref(owner.get("Popup")) !== ref(entry)) invalid = true;
+    } else if (present(popup)) {
+      const child = byRef.get(ref(popup) ?? -1);
+      if (!child || kind(child) !== "Popup" || ref(child.get("Parent")) !== ref(entry)) {
+        invalid = true;
+      } else {
+        relationships.push(JSON.stringify([key(entry), key(child)]));
+      }
+    }
+  }
+  return { relationships: relationships.sort(), invalid };
+}
+
 export function inspectRawLinkActionEvidence(
   pdf: any,
   pages: number[],
@@ -118,8 +178,10 @@ export function inspectRawLinkActionEvidence(
     const detection = { hasJavaScript: false };
     let hasAdditionalActions = false;
     const page = pdf.loadPage(pageNumber - 1);
+    let popup: { relationships: string[]; invalid: boolean };
     try {
       const annotations = page.getObject().get("Annots");
+      popup = popupOwnership(annotations);
       if (present(annotations) && !annotations.isArray?.()) throw new Error("PDF annotations must be an array.");
       for (let index = 0; present(annotations) && index < annotations.length; index += 1) {
         if (index >= MAX_ITEMS) throw new Error("Too many PDF annotations for raw-action inspection.");
@@ -142,7 +204,9 @@ export function inspectRawLinkActionEvidence(
     result[pageNumber] = {
       fingerprints: fingerprints.sort(),
       hasJavaScript: detection.hasJavaScript,
-      hasAdditionalActions
+      hasAdditionalActions,
+      popupRelationships: popup.relationships,
+      popupInvalid: popup.invalid
     };
   }
   return result;

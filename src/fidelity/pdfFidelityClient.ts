@@ -338,10 +338,12 @@ export async function validatePdfFidelity(
   }
   const output = await inspectPdfFidelityProfile(outputBytes, source.affectedPages, outputPassword, signal, source.sampledPages);
   const report = comparePdfFidelityProfiles(source, output, options.expectations);
-  if (!options.expectations?.expectNoLinksOnAffectedPages && source.affectedPages.some((page) =>
-    (source.semantics.find((item) => item.pageNumber === page)?.linkCount ?? 0) > 0 ||
-    (output.semantics.find((item) => item.pageNumber === page)?.linkCount ?? 0) > 0
-  )) {
+  if (source.affectedPages.some((page) => {
+    const before = source.semantics.find((item) => item.pageNumber === page);
+    const after = output.semantics.find((item) => item.pageNumber === page);
+    return (before?.linkCount ?? 0) > 0 || (after?.linkCount ?? 0) > 0
+      || (before?.annotationCount ?? 0) > 0 || (after?.annotationCount ?? 0) > 0;
+  })) {
     const normalization = {
       removeJavaScript: options.expectations?.removeEmbeddedLinkScripts === true,
       removeAdditionalActions: options.expectations?.removeLinkAdditionalActions === true
@@ -351,9 +353,10 @@ export async function validatePdfFidelity(
       inspectP8RawLinkActions(outputBytes, source.affectedPages, outputPassword, signal, normalization)
     ]);
     for (const page of source.affectedPages) {
-      const before = original[page]?.fingerprints ?? [];
-      const after = exported[page]?.fingerprints ?? [];
-      if (JSON.stringify(before) !== JSON.stringify(after)) {
+      const linksBefore = original[page]?.fingerprints ?? [];
+      const linksAfter = exported[page]?.fingerprints ?? [];
+      if (!options.expectations?.expectNoLinksOnAffectedPages
+          && JSON.stringify(linksBefore) !== JSON.stringify(linksAfter)) {
         report.failures.push(`Page ${page} supplemental link action graph changed unexpectedly.`);
       }
       if (normalization.removeJavaScript && exported[page]?.hasJavaScript) {
@@ -361,6 +364,25 @@ export async function validatePdfFidelity(
       }
       if (normalization.removeAdditionalActions && exported[page]?.hasAdditionalActions) {
         report.failures.push(`Page ${page} link additional actions were not removed.`);
+      }
+      const popupBefore = original[page]?.popupRelationships ?? [];
+      const popupAfter = exported[page]?.popupRelationships ?? [];
+      if (original[page]?.popupInvalid || exported[page]?.popupInvalid) {
+        report.failures.push(`Page ${page} popup-parent association is invalid.`);
+      }
+      const remaining = new Map<string, number>();
+      for (const key of popupBefore) remaining.set(key, (remaining.get(key) ?? 0) + 1);
+      let additions = 0;
+      for (const key of popupAfter) {
+        const count = remaining.get(key) ?? 0;
+        if (count) remaining.set(key, count - 1);
+        else additions += 1;
+      }
+      const losses = [...remaining.values()].reduce((sum, count) => sum + count, 0);
+      const expectedAdditions = options.expectations?.annotationDeltaByPage?.[page] ?? 0;
+      if ((!options.expectations?.allowAnnotationRemovalOnAffectedPages && losses > 0)
+          || additions > expectedAdditions) {
+        report.failures.push(`Page ${page} popup ownership changed unexpectedly.`);
       }
     }
     if (report.failures.length) report.passed = false;
