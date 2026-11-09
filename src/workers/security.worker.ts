@@ -11,6 +11,7 @@ import type {
   SignatureInspection
 } from "../types/security";
 import { permissionMask } from "../security/securityModel";
+import { inspectRawLinkActionEvidence } from "../fidelity/rawLinkActionEvidence";
 
 interface InspectRequest {
   type: "INSPECT_SECURITY";
@@ -27,8 +28,16 @@ interface ApplyRequest {
   options: SecurityExportOptions;
 }
 
+interface RawLinkActionRequest {
+  type: "INSPECT_P8_LINK_ACTIONS";
+  requestId: string;
+  bytes: ArrayBuffer;
+  password?: string;
+  pages: number[];
+  normalization?: { removeJavaScript?: boolean; removeAdditionalActions?: boolean };
+}
 interface CancelRequest { type: "CANCEL"; requestId: string }
-type Request = InspectRequest | ApplyRequest | CancelRequest;
+type Request = InspectRequest | ApplyRequest | RawLinkActionRequest | CancelRequest;
 const cancelled = new Set<string>();
 
 function assertActive(requestId: string): void {
@@ -728,6 +737,12 @@ self.onmessage = (event: MessageEvent<Request>) => {
       if (request.type === "INSPECT_SECURITY") {
         const report = inspectDocument(source, authentication, request.requestId);
         self.postMessage({ type: "SECURITY_INSPECTION_RESULT", requestId: request.requestId, report });
+      } else if (request.type === "INSPECT_P8_LINK_ACTIONS") {
+        const pdf = source.asPDF();
+        if (!pdf) throw new Error("The document is not a PDF.");
+        pdf.disableJS?.();
+        const evidence = inspectRawLinkActionEvidence(pdf, request.pages, request.normalization);
+        self.postMessage({ type: "P8_LINK_ACTIONS_RESULT", requestId: request.requestId, evidence });
       } else {
         const result = applySecurity(source, request.options);
         const output = Uint8Array.from(result.bytes).buffer;

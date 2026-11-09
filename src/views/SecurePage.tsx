@@ -220,6 +220,8 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
             expectedFormFieldCount: security.sanitization.flattenForms ? 0 : inspection.formFields.length + formCreates.length,
             expectedHasJavaScript: security.sanitization.removeJavaScript ? false : undefined,
             allowJavaScriptRemoval: security.sanitization.removeOpenActions && !security.sanitization.removeJavaScript,
+            removeEmbeddedLinkScripts: security.sanitization.removeJavaScript,
+            removeLinkAdditionalActions: security.sanitization.removeOpenActions,
             coreMetadataMode: security.sanitization.removeMetadata ? "cleared" : "preserve",
             linkDeltaByPage: security.sanitization.removeLinks ? {} : linkDeltaByPage,
             annotationDeltaByPage: (security.sanitization.removeComments || security.sanitization.flattenAnnotations)

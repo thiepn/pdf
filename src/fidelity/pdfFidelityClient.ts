@@ -1,6 +1,6 @@
 import * as pdfjs from "pdfjs-dist";
 import { openPdfWithPdfJs } from "../engines/pdfjs";
-import { inspectSecurity } from "../security/securityClient";
+import { inspectSecurity, inspectP8RawLinkActions } from "../security/securityClient";
 import {
   analyzePdfContainerFeatures,
   chooseFidelitySamplePages,
@@ -58,6 +58,14 @@ function annotationCounts(annotations: any[]): Pick<PdfPageSemanticFingerprint, 
 }
 
 async function canonicalLinkDestination(destination: unknown, document: any): Promise<unknown> {
+  if (typeof destination === "string") {
+    // PDF.js exposes a named destination by name, but the Names/Dests map
+    // can be changed without touching the Link annotation. Resolve the map
+    // before checking the semantic page and view, not the volatile name.
+    const resolved = await document.getDestination(destination);
+    if (!Array.isArray(resolved)) throw new Error("Named PDF link destination cannot be verified.");
+    return canonicalLinkDestination(resolved, document);
+  }
   if (!Array.isArray(destination)) return destination ?? null;
   const [reference, ...view] = destination;
   // An internal /GoTo target uses a PDF page reference, whose object number
@@ -329,5 +337,33 @@ export async function validatePdfFidelity(
     }
   }
   const output = await inspectPdfFidelityProfile(outputBytes, source.affectedPages, outputPassword, signal, source.sampledPages);
-  return comparePdfFidelityProfiles(source, output, options.expectations);
+  const report = comparePdfFidelityProfiles(source, output, options.expectations);
+  if (!options.expectations?.expectNoLinksOnAffectedPages && source.affectedPages.some((page) =>
+    (source.semantics.find((item) => item.pageNumber === page)?.linkCount ?? 0) > 0 ||
+    (output.semantics.find((item) => item.pageNumber === page)?.linkCount ?? 0) > 0
+  )) {
+    const normalization = {
+      removeJavaScript: options.expectations?.removeEmbeddedLinkScripts === true,
+      removeAdditionalActions: options.expectations?.removeLinkAdditionalActions === true
+    };
+    const [original, exported] = await Promise.all([
+      inspectP8RawLinkActions(sourceBytes, source.affectedPages, sourcePassword, signal, normalization),
+      inspectP8RawLinkActions(outputBytes, source.affectedPages, outputPassword, signal, normalization)
+    ]);
+    for (const page of source.affectedPages) {
+      const before = original[page]?.fingerprints ?? [];
+      const after = exported[page]?.fingerprints ?? [];
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        report.failures.push(`Page ${page} supplemental link action graph changed unexpectedly.`);
+      }
+      if (normalization.removeJavaScript && exported[page]?.hasJavaScript) {
+        report.failures.push(`Page ${page} embedded link scripts were not removed.`);
+      }
+      if (normalization.removeAdditionalActions && exported[page]?.hasAdditionalActions) {
+        report.failures.push(`Page ${page} link additional actions were not removed.`);
+      }
+    }
+    if (report.failures.length) report.passed = false;
+  }
+  return report;
 }

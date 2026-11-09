@@ -65,6 +65,10 @@ export interface PdfFidelityExpectations {
   expectedFormFieldCount?: number;
   expectedHasJavaScript?: boolean;
   allowJavaScriptRemoval?: boolean;
+  /** The user explicitly requested removing embedded scripts from link actions. */
+  removeEmbeddedLinkScripts?: boolean;
+  /** The user explicitly requested removing annotation additional actions. */
+  removeLinkAdditionalActions?: boolean;
   coreMetadataMode?: "preserve" | "cleared";
   widgetDeltaByPage?: Record<number, number>;
   expectNoWidgetsOnAffectedPages?: boolean;
