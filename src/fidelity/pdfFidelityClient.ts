@@ -129,7 +129,9 @@ export async function inspectPdfFidelityProfile(
       document.getPageLabels()
     ]);
 
-    const info = metadataResult.status === "fulfilled" ? metadataResult.value.info as Record<string, unknown> : {};
+    if (metadataResult.status === "rejected") throw new Error("Document metadata fidelity inspection failed.");
+    const info = metadataResult.value.info as Record<string, unknown>;
+    const xmpMetadataXml = metadataResult.value.metadata?.getRaw?.() ?? "";
     const outline = outlineResult.status === "fulfilled" ? outlineResult.value : null;
     const attachments = attachmentsResult.status === "fulfilled" ? attachmentsResult.value : null;
     const fields = fieldsResult.status === "fulfilled" ? fieldsResult.value : null;
@@ -218,6 +220,7 @@ export async function inspectPdfFidelityProfile(
       hasJavaScript: Boolean(actions && Object.keys(actions).length),
       pageLabelsDigest: stableTextDigest(JSON.stringify(labels ?? [])),
       coreMetadata: coreMetadata(info),
+      xmpMetadataXml,
       geometry,
       semantics
     };

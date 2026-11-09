@@ -50,6 +50,8 @@ export interface PdfFidelityProfile {
   hasJavaScript: boolean;
   pageLabelsDigest: string;
   coreMetadata: Record<string, string>;
+  /** Volatile XMP evidence for exact preservation; never persisted or logged. */
+  xmpMetadataXml?: string;
   geometry: PdfPageGeometryFingerprint[];
   semantics: PdfPageSemanticFingerprint[];
 }
@@ -335,6 +337,13 @@ export function comparePdfFidelityProfiles(
   }
   if (source.pageLabelsDigest !== output.pageLabelsDigest) failures.push("Page labels changed unexpectedly.");
   compareCoreMetadata(source.coreMetadata, output.coreMetadata, failures, expectations.coreMetadataMode);
+  if (source.xmpMetadataXml !== undefined && output.xmpMetadataXml !== undefined) {
+    if (expectations.coreMetadataMode === "cleared") {
+      if (output.xmpMetadataXml !== "") failures.push("XMP metadata was expected to be cleared.");
+    } else if (source.xmpMetadataXml !== output.xmpMetadataXml) {
+      failures.push("XMP metadata changed unexpectedly.");
+    }
+  }
 
   for (const pageNumber of source.sampledPages) {
     const beforeGeometry = sourceGeometry.get(pageNumber);
