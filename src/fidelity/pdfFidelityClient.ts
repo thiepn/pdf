@@ -1,5 +1,6 @@
 import * as pdfjs from "pdfjs-dist";
 import { openPdfWithPdfJs } from "../engines/pdfjs";
+import { inspectSecurity } from "../security/securityClient";
 import {
   analyzePdfContainerFeatures,
   chooseFidelitySamplePages,
@@ -140,6 +141,25 @@ export async function inspectPdfFidelityProfile(
     // an actual Widget annotation. Count and compare only real page widgets.
     // Never silently accept missing field inspection as an empty AcroForm.
     if (fieldsResult.status === "rejected") throw new Error("Form field fidelity inspection failed.");
+    // PDF.js intentionally omits geometry from signature field objects.
+    // Resolve only their matching real page Widget annotations; never invent a rectangle.
+    const signatureRectCache = new Map<number, Map<string, number[]>>();
+    const signatureRect = async (pageIndex: number, id: string, name: string): Promise<number[] | undefined> => {
+      let byId = signatureRectCache.get(pageIndex);
+      if (!byId) {
+        const page = await document.getPage(pageIndex + 1);
+        const annotations = await page.getAnnotations();
+        byId = new Map<string, number[]>();
+        for (const annotation of annotations) {
+          if (annotation.subtype !== "Widget" || annotation.fieldType !== "Sig"
+              || typeof annotation.id !== "string" || !Array.isArray(annotation.rect)
+              || annotation.rect.length !== 4 || annotation.fieldName !== name) continue;
+          byId.set(annotation.id, annotation.rect.map(Number));
+        }
+        signatureRectCache.set(pageIndex, byId);
+      }
+      return byId.get(id);
+    };
     const formWidgets: PdfFormWidgetFingerprint[] = [];
     if (fields) {
       for (const [name, entries] of Object.entries(fields)) {
@@ -147,13 +167,16 @@ export async function inspectPdfFidelityProfile(
         for (const raw of entries) {
           const field = raw as any;
           if (field.page === -1 && Array.isArray(field.kidIds)) continue;
-          if (!Number.isInteger(field.page) || field.page < 0 || !Array.isArray(field.rect) || field.rect.length !== 4) {
+          const rect = field.type === "signature" && !Array.isArray(field.rect)
+            && Number.isInteger(field.page) && field.page >= 0
+            ? await signatureRect(field.page, String(field.id ?? ""), name) : field.rect;
+          if (!Number.isInteger(field.page) || field.page < 0 || !Array.isArray(rect) || rect.length !== 4 || rect.some((n: number) => !Number.isFinite(n))) {
             throw new Error("Form widget geometry cannot be verified.");
           }
           const normalized = (value: unknown) => JSON.stringify(value ?? null);
           formWidgets.push({
             name, type: String(field.type ?? ""), pageNumber: field.page + 1,
-            rect: field.rect.map(Number),
+            rect: rect.map(Number),
             value: normalized(field.value), defaultValue: normalized(field.defaultValue),
             exportValues: normalized(field.exportValues), editable: field.editable === true,
             password: field.password === true
@@ -220,6 +243,25 @@ export async function validatePdfFidelity(
   const sourcePassword = options.sourcePassword ?? password;
   const outputPassword = options.outputPassword ?? password;
   const source = await inspectPdfFidelityProfile(sourceBytes, affectedPages, sourcePassword, signal);
+  // PDF Studio rewrites exports, which invalidates existing cryptographic
+  // signatures. Do not return a PDF that still displays a signature field
+  // when its signed byte ranges are no longer valid.
+  const byteIdentical = sourceBytes.length === outputBytes.length
+    && sourceBytes.every((value, index) => value === outputBytes[index]);
+  if (!byteIdentical && source.formWidgets?.some((field) => field.type === "signature")) {
+    const inspection = await inspectSecurity(sourceBytes, sourcePassword, signal);
+    if (inspection.signatures.some((signature) => signature.signed)) {
+      const affected = new Set(source.affectedPages);
+      return {
+        passed: false,
+        failures: ["Signed PDF export blocked: rewriting would invalidate an existing cryptographic signature. The original remains unchanged."],
+        warnings: [],
+        sampledPages: source.sampledPages,
+        sampledAffectedPages: source.sampledPages.filter((page) => affected.has(page)),
+        affectedPageCount: source.affectedPages.length
+      };
+    }
+  }
   const output = await inspectPdfFidelityProfile(outputBytes, source.affectedPages, outputPassword, signal, source.sampledPages);
   return comparePdfFidelityProfiles(source, output, options.expectations);
 }

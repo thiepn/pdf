@@ -143,6 +143,10 @@ function widgetType(widget: any): FormFieldType {
   return (["button", "checkbox", "combobox", "listbox", "radiobutton", "signature", "text"] as string[]).includes(type) ? type as FormFieldType : "unknown";
 }
 
+function hasNonNullSignatureValue(value: any): boolean {
+  return value !== null && value !== undefined && !(typeof value.isNull === "function" && value.isNull());
+}
+
 function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, transform: AffineMatrix): { field: SecurityFormField; signature?: SignatureInspection } {
   const type = widgetType(widget);
   const name = safeString(safeCall(() => widget.getName(), ""));
@@ -150,7 +154,7 @@ function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, tra
   const rect = safeCall(() => transformRect(transform, widget.getRect()), { x0: 0, y0: 0, x1: 0, y1: 0 });
   const signatureValue = type === "signature" ? safeCall(() => widget.getObject?.()?.get?.("V"), null) : null;
   const signed = type === "signature"
-    ? (typeof widget.isSigned === "function" ? safeCall(() => Boolean(widget.isSigned()), false) : Boolean(signatureValue))
+    ? (typeof widget.isSigned === "function" ? safeCall(() => Boolean(widget.isSigned()), false) : hasNonNullSignatureValue(signatureValue))
     : null;
   const password = Boolean(safeCall(() => widget.isPassword(), false));
   const field: SecurityFormField = {
@@ -656,7 +660,7 @@ function countSignedFields(pdf: any): number {
         if (widgetType(widget) !== "signature") continue;
         const signed = typeof widget.isSigned === "function"
           ? safeCall(() => Boolean(widget.isSigned()), false)
-          : Boolean(safeCall(() => widget.getObject?.()?.get?.("V"), null));
+          : hasNonNullSignatureValue(safeCall(() => widget.getObject?.()?.get?.("V"), null));
         if (signed) count += 1;
       }
     } finally { page.destroy(); }

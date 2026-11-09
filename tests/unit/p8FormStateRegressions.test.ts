@@ -333,3 +333,76 @@ describe("P8 repeated radio-group permissions", () => {
     expect(report.failures).toEqual([]);
   });
 });
+
+function unsignedSignatureFixture(): Uint8Array {
+  const pdf = mupdf.Document.openDocument(fixtureBytes, "application/pdf").asPDF()!;
+  try {
+    const page = pdf.loadPage(0) as mupdf.PDFPage;
+    try {
+      const pageObject = page.getObject();
+      const signature = pdf.addObject({
+        Type: "Annot", Subtype: "Widget", FT: "Sig",
+        T: pdf.newString("QA_Signature"), Rect: [80, 320, 260, 370],
+        P: pageObject, F: 4
+      });
+      pdf.getTrailer().get("Root").get("AcroForm").get("Fields").push(signature);
+      pageObject.get("Annots").push(signature);
+      page.update();
+    } finally { page.destroy(); }
+    const buffer = pdf.saveToBuffer();
+    try { return Uint8Array.from(buffer.asUint8Array()); } finally { buffer.destroy(); }
+  } finally { pdf.destroy(); }
+}
+
+describe("P8 signature geometry", () => {
+  it("inspects a real unsigned signature widget from its page annotation rather than requiring a field-object rect", async () => {
+    const file = unsignedSignatureFixture();
+    const profile = await inspectPdfFidelityProfile(file, [1]);
+    expect(profile.formFieldCount).toBe(4);
+    const signature = profile.formWidgets?.find((widget) => widget.name === "QA_Signature");
+    expect(signature?.type).toBe("signature");
+    expect(signature?.rect).toEqual([80, 320, 260, 370]);
+    const same = await validatePdfFidelity(file, file, [1]);
+    expect(same.passed).toBe(true);
+  });
+});
+
+describe("P7 unsigned signature-state classification", () => {
+  it("reports an empty signature value as unsigned rather than a signed PDF", async () => {
+    const bytes = unsignedSignatureFixture();
+    const messages: any[] = [];
+    const scope: any = { postMessage: (entry: any) => messages.push(entry) };
+    vi.stubGlobal("self", scope);
+    try {
+      if (!securityWorkerHandler) {
+        await import("../../src/workers/security.worker");
+        securityWorkerHandler = scope.onmessage;
+      }
+      securityWorkerHandler!({ data: { type: "INSPECT_SECURITY", requestId: "unsigned-sig-value", bytes: bytes.slice().buffer } });
+      const result = messages.find((item) => item.type === "SECURITY_INSPECTION_RESULT");
+      expect(result?.report?.signatures).toHaveLength(1);
+      expect(result.report.signatures[0].signed).toBe(false);
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe("P7 signed and unsigned signature state with real PDF widgets", () => {
+  it("classifies a cryptographically signed test PDF as signed", async () => {
+    const source = new Uint8Array(readFileSync("tests/corpus/p8-signature-qa/signed.pdf"));
+    const messages: any[] = [];
+    const scope: any = { postMessage: (message: any) => messages.push(message) };
+    vi.stubGlobal("self", scope);
+    try {
+      if (!securityWorkerHandler) {
+        await import("../../src/workers/security.worker");
+        securityWorkerHandler = scope.onmessage;
+      }
+      securityWorkerHandler!({ data: { type: "INSPECT_SECURITY", requestId: "signed-real-pdf", bytes: source.slice().buffer } });
+      const result = messages.find((message) => message.type === "SECURITY_INSPECTION_RESULT");
+      expect(result?.report.signatures).toHaveLength(1);
+      expect(result.report.signatures[0].signed).toBe(true);
+      const identical = await validatePdfFidelity(source, source, [1]);
+      expect(identical.passed).toBe(true);
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
