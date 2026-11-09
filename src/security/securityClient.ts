@@ -1,13 +1,15 @@
 import { recordRuntimeMetric } from "../performance/runtimeMetrics";
 import { securityInspectionByteIdentity, securityInspectionCredentialIdentity } from "./securityInspectionIdentity";
 import type { SecurityExportOptions, SecurityExportReport, SecurityInspectionReport } from "../types/security";
+import type { RawLinkActionEvidence, RawLinkActionNormalization } from "../fidelity/rawLinkActionEvidence";
 import { WORKER_STARTUP_TIMEOUT_MS } from "../workers/workerReliability";
 
 interface Ready { type: "READY" }
 interface InspectionSuccess { type: "SECURITY_INSPECTION_RESULT"; requestId: string; report: SecurityInspectionReport }
 interface ExportSuccess { type: "SECURITY_EXPORT_RESULT"; requestId: string; output: ArrayBuffer; report: SecurityExportReport }
+interface RawActionSuccess { type: "P8_LINK_ACTIONS_RESULT"; requestId: string; evidence: RawLinkActionEvidence }
 interface Failure { type: "SECURITY_ERROR"; requestId: string; error: { name: string; message: string } }
-type Response = Ready | InspectionSuccess | ExportSuccess | Failure;
+type Response = Ready | InspectionSuccess | ExportSuccess | RawActionSuccess | Failure;
 
 interface InspectionEntry {
   promise: Promise<SecurityInspectionReport>;
@@ -245,4 +247,40 @@ export async function applySecurity(
   const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const source = Uint8Array.from(bytes).buffer;
   return runWorker({ type: "APPLY_SECURITY", requestId, password, options }, source, signal, (response) => response.type === "SECURITY_EXPORT_RESULT" ? { bytes: new Uint8Array(response.output), report: response.report } : undefined);
+}
+
+/** On-demand P8 raw /Next and /AA evidence from the existing MuPDF security
+ * worker. Fingerprints may contain private action targets: keep them transient
+ * and never log, persist, or include them in user-visible failure messages.
+ * Failure must refuse export, never silently skip integrity inspection. */
+export async function inspectP8RawLinkActions(
+  bytes: Uint8Array,
+  pages: number[],
+  password?: string,
+  signal?: AbortSignal,
+  normalization: RawLinkActionNormalization = {}
+): Promise<RawLinkActionEvidence> {
+  if (typeof document === "undefined" && typeof Worker === "undefined") {
+    // Deterministic Node/Vitest qualification, using the exact same pure
+    // MuPDF dictionary walker as the production worker.
+    const mupdf = await import("mupdf");
+    const { inspectRawLinkActionEvidence } = await import("../fidelity/rawLinkActionEvidence");
+    const source = mupdf.Document.openDocument(bytes, "application/pdf");
+    try {
+      if (source.needsPassword() && (!password || !source.authenticatePassword(password))) {
+        throw new Error("The PDF password is required or incorrect.");
+      }
+      const pdf = source.asPDF();
+      if (!pdf) throw new Error("The document is not a PDF.");
+      pdf.disableJS?.();
+      return inspectRawLinkActionEvidence(pdf, pages, normalization);
+    } finally { source.destroy(); }
+  }
+  const requestId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return runWorker(
+    { type: "INSPECT_P8_LINK_ACTIONS", requestId, password, pages, normalization },
+    Uint8Array.from(bytes).buffer,
+    signal,
+    (response) => response.type === "P8_LINK_ACTIONS_RESULT" ? response.evidence : undefined
+  );
 }

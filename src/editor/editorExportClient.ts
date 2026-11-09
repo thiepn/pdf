@@ -78,10 +78,21 @@ async function certifyEditorExport(
   sourceBytes: Uint8Array,
   result: { bytes: Uint8Array; report: EditorExportReport },
   affectedPages: Iterable<number>,
+  objects: EditorObject[],
   password?: string,
   signal?: AbortSignal
 ): Promise<{ bytes: Uint8Array; report: EditorExportReport }> {
-  const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, password, signal);
+  // Overlay objects are user-authorized additions. P8 must still preserve
+  // all original links and annotations in the same affected pages.
+  const linkDeltaByPage: Record<number, number> = {};
+  const annotationDeltaByPage: Record<number, number> = {};
+  for (const object of objects.filter((item) => !item.hidden)) {
+    const bucket = object.type === "link" ? linkDeltaByPage : annotationDeltaByPage;
+    bucket[object.pageNumber] = (bucket[object.pageNumber] ?? 0) + 1;
+  }
+  const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, password, signal, {
+    expectations: { linkDeltaByPage, annotationDeltaByPage }
+  });
   if (!fidelity.passed) throw new Error(`P8 fidelity validation failed: ${fidelity.failures.join(" ")}`);
   return {
     bytes: result.bytes,
@@ -102,7 +113,7 @@ export async function exportEditorPdf(
   const replay = takeNativeExportReplay(bytes);
   if (!replay) {
     const overlay = await exportOverlayPdf(bytes, objects, assets, signal, password);
-    return certifyEditorExport(bytes, overlay, visibleObjectPages(objects), password, signal);
+    return certifyEditorExport(bytes, overlay, visibleObjectPages(objects), objects, password, signal);
   }
 
   // P6 mixed exports compile overlay annotations against the original PDF.
@@ -124,6 +135,7 @@ export async function exportEditorPdf(
     replay.sourceBytes,
     result,
     [...visibleObjectPages(objects), ...replay.edits.map((edit) => edit.pageNumber)],
+    objects,
     exportPassword,
     signal
   );

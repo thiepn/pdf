@@ -64,6 +64,10 @@ test.describe("Recovery P0 responsiveness qualification", () => {
     await switchMode(page, "editor");
     await expect(page.locator(".editor-app")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole("button", { name: /Hide pages|Show pages/ })).toBeVisible();
+    // A pathologically dense page must never require native text/vector
+    // materialization just to make the reader and overlay editor usable.
+    await expect(page.getByText(/Dense PDF safeguard:/)).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole("button", { name: "Edit existing text" })).toBeDisabled();
     await page.waitForTimeout(2_000);
 
     const heartbeat = await page.evaluate(() => {

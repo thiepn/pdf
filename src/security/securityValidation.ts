@@ -136,7 +136,7 @@ export async function validateSecurityOutput(
   if (options.sanitization.removeComments) checks.push({ name: "Comments", passed: inspection.annotationCount === 0, detail: `${inspection.annotationCount} non-redaction annotations remain.` });
   if (options.sanitization.removeMetadata) checks.push({ name: "Metadata", passed: Object.keys(inspection.metadata).length === 0, detail: Object.keys(inspection.metadata).length ? `Remaining fields: ${Object.keys(inspection.metadata).join(", ")}` : "Standard document metadata was removed." });
   if (options.sanitization.clearFormValues && !options.sanitization.flattenForms) {
-    const uncleared = inspection.formFields.filter((field) => field.type !== "signature" && field.type !== "button" && isEnabledValue(field.value));
+    const uncleared = inspection.formFields.filter((field) => field.type !== "signature" && field.type !== "button" && !field.readOnly && isEnabledValue(field.value));
     checks.push({ name: "Form clearing", passed: uncleared.length === 0, detail: `${uncleared.length} non-empty field values remain.` });
   }
   if (options.sanitization.flattenForms) checks.push({ name: "Form flattening", passed: inspection.formFields.length === 0, detail: `${inspection.formFields.length} interactive fields remain.` });

@@ -15,6 +15,7 @@ const shortcuts = [
   { keys: "P", description: "Draw" },
   { keys: "Ctrl/Cmd + Z", description: "Undo last document change" },
   { keys: "Ctrl/Cmd + Shift + Z", description: "Redo" },
+  { keys: "Ctrl/Cmd + F", description: "Find existing PDF text (after text inspection)" },
   { keys: "Ctrl/Cmd + S", description: "Save or download the PDF" },
   { keys: "Arrow keys", description: "Move selected objects" },
   { keys: "Shift + Arrow keys", description: "Move selected objects farther" },

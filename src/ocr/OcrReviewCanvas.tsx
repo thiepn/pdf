@@ -21,6 +21,14 @@ export function OcrReviewCanvas({ document, result, selectedWord, region, onSele
   const dragRef = useRef<DragState | null>(null);
   const [size, setSize] = useState({ width: 612, height: 792 });
 
+  // Keyboard/list navigation must reveal the selected OCR word inside the
+  // page scrollport, not move the whole workspace behind the controls.
+  useEffect(() => {
+    if (selectedWord === null) return;
+    hostRef.current?.querySelector<HTMLButtonElement>(".ocr-word-box--selected")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [result.pageNumber, selectedWord]);
+
   useEffect(() => {
     let cancelled = false;
     void document.getPage(result.pageNumber).then(async (page) => {
@@ -34,8 +42,11 @@ export function OcrReviewCanvas({ document, result, selectedWord, region, onSele
         const ratio = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = Math.max(1, Math.floor(viewport.width * ratio));
         canvas.height = Math.max(1, Math.floor(viewport.height * ratio));
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
+        // The bitmap retains device-pixel resolution, but its displayed size
+        // follows the responsive page surface. Fixed inline pixel dimensions
+        // made the raster overflow while the OCR word boxes shrank.
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
         setSize({ width: viewport.width, height: viewport.height });
         const context = canvas.getContext("2d", { alpha: false });
         if (!context) throw new Error("Canvas context unavailable.");
@@ -83,7 +94,7 @@ export function OcrReviewCanvas({ document, result, selectedWord, region, onSele
       onPointerUp={endRegion}
       onPointerCancel={endRegion}
       ref={hostRef}
-      style={{ width:size.width, height:size.height }}
+      style={{ width: size.width, maxWidth: "100%", height: "auto", aspectRatio: `${size.width} / ${size.height}` }}
     >
       <canvas ref={canvasRef}/>
       <div className="ocr-word-layer" aria-label={`Recognized text on page ${result.pageNumber}`}>

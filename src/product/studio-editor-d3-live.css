@@ -58,13 +58,13 @@
   gap: 6px;
 }
 .product-app [data-d3-editor="true"] .editor-commandbar__actions > .button {
-  min-height: 39px;
+  min-height: 44px;
   border-radius: var(--studio-radius-control);
   font-weight: 700;
 }
 .product-app [data-d3-editor="true"] .editor-save-options > summary {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--d3-edge);
   border-radius: var(--studio-radius-control);
 }
@@ -84,7 +84,7 @@
   min-width: 0;
 }
 .product-app [data-d3-editor="true"] .editing-toolbar button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 8px 11px;
   border: 1px solid transparent;
   border-radius: var(--studio-radius-control);
@@ -186,7 +186,11 @@
 }
 @media (max-width: 440px) {
   .product-app [data-d3-editor="true"] .editor-stage { padding: 12px 9px 56px; }
-  .product-app [data-d3-editor="true"] .editing-toolbar.compact-editor-bar { gap: 2px; }
+  .product-app [data-d3-editor="true"] .editing-toolbar.compact-editor-bar {
+    /* Seven 44px targets need 308px; leave at least 4px on either side at 320px. */
+    gap: 0;
+    padding-inline: max(4px, env(safe-area-inset-left, 0px)) max(4px, env(safe-area-inset-right, 0px));
+  }
   .product-app [data-d3-editor="true"] .editor-tools-sheet {
     max-height: calc(100dvh - 12px);
     padding-bottom: max(16px, env(safe-area-inset-bottom));

@@ -265,6 +265,10 @@ export interface NativePageTree {
   width: number;
   height: number;
   objects: NativePageObject[];
+  /** Number of raw PDF /Contents streams (can be large even when a single page has few detected objects). */
+  contentStreamCount?: number;
+  /** Raw rectangle operation count, capped during inspection to prevent full materialization. */
+  sourceRectCount?: number;
 }
 
 export interface NativeFontSummary {

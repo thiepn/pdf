@@ -131,7 +131,9 @@ function blockReason(
   queued: NativeTextEdit | undefined,
   nextText: string
 ): string | undefined {
-  if (!inspection.canEdit) return "This PDF does not grant editing permission.";
+  if (!inspection.canEdit) return inspection.warnings.some((warning) => warning.startsWith("The native source inspector did not complete."))
+    ? "Native source inspection is incomplete. You can find and review this text, but replacing it is disabled until qualified inspection succeeds."
+    : "This PDF does not grant editing permission or complete qualified native inspection.";
   if (object.editability === "unsupported") return "This detected text block is not safely editable.";
   if (object.editability === "overlay-only") return "This text needs appearance-only shaping, so bulk replacement is not applied automatically.";
   if (object.editability === "shaped-fixed-box") return "Qualified Arabic/RTL edits require a manually selected and validated local font, so bulk replacement is not applied automatically.";

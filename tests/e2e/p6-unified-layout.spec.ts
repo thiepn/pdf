@@ -1,4 +1,4 @@
-import { chooseEditorTool, openSample, switchMode } from "./helpers/taskFirst";
+import { chooseEditorTool, openSample, switchMode, downloadEditorCopy } from "./helpers/taskFirst";
 import { expect, test } from "@playwright/test";
 
 async function openEditor(page: import("@playwright/test").Page): Promise<void> {
@@ -11,11 +11,7 @@ async function openEditor(page: import("@playwright/test").Page): Promise<void> 
 }
 
 async function exportValidated(page: import("@playwright/test").Page): Promise<void> {
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/_edited\.pdf$/);
-  await expect(page.getByText("Edited PDF downloaded")).toBeVisible({ timeout: 20_000 });
+  await downloadEditorCopy(page);
 }
 
 function selectionCount(properties: import("@playwright/test").Locator, label: "Existing PDF" | "Added objects") {

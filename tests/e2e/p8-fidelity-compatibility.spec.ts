@@ -41,6 +41,6 @@ test("P8 accepts semantic preservation of incremental PDFs and reports revision 
   await uploadPdf(page, "incremental.pdf");
   await openEditorAndAddRectangle(page);
   await exportValidated(page);
-  await expect(page.getByText(/incremental revisions/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByLabel("Output verification").getByText(/incremental revisions/i)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/P8 fidelity validation failed/i)).toHaveCount(0);
 });

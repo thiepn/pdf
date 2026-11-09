@@ -81,8 +81,43 @@ test("P3 reviews saved OCR, corrects confidence evidence, preserves the PDF and 
   await expect(workspace).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Loaded reusable OCR results. Review or rebuild the searchable layer.")).toBeVisible();
 
+  // Review must also be usable without precise page-canvas pointing.
+  await page.getByRole("button", { name: "Next low-confidence word" }).click();
+  await expect(page.getByLabel("Correct recognized word")).toHaveValue("MAY");
+  await expect(page.getByRole("button", { name: "MAY · 52% confidence" })).toHaveClass(/ocr-word-box--selected/);
   const lowConfidence = page.getByRole("button", { name: /MAY · 52% confidence/ });
   await expect(lowConfidence).toBeVisible();
+  await lowConfidence.scrollIntoViewIfNeeded();
+  // The full PDF page must fit the available review scrollport. A fixed 860px
+  // centered child previously clipped its left edge behind the workspace.
+  const sizing = await page.locator(".ocr-review-stage").evaluate((element) => {
+    const stage = element.getBoundingClientRect();
+    const pdf = element.querySelector(".ocr-review-page")?.getBoundingClientRect();
+    if (!pdf) throw new Error("OCR review PDF surface is unavailable.");
+    const canvas = element.querySelector(".ocr-review-page > canvas")?.getBoundingClientRect();
+    if (!canvas) throw new Error("OCR source raster is unavailable.");
+    return {
+      stageLeft: stage.left, stageRight: stage.right,
+      pageLeft: pdf.left, pageRight: pdf.right, pageTop: pdf.top, pageBottom: pdf.bottom,
+      canvasLeft: canvas.left, canvasRight: canvas.right, canvasTop: canvas.top, canvasBottom: canvas.bottom
+    };
+  });
+  expect(sizing.pageLeft).toBeGreaterThanOrEqual(sizing.stageLeft - 2);
+  expect(sizing.pageRight).toBeLessThanOrEqual(sizing.stageRight + 2);
+  // The PDF raster and the OCR hitbox layer must use one coordinate surface,
+  // including when the viewport shrinks the page beneath its intrinsic width.
+  expect(Math.abs(sizing.canvasLeft - sizing.pageLeft)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sizing.canvasRight - sizing.pageRight)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sizing.canvasTop - sizing.pageTop)).toBeLessThanOrEqual(2);
+  expect(Math.abs(sizing.canvasBottom - sizing.pageBottom)).toBeLessThanOrEqual(2);
+  // Real-pointer hit testing: a visible OCR word must not sit underneath the
+  // parent workspace scrolling panel or another overlay. Do not force click.
+  const wordBox = await lowConfidence.boundingBox();
+  expect(wordBox).not.toBeNull();
+  await expect.poll(async () => page.evaluate(({ x, y, width, height }) => {
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return Boolean(hit?.closest(".ocr-word-box"));
+  }, wordBox!), { timeout: 5_000 }).toBe(true);
   await lowConfidence.click();
 
   const correction = page.getByLabel("Correct recognized word");

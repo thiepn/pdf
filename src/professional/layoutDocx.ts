@@ -479,6 +479,21 @@ function sectionBreakParagraph(page: LayoutDocxPage): string {
   return `<w:p><w:pPr>${sectionXml(page, true)}</w:pPr></w:p>`;
 }
 
+// A same-sized source page needs an actual page break rather than creating
+// another Word section. Reserve next-page section boundaries for real changes
+// in paper size or margins so individual page geometry is still preserved.
+function sameWordPageGeometry(left: LayoutDocxPage, right: LayoutDocxPage): boolean {
+  const near = (a: number, b: number) => Math.abs(a - b) <= 0.5;
+  return near(left.width, right.width) && near(left.height, right.height)
+    && (["top", "right", "bottom", "left"] as const).every((side) => near(left.margins[side], right.margins[side]));
+}
+
+function pageBoundaryXml(page: LayoutDocxPage, next: LayoutDocxPage): string {
+  return sameWordPageGeometry(page, next)
+    ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    : sectionBreakParagraph(page);
+}
+
 export function buildLayoutAwareDocxPackage(title: string, model: LayoutDocxModel): Uint8Array {
   const media: BinaryZipFile[] = [];
   const relationships: string[] = [];
@@ -500,7 +515,7 @@ export function buildLayoutAwareDocxPackage(title: string, model: LayoutDocxMode
         body.push(imageXml(block, relationshipId, drawingId++, maxWidth));
       }
     }
-    if (pageIndex < model.pages.length - 1) body.push(sectionBreakParagraph(page));
+    if (pageIndex < model.pages.length - 1) body.push(pageBoundaryXml(page, model.pages[pageIndex + 1]));
   });
 
   const lastPage = model.pages.at(-1) ?? { pageNumber: 1, width: 595.276, height: 841.89, margins: { top: 36, right: 36, bottom: 36, left: 36 }, blocks: [] };
@@ -616,7 +631,9 @@ export async function buildLayoutAwareDocx(
   onProgress?: (message: string) => void
 ): Promise<LayoutAwareDocxResult> {
   signal.throwIfAborted();
-  const selectedPages = [...new Set(selectedPageIndexes.map((index) => index + 1))].sort((a, b) => a - b);
+  // Page selection is an ordered sequence, not a source-order set. Preserve
+  // explicit choices such as 3,1 and reverse ranges; deduplicate without sorting.
+  const selectedPages = [...new Set(selectedPageIndexes.map((index) => index + 1))];
   if (!selectedPages.length) throw new Error("Choose at least one page for Word export.");
 
   onProgress?.("Inspecting paragraphs, tables and images…");

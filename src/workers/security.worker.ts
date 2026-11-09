@@ -11,6 +11,7 @@ import type {
   SignatureInspection
 } from "../types/security";
 import { permissionMask } from "../security/securityModel";
+import { inspectRawLinkActionEvidence } from "../fidelity/rawLinkActionEvidence";
 
 interface InspectRequest {
   type: "INSPECT_SECURITY";
@@ -27,8 +28,16 @@ interface ApplyRequest {
   options: SecurityExportOptions;
 }
 
+interface RawLinkActionRequest {
+  type: "INSPECT_P8_LINK_ACTIONS";
+  requestId: string;
+  bytes: ArrayBuffer;
+  password?: string;
+  pages: number[];
+  normalization?: { removeJavaScript?: boolean; removeAdditionalActions?: boolean };
+}
 interface CancelRequest { type: "CANCEL"; requestId: string }
-type Request = InspectRequest | ApplyRequest | CancelRequest;
+type Request = InspectRequest | ApplyRequest | RawLinkActionRequest | CancelRequest;
 const cancelled = new Set<string>();
 
 function assertActive(requestId: string): void {
@@ -143,6 +152,10 @@ function widgetType(widget: any): FormFieldType {
   return (["button", "checkbox", "combobox", "listbox", "radiobutton", "signature", "text"] as string[]).includes(type) ? type as FormFieldType : "unknown";
 }
 
+function hasNonNullSignatureValue(value: any): boolean {
+  return value !== null && value !== undefined && !(typeof value.isNull === "function" && value.isNull());
+}
+
 function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, transform: AffineMatrix): { field: SecurityFormField; signature?: SignatureInspection } {
   const type = widgetType(widget);
   const name = safeString(safeCall(() => widget.getName(), ""));
@@ -150,7 +163,7 @@ function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, tra
   const rect = safeCall(() => transformRect(transform, widget.getRect()), { x0: 0, y0: 0, x1: 0, y1: 0 });
   const signatureValue = type === "signature" ? safeCall(() => widget.getObject?.()?.get?.("V"), null) : null;
   const signed = type === "signature"
-    ? (typeof widget.isSigned === "function" ? safeCall(() => Boolean(widget.isSigned()), false) : Boolean(signatureValue))
+    ? (typeof widget.isSigned === "function" ? safeCall(() => Boolean(widget.isSigned()), false) : hasNonNullSignatureValue(signatureValue))
     : null;
   const password = Boolean(safeCall(() => widget.isPassword(), false));
   const field: SecurityFormField = {
@@ -161,7 +174,17 @@ function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, tra
     name,
     label: safeString(safeCall(() => widget.getLabel(), name)),
     value: password ? "" : safeString(safeCall(() => widget.getValue(), "")),
-    options: safeCall(() => widget.getOptions(), [] as string[]).map(String),
+    options: type === "radiobutton"
+      ? safeCall(() => {
+          const normal = widget.getObject()?.get?.("AP")?.get?.("N");
+          if (!normal?.isDictionary?.()) return [] as string[];
+          const choices: string[] = [];
+          normal.forEach((_appearance: unknown, name: string) => {
+            if (name && name !== "Off") choices.push(name);
+          });
+          return choices;
+        }, [] as string[])
+      : safeCall(() => widget.getOptions(), [] as string[]).map(String),
     rect,
     readOnly: Boolean(safeCall(() => widget.isReadOnly(), false)),
     multiline: Boolean(safeCall(() => widget.isMultiline(), false)),
@@ -564,7 +587,9 @@ function removePageContent(pdf: any, options: SecurityExportOptions["sanitizatio
         for (const link of pageLinks) { page.deleteLink(link); links += 1; }
       }
       if (options.removeComments || options.removeAttachments) {
-        for (const annotation of safeCall(() => page.getAnnotations(), [] as any[])) {
+        // MuPDF returns a live annotation collection. Deleting while iterating
+        // it skips subsequent annotations, leaving orphaned comment/popups.
+        for (const annotation of [...safeCall(() => page.getAnnotations(), [] as any[])]) {
           const type = safeString(safeCall(() => annotation.getType(), ""));
           if (options.removeAttachments && type === "FileAttachment") { page.deleteAnnotation(annotation); attachments += 1; continue; }
           if (options.removeComments && type !== "Redaction" && type !== "Redact") { page.deleteAnnotation(annotation); comments += 1; }
@@ -646,7 +671,7 @@ function countSignedFields(pdf: any): number {
         if (widgetType(widget) !== "signature") continue;
         const signed = typeof widget.isSigned === "function"
           ? safeCall(() => Boolean(widget.isSigned()), false)
-          : Boolean(safeCall(() => widget.getObject?.()?.get?.("V"), null));
+          : hasNonNullSignatureValue(safeCall(() => widget.getObject?.()?.get?.("V"), null));
         if (signed) count += 1;
       }
     } finally { page.destroy(); }
@@ -714,6 +739,12 @@ self.onmessage = (event: MessageEvent<Request>) => {
       if (request.type === "INSPECT_SECURITY") {
         const report = inspectDocument(source, authentication, request.requestId);
         self.postMessage({ type: "SECURITY_INSPECTION_RESULT", requestId: request.requestId, report });
+      } else if (request.type === "INSPECT_P8_LINK_ACTIONS") {
+        const pdf = source.asPDF();
+        if (!pdf) throw new Error("The document is not a PDF.");
+        pdf.disableJS?.();
+        const evidence = inspectRawLinkActionEvidence(pdf, request.pages, request.normalization);
+        self.postMessage({ type: "P8_LINK_ACTIONS_RESULT", requestId: request.requestId, evidence });
       } else {
         const result = applySecurity(source, request.options);
         const output = Uint8Array.from(result.bytes).buffer;

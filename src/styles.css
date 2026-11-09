@@ -2475,7 +2475,10 @@ pre {
   user-select: none;
 }
 .editor-page-layers > canvas { position: absolute; inset: 0; display: block; }
-.editor-object-layer { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+/* Source PDF hitboxes use z-index:1. Added objects must be visually and
+ * interactively above them, or source hitboxes steal pointerdown from shape
+ * drag and resize. The layer remains hit-transparent outside actual objects. */
+.editor-object-layer { position: absolute; inset: 0; z-index: 2; overflow: visible; pointer-events: none; }
 .editor-page-label { position: absolute; left: 50%; bottom: -31px; transform: translateX(-50%); padding: 4px 9px; border-radius: 99px; color: #b3bdc6; background: rgb(20 24 28 / 86%); font-size: .66rem; }
 
 .editor-cursor--select { cursor: default; }
@@ -2944,7 +2947,21 @@ pre {
 .ocr-review-page-tabs span{font-size:.72rem;color:var(--text-muted,#626a7a)}
 .ocr-review-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:14px;padding:14px;min-height:0}
 .ocr-review-stage{min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;overflow:auto;border:1px solid var(--border,#d8dce5);border-radius:14px;background:#30343a}
-.ocr-review-page{position:relative;flex:0 0 auto;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.28);touch-action:none;user-select:none}
+/* Keep the review's oversized PDF inside its own scrollport. Without a
+ * bounded grid child, OCR word hitboxes can render behind the parent
+ * workspace panel, leaving visually present words unclickable. */
+@media (min-width:781px){
+  /* Keep a real page scrollport even when the task-first workspace grows
+   * naturally in height. A flex-basis of zero clipped offscreen OCR hitboxes. */
+  .ocr-workspace--review .ocr-results{overflow:visible}
+  .ocr-workspace--review .ocr-review-layout{flex:0 0 auto;min-height:0;overflow:visible;align-items:start}
+  .ocr-workspace--review .ocr-review-stage{min-height:360px;max-height:min(70vh,740px);overflow:auto}
+  .ocr-workspace--review .ocr-review-properties{min-height:0;max-height:min(70vh,740px);overflow:auto}
+}
+.ocr-review-confidence-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ocr-review-confidence-nav button{min-height:44px}
+.ocr-review-confidence-nav span{font-size:.82rem;color:var(--text-muted,#626a7a)}
+.ocr-review-page{position:relative;flex:0 1 auto;min-width:0;max-width:100%;background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.28);touch-action:none;user-select:none}
 .ocr-review-page>canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .ocr-word-layer{position:absolute;inset:0;z-index:2}
 .ocr-word-box{position:absolute;min-width:2px;min-height:2px;padding:0;border:1px solid color-mix(in srgb,var(--accent,#395bd7) 38%,transparent);background:color-mix(in srgb,var(--accent,#395bd7) 7%,transparent);cursor:pointer;overflow:visible}

@@ -12,6 +12,13 @@ test("protected-task preflight is reused when Protect mounts", async ({ page }) 
   expect(match?.[1]).toBeTruthy();
   const projectId = decodeURIComponent(match?.[1] ?? "");
 
+  // The viewer may have already completed a content-addressed preflight before
+  // this test reaches the protected task. Preserve that actual miss rather
+  // than resetting its evidence and wrongly demanding a second worker pass.
+  const preRouteMisses = await page.evaluate(() =>
+    (window.__PDF_STUDIO_PERFORMANCE__?.snapshot() ?? [])
+      .filter((metric) => metric.name === "security.inspection.session.miss").length
+  );
   await page.evaluate(() => window.__PDF_STUDIO_PERFORMANCE__?.clear());
   await page.goto(`./#/workspace/${encodeURIComponent(projectId)}/secure/fill-forms`);
   await expect(page.getByRole("button", { name: "Download PDF" })).toBeVisible({ timeout: 35_000 });
@@ -26,6 +33,8 @@ test("protected-task preflight is reused when Protect mounts", async ({ page }) 
 
   // The route performs one fail-closed inspection, then Protect reuses that
   // completed report rather than launching a second MuPDF worker pass.
-  expect(inspectionMetrics.misses).toBe(1);
+  // Exactly one real inspection is allowed across both the prior viewer
+  // preflight and this route; SecurePage must reuse that completed report.
+  expect(preRouteMisses + inspectionMetrics.misses).toBe(1);
   expect(inspectionMetrics.hits).toBeGreaterThanOrEqual(1);
 });

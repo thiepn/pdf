@@ -23,6 +23,22 @@ export interface PdfPageSemanticFingerprint {
   annotationCount: number;
   linkCount: number;
   widgetCount: number;
+  /** Volatile identity evidence. Excludes unstable PDF object IDs. */
+  annotationFingerprints?: string[];
+  linkFingerprints?: string[];
+}
+
+/** Volatile inspection-only field evidence: values are never persisted or put into error messages. */
+export interface PdfFormWidgetFingerprint {
+  name: string;
+  type: string;
+  pageNumber: number;
+  rect: number[];
+  value: string;
+  defaultValue: string;
+  exportValues: string;
+  editable: boolean;
+  password: boolean;
 }
 
 export interface PdfFidelityProfile {
@@ -33,9 +49,12 @@ export interface PdfFidelityProfile {
   outlineEntries: number;
   attachmentCount: number;
   formFieldCount: number;
+  formWidgets?: PdfFormWidgetFingerprint[];
   hasJavaScript: boolean;
   pageLabelsDigest: string;
   coreMetadata: Record<string, string>;
+  /** Volatile XMP evidence for exact preservation; never persisted or logged. */
+  xmpMetadataXml?: string;
   geometry: PdfPageGeometryFingerprint[];
   semantics: PdfPageSemanticFingerprint[];
 }
@@ -46,9 +65,24 @@ export interface PdfFidelityExpectations {
   expectedFormFieldCount?: number;
   expectedHasJavaScript?: boolean;
   allowJavaScriptRemoval?: boolean;
+  /** The user explicitly requested removing embedded scripts from link actions. */
+  removeEmbeddedLinkScripts?: boolean;
+  /** The user explicitly requested removing annotation additional actions. */
+  removeLinkAdditionalActions?: boolean;
   coreMetadataMode?: "preserve" | "cleared";
   widgetDeltaByPage?: Record<number, number>;
   expectNoWidgetsOnAffectedPages?: boolean;
+  /** Exact count of author-created editor overlays per affected page. */
+  linkDeltaByPage?: Record<number, number>;
+  annotationDeltaByPage?: Record<number, number>;
+  /** Explicit Secure cleanup operations, never inferred from page edits. */
+  expectNoLinksOnAffectedPages?: boolean;
+  allowAnnotationRemovalOnAffectedPages?: boolean;
+  /** Only the explicitly requested final values are allowed to differ. */
+  formValueUpdates?: Array<{ name: string; value: string }>;
+  formCreates?: Array<{ name: string; pageNumber: number; type: "text" | "checkbox"; value: string }>;
+  clearFormValues?: boolean;
+  flattenForms?: boolean;
 }
 
 export interface PdfFidelityReport {
@@ -195,6 +229,143 @@ function compareCoreMetadata(
   }
 }
 
+
+function formWidgetIdentity(widget: PdfFormWidgetFingerprint): string {
+  return JSON.stringify([widget.name, widget.type, widget.pageNumber, widget.rect.map((n) => Math.round(n * 100) / 100), widget.exportValues]);
+}
+
+function clearedFormValue(widget: PdfFormWidgetFingerprint): boolean {
+  if (widget.type === "checkbox" || widget.type === "radiobutton") {
+    return widget.value === JSON.stringify("Off") || widget.value === JSON.stringify("");
+  }
+  return [JSON.stringify(""), JSON.stringify(null), JSON.stringify([])].includes(widget.value);
+}
+
+function compareFormWidgets(
+  source: PdfFidelityProfile,
+  output: PdfFidelityProfile,
+  expectations: PdfFidelityExpectations,
+  failures: string[]
+): void {
+  // Hand-built unit profiles predating this evidence may omit the snapshots.
+  // Real PDF.js inspections always populate them (even for form-free PDFs).
+  if (!source.formWidgets || !output.formWidgets) return;
+  const before = source.formWidgets;
+  const after = output.formWidgets;
+  if (expectations.flattenForms) {
+    if (before.some((field) => field.type === "signature")) failures.push("Flattening would remove a signature field.");
+    if (after.length) failures.push("Flattened output still contains interactive form widgets.");
+    return;
+  }
+  const updates = new Map<string, string>();
+  for (const update of expectations.formValueUpdates ?? []) {
+    if (!update.name || (updates.has(update.name) && updates.get(update.name) !== JSON.stringify(update.value))) {
+      failures.push("Conflicting or invalid authorized form update.");
+      continue;
+    }
+    const eligible = before.filter((field) => field.name === update.name);
+    if (!eligible.length || eligible.some((field) => !field.editable || field.password || field.type === "signature")) {
+      failures.push("A form update targets a protected or missing field.");
+      continue;
+    }
+    updates.set(update.name, JSON.stringify(update.value));
+  }
+  const additions = [...(expectations.formCreates ?? [])];
+  for (const addition of additions) {
+    if (!addition.name || before.some((field) => field.name === addition.name)) {
+      failures.push("A created form field has a missing or already-used name.");
+    }
+  }
+
+  const afterByIdentity = new Map<string, PdfFormWidgetFingerprint[]>();
+  for (const widget of after) {
+    const key = formWidgetIdentity(widget);
+    const matches = afterByIdentity.get(key) ?? [];
+    matches.push(widget);
+    afterByIdentity.set(key, matches);
+  }
+  for (const widget of before) {
+    const key = formWidgetIdentity(widget);
+    const matches = afterByIdentity.get(key);
+    const found = matches?.shift();
+    if (!found) {
+      failures.push("An existing interactive form widget changed identity or disappeared.");
+      continue;
+    }
+    if (widget.defaultValue !== found.defaultValue || widget.editable !== found.editable || widget.password !== found.password) {
+      failures.push("Existing form field attributes changed unexpectedly.");
+    }
+    const explicit = updates.get(widget.name);
+    if (explicit !== undefined) {
+      if (found.value !== explicit) failures.push("An authorized form field update did not produce its exact requested value.");
+    } else if (expectations.clearFormValues && widget.editable && !widget.password && widget.type !== "signature") {
+      if (!clearedFormValue(found)) failures.push("Form clearing left a nonempty editable field.");
+    } else if (widget.value !== found.value) {
+      failures.push("An existing form field value changed without authorization.");
+    }
+  }
+  const remaining = [...afterByIdentity.values()].flat();
+  const used = new Set<number>();
+  for (const widget of remaining) {
+    const index = additions.findIndex((added, at) =>
+      !used.has(at) && added.name === widget.name && added.pageNumber === widget.pageNumber
+      && added.type === widget.type && widget.value === JSON.stringify(added.value)
+    );
+    if (index < 0) failures.push("An unexpected interactive form widget was added.");
+    else used.add(index);
+  }
+  if (used.size !== additions.length) failures.push("An authorized interactive form field was missing or altered.");
+}
+
+/**
+ * Compare original link/comment identities as a multiset. The originating PDF
+ * object IDs are not stable when rewritten by MuPDF and are intentionally
+ * excluded from the canonical evidence. Never place targets or comment text
+ * in user-visible failures.
+ */
+function comparePageAnnotations(
+  before: PdfPageSemanticFingerprint,
+  after: PdfPageSemanticFingerprint,
+  kind: "link" | "annotation",
+  expectedAdditions: number,
+  allowRemoval: boolean,
+  failures: string[]
+): void {
+  const source = kind === "link" ? before.linkFingerprints : before.annotationFingerprints;
+  const output = kind === "link" ? after.linkFingerprints : after.annotationFingerprints;
+  const beforeCount = kind === "link" ? before.linkCount : before.annotationCount;
+  const afterCount = kind === "link" ? after.linkCount : after.annotationCount;
+  if (!Number.isInteger(expectedAdditions) || expectedAdditions < 0) {
+    failures.push(`Page ${before.pageNumber} has invalid authorized ${kind} additions.`);
+    return;
+  }
+  // Older synthetic test profiles may omit evidence, but actual PDF.js
+  // inspection always provides it. Keep the count check in either case.
+  if (source === undefined || output === undefined) {
+    if ((!allowRemoval && afterCount !== beforeCount + expectedAdditions)
+        || (allowRemoval && afterCount > beforeCount + expectedAdditions)) {
+      failures.push(`Page ${before.pageNumber} ${kind} count differs from explicitly authorized changes.`);
+    }
+    return;
+  }
+  const remaining = new Map<string, number>();
+  for (const fingerprint of source) remaining.set(fingerprint, (remaining.get(fingerprint) ?? 0) + 1);
+  let additions = 0;
+  for (const fingerprint of output) {
+    const n = remaining.get(fingerprint) ?? 0;
+    if (n > 0) remaining.set(fingerprint, n - 1);
+    else additions += 1;
+  }
+  const losses = [...remaining.values()].reduce((sum, count) => sum + count, 0);
+  if (!allowRemoval && losses > 0) failures.push(`Page ${before.pageNumber} existing ${kind} identity or content changed unexpectedly.`);
+  if ((allowRemoval && additions > expectedAdditions) || (!allowRemoval && additions !== expectedAdditions)) {
+    failures.push(`Page ${before.pageNumber} ${kind} additions did not match explicit authorization.`);
+  }
+  if (source.length !== beforeCount || output.length !== afterCount) {
+    failures.push(`Page ${before.pageNumber} ${kind} evidence is incomplete.`);
+  }
+}
+
 export function comparePdfFidelityProfiles(
   source: PdfFidelityProfile,
   output: PdfFidelityProfile,
@@ -216,6 +387,7 @@ export function comparePdfFidelityProfiles(
   if (output.attachmentCount !== expectedAttachments) failures.push(`Attachment count is ${output.attachmentCount}; expected ${expectedAttachments}.`);
   const expectedFormFields = expectations.expectedFormFieldCount ?? source.formFieldCount;
   if (output.formFieldCount !== expectedFormFields) failures.push(`Form field count is ${output.formFieldCount}; expected ${expectedFormFields}.`);
+  compareFormWidgets(source, output, expectations, failures);
   if (expectations.expectedHasJavaScript !== undefined) {
     if (output.hasJavaScript !== expectations.expectedHasJavaScript) {
       failures.push(`Document JavaScript presence did not match the expected output state (${expectations.expectedHasJavaScript ? "present" : "absent"}).`);
@@ -227,6 +399,13 @@ export function comparePdfFidelityProfiles(
   }
   if (source.pageLabelsDigest !== output.pageLabelsDigest) failures.push("Page labels changed unexpectedly.");
   compareCoreMetadata(source.coreMetadata, output.coreMetadata, failures, expectations.coreMetadataMode);
+  if (source.xmpMetadataXml !== undefined && output.xmpMetadataXml !== undefined) {
+    if (expectations.coreMetadataMode === "cleared") {
+      if (output.xmpMetadataXml !== "") failures.push("XMP metadata was expected to be cleared.");
+    } else if (source.xmpMetadataXml !== output.xmpMetadataXml) {
+      failures.push("XMP metadata changed unexpectedly.");
+    }
+  }
 
   for (const pageNumber of source.sampledPages) {
     const beforeGeometry = sourceGeometry.get(pageNumber);
@@ -245,6 +424,15 @@ export function comparePdfFidelityProfiles(
     }
 
     if (affected.has(pageNumber)) {
+      if (expectations.expectNoLinksOnAffectedPages) {
+        if (after.linkCount !== 0) failures.push(`Page ${pageNumber} links were not removed as requested.`);
+      } else {
+        comparePageAnnotations(before, after, "link", expectations.linkDeltaByPage?.[pageNumber] ?? 0, false, failures);
+      }
+      comparePageAnnotations(
+        before, after, "annotation", expectations.annotationDeltaByPage?.[pageNumber] ?? 0,
+        expectations.allowAnnotationRemovalOnAffectedPages === true, failures
+      );
       const expectedWidgets = expectations.expectNoWidgetsOnAffectedPages
         ? 0
         : before.widgetCount + (expectations.widgetDeltaByPage?.[pageNumber] ?? 0);

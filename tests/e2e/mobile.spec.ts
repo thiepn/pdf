@@ -126,6 +126,7 @@ test("320px editor fits touch controls and preserves shortcut help through More 
     expect(bounds.left).toBeGreaterThanOrEqual(0);
     expect(bounds.right).toBeLessThanOrEqual(viewport.width + 1);
   }
+  expect(await bar.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
   const more = bar.getByRole("button", { name: "More tools", exact: true });
   await more.click();

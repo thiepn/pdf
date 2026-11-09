@@ -8,9 +8,14 @@ describe("P1 native text reconstruction fidelity", () => {
     expect(workerSource).toContain("function redactTextOnly");
     expect(workerSource).toContain("PDFPage.REDACT_IMAGE_NONE");
     expect(workerSource).toContain("PDFPage.REDACT_LINE_ART_NONE");
+    expect(workerSource).toContain("if (redaction.hasInteriorColor?.()) redaction.setInteriorColor([])");
+    // Redact does not have to expose the generic annotation color setter;
+    // the actual PDF annotation dictionary must explicitly encode no fill.
+    expect(workerSource).toContain('redaction.getObject().put("IC", noFill)');
+    expect(workerSource).toContain("PDFPage.REDACT_TEXT_REMOVE");
     expect(workerSource).toContain("function textSourceRegions");
     expect(workerSource).toContain("Array.isArray(edit.sourceRects)");
-    expect(workerSource).toContain("redactTextOnly(page, textSourceRegions(edit))");
+    expect(workerSource).toContain("redactTextOnly(pdf, page, textSourceRegions(edit))");
   });
 
   it("preserves original visual-line regions and hard line membership for fixed-box paragraph reconstruction", () => {

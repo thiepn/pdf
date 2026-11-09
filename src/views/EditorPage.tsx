@@ -17,6 +17,7 @@ import { createHistory, commitHistory, historyContentIsDirty, redoHistory, sealH
 import { cloneObjects, createEditorState, duplicateObjects, moveRect, updateObjects } from "../editor/editorModel";
 import { listEditorAssets, readEditorState, writeEditorAsset, writeEditorState } from "../editor/editorRepository";
 import { exportEditorPdf } from "../editor/editorExportClient";
+import { assertOverlayExportCanPreserveObjects } from "../editor/overlayExportIntegrity";
 import { NativeContentPropertiesPanel } from "../editor/native/NativeContentPropertiesPanel";
 import { FindReplaceDialog } from "../editor/native/FindReplaceDialog";
 import { nativeObjectLabel, type NativeTransformMode } from "../editor/native/NativeContentOverlay";
@@ -41,6 +42,7 @@ import {
   type UnifiedLayoutItem
 } from "../editor/unifiedLayout";
 import { applyNativeEdits, inspectNativePdf } from "../native/nativeClient";
+import { inspectReadOnlyPdfJsText } from "../native/pdfJsSearchFallback";
 import { discardNativeObjectEdits, hiddenNativeObjectIds, mergeNativeEdits } from "../native/nativeEditQueue";
 import { readNativeState, writeNativeState } from "../native/nativeRepository";
 import { downloadBlob } from "../projects/download";
@@ -108,6 +110,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const previewSequenceRef = useRef(0);
   const hydrationRef = useRef<DeferredHydrationHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const provisionalSearchSelectionRef = useRef<{ pageNumber: number; text: string } | null>(null);
   const internalClipboardRef = useRef<EditorObject[]>([]);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
   const localSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -212,6 +215,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   const redactionCount = useMemo(() => displayObjects.filter((object) => object.type === "redaction").length, [displayObjects]);
   const currentNativePage = useMemo(() => nativeInspection?.pages.find((page) => page.pageNumber === editorState.currentPage), [nativeInspection, editorState.currentPage]);
   const currentNativeObjects = currentNativePage?.objects ?? [];
+  // PDF.js search recovery is not a native-object inspection. During
+  // hydration expose only the one read-only result the user explicitly chose,
+  // not every provisional PDF.js hitbox or any transform handle.
+  const nativeCanvasObjects = nativeInspecting
+    ? currentNativeObjects.filter((object) => object.id === selectedNativeId && object.id.startsWith("pdfjs-readonly:"))
+    : currentNativeObjects;
   const nativeHiddenIds = useMemo(() => hiddenNativeObjectIds(nativeEdits), [nativeEdits]);
   const selectedNativeObjects = useMemo(() => currentNativeObjects.filter((object) => selectedNativeIds.has(object.id)), [currentNativeObjects, selectedNativeIds]);
   const selectedNativeObject = useMemo(() => nativeInspection?.pages.flatMap((page) => page.objects).find((object) => object.id === selectedNativeId), [nativeInspection, selectedNativeId]);
@@ -367,6 +376,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       // still owns focus. Letting the browser perform a native field undo would
       // change the controlled input without moving PDF Studio's history/checkpoint.
       if (command && event.key.toLowerCase() === "s") { event.preventDefault(); void exportPdf(supportsNativeFileSave() ? "save" : "download"); return; }
+      if (command && event.key.toLowerCase() === "f" && nativeInspection) { event.preventDefault(); setFindReplaceOpen(true); return; }
       if (command && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (command && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
@@ -396,7 +406,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing, shortcutHelpOpen]);
+  }, [cleanHistoryContentId, history, selectedIds, selectedNativeIds, editorState, nativeEdits, currentNativePage, currentNativeObjects, pageGeometry, unifiedItems, processing, shortcutHelpOpen, nativeInspection, nativeInspecting]);
 
   async function openDocument(manifest: ProjectManifest, bytes: Uint8Array, suppliedPassword?: string): Promise<void> {
     hydrationRef.current?.cancel();
@@ -420,24 +430,71 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       hydrationRef.current = scheduleDeferredHydration(async (signal) => {
         if (signal.aborted || documentRef.current !== pdf) return;
         setNativeInspecting(true);
+        // Make source text searchable on small PDFs without waiting for every
+        // MuPDF specialist inspector. Provisional data is always read-only.
+        // The qualified inspection supersedes it when ready. Avoid parallel
+        // page extraction on very large files where it competes for memory.
+        let nativeSettled = false;
+        const quickSearch = pdf.numPages <= 20 && bytes.byteLength <= 5_000_000
+          ? inspectReadOnlyPdfJsText(pdf, signal).catch(() => null)
+          : Promise.resolve(null);
+        void quickSearch.then((preview) => {
+          if (!preview || nativeSettled || signal.aborted || documentRef.current !== pdf) return;
+          setNativeInspection(preview);
+          setStatus("Ready · text search available · preparing PDF editing…");
+        });
         const [inspectionResult, assetsResult] = await Promise.allSettled([
           inspectNativePdf(bytes, suppliedPassword, signal),
           listEditorAssets(projectId)
         ]);
+        nativeSettled = true;
         if (signal.aborted || documentRef.current !== pdf) return;
         if (assetsResult.status === "fulfilled") createAssetUrls(assetsResult.value);
         if (inspectionResult.status === "fulfilled") {
           const inspection = inspectionResult.value;
           setNativeInspection(inspection);
+          // Searching is permitted while native inspection continues, but
+          // provisional PDF.js IDs are never native object IDs. Remap an
+          // explicitly inspected search result once the qualified tree lands.
+          const pending = provisionalSearchSelectionRef.current;
+          provisionalSearchSelectionRef.current = null;
+          if (pending) {
+            const qualified = inspection.pages.find((page) => page.pageNumber === pending.pageNumber)
+              ?.objects.find((object) => object.type === "text" && (object.text.includes(pending.text) || pending.text.includes(object.text)));
+            if (qualified) {
+              setSelectedNativeIds(new Set([qualified.id]));
+              setSelectedNativeId(qualified.id);
+            } else {
+              setSelectedNativeIds(new Set());
+              setSelectedNativeId(undefined);
+              setStatus("The earlier search match was not found by the complete inspector. Search again to review the original PDF.");
+            }
+          }
+          const denseNotice = inspection.warnings.find((warning) => warning.startsWith("Dense PDF safeguard:") || warning.startsWith("Incomplete PDF inspection:"));
+          if (denseNotice) setWarnings((current) => [...new Set([...current, denseNotice])]);
           setStatus("Ready");
           onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms} PDF items found`);
           recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: inspection.totals.text + inspection.totals.images + inspection.totals.vectors + inspection.totals.tables + inspection.totals.forms });
         } else {
           const inspectionError = inspectionResult.reason;
           if (!(inspectionError instanceof DOMException && inspectionError.name === "AbortError")) {
-            setWarnings((current) => [...current, "Some existing PDF content could not be prepared for direct editing. You can still add new content."]);
-            setStatus("Ready · you can still add new content");
-            recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: 0 });
+            try {
+              // A failure of the MuPDF base inspector must not erase text
+              // search when PDF.js already displays the source successfully.
+              // Only search/review data is recovered; editing stays forbidden.
+              const recovered = await quickSearch ?? await inspectReadOnlyPdfJsText(pdf, signal);
+              if (signal.aborted || documentRef.current !== pdf) return;
+              setNativeInspection(recovered);
+              setWarnings((current) => [...new Set([...current, ...recovered.warnings])]);
+              setStatus("Ready · source search and annotations available");
+              onTitleChange?.(`Edit · ${manifest.name}`, `${pdf.numPages} pages · ${recovered.totals.text} read-only text blocks found`);
+              recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: recovered.totals.text, degraded: true });
+            } catch (fallbackError) {
+              if (signal.aborted) return;
+              setWarnings((current) => [...new Set([...current, "Existing PDF text inspection is unavailable. Original pages and added overlays remain accessible; source modifications are disabled."])]);
+              setStatus("Ready · overlays only");
+              recordRuntimeMetric("custom", "readiness.editor.nativeHydrated", 0, undefined, { projectId: manifest.id, detectedObjects: 0 });
+            }
           }
         }
         setNativeInspecting(false);
@@ -513,6 +570,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
   }
 
   function selectNativeObject(object: NativePageObject, additive = false): void {
+    provisionalSearchSelectionRef.current = null;
     const nextAddedSelection = additive ? selectedIds : new Set<string>();
     if (!additive) setSelectedIds(nextAddedSelection);
     const nextNativeSelection = additive ? new Set(selectedNativeIds) : new Set<string>();
@@ -974,10 +1032,16 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       await runProjectOperation(project.id, { label: operationLabel, signal: controller.signal, reserveBytes: saveProject ? project.byteLength : undefined }, async ({ signal, update }) => {
       update({ detail: "Preparing edited PDF…", progress: 0.05 });
       const visibleObjects = history.present.objects.filter((object) => !object.hidden);
+      if (nativeEdits.length && (!nativeInspection?.canEdit || nativeInspecting)) {
+        throw new Error("Source-edit export is blocked: this PDF has not passed complete native inspection. Your queued edits are saved for retry; original pages and added annotations remain available.");
+      }
       const affectedPages = new Set([...visibleObjects.map((object) => object.pageNumber), ...nativeEdits.map((edit) => edit.pageNumber)]);
       const assetIds = new Set(visibleObjects.filter((object): object is ImageEditorObject => object.type === "image").map((object) => object.assetId));
       const assetRecords = (await listEditorAssets(projectId)).filter((asset) => assetIds.has(asset.id));
       const assets: EditorExportAsset[] = assetRecords.map((asset) => ({ id: asset.id, mimeType: asset.mimeType, bytes: asset.bytes.slice(0) }));
+      // Reject stale page placements or lost image assets before applying
+      // source edits. A partial PDF export must never look successful.
+      if (visibleObjects.length) assertOverlayExportCanPreserveObjects(visibleObjects, assets, document?.numPages ?? 0);
       const beforeInventory = await inspectPdfAnnotationInventory(sourceBytes, passwordRef.current, affectedPages);
       let workingBytes = sourceBytes;
       let nativeReport: Awaited<ReturnType<typeof applyNativeEdits>>["report"] | undefined;
@@ -1002,7 +1066,15 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (annotationDelta < result.report.annotationCount) throw new Error("The edited PDF could not be verified because some annotations did not save correctly.");
       if (linkDelta < result.report.linkCount) throw new Error("The edited PDF could not be verified because some links did not save correctly.");
       update({ stage: "validating", detail: "Checking document fidelity and untouched content…", progress: 0.87 });
-      const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, passwordRef.current, signal);
+      const linkDeltaByPage: Record<number, number> = {};
+      const annotationDeltaByPage: Record<number, number> = {};
+      for (const object of visibleObjects) {
+        const bucket = object.type === "link" ? linkDeltaByPage : annotationDeltaByPage;
+        bucket[object.pageNumber] = (bucket[object.pageNumber] ?? 0) + 1;
+      }
+      const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, passwordRef.current, signal, {
+        expectations: { linkDeltaByPage, annotationDeltaByPage }
+      });
       if (!fidelity.passed) {
         throw new Error(`P8 fidelity validation failed: ${fidelity.failures.slice(0, 4).join(" ")} No output was created.`);
       }
@@ -1132,7 +1204,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         <span />
         <details className="editor-guides"><summary>Guides & existing content</summary><div><label className="editor-toggle"><input checked={editorState.snapEnabled} onChange={(event) => setEditorState((state) => ({ ...state, snapEnabled: event.target.checked }))} type="checkbox" />Snap</label>
         <label className="editor-grid-size">Grid <input min="1" max="72" onChange={(event) => setEditorState((state) => ({ ...state, gridSize: Math.max(1, Number(event.target.value)) }))} type="number" value={editorState.gridSize} /></label>
-        <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection || nativeInspecting} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />Select existing PDF content</label></div></details>
+        <label className="editor-toggle"><input checked={showNativeContent} disabled={!nativeInspection} onChange={(event) => setShowNativeContent(event.target.checked)} type="checkbox" />Select existing PDF content</label></div></details>
         {nativeEdits.length ? <span className="native-queued-count">{nativeEdits.length} PDF edit{nativeEdits.length === 1 ? "" : "s"} ready</span> : null}
         {nativeEdits.length && nativePreviewState === "ready" ? <div className="native-preview-switch" role="group" aria-label="Compare edited PDF with original source"><button aria-pressed={!reviewOriginal} onClick={() => setReviewOriginal(false)} type="button">Edited preview</button><button aria-pressed={reviewOriginal} onClick={() => setReviewOriginal(true)} type="button">Original</button></div> : null}
         {unifiedSelectionCount > 1 ? <><span className="p6-selection-count">{unifiedSelectionCount} selected</span>{selectedIds.size > 1 ? <><button disabled={hasLockedSelection} onClick={groupSelection} type="button">Group added</button><button disabled={hasLockedSelection} onClick={ungroupSelection} type="button">Ungroup</button></> : null}<button disabled={hasLockedSelection} onClick={() => alignUnified("left")} type="button">Align left</button><button disabled={hasLockedSelection} onClick={() => alignUnified("center")} type="button">Center</button><button disabled={hasLockedSelection} onClick={() => alignUnified("right")} type="button">Align right</button><button disabled={hasLockedSelection} onClick={() => alignUnified("top")} type="button">Top</button><button disabled={hasLockedSelection} onClick={() => alignUnified("middle")} type="button">Middle</button><button disabled={hasLockedSelection} onClick={() => alignUnified("bottom")} type="button">Bottom</button>{unifiedSelectionCount > 2 ? <><button disabled={hasLockedSelection} onClick={() => distributeUnified("horizontal")} type="button">Distribute H</button><button disabled={hasLockedSelection} onClick={() => distributeUnified("vertical")} type="button">Distribute V</button></> : null}</> : null}
@@ -1152,7 +1224,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       </header> : null}
 
       {!compactControls ? <nav className="editing-toolbar" aria-label="Editing tools" inert={processing ? true : undefined}>
-        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button><button aria-label="Find and replace existing text" disabled={!nativeInspection || nativeInspecting || processing} onClick={() => setFindReplaceOpen(true)} type="button"><Icon name="inspect" size={20}/><span>Find & replace</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
+        <div className="editing-toolbar__primary"><button aria-label="Edit existing text" disabled={!nativeInspection?.canEdit || nativeInspecting} onClick={() => { activateTool("select"); setShowNativeContent(true); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" size={20}/><span>Edit existing text</span></button><button aria-label="Find and replace existing text" disabled={!nativeInspection || processing} onClick={() => setFindReplaceOpen(true)} type="button"><Icon name="inspect" size={20}/><span>Find & replace</span></button>{["select", "text", "highlight", "pen", "image", "signature", "note"].flatMap((id) => { const tool = tools.find((entry) => entry.id === id); return tool ? [tool] : []; }).map((tool) => <button aria-label={tool.label} aria-pressed={editorState.activeTool === tool.id} key={tool.id} onClick={() => activateTool(tool.id)} title={`${tool.label}${tool.key ? ` (${tool.key})` : ""}`} type="button"><Icon name={tool.icon} size={20}/><span>{tool.label}</span></button>)}</div>
         <button aria-expanded={mobileToolsOpen} aria-haspopup="dialog" className="editing-toolbar__more" onClick={() => setMobileToolsOpen(true)} ref={mobileToolsTriggerRef} type="button"><Icon name="more" size={20}/><span>More tools</span></button><button aria-haspopup="dialog" aria-label="Keyboard shortcuts" onClick={() => setShortcutHelpOpen(true)} ref={shortcutHelpTriggerRef} type="button"><Icon name="help" size={18} /><span>Shortcuts</span></button>
       </nav> : <nav className="editing-toolbar compact-document-bar compact-editor-bar" aria-label="Editing tools">
         <CompactDocumentHome />
@@ -1184,12 +1256,12 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
 
         {sidebarOpen ? <aside className="editor-left-panel"><label className="editor-sidebar-select"><span className="visually-hidden">Sidebar content</span><select value={leftTab} onChange={(event) => setLeftTab(event.target.value as LeftTab)}><option value="pages">Pages</option><option value="layers">Objects & layers</option><option value="comments">Comments</option></select></label><div className="editor-left-body">{leftTab === "pages" ? <div className="thumbnail-list">{Array.from({ length: renderedDocument.numPages }, (_, index) => <Thumbnail document={renderedDocument} key={index + 1} onSelect={(pageNumber) => navigateToPage(pageNumber)} pageNumber={index + 1} selected={editorState.currentPage === index + 1} />)}</div> : null}{leftTab === "layers" ? <LayerList deletedNativeIds={nativeHiddenIds} nativeObjects={reviewOriginal ? [] : currentNativeObjects} nativeQueued={nativeEdits} objects={currentPageObjects} selectedIds={selectedIds} selectedNativeIds={selectedNativeIds} onRestoreNative={removeNativeEdits} onSelect={selectObject} onSelectNative={selectNativeObject} onToggleHidden={(object) => commitObject(object.hidden ? "Show object" : "Hide object", { ...object, hidden: !object.hidden })} onToggleLocked={(object) => commitObject(object.locked ? "Unlock object" : "Lock object", { ...object, locked: !object.locked })} /> : null}{leftTab === "comments" ? <CommentList comments={comments} onSelect={(comment) => { navigateToPage(comment.pageNumber); setEditorState((state) => ({ ...state, activeTool: "select" })); setSelectedIds(new Set([comment.id])); setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setPropertiesOpen(true); if (isCompactViewport()) setSidebarOpen(false); }} /> : null}</div></aside> : null}
 
-        <section className={`editor-stage${reviewOriginal ? " editor-stage--source-review" : ""}`} aria-label={reviewOriginal ? "Original PDF source preview" : "PDF page canvas"}>{reviewOriginal ? <div className="editor-source-review-badge" aria-hidden="true">Original PDF · editing paused</div> : null}<EditorCanvasPage activeTool={editorState.activeTool} assetUrls={assetUrls} author={editorState.author} document={renderedDocument} gridSize={editorState.gridSize} nativeEffectiveBounds={nativeEffectiveBounds} nativeHiddenIds={nativeHiddenIds} nativeObjects={currentNativeObjects} nativeOrigin={currentNativePage ? { x: currentNativePage.originX, y: currentNativePage.originY } : undefined} nativeTransformableIds={nativeTransformableIds} objects={reviewOriginal ? [] : displayObjects} onCommit={commitObject} onCreate={addObject} onEditText={(object) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setSelectedIds(new Set([object.id])); if (isCompactViewport()) setSidebarOpen(false); setPropertiesOpen(true); }} onPageGeometry={setPageGeometry} onPreview={setPreviewObject} onSelect={selectObject} onSelectNative={selectNativeObject} onTransformNative={transformNativeObject} pageNumber={editorState.currentPage} selectedIds={selectedIds} selectedNativeId={selectedNativeId} selectedNativeIds={selectedNativeIds} showNativeContent={!reviewOriginal && showNativeContent} snapEnabled={editorState.snapEnabled} zoom={editorState.zoom} /></section>
+        <section className={`editor-stage${reviewOriginal ? " editor-stage--source-review" : ""}`} aria-label={reviewOriginal ? "Original PDF source preview" : "PDF page canvas"}>{reviewOriginal ? <div className="editor-source-review-badge" aria-hidden="true">Original PDF · editing paused</div> : null}<EditorCanvasPage activeTool={editorState.activeTool} assetUrls={assetUrls} author={editorState.author} document={renderedDocument} gridSize={editorState.gridSize} nativeEffectiveBounds={nativeEffectiveBounds} nativeHiddenIds={nativeHiddenIds} nativeObjects={reviewOriginal ? [] : nativeCanvasObjects} nativeOrigin={currentNativePage ? { x: currentNativePage.originX, y: currentNativePage.originY } : undefined} nativeTransformableIds={nativeInspecting ? new Set<string>() : nativeTransformableIds} objects={reviewOriginal ? [] : displayObjects} onCommit={commitObject} onCreate={addObject} onEditText={(object) => { setSelectedNativeIds(new Set()); setSelectedNativeId(undefined); setSelectedIds(new Set([object.id])); if (isCompactViewport()) setSidebarOpen(false); setPropertiesOpen(true); }} onPageGeometry={setPageGeometry} onPreview={setPreviewObject} onSelect={selectObject} onSelectNative={selectNativeObject} onTransformNative={transformNativeObject} pageNumber={editorState.currentPage} selectedIds={selectedIds} selectedNativeId={selectedNativeId} selectedNativeIds={selectedNativeIds} showNativeContent={!reviewOriginal && showNativeContent && (!nativeInspecting || Boolean(selectedNativeId?.startsWith("pdfjs-readonly:")))} snapEnabled={editorState.snapEnabled} zoom={editorState.zoom} /></section>
 
         {propertiesOpen ? unifiedSelectionCount > 1 ? <UnifiedLayoutPropertiesPanel items={unifiedItems} nativeCount={selectedNativeIds.size} onAlign={alignUnified} onDelete={deleteSelection} onDistribute={distributeUnified} onDuplicateOverlays={duplicateSelection} onGroupOverlays={groupSelection} onMatchSize={matchUnifiedSize} onRotate={rotateUnified} onUngroupOverlays={ungroupSelection} overlayCount={selectedIds.size} primaryKey={primaryUnifiedKey} /> : selectedNativeObject ? <NativeContentPropertiesPanel object={selectedNativeObject} page={selectedNativePage} onQueue={queueNativeEdits} onRemove={removeNativeEdits} queuedEdits={nativeEdits} /> : <EditorPropertiesPanel onBringFront={() => arrange("front")} onChange={commitObject} onDelete={deleteSelection} onDuplicate={duplicateSelection} onSendBack={() => arrange("back")} selected={selectedObjects} /> : null}
       </div>
       <EditorDocumentStatus
-        name={project.name}
+        name={project.sourceFilename || project.name}
         page={editorState.currentPage}
         totalPages={document.numPages}
         zoom={editorState.zoom}
@@ -1201,7 +1273,11 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
         originalPreview={reviewOriginal}
       />
       <D7KeyboardHelp onClose={closeShortcutHelp} open={shortcutHelpOpen} returnFocusRef={compactControls ? mobileToolsTriggerRef : shortcutHelpTriggerRef} />
-      <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
+      <FindReplaceDialog inspection={nativeInspection} open={findReplaceOpen} queuedEdits={nativeEdits} onClose={() => setFindReplaceOpen(false)} onNavigateToMatch={(objectId, pageNumber) => { const matched = nativeInspection?.pages.find((page) => page.pageNumber === pageNumber)?.objects.find((object) => object.id === objectId); if (!matched) { setError("The matching PDF text is no longer available. Reopen search and try again."); return; } setFindReplaceOpen(false); setShowNativeContent(true); selectNativeObject(matched);
+        if (matched.type === "text" && matched.id.startsWith("pdfjs-readonly:")) {
+          provisionalSearchSelectionRef.current = { pageNumber, text: matched.text };
+        }
+        setStatus(`Selected matching PDF text on page ${pageNumber}. Review it in Properties before editing.`); }} onApply={(edits, occurrenceCount) => { queueNativeEdits(edits); setShowNativeContent(true); setStatus(`${occurrenceCount} existing-text match${occurrenceCount === 1 ? "" : "es"} queued for replacement. Review the preview, then download when ready.`); }} />
       {mobileToolsOpen ? <div className="product-modal-backdrop editor-tools-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMobileTools(); }}>
         <div aria-label="Editor tools" aria-modal="true" className="product-modal editor-tools-sheet" ref={mobileToolsRef} role="dialog">
           <div className="editor-tools-sheet__handle" />
@@ -1216,7 +1292,7 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
               <button className="icon-button" aria-label="Redo" disabled={!history.future.length || processing} onClick={redo} type="button"><Icon name="redo" /></button>
             </div>
             {contextControls}
-            <button disabled={!nativeInspection || nativeInspecting} onClick={() => { closeMobileTools(); activateTool("select"); setShowNativeContent(true); setSidebarOpen(false); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" />Edit existing text</button><button disabled={!nativeInspection || nativeInspecting || processing} onClick={() => { closeMobileTools(); setFindReplaceOpen(true); }} type="button"><Icon name="inspect" />Find & replace existing text</button>
+            <button disabled={!nativeInspection?.canEdit || nativeInspecting} onClick={() => { closeMobileTools(); activateTool("select"); setShowNativeContent(true); setSidebarOpen(false); setPropertiesOpen(true); setStatus("Select existing PDF text to edit it. Scanned text needs OCR; some fonts or text structures are not editable."); }} type="button"><Icon name="edit" />Edit existing text</button><button disabled={!nativeInspection || processing} onClick={() => { closeMobileTools(); setFindReplaceOpen(true); }} type="button"><Icon name="inspect" />Find & replace existing text</button>
           </div> : null}
           <div className="editor-tools-sheet__groups">{toolGroups.map((group) => <section key={group.label}><h3>{group.label}</h3><div>{group.tools.map((tool) => <button aria-label={tool.label} aria-keyshortcuts={tool.key} aria-pressed={editorState.activeTool === tool.id} className={editorState.activeTool === tool.id ? "active" : ""} key={tool.id} onClick={() => chooseMobileTool(tool.id)} type="button"><Icon name={tool.icon} /><span>{tool.label}</span>{tool.key ? <kbd>{tool.key}</kbd> : null}</button>)}</div></section>)}</div>
           <section className="editor-tools-sheet__document"><h3>Document</h3><div className="editor-tools-sheet__zoom"><button aria-label="Zoom out" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.max(.5, state.zoom - .25) }))} type="button"><Icon name="minus" /></button><strong>{Math.round(editorState.zoom * 100)}%</strong><button aria-label="Zoom in" onClick={() => setEditorState((state) => ({ ...state, zoom: Math.min(3, state.zoom + .25) }))} type="button"><Icon name="plus" /></button></div><button aria-pressed={editorState.snapEnabled} onClick={() => setEditorState((state) => ({ ...state, snapEnabled: !state.snapEnabled }))} type="button">Snap {editorState.snapEnabled ? "on" : "off"}</button><button aria-pressed={showNativeContent} onClick={() => setShowNativeContent(!showNativeContent)} type="button">Original PDF content {showNativeContent ? "on" : "off"}</button></section>

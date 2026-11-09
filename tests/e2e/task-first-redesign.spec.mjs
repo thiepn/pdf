@@ -124,7 +124,7 @@ test("editor replaces document tabs and mode tabs with direct tools and focused 
     await editor(page);
     await expect(page.locator('[role="tablist"],.workspace-tabs,.workspace-modebar,.editor-toolrail')).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Editing tools" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeEnabled();
+    await expect(page.getByLabel("More save options")).toBeVisible();
     await capture(page, info, "09-editor-desktop");
     await page.getByRole("button", { name: "More tools", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Editor tools" })).toBeVisible();

@@ -5,7 +5,7 @@ test.describe("Desktop task-first hierarchy", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
   test("homepage prioritizes tasks and files while project recovery remains secondary", async ({ page }) => {
     await page.goto("./#/home");
-    await expect(page.getByRole("heading", { name: /Less work.*More done/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Start with a file/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "Choose files", exact: true })).toBeVisible();
     await expect(page.locator(".home-task-card")).toHaveCount(12);
     await expect(page.getByRole("link", { name: /Merge PDFs/ }).first()).toBeVisible();
@@ -23,7 +23,7 @@ test.describe("Desktop task-first hierarchy", () => {
     await switchMode(page, "editor");
     const tools = page.getByRole("navigation", { name: "Editing tools" });
     await expect(tools.getByRole("button", { name: "Add text", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download PDF", exact: true })).toBeVisible();
+    await expect(page.getByLabel("More save options")).toBeVisible();
     await expect(page.locator(".editor-toolrail")).toHaveCount(0);
     await page.getByRole("button", { name: "More tools", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Editor tools" });
