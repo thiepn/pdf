@@ -244,7 +244,7 @@ function compareFormWidgets(
   }
   const updates = new Map<string, string>();
   for (const update of expectations.formValueUpdates ?? []) {
-    if (!update.name || (updates.has(update.name) && updates.get(update.name) !== update.value)) {
+    if (!update.name || (updates.has(update.name) && updates.get(update.name) !== JSON.stringify(update.value))) {
       failures.push("Conflicting or invalid authorized form update.");
       continue;
     }

@@ -348,17 +348,25 @@ function FormsPanel(context: PanelContext) {
   const editable = fields.filter((field) => !field.readOnly && field.type !== "signature" && field.type !== "button");
   return <div className="security-panel-body">
     <PanelTitle title="Forms" subtitle={`${fields.length} existing · ${context.formCreates.length} new · PDF scripts are not run`} />
-    {editable.length ? <><div className="security-form-list">{fields.map((field) => <FormControl field={field} key={field.id} selected={context.selectedField?.id === field.id} value={context.security.formValues[field.id] ?? field.value} onChange={(value) => context.setSecurity((state) => ({ ...state, formValues: { ...state.formValues, [field.id]: value }, currentPage: field.pageNumber }))} onSelect={() => { context.setSelectedFieldId(field.id); context.setSelectedDraftId(undefined); }} />)}</div><button className="button button--ghost button--block" onClick={() => context.setSecurity((state) => ({ ...state, formValues: { ...context.initialFormValues } }))} type="button">Reset pending values</button><p className="property-note">Read-only and digital signature fields are displayed but cannot be changed here.</p></> : <div className="security-empty"><strong>No fillable fields detected</strong><p>You can create supported interactive text and checkbox fields below. Existing visual content is not automatically converted without review.</p><a className="button button--secondary" href={routeHref({ name: "editor", projectId: context.projectId })}>Fill with text in the editor</a></div>}
+    {editable.length ? <><div className="security-form-list">{fields.map((field) => <FormControl field={field} key={field.id} selected={context.selectedField?.id === field.id} value={context.security.formValues[field.id] ?? field.value} onChange={(value) => context.setSecurity((state) => ({ ...state, formValues: {
+  ...state.formValues,
+  ...(field.type === "radiobutton"
+    ? Object.fromEntries(fields.filter((candidate) => candidate.type === "radiobutton" && candidate.name === field.name).map((candidate) => [candidate.id, value]))
+    : { [field.id]: value })
+}, currentPage: field.pageNumber }))} onSelect={() => { context.setSelectedFieldId(field.id); context.setSelectedDraftId(undefined); }} />)}</div><button className="button button--ghost button--block" onClick={() => context.setSecurity((state) => ({ ...state, formValues: { ...context.initialFormValues } }))} type="button">Reset pending values</button><p className="property-note">Read-only and digital signature fields are displayed but cannot be changed here.</p></> : <div className="security-empty"><strong>No fillable fields detected</strong><p>You can create supported interactive text and checkbox fields below. Existing visual content is not automatically converted without review.</p><a className="button button--secondary" href={routeHref({ name: "editor", projectId: context.projectId })}>Fill with text in the editor</a></div>}
     <FormAuthoringPanel currentPage={context.security.currentPage} disabled={false} document={context.document} drafts={context.formCreates} existingFields={fields} onDrafts={context.setFormCreates} onPage={(pageNumber) => context.setSecurity((state) => ({ ...state, currentPage: pageNumber }))} onPreview={context.onPreviewFormCandidate} />
   </div>;
 }
 
 function FormControl({ field, value, selected, onChange, onSelect }: { field: SecurityFormField; value: string; selected: boolean; onChange: (value: string) => void; onSelect: () => void }) {
   const title = field.label || field.name || `${field.type} field`;
-  const disabled = field.readOnly || field.type === "signature" || field.type === "button";
-  const control = field.type === "checkbox" || field.type === "radiobutton"
-    ? <label className="security-checkbox"><input aria-label={title} checked={isOn(value)} disabled={disabled} onChange={(event) => onChange(event.target.checked ? field.options.find((option) => option.toLocaleLowerCase() !== "off") ?? "Yes" : "Off")} type="checkbox" /><span>{isOn(value) ? "Selected" : "Not selected"}</span></label>
-    : field.type === "combobox" || field.type === "listbox"
+  const radioOption = field.type === "radiobutton" ? field.options.find((option) => option.toLocaleLowerCase() !== "off") : undefined;
+  const disabled = field.readOnly || field.type === "signature" || field.type === "button" || (field.type === "radiobutton" && !radioOption);
+  const control = field.type === "radiobutton"
+    ? <label className="security-checkbox"><input aria-label={title + ": " + (radioOption ?? "unknown")} checked={value === radioOption} disabled={disabled} name={"secure-radio-" + field.name} onChange={() => { if (radioOption) onChange(radioOption); }} type="radio" /><span>{radioOption ?? "Choice unavailable"}</span></label>
+    : field.type === "checkbox"
+      ? <label className="security-checkbox"><input aria-label={title} checked={isOn(value)} disabled={disabled} onChange={(event) => onChange(event.target.checked ? field.options.find((option) => option.toLocaleLowerCase() !== "off") ?? "Yes" : "Off")} type="checkbox" /><span>{isOn(value) ? "Selected" : "Not selected"}</span></label>
+      : field.type === "combobox" || field.type === "listbox"
       ? <select aria-label={title} disabled={disabled} onChange={(event) => onChange(event.target.value)} value={value}><option value="">—</option>{field.options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
       : <input aria-label={title} disabled={disabled} onChange={(event) => onChange(event.target.value)} type={field.password ? "password" : "text"} value={value} />;
   return <article className={`security-form-field${selected ? " active" : ""}`} onClick={onSelect}><header><div><strong>{title}</strong><small>Page {field.pageNumber} · {field.type}{field.readOnly ? " · read-only" : ""}</small></div><button onClick={(event) => { event.stopPropagation(); onSelect(); }} type="button">View</button></header>{control}</article>;
@@ -387,7 +395,7 @@ function SanitizePanel({ security, setSecurity, inspection }: { security: Securi
     { key: "removeAttachments", label: "Remove embedded files", detail: `${inspection.attachmentCount} embedded file${inspection.attachmentCount === 1 ? "" : "s"} detected` },
     { key: "removeLinks", label: "Remove all page links", detail: "Deletes internal and external links" },
     { key: "removeComments", label: "Remove page annotations and comments", detail: "Also removes ordinary editor annotations" },
-    { key: "clearFormValues", label: "Clear all form values", detail: "Does not clear signed signature fields" },
+    { key: "clearFormValues", label: "Clear all form values", detail: "Preserves read-only and signed fields" },
     { key: "flattenForms", label: "Flatten form fields", detail: "Keeps appearance but removes interactivity" },
     { key: "flattenAnnotations", label: "Flatten annotations", detail: "Keeps appearance but removes editability" },
     { key: "collapseRevisionHistory", label: "Remove previous saved PDF versions", detail: `${inspection.versionCount} stored version${inspection.versionCount === 1 ? "" : "s"}` }

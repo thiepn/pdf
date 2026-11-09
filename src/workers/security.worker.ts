@@ -161,7 +161,17 @@ function inspectWidget(widget: any, pageNumber: number, widgetIndex: number, tra
     name,
     label: safeString(safeCall(() => widget.getLabel(), name)),
     value: password ? "" : safeString(safeCall(() => widget.getValue(), "")),
-    options: safeCall(() => widget.getOptions(), [] as string[]).map(String),
+    options: type === "radiobutton"
+      ? safeCall(() => {
+          const normal = widget.getObject()?.get?.("AP")?.get?.("N");
+          if (!normal?.isDictionary?.()) return [] as string[];
+          const choices: string[] = [];
+          normal.forEach((_appearance: unknown, name: string) => {
+            if (name && name !== "Off") choices.push(name);
+          });
+          return choices;
+        }, [] as string[])
+      : safeCall(() => widget.getOptions(), [] as string[]).map(String),
     rect,
     readOnly: Boolean(safeCall(() => widget.isReadOnly(), false)),
     multiline: Boolean(safeCall(() => widget.isMultiline(), false)),

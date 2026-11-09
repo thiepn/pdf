@@ -299,6 +299,7 @@ describe("P7/P8 physical-widget counting contract", () => {
       const result = posted.find((entry) => entry.type === "SECURITY_INSPECTION_RESULT");
       if (!result) throw new Error("Security inspection did not return a report");
       expect(result.report.formFields).toHaveLength(2);
+      expect(result.report.formFields.map((field: { options: string[] }) => field.options)).toEqual([["approve"],["reject"]]);
       expect(profile.formFieldCount).toBe(result.report.formFields.length);
     } finally { vi.unstubAllGlobals(); }
   });
@@ -311,6 +312,23 @@ describe("P7 permitted choice-field edits remain usable", () => {
     const output = await secureWriterExport(fixtureBytes, options);
     const report = await validatePdfFidelity(fixtureBytes, output, [1], undefined, undefined, {
       expectations: { expectedFormFieldCount: 3, formValueUpdates: [{ name: "country", value: "Korea" }] }
+    });
+    expect(report.failures).toEqual([]);
+  });
+});
+
+describe("P8 repeated radio-group permissions", () => {
+  it("accepts two identical authorized updates for one radio group", async () => {
+    const before = radioFixture("approve");
+    const after = radioFixture("reject");
+    const report = await validatePdfFidelity(before, after, [1], undefined, undefined, {
+      expectations: {
+        expectedFormFieldCount: 2,
+        formValueUpdates: [
+          { name: "decision", value: "reject" },
+          { name: "decision", value: "reject" }
+        ]
+      }
     });
     expect(report.failures).toEqual([]);
   });
