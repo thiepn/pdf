@@ -50,9 +50,44 @@ function annotationCounts(annotations: any[]): Pick<PdfPageSemanticFingerprint, 
   for (const annotation of annotations ?? []) {
     if (annotation?.subtype === "Link") linkCount += 1;
     else if (annotation?.subtype === "Widget") widgetCount += 1;
-    else annotationCount += 1;
+    // A PDF.js Popup is a companion to a user-visible annotation, not a
+    // separate authored item. MuPDF can rebuild it or mirror parent contents.
+    else if (annotation?.subtype !== "Popup") annotationCount += 1;
   }
   return { annotationCount, linkCount, widgetCount };
+}
+
+function annotationEvidence(annotations: any[]): Pick<PdfPageSemanticFingerprint, "linkFingerprints" | "annotationFingerprints"> {
+  const links: string[] = [];
+  const comments: string[] = [];
+  const geometry = (rect: unknown): number[] =>
+    Array.isArray(rect) ? rect.map((value) => Math.round(Number(value) * 100) / 100) : [];
+  for (const entry of annotations) {
+    if (entry?.subtype === "Widget" || entry?.subtype === "Popup") continue;
+    // P7 owns widgets; PDF.js Popup entries are generated companions of notes.
+    const rect = geometry(entry?.rect);
+    if (rect.length !== 4 || rect.some((value) => !Number.isFinite(value))) {
+      throw new Error("Link or annotation geometry cannot be verified.");
+    }
+    if (entry.subtype === "Link") {
+      links.push(JSON.stringify({
+        rect,
+        target: entry.url ?? entry.unsafeUrl ?? null,
+        destination: entry.dest ?? null,
+        action: entry.action ?? null
+      }));
+    } else {
+      comments.push(JSON.stringify({
+        subtype: entry.subtype ?? "",
+        rect,
+        contents: entry.contentsObj?.str ?? "",
+        title: entry.titleObj?.str ?? "",
+        subject: entry.subject ?? "",
+        color: entry.color ? Array.from(entry.color) : null
+      }));
+    }
+  }
+  return { linkFingerprints: links.sort(), annotationFingerprints: comments.sort() };
 }
 
 async function semanticFingerprint(page: any, pageNumber: number, deep: boolean): Promise<PdfPageSemanticFingerprint> {
@@ -69,7 +104,8 @@ async function semanticFingerprint(page: any, pageNumber: number, deep: boolean)
       textDigest: stableTextDigest(""),
       imageOperations: 0,
       vectorOperations: 0,
-      ...annotationCounts(annotations)
+      ...annotationCounts(annotations),
+      ...annotationEvidence(annotations)
     };
   }
 
@@ -100,7 +136,8 @@ async function semanticFingerprint(page: any, pageNumber: number, deep: boolean)
     textDigest: stableTextDigest(pieces.join("\u241f")),
     imageOperations,
     vectorOperations,
-    ...annotationCounts(annotations)
+    ...annotationCounts(annotations),
+    ...annotationEvidence(annotations)
   };
 }
 

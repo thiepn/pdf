@@ -189,7 +189,9 @@ describe("P8 verification of actual P7 writer output", () => {
     const buffer = pdf.saveToBuffer();
     const output = Uint8Array.from(buffer.asUint8Array());
     buffer.destroy(); annotation.destroy(); page.destroy(); pdf.destroy();
-    const report = await validatePdfFidelity(fixtureBytes, output, [1]);
+    const report = await validatePdfFidelity(fixtureBytes, output, [1], undefined, undefined, {
+      expectations: { annotationDeltaByPage: { 1: 1 } }
+    });
     expect(report.failures).toEqual([]);
   });
 });

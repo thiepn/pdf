@@ -23,6 +23,9 @@ export interface PdfPageSemanticFingerprint {
   annotationCount: number;
   linkCount: number;
   widgetCount: number;
+  /** Volatile identity evidence. Excludes unstable PDF object IDs. */
+  annotationFingerprints?: string[];
+  linkFingerprints?: string[];
 }
 
 /** Volatile inspection-only field evidence: values are never persisted or put into error messages. */
@@ -65,6 +68,12 @@ export interface PdfFidelityExpectations {
   coreMetadataMode?: "preserve" | "cleared";
   widgetDeltaByPage?: Record<number, number>;
   expectNoWidgetsOnAffectedPages?: boolean;
+  /** Exact count of author-created editor overlays per affected page. */
+  linkDeltaByPage?: Record<number, number>;
+  annotationDeltaByPage?: Record<number, number>;
+  /** Explicit Secure cleanup operations, never inferred from page edits. */
+  expectNoLinksOnAffectedPages?: boolean;
+  allowAnnotationRemovalOnAffectedPages?: boolean;
   /** Only the explicitly requested final values are allowed to differ. */
   formValueUpdates?: Array<{ name: string; value: string }>;
   formCreates?: Array<{ name: string; pageNumber: number; type: "text" | "checkbox"; value: string }>;
@@ -304,6 +313,55 @@ function compareFormWidgets(
   if (used.size !== additions.length) failures.push("An authorized interactive form field was missing or altered.");
 }
 
+/**
+ * Compare original link/comment identities as a multiset. The originating PDF
+ * object IDs are not stable when rewritten by MuPDF and are intentionally
+ * excluded from the canonical evidence. Never place targets or comment text
+ * in user-visible failures.
+ */
+function comparePageAnnotations(
+  before: PdfPageSemanticFingerprint,
+  after: PdfPageSemanticFingerprint,
+  kind: "link" | "annotation",
+  expectedAdditions: number,
+  allowRemoval: boolean,
+  failures: string[]
+): void {
+  const source = kind === "link" ? before.linkFingerprints : before.annotationFingerprints;
+  const output = kind === "link" ? after.linkFingerprints : after.annotationFingerprints;
+  const beforeCount = kind === "link" ? before.linkCount : before.annotationCount;
+  const afterCount = kind === "link" ? after.linkCount : after.annotationCount;
+  if (!Number.isInteger(expectedAdditions) || expectedAdditions < 0) {
+    failures.push(`Page ${before.pageNumber} has invalid authorized ${kind} additions.`);
+    return;
+  }
+  // Older synthetic test profiles may omit evidence, but actual PDF.js
+  // inspection always provides it. Keep the count check in either case.
+  if (source === undefined || output === undefined) {
+    if ((!allowRemoval && afterCount !== beforeCount + expectedAdditions)
+        || (allowRemoval && afterCount > beforeCount + expectedAdditions)) {
+      failures.push(`Page ${before.pageNumber} ${kind} count differs from explicitly authorized changes.`);
+    }
+    return;
+  }
+  const remaining = new Map<string, number>();
+  for (const fingerprint of source) remaining.set(fingerprint, (remaining.get(fingerprint) ?? 0) + 1);
+  let additions = 0;
+  for (const fingerprint of output) {
+    const n = remaining.get(fingerprint) ?? 0;
+    if (n > 0) remaining.set(fingerprint, n - 1);
+    else additions += 1;
+  }
+  const losses = [...remaining.values()].reduce((sum, count) => sum + count, 0);
+  if (!allowRemoval && losses > 0) failures.push(`Page ${before.pageNumber} existing ${kind} identity or content changed unexpectedly.`);
+  if ((allowRemoval && additions > expectedAdditions) || (!allowRemoval && additions !== expectedAdditions)) {
+    failures.push(`Page ${before.pageNumber} ${kind} additions did not match explicit authorization.`);
+  }
+  if (source.length !== beforeCount || output.length !== afterCount) {
+    failures.push(`Page ${before.pageNumber} ${kind} evidence is incomplete.`);
+  }
+}
+
 export function comparePdfFidelityProfiles(
   source: PdfFidelityProfile,
   output: PdfFidelityProfile,
@@ -362,6 +420,15 @@ export function comparePdfFidelityProfiles(
     }
 
     if (affected.has(pageNumber)) {
+      if (expectations.expectNoLinksOnAffectedPages) {
+        if (after.linkCount !== 0) failures.push(`Page ${pageNumber} links were not removed as requested.`);
+      } else {
+        comparePageAnnotations(before, after, "link", expectations.linkDeltaByPage?.[pageNumber] ?? 0, false, failures);
+      }
+      comparePageAnnotations(
+        before, after, "annotation", expectations.annotationDeltaByPage?.[pageNumber] ?? 0,
+        expectations.allowAnnotationRemovalOnAffectedPages === true, failures
+      );
       const expectedWidgets = expectations.expectNoWidgetsOnAffectedPages
         ? 0
         : before.widgetCount + (expectations.widgetDeltaByPage?.[pageNumber] ?? 0);

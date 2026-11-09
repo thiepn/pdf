@@ -1066,7 +1066,15 @@ export function EditorPage({ projectId, onTitleChange }: Props) {
       if (annotationDelta < result.report.annotationCount) throw new Error("The edited PDF could not be verified because some annotations did not save correctly.");
       if (linkDelta < result.report.linkCount) throw new Error("The edited PDF could not be verified because some links did not save correctly.");
       update({ stage: "validating", detail: "Checking document fidelity and untouched content…", progress: 0.87 });
-      const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, passwordRef.current, signal);
+      const linkDeltaByPage: Record<number, number> = {};
+      const annotationDeltaByPage: Record<number, number> = {};
+      for (const object of visibleObjects) {
+        const bucket = object.type === "link" ? linkDeltaByPage : annotationDeltaByPage;
+        bucket[object.pageNumber] = (bucket[object.pageNumber] ?? 0) + 1;
+      }
+      const fidelity = await validatePdfFidelity(sourceBytes, result.bytes, affectedPages, passwordRef.current, signal, {
+        expectations: { linkDeltaByPage, annotationDeltaByPage }
+      });
       if (!fidelity.passed) {
         throw new Error(`P8 fidelity validation failed: ${fidelity.failures.slice(0, 4).join(" ")} No output was created.`);
       }

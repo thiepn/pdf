@@ -195,6 +195,13 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
         return counts;
       }, {});
 
+      const linkDeltaByPage: Record<number, number> = {};
+      const annotationDeltaByPage: Record<number, number> = {};
+      for (const object of visibleObjects) {
+        const bucket = object.type === "link" ? linkDeltaByPage : annotationDeltaByPage;
+        bucket[object.pageNumber] = (bucket[object.pageNumber] ?? 0) + 1;
+      }
+
       setStatus("Checking document fidelity and compatibility…");
       const fidelity = await validatePdfFidelity(
         sourceBytes,
@@ -214,6 +221,13 @@ export function SecurePage({ projectId, taskId, onTitleChange }: Props) {
             expectedHasJavaScript: security.sanitization.removeJavaScript ? false : undefined,
             allowJavaScriptRemoval: security.sanitization.removeOpenActions && !security.sanitization.removeJavaScript,
             coreMetadataMode: security.sanitization.removeMetadata ? "cleared" : "preserve",
+            linkDeltaByPage: security.sanitization.removeLinks ? {} : linkDeltaByPage,
+            annotationDeltaByPage: (security.sanitization.removeComments || security.sanitization.flattenAnnotations)
+              ? {} : annotationDeltaByPage,
+            expectNoLinksOnAffectedPages: security.sanitization.removeLinks,
+            allowAnnotationRemovalOnAffectedPages: security.sanitization.removeComments
+              || security.sanitization.removeAttachments || security.sanitization.flattenAnnotations
+              || (security.redaction.enabled && inspection.redactionMarkCount > 0),
             // P8 may change form states only when the user explicitly requested
             // these exact updates, creations, clearing, or flattening.
             formValueUpdates: security.sanitization.clearFormValues ? [] : formUpdates.map((field) => ({
