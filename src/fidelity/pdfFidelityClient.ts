@@ -57,7 +57,29 @@ function annotationCounts(annotations: any[]): Pick<PdfPageSemanticFingerprint, 
   return { annotationCount, linkCount, widgetCount };
 }
 
-function annotationEvidence(annotations: any[]): Pick<PdfPageSemanticFingerprint, "linkFingerprints" | "annotationFingerprints"> {
+async function canonicalLinkDestination(destination: unknown, document: any): Promise<unknown> {
+  if (!Array.isArray(destination)) return destination ?? null;
+  const [reference, ...view] = destination;
+  // An internal /GoTo target uses a PDF page reference, whose object number
+  // may change during a valid save. Resolve its semantic 1-based page number
+  // before comparing, while retaining the zoom/view operation and coordinates.
+  if (reference && typeof reference === "object"
+      && Number.isInteger(reference.num) && Number.isInteger(reference.gen)) {
+    const index = await document.getPageIndex(reference);
+    if (!Number.isInteger(index) || index < 0 || index >= document.numPages) {
+      throw new Error("Internal PDF link target could not be verified.");
+    }
+    return [index + 1, ...view];
+  }
+  // PDF.js also permits zero-based integer page indices in explicit
+  // destinations. Normalize both representation forms to 1-based semantics.
+  if (Number.isInteger(reference) && reference >= 0 && reference < document.numPages) {
+    return [reference + 1, ...view];
+  }
+  throw new Error("Internal PDF link destination cannot be verified.");
+}
+
+async function annotationEvidence(annotations: any[], document: any): Promise<Pick<PdfPageSemanticFingerprint, "linkFingerprints" | "annotationFingerprints">> {
   const links: string[] = [];
   const comments: string[] = [];
   const geometry = (rect: unknown): number[] =>
@@ -73,8 +95,9 @@ function annotationEvidence(annotations: any[]): Pick<PdfPageSemanticFingerprint
       links.push(JSON.stringify({
         rect,
         target: entry.url ?? entry.unsafeUrl ?? null,
-        destination: entry.dest ?? null,
-        action: entry.action ?? null
+        destination: await canonicalLinkDestination(entry.dest, document),
+        action: entry.action ?? null,
+        flags: entry.annotationFlags ?? 0
       }));
     } else {
       comments.push(JSON.stringify({
@@ -83,21 +106,24 @@ function annotationEvidence(annotations: any[]): Pick<PdfPageSemanticFingerprint
         contents: entry.contentsObj?.str ?? "",
         title: entry.titleObj?.str ?? "",
         subject: entry.subject ?? "",
-        color: entry.color ? Array.from(entry.color) : null
+        color: entry.color ? Array.from(entry.color) : null,
+        flags: entry.annotationFlags ?? 0
       }));
     }
   }
   return { linkFingerprints: links.sort(), annotationFingerprints: comments.sort() };
 }
 
-async function semanticFingerprint(page: any, pageNumber: number, deep: boolean): Promise<PdfPageSemanticFingerprint> {
+async function semanticFingerprint(page: any, pageNumber: number, deep: boolean, document: any): Promise<PdfPageSemanticFingerprint> {
   // Edited pages are intentionally allowed to change text, images and vectors.
   // Running PDF.js text/operator extraction there adds cost and can exercise
   // transient writer-specific content we never compare. For affected pages P8
   // therefore validates only annotations/widgets plus page geometry. Untouched
   // sampled pages still receive the full semantic fingerprint.
   if (!deep) {
-    const annotations = await page.getAnnotations({ intent: "display" });
+    // P8 is a preservation check, not a display-only rendering check.
+    // "display" excludes NoView annotations, including hidden review notes.
+    const annotations = await page.getAnnotations({ intent: "any" });
     return {
       pageNumber,
       textCharacters: 0,
@@ -105,14 +131,14 @@ async function semanticFingerprint(page: any, pageNumber: number, deep: boolean)
       imageOperations: 0,
       vectorOperations: 0,
       ...annotationCounts(annotations),
-      ...annotationEvidence(annotations)
+      ...(await annotationEvidence(annotations, document))
     };
   }
 
   const [text, operatorList, annotations] = await Promise.all([
     page.getTextContent({ includeMarkedContent: false }),
     page.getOperatorList(),
-    page.getAnnotations({ intent: "display" })
+    page.getAnnotations({ intent: "any" })
   ]);
 
   const pieces: string[] = [];
@@ -137,7 +163,7 @@ async function semanticFingerprint(page: any, pageNumber: number, deep: boolean)
     imageOperations,
     vectorOperations,
     ...annotationCounts(annotations),
-    ...annotationEvidence(annotations)
+    ...(await annotationEvidence(annotations, document))
   };
 }
 
@@ -239,7 +265,7 @@ export async function inspectPdfFidelityProfile(
           rotation: Number(pageAny.rotate ?? 0),
           userUnit: Number(pageAny.userUnit ?? 1)
         });
-        semantics.push(await semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber)));
+        semantics.push(await semanticFingerprint(page, pageNumber, !affectedSet.has(pageNumber), document));
       } finally {
         page.cleanup();
       }
